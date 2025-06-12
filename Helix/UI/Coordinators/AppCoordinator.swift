@@ -10,7 +10,8 @@ class AppCoordinator: ObservableObject {
     private let speakerDiarization: SpeakerDiarizationEngineProtocol
     private let voiceActivityDetector: VoiceActivityDetectorProtocol
     private let noiseReducer: NoiseReductionProcessorProtocol
-    private let transcriptionCoordinator: TranscriptionCoordinatorProtocol
+    // Transcription service
+    let transcriptionCoordinator: TranscriptionCoordinatorProtocol
     private let llmService: LLMServiceProtocol
     private let glassesManager: GlassesManagerProtocol
     private let hudRenderer: HUDRendererProtocol
