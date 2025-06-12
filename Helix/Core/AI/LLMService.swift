@@ -3,10 +3,13 @@ import Combine
 
 protocol LLMServiceProtocol {
     func analyzeConversation(_ context: ConversationContext) -> AnyPublisher<AnalysisResult, LLMError>
+    func analyzeWithCustomPrompt(_ prompt: String, context: ConversationContext) -> AnyPublisher<AnalysisResult, LLMError>
     func factCheck(_ claim: String, context: ConversationContext?) -> AnyPublisher<FactCheckResult, LLMError>
     func summarizeConversation(_ messages: [ConversationMessage]) -> AnyPublisher<String, LLMError>
     func detectClaims(in text: String) -> AnyPublisher<[FactualClaim], LLMError>
     func extractActionItems(from messages: [ConversationMessage]) -> AnyPublisher<[ActionItem], LLMError>
+    func setCurrentPersona(_ persona: AIPersona)
+    func generatePersonalizedResponse(_ messages: [ConversationMessage], conversationContext: Helix.ConversationContext) -> AnyPublisher<String, LLMError>
 }
 
 struct ConversationContext {
@@ -308,12 +311,21 @@ class LLMService: LLMServiceProtocol {
     private let rateLimiter: RateLimiter
     private let cacheManager: LLMCacheManager
     private let configManager: LLMConfigManager
+    private let promptManager: PromptManagerProtocol
+    private let contextDetector: ContextDetectorProtocol
     
     private var currentProvider: LLMProvider = .openai
     private let fallbackProviders: [LLMProvider] = [.anthropic, .openai]
+    private var currentPersona: AIPersona?
     
-    init(providers: [LLMProvider: LLMProviderProtocol], rateLimiter: RateLimiter = RateLimiter(), cacheManager: LLMCacheManager = LLMCacheManager()) {
+    init(providers: [LLMProvider: LLMProviderProtocol], 
+         promptManager: PromptManagerProtocol = PromptManager(),
+         contextDetector: ContextDetectorProtocol = ContextDetector(),
+         rateLimiter: RateLimiter = RateLimiter(), 
+         cacheManager: LLMCacheManager = LLMCacheManager()) {
         self.providers = providers
+        self.promptManager = promptManager
+        self.contextDetector = contextDetector
         self.rateLimiter = rateLimiter
         self.cacheManager = cacheManager
         self.configManager = LLMConfigManager()
@@ -334,6 +346,95 @@ class LLMService: LLMServiceProtocol {
             .handleEvents(receiveOutput: { [weak self] result in
                 self?.cacheManager.cacheResult(result, for: context)
             })
+            .eraseToAnyPublisher()
+    }
+    
+    // MARK: - Convenience LLMServiceProtocol methods
+    func factCheck(_ claim: String, context: ConversationContext? = nil) -> AnyPublisher<FactCheckResult, LLMError> {
+        // Build minimal context if none provided
+        let ctx: ConversationContext = context ?? ConversationContext(
+            messages: [ConversationMessage(id: UUID(), content: claim, speakerId: nil,
+                                          confidence: 1.0, timestamp: Date().timeIntervalSince1970,
+                                          isFinal: true, wordTimings: [], originalText: claim)],
+            speakers: [], analysisType: .factCheck
+        )
+        return analyzeConversation(ctx)
+            .tryMap { result in
+                guard case .factCheck(let fc) = result.content else {
+                    throw LLMError.responseParsingFailed
+                }
+                return fc
+            }
+            .mapError { $0 as? LLMError ?? .responseParsingFailed }
+            .eraseToAnyPublisher()
+    }
+
+    func summarizeConversation(_ messages: [ConversationMessage]) -> AnyPublisher<String, LLMError> {
+        let ctx = ConversationContext(messages: messages, speakers: [], analysisType: .summarization)
+        return analyzeConversation(ctx)
+            .tryMap { result in
+                if case .summary(let text) = result.content {
+                    return text
+                }
+                throw LLMError.responseParsingFailed
+            }
+            .mapError { $0 as? LLMError ?? .responseParsingFailed }
+            .eraseToAnyPublisher()
+    }
+
+    func detectClaims(in text: String) -> AnyPublisher<[FactualClaim], LLMError> {
+        // Simple rule-based claim detection: sentences containing digits
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?"))
+        let claims = sentences.compactMap { sentence -> FactualClaim? in
+            guard sentence.rangeOfCharacter(from: .decimalDigits) != nil else { return nil }
+            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let start = text.range(of: trimmed)?.lowerBound ?? text.startIndex
+            let end = text.range(of: trimmed)?.upperBound ?? text.endIndex
+            let nsRange = NSRange(start..<end, in: text)
+            return FactualClaim(
+                text: trimmed,
+                confidence: 0.9,
+                category: .general,
+                extractionMethod: .patternMatching,
+                context: trimmed,
+                position: ClaimPosition(startIndex: start, endIndex: end, characterRange: nsRange)
+            )
+        }
+        return Just(claims)
+            .setFailureType(to: LLMError.self)
+            .eraseToAnyPublisher()
+    }
+
+    func extractActionItems(from messages: [ConversationMessage]) -> AnyPublisher<[ActionItem], LLMError> {
+        let items = messages.map { msg in
+            ActionItem(description: msg.content, assignee: msg.speakerId)
+        }
+        return Just(items)
+            .setFailureType(to: LLMError.self)
+            .eraseToAnyPublisher()
+    }
+
+    func analyzeWithCustomPrompt(_ prompt: String, context: ConversationContext) -> AnyPublisher<AnalysisResult, LLMError> {
+        // Use prompt manager to build a custom context
+        let customCtx = ConversationContext(messages: context.messages, speakers: context.speakers, analysisType: context.analysisType)
+        return analyzeConversation(customCtx)
+    }
+
+    func setCurrentPersona(_ persona: AIPersona) {
+        currentPersona = persona
+    }
+
+    func generatePersonalizedResponse(_ messages: [ConversationMessage], conversationContext: ConversationContext) -> AnyPublisher<String, LLMError> {
+        let ctx = ConversationContext(messages: messages, speakers: conversationContext.speakers, analysisType: .clarification)
+        return analyzeConversation(ctx)
+            .tryMap { result in
+                switch result.content {
+                case .text(let str): return str
+                default: return ""
+                }
+            }
+            .mapError { $0 as? LLMError ?? .responseParsingFailed }
             .eraseToAnyPublisher()
     }
     
@@ -392,6 +493,58 @@ class LLMService: LLMServiceProtocol {
                     return items
                 } else {
                     return nil
+                }
+            }
+            .eraseToAnyPublisher()
+    }
+    
+    func analyzeWithCustomPrompt(_ prompt: String, context: ConversationContext) -> AnyPublisher<AnalysisResult, LLMError> {
+        // Create enhanced context with custom prompt
+        var enhancedContext = context
+        enhancedContext.metadata.tags.append("custom_prompt")
+        
+        // Use current persona if available, otherwise create temporary one
+        let persona = currentPersona ?? AIPersona(
+            name: "Custom Assistant",
+            description: "Custom prompt analysis",
+            systemPrompt: prompt,
+            tone: .balanced
+        )
+        
+        return executeWithFallback(context: enhancedContext, providers: [currentProvider] + fallbackProviders)
+            .eraseToAnyPublisher()
+    }
+    
+    func setCurrentPersona(_ persona: AIPersona) {
+        currentPersona = persona
+        promptManager.setCurrentPersona(persona)
+    }
+    
+    func generatePersonalizedResponse(_ messages: [ConversationMessage], conversationContext: Helix.ConversationContext) -> AnyPublisher<String, LLMError> {
+        // Detect conversation context automatically
+        let detectedContext = contextDetector.detectContext(from: messages)
+        
+        // Generate personalized prompt using current persona and context
+        let systemPrompt = promptManager.generatePrompt(for: detectedContext, with: [
+            "conversation_type": detectedContext.description,
+            "speaker_count": "\(conversationContext.speakers.count)",
+            "message_count": "\(messages.count)"
+        ])
+        
+        // Create analysis context for response generation
+        let analysisContext = ConversationContext(
+            messages: messages,
+            speakers: conversationContext.speakers,
+            analysisType: .clarification,
+            metadata: ConversationMetadata(tags: ["personalized", "response_generation"])
+        )
+        
+        return analyzeWithCustomPrompt(systemPrompt, context: analysisContext)
+            .compactMap { result in
+                if case .text(let response) = result.content {
+                    return response
+                } else {
+                    return "Generated response based on conversation analysis"
                 }
             }
             .eraseToAnyPublisher()

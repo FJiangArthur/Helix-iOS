@@ -29,6 +29,18 @@ class AppCoordinator: ObservableObject {
     // Settings
     @Published var settings = AppSettings()
     
+    // Conversation timing
+    private var conversationStartDate: Date?
+    private var durationTimer: AnyCancellable?
+    
+    /// Number of messages in the current conversation
+    var messageCount: Int {
+        currentConversation.count
+    }
+    
+    /// Elapsed duration of the current conversation (seconds)
+    @Published var conversationDuration: TimeInterval = 0
+    
     private var cancellables = Set<AnyCancellable>()
     
     init() {
@@ -69,7 +81,18 @@ class AppCoordinator: ObservableObject {
         
         isRecording = true
         isProcessing = true
+        // Reset conversation history and timing
         currentConversation.removeAll()
+        conversationStartDate = Date()
+        // Reset duration and start timer
+        conversationDuration = 0
+        durationTimer?.cancel()
+        durationTimer = Timer.publish(every: 1.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                guard let self = self, let start = self.conversationStartDate else { return }
+                self.conversationDuration = Date().timeIntervalSince(start)
+            }
         
         transcriptionCoordinator.startConversationTranscription()
     }
@@ -79,6 +102,8 @@ class AppCoordinator: ObservableObject {
         
         isRecording = false
         isProcessing = false
+        // Stop duration timer
+        durationTimer?.cancel()
         
         transcriptionCoordinator.stopConversationTranscription()
     }
@@ -115,10 +140,14 @@ class AppCoordinator: ObservableObject {
     }
     
     func clearConversation() {
+        // Clear all conversation data and timing
         currentConversation.removeAll()
         recentAnalysis.removeAll()
         conversationContext.clearHistory()
         hudRenderer.clearAll()
+        conversationStartDate = nil
+        conversationDuration = 0
+        durationTimer?.cancel()
     }
     
     func exportConversation() -> ConversationExport {
@@ -301,22 +330,12 @@ struct AppSettings: Codable {
 // MARK: - Extensions
 
 extension AppCoordinator {
+    /// Whether the glasses are currently connected
     var isConnectedToGlasses: Bool {
         connectionState.isConnected
     }
     
-    var conversationDuration: TimeInterval {
-        guard let firstMessage = currentConversation.first,
-              let lastMessage = currentConversation.last else {
-            return 0
-        }
-        return lastMessage.timestamp - firstMessage.timestamp
-    }
-    
-    var messageCount: Int {
-        currentConversation.count
-    }
-    
+    /// Number of unique speakers in the current conversation
     var speakerCount: Int {
         Set(currentConversation.compactMap { $0.speakerId }).count
     }

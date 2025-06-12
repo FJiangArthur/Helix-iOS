@@ -114,13 +114,13 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         }
         
         processingQueue.async { [weak self] in
-            self?.setupRecognitionRequest()
+            guard let self = self else { return }
+            self.setupRecognitionRequest()
         }
     }
     
     func stopRecognition() {
         guard isCurrentlyRecognizing else { return }
-        
         processingQueue.async { [weak self] in
             self?.cleanupRecognition()
         }
@@ -172,8 +172,9 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
     }
     
     private func setupRecognitionRequest() {
-        // Cancel any existing task
+        // Cancel and clean up any existing task
         recognitionTask?.cancel()
+        recognitionRequest?.endAudio()
         recognitionTask = nil
         
         // Create new recognition request
@@ -194,9 +195,53 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         }
         
         // Start recognition task
-        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest!) { [weak self] result, error in
             self?.handleRecognitionResult(result: result, error: error)
         }
+        isCurrentlyRecognizing = true
+    private func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
+        if let error = error {
+            transcriptionSubject.send(completion: .failure(.recognitionFailed(error)))
+            isCurrentlyRecognizing = false
+            return
+        }
+        guard let result = result else { return }
+        // Build word timings
+        let segments = result.bestTranscription.segments
+        let wordTimings = segments.map { seg in
+            WordTiming(
+                word: seg.substring,
+                startTime: seg.timestamp,
+                endTime: seg.timestamp + seg.duration,
+                confidence: seg.confidence
+            )
+        }
+        // Confidence: use result.transcriptions first best confidence average
+        let confidences = segments.map { $0.confidence }
+        let avgConfidence = confidences.isEmpty ? 0.0 : confidences.reduce(0, +) / Float(confidences.count)
+        // Alternatives
+        let alternatives = result.transcriptions.map { $0.formattedString }
+        let transcription = TranscriptionResult(
+            text: result.bestTranscription.formattedString,
+            speakerId: nil,
+            confidence: avgConfidence,
+            isFinal: result.isFinal,
+            wordTimings: wordTimings,
+            alternatives: alternatives
+        )
+        transcriptionSubject.send(transcription)
+        if result.isFinal {
+            // After final result, end audio or prepare for next
+        }
+    }
+
+    private func cleanupRecognition() {
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        recognitionRequest = nil
+        recognitionTask = nil
+        isCurrentlyRecognizing = false
+    }
         
         isCurrentlyRecognizing = true
         print("Started speech recognition")

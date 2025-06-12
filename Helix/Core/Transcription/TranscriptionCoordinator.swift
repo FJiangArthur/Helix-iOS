@@ -198,6 +198,18 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
             from: processedResult,
             speakerId: speakerInfo.speakerId
         )
+        // Determine if this is a new speaker
+        let isNew = (message.speakerId != nil) && (currentSpeakers[message.speakerId!] == nil)
+        // Lookup speaker object if exists
+        let speakerObj = message.speakerId.flatMap { currentSpeakers[$0] }
+        // Send update downstream
+        let update = ConversationUpdate(
+            message: message,
+            speaker: speakerObj,
+            isNewSpeaker: isNew,
+            timestamp: message.timestamp
+        )
+        conversationSubject.send(update)
         
         // Create conversation update
         let update = ConversationUpdate(
