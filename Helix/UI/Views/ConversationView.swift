@@ -1,9 +1,17 @@
 import SwiftUI
 
+import Helix_UI_ViewModels
+
 struct ConversationView: View {
     @EnvironmentObject var coordinator: AppCoordinator
+    @StateObject private var viewModel: ConversationViewModel
     @State private var showingSpeakerSheet = false
     @State private var isAutoScrollEnabled = true
+
+    /// Initialize with a transcription coordinator from the app coordinator
+    init(transcriptionCoordinator: TranscriptionCoordinatorProtocol) {
+        _viewModel = StateObject(wrappedValue: ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator))
+    }
     
     var body: some View {
         NavigationView {
@@ -51,12 +59,12 @@ struct ConversationView: View {
         .sheet(isPresented: $showingSpeakerSheet) {
             AddSpeakerSheet()
         }
-        .alert("Error", isPresented: .constant(coordinator.errorMessage != nil)) {
+        .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
             Button("OK") {
-                coordinator.errorMessage = nil
+                viewModel.errorMessage = nil
             }
         } message: {
-            Text(coordinator.errorMessage ?? "")
+            Text(viewModel.errorMessage ?? "")
         }
     }
     
