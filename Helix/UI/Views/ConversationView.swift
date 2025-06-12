@@ -1,35 +1,36 @@
 import SwiftUI
 
-import Helix_UI_ViewModels
-
 struct ConversationView: View {
     @EnvironmentObject var coordinator: AppCoordinator
     @StateObject private var viewModel: ConversationViewModel
     @State private var showingSpeakerSheet = false
     @State private var isAutoScrollEnabled = true
 
-    /// Initialize with a transcription coordinator from the app coordinator
-    init(transcriptionCoordinator: TranscriptionCoordinatorProtocol) {
-        _viewModel = StateObject(wrappedValue: ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator))
+    /// Initialize with a ViewModel
+    init(viewModel: ConversationViewModel) {
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // Status Bar
-                StatusBarView()
+        // Status Bar showing recording state and stats
+        StatusBarView(viewModel: viewModel)
                     .padding(.horizontal)
                     .padding(.top, 8)
                 
                 Divider()
                 
                 // Conversation Messages
-                ConversationScrollView(isAutoScrollEnabled: $isAutoScrollEnabled)
+                // Conversation messages list
+                ConversationScrollView(viewModel: viewModel, isAutoScrollEnabled: $isAutoScrollEnabled)
                 
                 Divider()
                 
                 // Control Panel
-                ControlPanelView(showingSpeakerSheet: $showingSpeakerSheet)
+                // Controls for recording, speakers, glasses
+                ControlPanelView(viewModel: viewModel, showingSpeakerSheet: $showingSpeakerSheet)
                     .padding()
             }
             .navigationTitle("Live Conversation")

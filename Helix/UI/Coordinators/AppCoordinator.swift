@@ -70,6 +70,8 @@ class AppCoordinator: ObservableObject {
         
         // Initialize conversation management
         self.conversationContext = ConversationContextManager()
+        // Initialize conversation view model
+        self.conversationViewModel = ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator)
         
         setupSubscriptions()
         setupDefaultSpeakers()
