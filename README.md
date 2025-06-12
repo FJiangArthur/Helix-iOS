@@ -1,4 +1,4 @@
-# Helix
+# Helix - Real Time Conversation Prompter for Even Realities G1S App
 
 Helix is an iOS companion app for Even Realities smart glasses that provides real-time conversation analysis and AI-powered insights displayed directly on the glasses HUD. The app processes live audio, performs speech-to-text conversion, and sends conversation data to LLM APIs for fact-checking, summarization, and contextual assistance.
 
