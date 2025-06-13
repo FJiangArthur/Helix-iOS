@@ -2,21 +2,17 @@ import SwiftUI
 
 struct ConversationView: View {
     @EnvironmentObject var coordinator: AppCoordinator
-    @StateObject private var viewModel: ConversationViewModel
+    private var viewModel: ConversationViewModel { coordinator.conversationViewModel }
     @State private var showingSpeakerSheet = false
     @State private var isAutoScrollEnabled = true
 
-    /// Initialize with a ViewModel
-    init(viewModel: ConversationViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
-    }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 // Status Bar
         // Status Bar showing recording state and stats
-        StatusBarView(viewModel: viewModel)
+                StatusBarView()
                     .padding(.horizontal)
                     .padding(.top, 8)
                 
@@ -24,13 +20,13 @@ struct ConversationView: View {
                 
                 // Conversation Messages
                 // Conversation messages list
-                ConversationScrollView(viewModel: viewModel, isAutoScrollEnabled: $isAutoScrollEnabled)
+                ConversationScrollView(isAutoScrollEnabled: $isAutoScrollEnabled)
                 
                 Divider()
                 
                 // Control Panel
                 // Controls for recording, speakers, glasses
-                ControlPanelView(viewModel: viewModel, showingSpeakerSheet: $showingSpeakerSheet)
+                ControlPanelView(showingSpeakerSheet: $showingSpeakerSheet)
                     .padding()
             }
             .navigationTitle("Live Conversation")

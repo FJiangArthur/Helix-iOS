@@ -15,7 +15,7 @@ struct AIPersona: Codable, Identifiable, Hashable {
     var systemPrompt: String
     var tone: PersonaTone
     var expertise: [String]
-    var contextualBehaviors: [ConversationContext: String]
+    var contextualBehaviors: [PromptConversationContext: String]
     var isBuiltIn: Bool
     var version: Int
     var createdDate: Date
@@ -62,8 +62,9 @@ enum PersonaTone: String, Codable, CaseIterable {
 
 // MARK: - Conversation Context Detection
 
-enum ConversationContext: String, Codable, CaseIterable {
-    case meeting = "meeting"
+/// Context categories for prompting
+enum PromptConversationContext: String, Codable, CaseIterable {
+        case meeting = "meeting"
     case casual = "casual"
     case interview = "interview"
     case presentation = "presentation"
@@ -195,8 +196,10 @@ enum PromptCategory: String, Codable, CaseIterable {
 // MARK: - Context Detector
 
 protocol ContextDetectorProtocol {
-    func detectContext(from messages: [ConversationMessage]) -> ConversationContext
-    func getContextConfidence(for context: ConversationContext, from messages: [ConversationMessage]) -> Float
+    /// Detects the prompt context category from conversation messages
+    func detectContext(from messages: [ConversationMessage]) -> PromptConversationContext
+    /// Returns confidence score for a given prompt context
+    func getContextConfidence(for context: PromptConversationContext, from messages: [ConversationMessage]) -> Float
 }
 
 class ContextDetector: ContextDetectorProtocol {

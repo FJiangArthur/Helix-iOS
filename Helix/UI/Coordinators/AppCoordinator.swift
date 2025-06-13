@@ -16,6 +16,8 @@ class AppCoordinator: ObservableObject {
     private let glassesManager: GlassesManagerProtocol
     private let hudRenderer: HUDRendererProtocol
     private let conversationContext: ConversationContextManager
+    /// ViewModel for the conversation view
+    let conversationViewModel: ConversationViewModel
     
     // Published state
     @Published var isRecording = false
@@ -188,6 +190,8 @@ class AppCoordinator: ObservableObject {
                     self?.isProcessing = false
                 }
             } receiveValue: { [weak self] update in
+                self?.conversationViewModel.messages.append(update.message)
+                self?.isProcessing = false
                 self?.handleConversationUpdate(update)
             }
             .store(in: &cancellables)
@@ -213,9 +217,15 @@ class AppCoordinator: ObservableObject {
             }
         }
         
-        // Process for AI analysis if enabled
-        if settings.enableFactChecking || settings.enableAutoSummary {
-            processMessageForAnalysis(update.message)
+        // Process for AI analysis based on settings
+        if settings.enableFactChecking {
+            processMessageForFactCheck(update.message)
+        }
+        if settings.enableAutoSummary {
+            processConversationSummary()
+        }
+        if settings.enableActionItems {
+            processConversationActionItems()
         }
         
         isProcessing = false
