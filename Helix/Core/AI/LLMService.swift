@@ -31,7 +31,7 @@ struct ConversationContext {
 struct ConversationMetadata {
     let sessionId: UUID
     let location: String?
-    let tags: [String]
+    var tags: [String]
     let priority: AnalysisPriority
     
     init(sessionId: UUID = UUID(), location: String? = nil, tags: [String] = [], priority: AnalysisPriority = .medium) {
@@ -101,7 +101,7 @@ struct FactCheckResult {
     let category: ClaimCategory
     let severity: FactCheckSeverity
     
-    enum FactCheckSeverity {
+    enum FactCheckSeverity: String, Codable {
         case minor
         case significant
         case critical
@@ -411,9 +411,19 @@ class LLMService: LLMServiceProtocol {
     }
     
     func analyzeWithCustomPrompt(_ prompt: String, context: ConversationContext) -> AnyPublisher<AnalysisResult, LLMError> {
-        // Create enhanced context with custom prompt
-        var enhancedContext = context
-        enhancedContext.metadata.tags.append("custom_prompt")
+        // Create enhanced context with custom prompt tag added (metadata is immutable)
+        let enhancedMetadata = ConversationMetadata(
+            sessionId: context.metadata.sessionId,
+            location: context.metadata.location,
+            tags: context.metadata.tags + ["custom_prompt"],
+            priority: context.metadata.priority
+        )
+        let enhancedContext = ConversationContext(
+            messages: context.messages,
+            speakers: context.speakers,
+            analysisType: context.analysisType,
+            metadata: enhancedMetadata
+        )
         
         // Use current persona if available, otherwise create temporary one
         let persona = currentPersona ?? AIPersona(
@@ -516,6 +526,7 @@ class RateLimiter {
     private let maxRequestsPerHour: Int = 1000
     private var requestTimestamps: [Date] = []
     private let queue = DispatchQueue(label: "rate.limiter", attributes: .concurrent)
+    private var cancellables = Set<AnyCancellable>()
     
     func execute<T>(_ operation: @escaping () -> AnyPublisher<T, LLMError>) -> AnyPublisher<T, LLMError> {
         return Future<T, LLMError> { [weak self] promise in
@@ -562,7 +573,7 @@ class RateLimiter {
                             promise(.success(value))
                         }
                     )
-                    .store(in: &Set<AnyCancellable>())
+                    .store(in: &self.cancellables)
             }
         }
         .eraseToAnyPublisher()
