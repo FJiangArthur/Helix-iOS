@@ -62,16 +62,14 @@ enum AudioFormat: String, CaseIterable, Codable {
         }
     }
     
-    var fileExtension: String {
-        return rawValue
-    }
+    var fileExtension: String { rawValue }
     
-    var avAudioFormat: AVAudioFormat.AudioFileFormat {
+    var avFileType: AVFileType {
         switch self {
         case .wav: return .wav
-        case .flac: return .wav // FLAC will be handled separately
+        case .flac: return .wav // replace with appropriate FLAC type if supported
         case .mp3: return .mp3
-        case .aac: return .mp4
+        case .aac: return .m4a // use M4A container for AAC-encoded audio
         case .m4a: return .m4a
         }
     }
@@ -225,8 +223,8 @@ class AdvancedRecordingManager: AdvancedRecordingManagerProtocol, ObservableObje
         
         let settings = currentSettingsSubject.value
         
-        // Request recording permission
-        guard await requestRecordingPermission() else {
+        // Request recording permission synchronously
+        guard requestRecordingPermission() else {
             throw RecordingError.permissionDenied
         }
         
@@ -449,12 +447,15 @@ class AdvancedRecordingManager: AdvancedRecordingManagerProtocol, ObservableObje
         installAudioTap()
     }
     
-    private func requestRecordingPermission() async -> Bool {
-        return await withCheckedContinuation { continuation in
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
-                continuation.resume(returning: granted)
-            }
+    private func requestRecordingPermission() -> Bool {
+        let semaphore = DispatchSemaphore(value: 0)
+        var granted = false
+        AVAudioSession.sharedInstance().requestRecordPermission { ok in
+            granted = ok
+            semaphore.signal()
         }
+        semaphore.wait()
+        return granted
     }
     
     private func configureAudioSession(for settings: AdvancedRecordingSettings) throws {

@@ -252,12 +252,12 @@ struct ModeContext {
     let messages: [ConversationMessage]
     let speakers: [Speaker]
     let currentSpeaker: Speaker?
-    let conversationType: ConversationContext
+    let conversationType: SocialContext
     let environmentalFactors: EnvironmentalFactors
     let userPreferences: UserPreferences
     let timestamp: TimeInterval
     
-    init(messages: [ConversationMessage], speakers: [Speaker], currentSpeaker: Speaker? = nil, conversationType: ConversationContext = .casual) {
+    init(messages: [ConversationMessage], speakers: [Speaker], currentSpeaker: Speaker? = nil, conversationType: SocialContext = .informal) {
         self.messages = messages
         self.speakers = speakers
         self.currentSpeaker = currentSpeaker
@@ -293,10 +293,10 @@ enum TimeOfDay: String, Codable {
 enum SocialContext: String, Codable {
     case formal = "formal"
     case informal = "informal"
+    case `public` = "public"
+    case `private` = "private"
     case professional = "professional"
     case personal = "personal"
-    case public = "public"
-    case private = "private"
     case unknown = "unknown"
 }
 
@@ -381,9 +381,9 @@ class GhostWriterMode: SpecializedModeHandler {
     func getConfidence(for context: ModeContext) -> Float {
         // Higher confidence in formal or professional settings
         switch context.conversationType {
-        case .meeting, .professional, .interview: return 0.9
-        case .negotiation, .presentation: return 0.8
-        default: return 0.6
+        case .formal, .professional: return 0.9
+        case .informal: return 0.6
+        default: return 0.4
         }
     }
     
@@ -453,12 +453,12 @@ class GhostWriterMode: SpecializedModeHandler {
         )
     }
     
-    private func mapToResponseContext(_ conversationType: ConversationContext) -> ResponseContext {
+    private func mapToResponseContext(_ conversationType: SocialContext) -> ResponseContext {
         switch conversationType {
-        case .meeting, .professional: return .professional
-        case .social: return .social
-        case .learning: return .academic
-        case .creative: return .creative
+        case .formal, .professional: return .professional
+        case .informal: return .social
+        case .`public`: return .social
+        case .`private`: return .personal
         default: return .general
         }
     }
@@ -494,15 +494,13 @@ class DevilsAdvocateMode: SpecializedModeHandler {
     
     func isApplicable(for context: ModeContext) -> Bool {
         // Devil's advocate is useful in debates, discussions, and decision-making
-        return context.conversationType == .debate || 
-               context.conversationType == .meeting ||
-               context.conversationType == .problem_solving
+        return context.conversationType == .formal || 
+               context.conversationType == .professional
     }
     
     func getConfidence(for context: ModeContext) -> Float {
         switch context.conversationType {
-        case .debate, .problem_solving: return 0.9
-        case .meeting, .brainstorming: return 0.7
+        case .formal, .professional: return 0.9
         default: return 0.4
         }
     }
@@ -562,11 +560,11 @@ class WingmanMode: SpecializedModeHandler {
     }
     
     func isApplicable(for context: ModeContext) -> Bool {
-        return context.conversationType == .social
+        return context.conversationType == .informal
     }
     
     func getConfidence(for context: ModeContext) -> Float {
-        return context.conversationType == .social ? 0.8 : 0.3
+        return context.conversationType == .informal ? 0.8 : 0.3
     }
 }
 
@@ -633,7 +631,7 @@ class SpeedNetworkingMode: SpecializedModeHandler {
     }
     
     func isApplicable(for context: ModeContext) -> Bool {
-        return context.conversationType == .social || context.conversationType == .professional
+        return context.conversationType == .informal || context.conversationType == .professional
     }
     
     func getConfidence(for context: ModeContext) -> Float {
@@ -656,11 +654,11 @@ class InterviewMode: SpecializedModeHandler {
     }
     
     func isApplicable(for context: ModeContext) -> Bool {
-        return context.conversationType == .interview
+        return context.conversationType == .professional
     }
     
     func getConfidence(for context: ModeContext) -> Float {
-        return context.conversationType == .interview ? 0.9 : 0.2
+        return context.conversationType == .professional ? 0.9 : 0.2
     }
 }
 
@@ -679,11 +677,11 @@ class CreativeCollaborationMode: SpecializedModeHandler {
     }
     
     func isApplicable(for context: ModeContext) -> Bool {
-        return context.conversationType == .creative || context.conversationType == .brainstorming
+        return context.conversationType == .informal || context.conversationType == .`public`
     }
     
     func getConfidence(for context: ModeContext) -> Float {
-        return context.conversationType == .creative ? 0.8 : 0.4
+        return context.conversationType == .informal ? 0.8 : 0.4
     }
 }
 

@@ -64,7 +64,7 @@ enum PersonaTone: String, Codable, CaseIterable {
 
 /// Context categories for prompting
 enum PromptConversationContext: String, Codable, CaseIterable {
-        case meeting = "meeting"
+    case meeting = "meeting"
     case casual = "casual"
     case interview = "interview"
     case presentation = "presentation"
@@ -96,18 +96,18 @@ enum PromptConversationContext: String, Codable, CaseIterable {
     
     var keywords: [String] {
         switch self {
-        case .meeting: return ["meeting", "agenda", "action items", "minutes", "discussion"]
-        case .casual: return ["chat", "talk", "hang out", "catch up", "conversation"]
-        case .interview: return ["interview", "questions", "candidate", "position", "qualifications"]
-        case .presentation: return ["present", "slides", "audience", "demonstrate", "explain"]
-        case .negotiation: return ["negotiate", "deal", "terms", "agreement", "compromise"]
-        case .learning: return ["learn", "teach", "explain", "understand", "education"]
-        case .social: return ["party", "event", "networking", "social", "friends"]
-        case .professional: return ["work", "business", "professional", "corporate", "office"]
-        case .creative: return ["creative", "design", "art", "brainstorm", "innovative"]
-        case .problem_solving: return ["problem", "solution", "fix", "troubleshoot", "resolve"]
-        case .debate: return ["debate", "argue", "discuss", "opinion", "perspective"]
-        case .brainstorming: return ["brainstorm", "ideas", "creative", "generate", "think"]
+        case .meeting: return ["meeting", "agenda", "minutes", "presentation", "discussion"]
+        case .casual: return ["hey", "hi", "hello", "how are you", "what's up"]
+        case .interview: return ["interview", "candidate", "position", "experience", "qualifications"]
+        case .presentation: return ["present", "slide", "audience", "speaker", "topic"]
+        case .negotiation: return ["deal", "terms", "agreement", "proposal", "offer"]
+        case .learning: return ["learn", "teach", "study", "education", "knowledge"]
+        case .social: return ["party", "event", "gathering", "friends", "social"]
+        case .professional: return ["work", "business", "project", "deadline", "meeting"]
+        case .creative: return ["idea", "creative", "design", "art", "innovation"]
+        case .problem_solving: return ["problem", "solution", "issue", "fix", "resolve"]
+        case .debate: return ["debate", "argument", "point", "counter", "discuss"]
+        case .brainstorming: return ["brainstorm", "idea", "generate", "creative", "solution"]
         }
     }
 }
@@ -203,7 +203,7 @@ protocol ContextDetectorProtocol {
 }
 
 class ContextDetector: ContextDetectorProtocol {
-    private let keywordWeights: [ConversationContext: Float] = [
+    private let keywordWeights: [PromptConversationContext: Float] = [
         .meeting: 1.0,
         .interview: 0.9,
         .presentation: 0.8,
@@ -218,15 +218,15 @@ class ContextDetector: ContextDetectorProtocol {
         .casual: 0.3
     ]
     
-    func detectContext(from messages: [ConversationMessage]) -> ConversationContext {
-        let scores = ConversationContext.allCases.map { context in
+    func detectContext(from messages: [ConversationMessage]) -> PromptConversationContext {
+        let scores = PromptConversationContext.allCases.map { context in
             (context, getContextConfidence(for: context, from: messages))
         }
         
         return scores.max(by: { $0.1 < $1.1 })?.0 ?? .casual
     }
     
-    func getContextConfidence(for context: ConversationContext, from messages: [ConversationMessage]) -> Float {
+    func getContextConfidence(for context: PromptConversationContext, from messages: [ConversationMessage]) -> Float {
         guard !messages.isEmpty else { return 0 }
         
         let combinedText = messages.map(\.content).joined(separator: " ").lowercased()
@@ -260,8 +260,8 @@ protocol PromptManagerProtocol {
     func updateTemplate(_ template: PromptTemplate) throws
     func deleteTemplate(_ templateId: UUID) throws
     
-    func generatePrompt(for context: ConversationContext, with data: [String: String]) -> String
-    func getPersonaForContext(_ context: ConversationContext) -> AIPersona?
+    func generatePrompt(for context: PromptConversationContext, with data: [String: String]) -> String
+    func getPersonaForContext(_ context: PromptConversationContext) -> AIPersona?
     func resetToDefaults()
 }
 
@@ -386,7 +386,7 @@ class PromptManager: PromptManagerProtocol, ObservableObject {
     
     // MARK: - Prompt Generation
     
-    func generatePrompt(for context: ConversationContext, with data: [String: String] = [:]) -> String {
+    func generatePrompt(for context: PromptConversationContext, with data: [String: String] = [:]) -> String {
         let persona = currentPersonaSubject.value ?? getPersonaForContext(context) ?? getDefaultPersona()
         let contextualBehavior = persona.contextualBehaviors[context] ?? ""
         
@@ -404,7 +404,7 @@ class PromptManager: PromptManagerProtocol, ObservableObject {
         return prompt
     }
     
-    func getPersonaForContext(_ context: ConversationContext) -> AIPersona? {
+    func getPersonaForContext(_ context: PromptConversationContext) -> AIPersona? {
         let personas = personasSubject.value
         
         // Look for personas with specific contextual behaviors for this context

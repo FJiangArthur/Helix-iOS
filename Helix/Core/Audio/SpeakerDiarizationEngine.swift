@@ -59,22 +59,6 @@ struct SpeakerEmbedding {
     }
 }
 
-struct Speaker {
-    let id: UUID
-    let name: String?
-    let isCurrentUser: Bool
-    var voiceModel: SpeakerModel?
-    let createdAt: Date
-    var lastSeen: Date?
-    
-    init(id: UUID = UUID(), name: String? = nil, isCurrentUser: Bool = false) {
-        self.id = id
-        self.name = name
-        self.isCurrentUser = isCurrentUser
-        self.createdAt = Date()
-    }
-}
-
 struct SpeakerModel {
     let speakerId: UUID
     let embeddings: [SpeakerEmbedding]
