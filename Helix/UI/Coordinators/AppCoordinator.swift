@@ -316,6 +316,32 @@ class AppCoordinator: ObservableObject {
         // Configure voice activity detection
         voiceActivityDetector.setSensitivity(settings.voiceSensitivity)
     }
+    
+    private func processMessageForFactCheck(_ message: ConversationMessage) {
+        processMessageForAnalysis(message)
+    }
+    
+    private func processConversationSummary() {
+        llmService.summarizeConversation(currentConversation)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] summary in
+                    // Handle summary
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    private func processConversationActionItems() {
+        llmService.extractActionItems(from: currentConversation)
+            .sink(
+                receiveCompletion: { _ in },
+                receiveValue: { [weak self] items in
+                    // Handle action items
+                }
+            )
+            .store(in: &cancellables)
+    }
 }
 
 // MARK: - App Settings

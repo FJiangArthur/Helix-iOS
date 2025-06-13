@@ -398,30 +398,19 @@ extension ConnectionState {
     }
 }
 
-extension HUDPosition {
-    var displayName: String {
-        switch (x, y) {
-        case (0.1, 0.1):
-            return "Top Left"
-        case (0.5, 0.1):
-            return "Top Center"
-        case (0.9, 0.1):
-            return "Top Right"
-        case (0.5, 0.5):
-            return "Center"
-        case (0.1, 0.9):
-            return "Bottom Left"
-        case (0.5, 0.9):
-            return "Bottom Center"
-        case (0.9, 0.9):
-            return "Bottom Right"
-        default:
-            return "Custom (\(Int(x*100)), \(Int(y*100)))"
-        }
+extension HUDPosition: Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(x)
+        hasher.combine(y)
+        hasher.combine(alignment)
+        hasher.combine(fontSize)
     }
     
-    var description: String {
-        return "\(x)-\(y)-\(alignment.rawValue)-\(fontSize.rawValue)"
+    static func == (lhs: HUDPosition, rhs: HUDPosition) -> Bool {
+        return lhs.x == rhs.x &&
+               lhs.y == rhs.y &&
+               lhs.alignment == rhs.alignment &&
+               lhs.fontSize == rhs.fontSize
     }
 }
 

@@ -33,7 +33,9 @@ struct TranscriptionResult {
     }
 }
 
-struct WordTiming {
+/// Represents timing information for a recognized word in transcription.
+/// Conforms to Codable and Hashable for use across display and data models.
+struct WordTiming: Codable, Hashable {
     let word: String
     let startTime: TimeInterval
     let endTime: TimeInterval

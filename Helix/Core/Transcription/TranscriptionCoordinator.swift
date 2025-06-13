@@ -401,12 +401,4 @@ extension ConversationMessage: Codable {
     }
 }
 
-extension WordTiming: Codable {}
-
-extension Speaker: Codable {
-    enum CodingKeys: String, CodingKey {
-        case id, name, isCurrentUser, createdAt, lastSeen
-    }
-}
-
 extension ConversationSummary: Codable {}
