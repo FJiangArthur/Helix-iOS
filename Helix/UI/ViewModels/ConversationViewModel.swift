@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import Helix_Core_Transcription
 
 /// ViewModel for live conversation transcription
 @MainActor
