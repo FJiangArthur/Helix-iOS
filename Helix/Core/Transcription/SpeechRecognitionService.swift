@@ -69,7 +69,7 @@ enum TranscriptionError: Error {
 }
 
 class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
-    private let speechRecognizer: SFSpeechRecognizer
+    private let speechRecognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     
@@ -93,14 +93,24 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
     }
     
     override init() {
-        guard let recognizer = SFSpeechRecognizer(locale: currentLocale) else {
-            fatalError("Speech recognizer not available for locale: \(currentLocale)")
+        // Try current locale first, then fall back to default
+        if let recognizer = SFSpeechRecognizer(locale: currentLocale) {
+            self.speechRecognizer = recognizer
+        } else if let recognizer = SFSpeechRecognizer() {
+            self.speechRecognizer = recognizer
+            print("Warning: Speech recognizer not available for locale \(currentLocale), using default")
+        } else if let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")) {
+            self.speechRecognizer = recognizer
+            print("Warning: Using fallback en-US locale for speech recognition")
+        } else {
+            // Speech recognition not available on this device/simulator
+            self.speechRecognizer = nil
+            print("Warning: Speech recognition not available on this device")
         }
         
-        self.speechRecognizer = recognizer
         super.init()
         
-        speechRecognizer.delegate = self
+        speechRecognizer?.delegate = self
         requestPermissions()
     }
     
@@ -110,7 +120,7 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
             return
         }
         
-        guard speechRecognizer.isAvailable else {
+        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
             transcriptionSubject.send(completion: .failure(.recognitionNotAvailable))
             return
         }
@@ -197,6 +207,11 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         }
         
         // Start recognition task
+        guard let speechRecognizer = speechRecognizer else {
+            transcriptionSubject.send(completion: .failure(.recognitionNotAvailable))
+            return
+        }
+        
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
             self?.handleRecognitionResult(result: result, error: error)
         }

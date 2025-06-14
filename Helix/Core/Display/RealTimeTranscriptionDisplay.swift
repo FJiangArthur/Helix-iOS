@@ -503,7 +503,8 @@ struct TranscriptionItemView: View {
     
     private var regularText: some View {
         Text(item.text)
-            .font(settings.fontFamily.font.scaleEffect(settings.textSize.scaleFactor))
+            .font(settings.fontFamily.font)
+            .scaleEffect(settings.textSize.scaleFactor)
             .foregroundColor(settings.textColor)
             .opacity(item.isFinal ? 1.0 : 0.7)
             .animation(.easeInOut(duration: 0.3), value: item.isFinal)
@@ -513,7 +514,8 @@ struct TranscriptionItemView: View {
         // Placeholder for word-by-word highlighting
         // This would implement real-time word highlighting based on timing
         Text(item.text)
-            .font(settings.fontFamily.font.scaleEffect(settings.textSize.scaleFactor))
+            .font(settings.fontFamily.font)
+            .scaleEffect(settings.textSize.scaleFactor)
             .foregroundColor(settings.textColor)
             .opacity(item.isFinal ? 1.0 : 0.7)
     }
@@ -619,14 +621,14 @@ class GlassesTranscriptionRenderer {
     private func mapToHUDPosition(_ position: DisplayPosition) -> HUDPosition {
         switch position {
         case .top: return .topCenter
-        case .center: return .center
+        case .center: return .topCenter
         case .bottom: return .bottomCenter
-        case .left: return .centerLeft
-        case .right: return .centerRight
+        case .left: return .topLeft
+        case .right: return .topRight
         case .topLeft: return .topLeft
         case .topRight: return .topRight
-        case .bottomLeft: return .bottomLeft
-        case .bottomRight: return .bottomRight
+        case .bottomLeft: return .topLeft
+        case .bottomRight: return .topRight
         }
     }
 }

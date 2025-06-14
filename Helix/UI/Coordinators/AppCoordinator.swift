@@ -47,13 +47,17 @@ class AppCoordinator: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     init() {
+        print("🚀 Initializing AppCoordinator...")
+        
         // Initialize core services
+        print("📱 Initializing audio services...")
         self.audioManager = AudioManager()
         self.speechRecognizer = SpeechRecognitionService()
         self.speakerDiarization = SpeakerDiarizationEngine()
         self.voiceActivityDetector = VoiceActivityDetector()
         self.noiseReducer = NoiseReductionProcessor()
         
+        print("🎤 Initializing transcription coordinator...")
         self.transcriptionCoordinator = TranscriptionCoordinator(
             audioManager: audioManager,
             speechRecognizer: speechRecognizer,
@@ -63,20 +67,26 @@ class AppCoordinator: ObservableObject {
         )
         
         // Initialize AI services
+        print("🤖 Initializing AI services...")
         let openAIProvider = OpenAIProvider(apiKey: AppSettings.default.openAIKey)
         self.llmService = LLMService(providers: [.openai: openAIProvider])
         
         // Initialize glasses services
+        print("👓 Initializing glasses services...")
         self.glassesManager = GlassesManager()
         self.hudRenderer = HUDRenderer(glassesManager: glassesManager)
         
         // Initialize conversation management
+        print("💬 Initializing conversation management...")
         self.conversationContext = ConversationContextManager()
         // Initialize conversation view model
         self.conversationViewModel = ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator)
         
+        print("🔗 Setting up subscriptions...")
         setupSubscriptions()
         setupDefaultSpeakers()
+        
+        print("✅ AppCoordinator initialization complete!")
     }
     
     // MARK: - Public Interface

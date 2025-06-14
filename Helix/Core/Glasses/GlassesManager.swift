@@ -74,7 +74,7 @@ struct DisplayResolution {
     let height: Int
 }
 
-struct HUDPosition {
+struct HUDPosition: Hashable {
     let x: Float // 0.0 to 1.0 (left to right)
     let y: Float // 0.0 to 1.0 (top to bottom)
     let alignment: TextAlignment
@@ -86,13 +86,13 @@ struct HUDPosition {
     static let topRight = HUDPosition(x: 0.9, y: 0.1, alignment: .right, fontSize: .small)
 }
 
-enum TextAlignment: String, CaseIterable {
+enum TextAlignment: String, CaseIterable, Hashable {
     case left = "left"
     case center = "center"
     case right = "right"
 }
 
-enum FontSize: String, CaseIterable {
+enum FontSize: String, CaseIterable, Hashable {
     case small = "small"
     case medium = "medium"
     case large = "large"
