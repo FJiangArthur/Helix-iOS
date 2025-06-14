@@ -469,7 +469,7 @@ class FaceRecognitionManager: FaceRecognitionManagerProtocol, ObservableObject {
     }
     
     func trainFaceModel(for personId: UUID, with images: [Data]) -> AnyPublisher<Void, FaceRecognitionError> {
-        return faceAnalyzer.trainModel(personId: personId, images: images)
+        return faceAnalyzer.trainFaceModel(personId: personId, images: images)
     }
     
     private func loadStoredProfiles() {
@@ -501,14 +501,14 @@ struct AttentionCue: Identifiable {
     }
 }
 
-enum AttentionCueType: String, CaseIterable {
+enum AttentionCueType: String, CaseIterable, Codable {
     case visual = "visual"
     case audio = "audio"
     case haptic = "haptic"
     case combined = "combined"
 }
 
-enum AttentionDirection: String, CaseIterable {
+enum AttentionDirection: String, CaseIterable, Codable, Hashable {
     case left = "left"
     case right = "right"
     case forward = "forward"
@@ -517,7 +517,7 @@ enum AttentionDirection: String, CaseIterable {
     case down = "down"
 }
 
-enum AttentionPriority: String, CaseIterable {
+enum AttentionPriority: String, CaseIterable, Codable, Hashable {
     case low = "low"
     case medium = "medium"
     case high = "high"
@@ -692,7 +692,7 @@ class FaceAnalyzer {
         .eraseToAnyPublisher()
     }
     
-    func trainModel(personId: UUID, images: [Data]) -> AnyPublisher<Void, FaceRecognitionError> {
+    func trainFaceModel(for personId: UUID, with images: [Data]) -> AnyPublisher<Void, FaceRecognitionError> {
         return Future { promise in
             // Simulate model training
             DispatchQueue.global().asyncAfter(deadline: .now() + 2.0) {

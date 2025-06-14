@@ -159,13 +159,6 @@ struct TranscriptionDisplayItem: Identifiable, Hashable {
     }
 }
 
-struct WordTiming: Codable, Hashable {
-    let word: String
-    let startTime: TimeInterval
-    let endTime: TimeInterval
-    let confidence: Float
-}
-
 // MARK: - Real-Time Transcription Display
 
 protocol RealTimeTranscriptionDisplayProtocol {
@@ -641,12 +634,13 @@ class GlassesTranscriptionRenderer {
 // MARK: - HUD Style Extension
 
 extension HUDStyle {
+    /// Style for real-time transcription HUD
     static let transcription = HUDStyle(
-        backgroundColor: Color.black.opacity(0.8),
-        textColor: .white,
-        font: .system(.body, design: .monospaced),
-        cornerRadius: 4,
-        padding: 8,
-        border: nil
+        color: .white,
+        backgroundColor: .black,
+        fontSize: .medium,
+        isBold: false,
+        isItalic: false,
+        opacity: 0.8
     )
 }

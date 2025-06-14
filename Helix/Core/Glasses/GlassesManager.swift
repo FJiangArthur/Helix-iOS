@@ -18,7 +18,7 @@ protocol GlassesManagerProtocol {
     func stopBatteryMonitoring()
 }
 
-enum ConnectionState {
+enum ConnectionState: Equatable {
     case disconnected
     case scanning
     case connecting
@@ -30,6 +30,20 @@ enum ConnectionState {
             return true
         }
         return false
+    }
+    
+    static func == (lhs: ConnectionState, rhs: ConnectionState) -> Bool {
+        switch (lhs, rhs) {
+        case (.disconnected, .disconnected),
+             (.scanning, .scanning),
+             (.connecting, .connecting),
+             (.connected, .connected):
+            return true
+        case let (.error(e1), .error(e2)):
+            return e1.localizedDescription == e2.localizedDescription
+        default:
+            return false
+        }
     }
 }
 
