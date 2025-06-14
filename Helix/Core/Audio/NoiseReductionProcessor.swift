@@ -177,7 +177,7 @@ class NoiseReductionProcessor: NoiseReductionProcessorProtocol {
         }
         
         // Scale by 1/N for IFFT
-        let scale = 1.0 / Float(fftSize)
+        var scale = 1.0 / Float(fftSize)
         vDSP_vsmul(result, 1, &scale, &result, 1, vDSP_Length(fftSize))
         
         return result
@@ -209,7 +209,7 @@ class NoiseReductionProcessor: NoiseReductionProcessorProtocol {
         vDSP_maxv(output, 1, &maxValue, vDSP_Length(frameCount))
         
         if maxValue > 0 {
-            let scale = 0.95 / maxValue
+            var scale = 0.95 / maxValue
             vDSP_vsmul(output, 1, &scale, output, 1, vDSP_Length(frameCount))
         }
     }
