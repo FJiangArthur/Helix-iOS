@@ -182,6 +182,19 @@ enum ActionItemPriority: String {
     case medium = "medium"
     case high = "high"
     case urgent = "urgent"
+    
+    var displayDuration: TimeInterval {
+        switch self {
+        case .low:
+            return 5.0
+        case .medium:
+            return 8.0
+        case .high:
+            return 10.0
+        case .urgent:
+            return 15.0
+        }
+    }
 }
 
 enum ActionItemCategory: String {
@@ -475,7 +488,7 @@ class LLMService: LLMServiceProtocol {
     private func selectProvider(for analysisType: AnalysisType) -> LLMProvider {
         switch analysisType {
         case .factCheck:
-            return .anthropic // Claude is good for fact-checking
+            return .anthropic // Anthropic? is good for fact-checking
         case .summarization, .actionItems:
             return .openai // GPT is good for structured tasks
         case .sentiment, .keyTopics:
