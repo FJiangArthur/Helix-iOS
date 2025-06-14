@@ -262,8 +262,8 @@ struct TestDisplaySheet: View {
                 
                 Section("Position") {
                     Picker("Position", selection: $selectedPosition) {
-                        ForEach(positions, id: \.description) { position in
-                            Text(position.displayName)
+                        ForEach(Array(positions.enumerated()), id: \.offset) { index, position in
+                            Text("Position \(index + 1)")
                                 .tag(position)
                         }
                     }
@@ -328,7 +328,7 @@ struct TestDisplaySheet: View {
         // TODO: Implement with actual HUD renderer
         print("Sending test display with settings:")
         print("Message: \(testMessage)")
-        print("Position: \(selectedPosition.displayName)")
+        print("Position: x=\(selectedPosition.x), y=\(selectedPosition.y)")
         print("Color: \(selectedColor.rawValue)")
         print("Size: \(selectedSize.rawValue)")
         print("Duration: \(duration)")
@@ -339,6 +339,13 @@ struct TestDisplaySheet: View {
 }
 
 // MARK: - Extensions
+
+extension Color {
+    init(_ hudColor: HUDColor) {
+        let rgb = hudColor.rgbValues
+        self.init(red: Double(rgb.r), green: Double(rgb.g), blue: Double(rgb.b))
+    }
+}
 
 extension ConnectionState {
     var statusDescription: String {
@@ -398,28 +405,6 @@ extension ConnectionState {
     }
 }
 
-extension HUDPosition: Hashable {
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(x)
-        hasher.combine(y)
-        hasher.combine(alignment)
-        hasher.combine(fontSize)
-    }
-    
-    static func == (lhs: HUDPosition, rhs: HUDPosition) -> Bool {
-        return lhs.x == rhs.x &&
-               lhs.y == rhs.y &&
-               lhs.alignment == rhs.alignment &&
-               lhs.fontSize == rhs.fontSize
-    }
-}
-
-extension Color {
-    init(_ hudColor: HUDColor) {
-        let rgb = hudColor.rgbValues
-        self.init(red: Double(rgb.r), green: Double(rgb.g), blue: Double(rgb.b))
-    }
-}
 
 #Preview {
     GlassesView()

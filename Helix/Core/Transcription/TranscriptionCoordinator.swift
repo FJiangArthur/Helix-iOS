@@ -38,6 +38,17 @@ struct ConversationMessage {
         self.wordTimings = transcriptionResult.wordTimings
         self.originalText = transcriptionResult.text
     }
+    
+    init(content: String, speakerId: UUID?, confidence: Float, timestamp: TimeInterval, isFinal: Bool, wordTimings: [WordTiming], originalText: String) {
+        self.id = UUID()
+        self.content = content
+        self.speakerId = speakerId
+        self.confidence = confidence
+        self.timestamp = timestamp
+        self.isFinal = isFinal
+        self.wordTimings = wordTimings
+        self.originalText = originalText
+    }
 }
 
 class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
@@ -328,13 +339,13 @@ class ConversationContextManager {
             let wordCount = message.content.components(separatedBy: .whitespacesAndNewlines).count
             let messageDuration = message.wordTimings.last?.endTime ?? 0.0 - (message.wordTimings.first?.startTime ?? 0.0)
             
-            speakerStats[speakerId]?.messageCount += 1
-            speakerStats[speakerId]?.totalWords += wordCount
-            if let currentStats = speakerStats[speakerId] {
-                let newConfidence = (currentStats.averageConfidence + message.confidence) / 2.0
-                speakerStats[speakerId]?.averageConfidence = newConfidence
-            }
-            speakerStats[speakerId]?.speakingTime += messageDuration
+            var currentStats = speakerStats[speakerId]!
+            currentStats.messageCount += 1
+            currentStats.totalWords += wordCount
+            let newConfidence = (currentStats.averageConfidence + message.confidence) / 2.0
+            currentStats.averageConfidence = newConfidence
+            currentStats.speakingTime += messageDuration
+            speakerStats[speakerId] = currentStats
         }
         
         return Array(speakerStats.values)
@@ -382,7 +393,8 @@ struct SpeakerStatistics {
     }
 }
 
-struct ConversationExport: Codable {
+struct ConversationExport: Codable, Identifiable {
+    let id: UUID = UUID()
     let messages: [ConversationMessage]
     let speakers: [Speaker]
     let summary: ConversationSummary

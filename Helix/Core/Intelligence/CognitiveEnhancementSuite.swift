@@ -469,7 +469,7 @@ class FaceRecognitionManager: FaceRecognitionManagerProtocol, ObservableObject {
     }
     
     func trainFaceModel(for personId: UUID, with images: [Data]) -> AnyPublisher<Void, FaceRecognitionError> {
-        return faceAnalyzer.trainFaceModel(personId: personId, images: images)
+        return faceAnalyzer.trainFaceModel(for: personId, with: images)
     }
     
     private func loadStoredProfiles() {
@@ -622,7 +622,7 @@ class AttentionDirectionSystem: AttentionDirectionSystemProtocol, ObservableObje
             direction: direction,
             intensity: 0.7,
             priority: .medium,
-            reason: "\(speaker.name) is speaking"
+            reason: "\(speaker.name ?? "Unknown speaker") is speaking"
         )
     }
     
@@ -734,7 +734,7 @@ enum MemoryPalaceError: LocalizedError {
 
 enum FaceRecognitionError: LocalizedError {
     case noFaceDetected
-    case multiplefacesDetected
+    case multipleFacesDetected
     case embeddingGenerationFailed
     case modelTrainingFailed
     case permissionDenied
@@ -743,7 +743,7 @@ enum FaceRecognitionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noFaceDetected: return "No face detected in image"
-        case .multipleTracesDetected: return "Multiple faces detected"
+        case .multipleFacesDetected: return "Multiple faces detected"
         case .embeddingGenerationFailed: return "Failed to generate face embedding"
         case .modelTrainingFailed: return "Face model training failed"
         case .permissionDenied: return "Camera permission denied"

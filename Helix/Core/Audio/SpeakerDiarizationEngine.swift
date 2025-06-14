@@ -26,11 +26,11 @@ struct AudioSegment {
     let energy: Float
 }
 
-struct SpeakerEmbedding {
-    let features: [Float]
-    let dimension: Int
+public struct SpeakerEmbedding: Codable {
+    public let features: [Float]
+    public let dimension: Int
     
-    init(features: [Float]) {
+    public init(features: [Float]) {
         self.features = features
         self.dimension = features.count
     }
@@ -59,14 +59,14 @@ struct SpeakerEmbedding {
     }
 }
 
-struct SpeakerModel {
-    let speakerId: UUID
-    let embeddings: [SpeakerEmbedding]
-    let centroid: SpeakerEmbedding
-    let threshold: Float
-    let trainingCount: Int
+public struct SpeakerModel: Codable {
+    public let speakerId: UUID
+    public let embeddings: [SpeakerEmbedding]
+    public let centroid: SpeakerEmbedding
+    public let threshold: Float
+    public let trainingCount: Int
     
-    init(speakerId: UUID, embeddings: [SpeakerEmbedding]) {
+    public init(speakerId: UUID, embeddings: [SpeakerEmbedding]) {
         self.speakerId = speakerId
         self.embeddings = embeddings
         self.centroid = SpeakerModel.calculateCentroid(from: embeddings)

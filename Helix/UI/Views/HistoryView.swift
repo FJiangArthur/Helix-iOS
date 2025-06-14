@@ -82,10 +82,15 @@ struct HistoryView: View {
             Speaker(name: "Bob", isCurrentUser: false)
         ]
         
-        conversationHistory = (1...5).map { index in
-            let messages = (1...Int.random(in: 3...8)).map { messageIndex in
-                ConversationMessage(
-                    content: "This is message \(messageIndex) from conversation \(index). It contains some sample content to demonstrate the conversation history feature.",
+        var tempHistory: [ConversationExport] = []
+        
+        for index in 1...5 {
+            let messageCount = Int.random(in: 3...8)
+            var messages: [ConversationMessage] = []
+            
+            for messageIndex in 1...messageCount {
+                let message = ConversationMessage(
+                    content: "This is message \(messageIndex) from conversation \(index). Sample content.",
                     speakerId: mockSpeakers.randomElement()?.id,
                     confidence: Float.random(in: 0.7...0.95),
                     timestamp: Date().addingTimeInterval(-TimeInterval(index * 3600 + messageIndex * 60)).timeIntervalSince1970,
@@ -93,24 +98,29 @@ struct HistoryView: View {
                     wordTimings: [],
                     originalText: "Original text \(messageIndex)"
                 )
+                messages.append(message)
             }
             
+            let avgConfidence = messages.map(\.confidence).reduce(0, +) / Float(messages.count)
             let summary = ConversationSummary(
                 messageCount: messages.count,
                 speakerCount: mockSpeakers.count,
                 duration: TimeInterval(messages.count * 30),
-                averageConfidence: messages.map(\.confidence).reduce(0, +) / Float(messages.count),
+                averageConfidence: avgConfidence,
                 startTime: messages.first?.timestamp ?? 0,
                 endTime: messages.last?.timestamp ?? 0
             )
             
-            return ConversationExport(
+            let export = ConversationExport(
                 messages: messages,
                 speakers: mockSpeakers,
                 summary: summary,
                 exportDate: Date().addingTimeInterval(-TimeInterval(index * 3600))
             )
+            tempHistory.append(export)
         }
+        
+        conversationHistory = tempHistory
     }
     
     private func exportCurrentSession() {
