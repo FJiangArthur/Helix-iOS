@@ -63,7 +63,7 @@ class AppCoordinator: ObservableObject {
         )
         
         // Initialize AI services
-        let openAIProvider = OpenAIProvider(apiKey: settings.openAIKey)
+        let openAIProvider = OpenAIProvider(apiKey: AppSettings.default.openAIKey)
         self.llmService = LLMService(providers: [.openai: openAIProvider])
         
         // Initialize glasses services
@@ -346,7 +346,7 @@ class AppCoordinator: ObservableObject {
 
 // MARK: - App Settings
 
-struct AppSettings: Codable {
+struct AppSettings: Codable, Equatable {
     var openAIKey: String = ""
     var anthropicKey: String = ""
     var enableFactChecking: Bool = true
