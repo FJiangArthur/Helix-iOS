@@ -46,47 +46,91 @@ class AppCoordinator: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     
-    init() {
+    /// Initialise the coordinator.
+    /// - Parameters:
+    ///   - enableAudio: If `false`, skips setting up `AudioManager`, `VoiceActivityDetector`, `NoiseReductionProcessor` and related pipes.
+    ///   - enableSpeech: If `false`, skips the `SpeechRecognitionService`.
+    ///   - enableBluetooth: If `false`, the glasses / HUD stack is not initialised.
+    ///   - enableAI: If `false`, the LLM stack is not initialised.
+    ///   - settings: Optional initial app settings instance.  If `nil`, the default value is used.
+    init(enableAudio: Bool = true,
+         enableSpeech: Bool = true,
+         enableBluetooth: Bool = true,
+         enableAI: Bool = true,
+         initialSettings settings: AppSettings = AppSettings()) {
         print("🚀 Initializing AppCoordinator...")
         
-        // Initialize core services
-        print("📱 Initializing audio services...")
-        self.audioManager = AudioManager()
-        self.speechRecognizer = SpeechRecognitionService()
-        self.speakerDiarization = SpeakerDiarizationEngine()
-        self.voiceActivityDetector = VoiceActivityDetector()
-        self.noiseReducer = NoiseReductionProcessor()
-        
-        print("🎤 Initializing transcription coordinator...")
+        // ----- CORE AUDIO / SPEECH STACK -----
+        if enableAudio {
+            print("📱 Initializing audio services…")
+            self.audioManager = AudioManager()
+            self.voiceActivityDetector = VoiceActivityDetector()
+            self.noiseReducer = NoiseReductionProcessor()
+        } else {
+            self.audioManager = NoopAudioManager()
+            self.voiceActivityDetector = NoopVoiceActivityDetector()
+            self.noiseReducer = NoopNoiseReductionProcessor()
+        }
+
+        if enableSpeech {
+            self.speechRecognizer = SpeechRecognitionService()
+            self.speakerDiarization = SpeakerDiarizationEngine()
+        } else {
+            self.speechRecognizer = NoopSpeechRecognitionService()
+            self.speakerDiarization = NoopSpeakerDiarizationEngine()
+        }
+
+        print("🎤 Initializing transcription coordinator…")
         self.transcriptionCoordinator = TranscriptionCoordinator(
-            audioManager: audioManager,
-            speechRecognizer: speechRecognizer,
-            speakerDiarization: speakerDiarization,
-            voiceActivityDetector: voiceActivityDetector,
-            noiseReducer: noiseReducer
+            audioManager: self.audioManager,
+            speechRecognizer: self.speechRecognizer,
+            speakerDiarization: self.speakerDiarization,
+            voiceActivityDetector: self.voiceActivityDetector,
+            noiseReducer: self.noiseReducer
         )
         
-        // Initialize AI services
-        print("🤖 Initializing AI services...")
-        let openAIProvider = OpenAIProvider(apiKey: AppSettings.default.openAIKey)
-        self.llmService = LLMService(providers: [.openai: openAIProvider])
+        // ----- AI STACK -----
+        if enableAI {
+            print("🤖 Initializing AI services…")
+            let openAIProvider = OpenAIProvider(apiKey: AppSettings.default.openAIKey)
+            self.llmService = LLMService(providers: [.openai: openAIProvider])
+        } else {
+            self.llmService = NoopLLMService()
+        }
         
-        // Initialize glasses services
-        print("👓 Initializing glasses services...")
-        self.glassesManager = GlassesManager()
-        self.hudRenderer = HUDRenderer(glassesManager: glassesManager)
+        // ----- GLASSES / HUD STACK -----
+        if enableBluetooth {
+            print("👓 Initializing glasses services…")
+            self.glassesManager = GlassesManager()
+            self.hudRenderer = HUDRenderer(glassesManager: self.glassesManager)
+        } else {
+            self.glassesManager = NoopGlassesManager()
+            self.hudRenderer = NoopHUDRenderer()
+        }
         
-        // Initialize conversation management
-        print("💬 Initializing conversation management...")
+        // ----- CONVERSATION CONTEXT -----
+        print("💬 Initializing conversation management…")
         self.conversationContext = ConversationContextManager()
         // Initialize conversation view model
-        self.conversationViewModel = ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator)
+        self.conversationViewModel = ConversationViewModel(transcriptionCoordinator: self.transcriptionCoordinator)
         
         print("🔗 Setting up subscriptions...")
         setupSubscriptions()
         setupDefaultSpeakers()
         
         print("✅ AppCoordinator initialization complete!")
+        // Apply initial settings
+        self.settings = settings
+        configureServices(with: settings)
+
+        print("✅ AppCoordinator initialization complete!")
+    }
+
+    /// Back-compat convenience initialiser so existing call-sites that do
+    /// `AppCoordinator()` continue to compile.  It simply forwards to the
+    /// designated initialiser with every subsystem enabled.
+    convenience init() {
+        self.init(enableAudio: true, enableSpeech: true, enableBluetooth: true, enableAI: true, initialSettings: AppSettings())
     }
     
     // MARK: - Public Interface

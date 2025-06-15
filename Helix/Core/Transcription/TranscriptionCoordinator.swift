@@ -210,7 +210,7 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
             speakerId: speakerInfo.speakerId
         )
         // Determine if this is a new speaker
-        let isNew = (message.speakerId != nil) && (currentSpeakers[message.speakerId!] == nil)
+        let isNew = message.speakerId.map { currentSpeakers[$0] == nil } ?? false
         // Lookup speaker object if exists
         let speakerObj = message.speakerId.flatMap { currentSpeakers[$0] }
         
