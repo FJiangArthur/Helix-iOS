@@ -399,6 +399,10 @@
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Helix uses Bluetooth to connect to Even Realities smart glasses for displaying real-time conversation insights, transcriptions, and AI analysis directly on your HUD.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Helix connects to Even Realities smart glasses via Bluetooth to display conversation analysis, transcriptions, and AI insights on your HUD in real-time.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Helix needs access to your microphone to capture audio for speech recognition, voice activity detection, and real-time conversation transcription. Audio is processed locally and used for AI analysis and smart glasses display.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Helix uses speech recognition to convert your spoken words into text for real-time conversation analysis and transcription. This enables AI-powered insights and fact-checking displayed on your smart glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,6 +432,10 @@
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Helix uses Bluetooth to connect to Even Realities smart glasses for displaying real-time conversation insights, transcriptions, and AI analysis directly on your HUD.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Helix connects to Even Realities smart glasses via Bluetooth to display conversation analysis, transcriptions, and AI insights on your HUD in real-time.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Helix needs access to your microphone to capture audio for speech recognition, voice activity detection, and real-time conversation transcription. Audio is processed locally and used for AI analysis and smart glasses display.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Helix uses speech recognition to convert your spoken words into text for real-time conversation analysis and transcription. This enables AI-powered insights and fact-checking displayed on your smart glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
