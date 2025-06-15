@@ -3,7 +3,7 @@ import SwiftUI
 import Combine
 
 // MARK: - Debug Launcher for Service Isolation Testing
-// This implements the systematic debug plan from CLAUDE.local.md
+
 
 struct DebugConfiguration {
     let enableAudio: Bool
