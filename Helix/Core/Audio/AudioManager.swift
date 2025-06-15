@@ -116,8 +116,14 @@ class AudioManager: NSObject, AudioManagerProtocol {
         processingQueue.asyncAfter(deadline: .now() + testBufferDuration) { [weak self] in
             guard let self = self, self.testRecording else { return }
             // create silent buffer
-            let format = AVAudioFormat(standardFormatWithSampleRate: self.testSampleRate, channels: 1)!
-            let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024)!
+            guard let format = AVAudioFormat(standardFormatWithSampleRate: self.testSampleRate, channels: 1) else {
+                print("❌ AudioManager: Failed to create audio format")
+                return
+            }
+            guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1024) else {
+                print("❌ AudioManager: Failed to create audio buffer")
+                return
+            }
             buffer.frameLength = 1024
             let processed = ProcessedAudio(
                 buffer: buffer,

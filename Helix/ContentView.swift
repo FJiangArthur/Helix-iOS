@@ -7,12 +7,25 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var appCoordinator = AppCoordinator()
+    @StateObject private var appCoordinator: AppCoordinator
     @State private var hasError = false
     @State private var errorMessage = ""
+    @State private var showDebugLauncher = false
+    
+    // Initialize with debug configuration if in debug mode
+    init() {
+        let debugConfig = DebugLauncher.getCurrentConfiguration()
+        let coordinator = DebugLauncher.createAppCoordinator(with: debugConfig)
+        self._appCoordinator = StateObject(wrappedValue: coordinator)
+        
+        // Show debug launcher in debug builds with specific environment variable
+        self._showDebugLauncher = State(initialValue: ProcessInfo.processInfo.environment["SHOW_DEBUG_LAUNCHER"] == "true")
+    }
     
     var body: some View {
-        if hasError {
+        if showDebugLauncher {
+            DebugConfigurationView()
+        } else if hasError {
             VStack(spacing: 20) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 50))
@@ -27,11 +40,18 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
                     .padding()
                 
-                Button("Try Again") {
-                    hasError = false
-                    // Could trigger a re-initialization here
+                VStack(spacing: 12) {
+                    Button("Try Again") {
+                        hasError = false
+                        // Could trigger a re-initialization here
+                    }
+                    .buttonStyle(.borderedProminent)
+                    
+                    Button("Debug Launcher") {
+                        showDebugLauncher = true
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.borderedProminent)
             }
             .padding()
         } else {
@@ -43,7 +63,18 @@ struct ContentView: View {
                 // Test if AppCoordinator initialized successfully
                 if appCoordinator.connectionState == .error(.serviceUnavailable) {
                     hasError = true
-                    errorMessage = "Some services failed to initialize. This is normal in simulator."
+                    errorMessage = "Some services failed to initialize. Check debug logs for details."
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                        Button("Debug") {
+                            showDebugLauncher = true
+                        }
+                    } else {
+                        EmptyView()
+                    }
                 }
             }
         }
