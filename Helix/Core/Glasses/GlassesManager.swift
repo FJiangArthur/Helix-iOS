@@ -307,10 +307,31 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
     private var cancellables = Set<AnyCancellable>()
     
     // Even Realities specific UUIDs (example UUIDs - replace with actual ones)
-    private let serviceUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABC")
-    private let displayCharacteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABD")
-    private let batteryCharacteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABE")
-    private let gestureCharacteristicUUID = CBUUID(string: "12345678-1234-1234-1234-123456789ABF")
+    // Even Realities smart-glasses expose a Nordic UART service that we use
+    // for bidirectional messaging.  The official demo app (and the Python
+    // SDK inside libs/even_glasses) connects to UUID
+    // 6E400001-B5A3-F393-E0A9-E50E24DCCA9E.  Using a placeholder UUID here
+    // prevented Helix from discovering the devices even though they were
+    // already paired at the OS level.  Replacing it with the correct service
+    // identifier makes CoreBluetooth discover the “Even G1_…“ peripherals
+    // immediately.
+
+    private let serviceUUID = CBUUID(string: "6E400001-B5A3-F393-E0A9-E50E24DCCA9E")
+    // Even Realities relies on the Nordic UART profile for bidirectional
+    // messaging.  The glasses expose two characteristics under the UART
+    // service:
+    //   • TX (6E400002-…):  central -> peripheral (WRITE/WRITE_WO_RESPONSE)
+    //   • RX (6E400003-…):  peripheral -> central (READ/NOTIFY)
+    //
+    // We use the TX characteristic for all outbound commands (display
+    // updates, settings, etc.).  The RX characteristic is mapped to
+    // `gestureCharacteristicUUID` so that we can receive touch-surface and
+    // button events.  For battery information the glasses advertise the
+    // standard Battery Level characteristic 0x2A19 under the Battery
+    // Service 0x180F.
+    private let displayCharacteristicUUID = CBUUID(string: "6E400002-B5A3-F393-E0A9-E50E24DCCA9E") // UART TX (write)
+    private let batteryCharacteristicUUID = CBUUID(string: "2A19")                                     // Battery Level
+    private let gestureCharacteristicUUID = CBUUID(string: "6E400003-B5A3-F393-E0A9-E50E24DCCA9E") // UART RX (notify)
     
     var connectionState: AnyPublisher<ConnectionState, Never> {
         connectionStateSubject.eraseToAnyPublisher()
@@ -329,6 +350,10 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
         super.init()
         centralManager.delegate = self
         
+        #if DEBUG
+        print("👓 GlassesManager instantiated – central state = \(centralManager.state.rawValue)")
+        #endif
+
         setupDisplayTimer()
     }
     
@@ -345,16 +370,30 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
                     return
                 }
                 
+                print("👓 Bluetooth powered-on – starting scan for Even Realities glasses (service: \(self.serviceUUID))")
                 self.connectionStateSubject.send(.scanning)
                 
-                // Start scanning for Even Realities glasses
+                // Start scanning for Even Realities glasses (filter by UART
+                // service UUID to keep traffic low).
                 self.centralManager.scanForPeripherals(
                     withServices: [self.serviceUUID],
                     options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
                 )
+
+                // --- Fallback: if we haven’t found anything after 5 s, scan
+                // for *all* peripherals and manually match by name so we can
+                // diagnose advertising/UUID issues in the field. ---
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    if self.connectionStateSubject.value == .scanning {
+                        print("👓 No peripheral with UART service found within 5 s – widening scan to all devices")
+                        self.centralManager.stopScan()
+                        self.centralManager.scanForPeripherals(withServices: nil, options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+                    }
+                }
                 
                 // Set timeout for scanning
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
                     if self.connectionStateSubject.value == .scanning {
                         self.centralManager.stopScan()
                         promise(.failure(.deviceNotFound))
@@ -551,7 +590,19 @@ extension GlassesManager: CBCentralManagerDelegate {
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        print("Discovered peripheral: \(peripheral.name ?? "Unknown")")
+        // Dump the full advertisement payload when debugging so we can see
+        // service UUIDs and manufacturer data.
+        #if DEBUG
+        let name = peripheral.name ?? "<no-name>"
+        var info = "🔍 Discovered \(name)  RSSI=\(RSSI)"
+        if let uuids = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
+            info += "  services=" + uuids.map { $0.uuidString }.joined(separator: ",")
+        }
+        if let mfg = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
+            info += "  mfg=0x" + mfg.map { String(format: "%02X", $0) }.joined()
+        }
+        print(info)
+        #endif
         
         // Check if this is an Even Realities device
         if isEvenRealitiesDevice(peripheral, advertisementData: advertisementData) {
@@ -571,8 +622,11 @@ extension GlassesManager: CBCentralManagerDelegate {
         connectionPromise?(.success(()))
         connectionPromise = nil
         
-        // Discover services
-        peripheral.discoverServices([serviceUUID])
+        // Discover Nordic UART service (text/gesture) and the standard
+        // Battery Service (for battery level monitoring).  Ask for both at
+        // once so CoreBluetooth can resolve them in a single round-trip.
+        let batteryServiceUUID = CBUUID(string: "180F")
+        peripheral.discoverServices([serviceUUID, batteryServiceUUID])
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
@@ -592,13 +646,12 @@ extension GlassesManager: CBCentralManagerDelegate {
     }
     
     private func isEvenRealitiesDevice(_ peripheral: CBPeripheral, advertisementData: [String: Any]) -> Bool {
-        // Check device name
-        if let name = peripheral.name?.lowercased(),
-           name.contains("even") || name.contains("realities") {
+        // Check device name (Even G1_<side>_<hex>)
+        if let name = peripheral.name?.lowercased(), name.starts(with: "even g1") {
             return true
         }
         
-        // Check advertisement data for Even Realities specific identifiers
+        // Check advertisement data for the Nordic UART service UUID
         if let serviceUUIDs = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID],
            serviceUUIDs.contains(serviceUUID) {
             return true
@@ -620,12 +673,22 @@ extension GlassesManager: CBPeripheralDelegate {
         guard let services = peripheral.services else { return }
         
         for service in services {
-            if service.uuid == serviceUUID {
+            switch service.uuid {
+            case serviceUUID:
+                // Nordic UART service – discover TX/RX characteristics used
+                // for display updates and gesture notifications.
                 peripheral.discoverCharacteristics([
                     displayCharacteristicUUID,
-                    batteryCharacteristicUUID,
                     gestureCharacteristicUUID
                 ], for: service)
+
+            case CBUUID(string: "180F"):
+                // Standard Battery Service – only need the Battery Level
+                // characteristic (0x2A19).
+                peripheral.discoverCharacteristics([batteryCharacteristicUUID], for: service)
+
+            default:
+                break
             }
         }
     }

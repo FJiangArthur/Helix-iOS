@@ -213,6 +213,9 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         }
         
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            if let err = error {
+                print("🛑 Speech recogniser callback error: \(err.localizedDescription)")
+            }
             self?.handleRecognitionResult(result: result, error: error)
         }
         
@@ -221,7 +224,16 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
     }
     
     func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
-        if let error = error {
+        if let error = error as NSError? {
+            // kAFAssistantErrorDomain 1101 => "No speech detected"
+            // Treat as non-fatal: keep the recognition session alive so the
+            // user can continue talking without the entire transcription
+            // pipeline shutting down.
+            if error.domain == "kAFAssistantErrorDomain" && error.code == 1101 {
+                print("⚠️ Speech recogniser reported 'no speech' – ignoring and continuing session")
+                return
+            }
+
             transcriptionSubject.send(completion: .failure(.recognitionFailed(error)))
             cleanupRecognition()
             return
@@ -292,7 +304,7 @@ extension SpeechRecognitionService: SFSpeechRecognizerDelegate {
 }
 
 // MARK: - Transcription Processor
-
+ 
 class TranscriptionProcessor {
     private let punctuationModel = PunctuationModel()
     private let spellingCorrector = SpellingCorrector()
