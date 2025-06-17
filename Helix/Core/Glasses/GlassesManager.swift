@@ -2,12 +2,24 @@ import Foundation
 import CoreBluetooth
 import Combine
 
+struct DiscoveredDevice {
+    let peripheral: CBPeripheral
+    let name: String
+    let rssi: Int
+    let isEvenRealities: Bool
+    let advertisementData: [String: Any]
+    let discoveryTime: Date
+}
+
 protocol GlassesManagerProtocol {
     var connectionState: AnyPublisher<ConnectionState, Never> { get }
     var batteryLevel: AnyPublisher<Float, Never> { get }
     var displayCapabilities: AnyPublisher<DisplayCapabilities, Never> { get }
+    var discoveredDevices: AnyPublisher<[DiscoveredDevice], Never> { get }
     
     func connect() -> AnyPublisher<Void, GlassesError>
+    func connectToDevice(_ device: DiscoveredDevice) -> AnyPublisher<Void, GlassesError>
+    func stopScanning()
     func disconnect()
     func displayText(_ text: String, at position: HUDPosition) -> AnyPublisher<Void, GlassesError>
     func displayContent(_ content: HUDContent) -> AnyPublisher<Void, GlassesError>
@@ -298,6 +310,9 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
     private let connectionStateSubject = CurrentValueSubject<ConnectionState, Never>(.disconnected)
     private let batteryLevelSubject = CurrentValueSubject<Float, Never>(0.0)
     private let displayCapabilitiesSubject = CurrentValueSubject<DisplayCapabilities, Never>(.default)
+    private let discoveredDevicesSubject = CurrentValueSubject<[DiscoveredDevice], Never>([])
+    
+    private var discoveredDevicesMap: [String: DiscoveredDevice] = [:]
     
     private var displayQueue: [HUDContent] = []
     private var currentDisplays: [String: HUDContent] = [:]
@@ -343,6 +358,10 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
     
     var displayCapabilities: AnyPublisher<DisplayCapabilities, Never> {
         displayCapabilitiesSubject.eraseToAnyPublisher()
+    }
+    
+    var discoveredDevices: AnyPublisher<[DiscoveredDevice], Never> {
+        discoveredDevicesSubject.eraseToAnyPublisher()
     }
     
     override init() {
@@ -407,9 +426,43 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
         .eraseToAnyPublisher()
     }
     
+    func stopScanning() {
+        processingQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            self.centralManager.stopScan()
+            self.connectionStateSubject.send(.disconnected)
+            print("👓 Stopped scanning")
+        }
+    }
+    
+    func connectToDevice(_ device: DiscoveredDevice) -> AnyPublisher<Void, GlassesError> {
+        return Future<Void, GlassesError> { [weak self] promise in
+            guard let self = self else {
+                promise(.failure(.serviceUnavailable))
+                return
+            }
+            
+            self.processingQueue.async {
+                self.centralManager.stopScan()
+                self.peripheral = device.peripheral
+                device.peripheral.delegate = self
+                
+                self.connectionStateSubject.send(.connecting)
+                self.centralManager.connect(device.peripheral, options: nil)
+                
+                // Store promise for completion when connected
+                self.connectionPromise = promise
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+    
     func disconnect() {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
+            
+            self.centralManager.stopScan()
             
             if let peripheral = self.peripheral {
                 self.centralManager.cancelPeripheralConnection(peripheral)
@@ -417,6 +470,8 @@ class GlassesManager: NSObject, GlassesManagerProtocol {
             
             self.peripheral = nil
             self.characteristics.removeAll()
+            self.discoveredDevicesMap.removeAll()
+            self.discoveredDevicesSubject.send([])
             self.connectionStateSubject.send(.disconnected)
             
             print("Disconnected from glasses")
@@ -590,29 +645,45 @@ extension GlassesManager: CBCentralManagerDelegate {
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
+        // Create discovered device entry
+        let deviceName = peripheral.name ?? "Unknown Device"
+        let isEvenDevice = isEvenRealitiesDevice(peripheral, advertisementData: advertisementData)
+        
+        let device = DiscoveredDevice(
+            peripheral: peripheral,
+            name: deviceName,
+            rssi: RSSI.intValue,
+            isEvenRealities: isEvenDevice,
+            advertisementData: advertisementData,
+            discoveryTime: Date()
+        )
+        
+        // Add to discovered devices list
+        discoveredDevicesMap[peripheral.identifier.uuidString] = device
+        let devicesList = Array(discoveredDevicesMap.values).sorted { device1, device2 in
+            // Sort Even Realities devices first, then by signal strength
+            if device1.isEvenRealities != device2.isEvenRealities {
+                return device1.isEvenRealities
+            }
+            return device1.rssi > device2.rssi
+        }
+        discoveredDevicesSubject.send(devicesList)
+        
         // Dump the full advertisement payload when debugging so we can see
         // service UUIDs and manufacturer data.
         #if DEBUG
-        let name = peripheral.name ?? "<no-name>"
-        var info = "🔍 Discovered \(name)  RSSI=\(RSSI)"
+        var info = "🔍 Discovered \(deviceName)  RSSI=\(RSSI)"
         if let uuids = advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] {
             info += "  services=" + uuids.map { $0.uuidString }.joined(separator: ",")
         }
         if let mfg = advertisementData[CBAdvertisementDataManufacturerDataKey] as? Data {
             info += "  mfg=0x" + mfg.map { String(format: "%02X", $0) }.joined()
         }
+        if isEvenDevice {
+            info += " (Even Realities)"
+        }
         print(info)
         #endif
-        
-        // Check if this is an Even Realities device
-        if isEvenRealitiesDevice(peripheral, advertisementData: advertisementData) {
-            self.peripheral = peripheral
-            peripheral.delegate = self
-            
-            central.stopScan()
-            connectionStateSubject.send(.connecting)
-            central.connect(peripheral, options: nil)
-        }
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
