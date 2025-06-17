@@ -330,7 +330,13 @@ struct ControlPanelView: View {
                         .foregroundColor(.white)
                 }
             }
-            .disabled(coordinator.isProcessing)
+            // Disable the button only when we are *not* recording and the
+            // app is still busy preparing/processing – this way the user can
+            // always stop an on-going recording.  Previously the button was
+            // disabled whenever `isProcessing` was true which prevented
+            // stopping immediately after start, because `isProcessing` stays
+            // true until the first transcription result arrives.
+            .disabled(!coordinator.isRecording && coordinator.isProcessing)
             
             // Secondary controls
             HStack(spacing: 20) {

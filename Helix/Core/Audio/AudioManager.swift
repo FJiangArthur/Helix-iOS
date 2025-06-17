@@ -14,6 +14,10 @@ class AudioManager: NSObject, AudioManagerProtocol {
     private let audioEngine = AVAudioEngine()
     private let audioSession = AVAudioSession.sharedInstance()
     private let processingQueue = DispatchQueue(label: "audio.processing", qos: .userInteractive)
+
+    // Desired format for downstream processing (16-kHz mono float32)
+    private let targetSampleRate: Double = 16_000
+    private var audioConverter: AVAudioConverter?
     
     // Test mode when running under XCTest
     private let isTesting: Bool = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -83,29 +87,92 @@ class AudioManager: NSObject, AudioManagerProtocol {
         let inputNode = audioEngine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
         
-        // Configure format for 16kHz mono
-        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, 
-                                       sampleRate: 16000, 
-                                       channels: 1, 
-                                       interleaved: false) else {
-            throw AudioError.formatConfigurationFailed
-        }
-        
+        // The format passed to `installTap` MUST match the node's
+        // `outputFormat(forBus:)`.  Supplying a mismatching format (e.g. a
+        // different sample-rate or channel count) will raise an Objective-C
+        // exception at runtime which cannot be caught from Swift and will
+        // crash the application (this is the crash that has been observed on
+        // Thread 1 when hitting the record button).
+
+        // Therefore we use the node's own output format here to avoid the
+        // mismatch crash.  If the app requires a specific target format (e.g.
+        // 16 kHz mono) we can perform the conversion later in
+        // `processAudioBuffer` via `AVAudioConverter`.
+
+        let format = inputFormat
+
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, time in
             self?.processAudioBuffer(buffer, at: time)
+            #if DEBUG
+            if let self {
+                let sr = buffer.format.sampleRate
+                let ch = buffer.format.channelCount
+                let frames = buffer.frameLength
+                print("🎙️ Audio tap buffer SR=\(sr) ch=\(ch) frames=\(frames)")
+            }
+            #endif
         }
     }
     
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer, at time: AVAudioTime) {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
-            let processedAudio = ProcessedAudio(
-                buffer: buffer,
-                timestamp: time.sampleTime,
-                sampleRate: buffer.format.sampleRate,
-                channelCount: Int(buffer.format.channelCount)
-            )
-            self.audioSubject.send(processedAudio)
+
+            let sourceFormat = buffer.format
+            if sourceFormat.sampleRate != self.targetSampleRate || sourceFormat.channelCount != 1 {
+                // Lazily create converter once we know source format
+                if self.audioConverter == nil {
+                    guard let desiredFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                                             sampleRate: self.targetSampleRate,
+                                                             channels: 1,
+                                                             interleaved: false) else {
+                        print("❌ AudioManager: Failed to create desired audio format")
+                        return
+                    }
+                    self.audioConverter = AVAudioConverter(from: sourceFormat, to: desiredFormat)
+                }
+
+                guard let converter = self.audioConverter else {
+                    print("❌ AudioManager: Missing audio converter")
+                    return
+                }
+
+                let desiredFormat = converter.outputFormat
+
+                let capacity = AVAudioFrameCount(desiredFormat.sampleRate / 100 * 2)
+                guard let convertedBuffer = AVAudioPCMBuffer(pcmFormat: desiredFormat,
+                                                             frameCapacity: capacity) else {
+                    print("❌ AudioManager: Failed to create converted buffer")
+                    return
+                }
+
+                var error: NSError?
+                let inputBlock: AVAudioConverterInputBlock = { inNumPackets, outStatus in
+                    outStatus.pointee = .haveData
+                    return buffer
+                }
+
+                converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
+
+                if let error {
+                    self.audioSubject.send(completion: .failure(.processingFailed(error)))
+                    return
+                }
+
+                let processed = ProcessedAudio(buffer: convertedBuffer,
+                                               timestamp: time.sampleTime,
+                                               sampleRate: desiredFormat.sampleRate,
+                                               channelCount: Int(desiredFormat.channelCount))
+                self.audioSubject.send(processed)
+            } else {
+                let processedAudio = ProcessedAudio(
+                    buffer: buffer,
+                    timestamp: time.sampleTime,
+                    sampleRate: buffer.format.sampleRate,
+                    channelCount: Int(buffer.format.channelCount)
+                )
+                self.audioSubject.send(processedAudio)
+            }
         }
     }
     

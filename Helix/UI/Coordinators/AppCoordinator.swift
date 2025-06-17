@@ -249,6 +249,15 @@ class AppCoordinator: ObservableObject {
                 self?.handleConversationUpdate(update)
             }
             .store(in: &cancellables)
+
+        // Keep currentConversation in sync with VM messages so History export
+        // never says “no conversation found”.
+        conversationViewModel.$messages
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] msgs in
+                self?.currentConversation = msgs
+            }
+            .store(in: &cancellables)
     }
     
     private func setupDefaultSpeakers() {
