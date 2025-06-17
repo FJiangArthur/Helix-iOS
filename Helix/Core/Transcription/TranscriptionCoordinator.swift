@@ -176,19 +176,26 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
         // Apply noise reduction
         let cleanedBuffer = noiseReducer.processBuffer(processedAudio.buffer)
         
-        // Detect voice activity
+        // Pass every buffer to the speech recognizer to avoid missing speech
+        // due to an overly-aggressive VAD threshold on certain devices / noisy
+        // environments.  We still compute voice activity so other components
+        // (e.g. diarization, energy graphs) can use it, but transcription no
+        // longer depends on VAD firing first.
+
         let voiceActivity = voiceActivityDetector.detectVoiceActivity(in: cleanedBuffer)
-        
-        // Update background noise profile during silence
+
         if !voiceActivity.hasVoice {
             voiceActivityDetector.updateBackground(with: cleanedBuffer)
             noiseReducer.updateNoiseProfile(cleanedBuffer)
         } else {
             lastVoiceActivity = Date().timeIntervalSince1970
-            
-            // Send audio to speech recognizer if voice is detected
-            speechRecognizer.processAudioBuffer(cleanedBuffer)
         }
+
+        #if DEBUG
+        let vaDesc = voiceActivity.hasVoice ? "voice" : "silence"
+        print("🗣️ TX buffer -> STT (\(vaDesc)) len=\(cleanedBuffer.frameLength)")
+        #endif
+        speechRecognizer.processAudioBuffer(cleanedBuffer)
     }
     
     private func processTranscriptionResult(_ result: TranscriptionResult) {
