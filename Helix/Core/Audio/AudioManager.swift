@@ -74,9 +74,9 @@ class AudioManager: NSObject, AudioManagerProtocol {
     
     private func setupAudioSession() {
         do {
-            // Use .default mode instead of .measurement for better speech recognition
-            // .measurement mode can be too aggressive with noise filtering
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            // Use .measurement mode for better speech recognition sensitivity
+            // .default mode may filter out quiet speech
+            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true)
             
             // Request microphone permission explicitly
@@ -118,6 +118,12 @@ class AudioManager: NSObject, AudioManagerProtocol {
     private func processAudioBuffer(_ buffer: AVAudioPCMBuffer, at time: AVAudioTime) {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
+
+            // Calculate audio level for debugging
+            let audioLevel = self.calculateAudioLevel(buffer)
+            if audioLevel > 0.01 { // Only log when there's actual audio
+                print("🔊 Audio level: \(String(format: "%.3f", audioLevel))")
+            }
 
             let sourceFormat = buffer.format
             if sourceFormat.sampleRate != self.targetSampleRate || sourceFormat.channelCount != 1 {
@@ -175,6 +181,26 @@ class AudioManager: NSObject, AudioManagerProtocol {
                 self.audioSubject.send(processedAudio)
             }
         }
+    }
+    
+    // MARK: - Audio Analysis
+    private func calculateAudioLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0.0 }
+        
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        
+        var sum: Float = 0.0
+        for channel in 0..<channelCount {
+            let samples = channelData[channel]
+            for frame in 0..<frameCount {
+                let sample = samples[frame]
+                sum += sample * sample
+            }
+        }
+        
+        let rms = sqrt(sum / Float(frameCount * channelCount))
+        return rms
     }
     
     // MARK: - Test audio simulation
