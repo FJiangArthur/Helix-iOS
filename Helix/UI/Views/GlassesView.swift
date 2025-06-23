@@ -10,6 +10,10 @@ struct GlassesView: View {
             List {
                 ConnectionSection()
                 
+                if !coordinator.discoveredDevices.isEmpty {
+                    DiscoveredDevicesSection()
+                }
+                
                 if coordinator.isConnectedToGlasses {
                     StatusSection()
                     DisplayTestSection(
@@ -58,11 +62,18 @@ struct ConnectionSection: View {
             .padding(.vertical, 8)
             
             if !coordinator.isConnectedToGlasses {
-                Button("Connect to Glasses") {
-                    coordinator.connectToGlasses()
+                if coordinator.connectionState == .scanning {
+                    Button("Stop Scanning") {
+                        coordinator.stopScanning()
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button("Start Scanning") {
+                        coordinator.connectToGlasses()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(coordinator.connectionState == .connecting)
                 }
-                .buttonStyle(.bordered)
-                .disabled(coordinator.connectionState == .scanning || coordinator.connectionState == .connecting)
             }
         }
     }
@@ -84,6 +95,74 @@ struct ConnectionStatusIndicator: View {
                 .fontWeight(.medium)
                 .foregroundColor(state.textColor)
         }
+    }
+}
+
+struct DiscoveredDevicesSection: View {
+    @EnvironmentObject var coordinator: AppCoordinator
+    
+    var body: some View {
+        Section("Discovered Devices") {
+            ForEach(coordinator.discoveredDevices, id: \.peripheral.identifier) { device in
+                DiscoveredDeviceRow(device: device)
+            }
+        }
+    }
+}
+
+struct DiscoveredDeviceRow: View {
+    @EnvironmentObject var coordinator: AppCoordinator
+    let device: DiscoveredDevice
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(device.name)
+                        .font(.headline)
+                        .fontWeight(device.isEvenRealities ? .bold : .regular)
+                    
+                    if device.isEvenRealities {
+                        Text("Even Realities")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.2))
+                            .foregroundColor(.green)
+                            .cornerRadius(4)
+                    }
+                }
+                
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.caption)
+                        Text("\(device.rssi) dBm")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.secondary)
+                    
+                    Text(relativeDateFormatter.localizedString(for: device.discoveryTime, relativeTo: Date()))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            Button("Connect") {
+                coordinator.connectToDevice(device)
+            }
+            .buttonStyle(.bordered)
+            .disabled(coordinator.connectionState == .connecting)
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private var relativeDateFormatter: RelativeDateTimeFormatter {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        return formatter
     }
 }
 
