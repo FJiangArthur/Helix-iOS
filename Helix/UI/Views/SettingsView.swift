@@ -118,10 +118,24 @@ struct SpeechSection: View {
             }
 
             if settings.speechBackend == .remoteWhisper {
-                HStack {
-                    Text("Uses the OpenAI Whisper API to perform speech recognition, speaker identification, and diarization in the cloud.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                if settings.openAIKey.isEmpty {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text("OpenAI API key required. Configure in AI Services section above.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.orange.opacity(0.1))
+                    .cornerRadius(6)
+                } else {
+                    HStack {
+                        Text("Uses the OpenAI Whisper API to perform speech recognition, speaker identification, and diarization in the cloud.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
         }
@@ -476,7 +490,7 @@ struct AboutSheet: View {
                         TechnicalDetail(title: "Version", value: "1.0.0")
                         TechnicalDetail(title: "Build", value: "2025.01.01")
                         TechnicalDetail(title: "Platform", value: "iOS 16.0+")
-                        TechnicalDetail(title: "AI Models", value: "OpenAI GPT-4, Anthropic Claude")
+                        TechnicalDetail(title: "AI Models", value: "OpenAI GPT-4, Anthropic DSonnet")
                         TechnicalDetail(title: "Audio Processing", value: "16kHz real-time pipeline")
                     }
                     
