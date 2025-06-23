@@ -47,7 +47,7 @@ class ConversationViewModel: ObservableObject {
                 }
             }, receiveValue: { [weak self] update in
                 // Show live transcription for partial results
-                if !update.message.isFinal && update.message.content.count > 2 {
+                if !update.message.isFinal {
                     self?.liveTranscription = update.message.content
                 } else if update.message.isFinal {
                     // Clear live transcription and add final message
