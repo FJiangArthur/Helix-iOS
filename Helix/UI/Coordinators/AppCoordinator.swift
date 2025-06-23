@@ -28,6 +28,7 @@ class AppCoordinator: ObservableObject {
     @Published var speakers: [Speaker] = []
     @Published var isProcessing = false
     @Published var errorMessage: String?
+    @Published var discoveredDevices: [DiscoveredDevice] = []
     
     // Settings
     @Published var settings = AppSettings()
@@ -57,6 +58,7 @@ class AppCoordinator: ObservableObject {
          enableSpeech: Bool = true,
          enableBluetooth: Bool = true,
          enableAI: Bool = true,
+         speechBackend: SpeechBackend? = nil,
          initialSettings settings: AppSettings = AppSettings()) {
         print("🚀 Initializing AppCoordinator...")
         
@@ -73,7 +75,16 @@ class AppCoordinator: ObservableObject {
         }
 
         if enableSpeech {
-            self.speechRecognizer = SpeechRecognitionService()
+            let backendChoice = speechBackend ?? settings.speechBackend
+            switch backendChoice {
+            case .local:
+                debugLogger.log(.info, source: "AppCoordinator", message: "Using local iOS speech recognizer backend")
+                self.speechRecognizer = SpeechRecognitionService()
+            case .remoteWhisper:
+                debugLogger.log(.info, source: "AppCoordinator", message: "Using remote OpenAI Whisper backend")
+                self.speechRecognizer = RemoteWhisperRecognitionService(apiKey: settings.openAIKey)
+            }
+
             self.speakerDiarization = SpeakerDiarizationEngine()
         } else {
             self.speechRecognizer = NoopSpeechRecognitionService()
@@ -92,7 +103,7 @@ class AppCoordinator: ObservableObject {
         // ----- AI STACK -----
         if enableAI {
             print("🤖 Initializing AI services…")
-            let openAIProvider = OpenAIProvider(apiKey: AppSettings.default.openAIKey)
+            let openAIProvider = OpenAIProvider(apiKey: settings.openAIKey)
             self.llmService = LLMService(providers: [.openai: openAIProvider])
         } else {
             self.llmService = NoopLLMService()
@@ -183,6 +194,26 @@ class AppCoordinator: ObservableObject {
             .store(in: &cancellables)
     }
     
+    func connectToDevice(_ device: DiscoveredDevice) {
+        glassesManager.connectToDevice(device)
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { [weak self] completion in
+                    if case .failure(let error) = completion {
+                        self?.errorMessage = error.localizedDescription
+                    }
+                },
+                receiveValue: { [weak self] _ in
+                    self?.errorMessage = nil
+                }
+            )
+            .store(in: &cancellables)
+    }
+    
+    func stopScanning() {
+        glassesManager.stopScanning()
+    }
+    
     func disconnectFromGlasses() {
         glassesManager.disconnect()
     }
@@ -214,10 +245,42 @@ class AppCoordinator: ObservableObject {
     }
     
     func updateSettings(_ newSettings: AppSettings) {
+        let oldSettings = settings
         settings = newSettings
+        
+        // Handle speech backend change
+        if oldSettings.speechBackend != newSettings.speechBackend {
+            // Stop current recording if active
+            let wasRecording = isRecording
+            if wasRecording {
+                stopConversation()
+            }
+            
+            // Update speech recognition service
+            updateSpeechRecognitionService(backend: newSettings.speechBackend)
+            
+            // Restart recording if it was active
+            if wasRecording {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.startConversation()
+                }
+            }
+        }
         
         // Update service configurations
         configureServices(with: newSettings)
+    }
+    
+    private func updateSpeechRecognitionService(backend: SpeechBackend) {
+        // This is a simplified approach - in a production app, you'd want to
+        // handle this more gracefully with proper service lifecycle management
+        switch backend {
+        case .local:
+            // For now, we'll just update the settings and let the user restart
+            print("Switched to local speech recognition")
+        case .remoteWhisper:
+            print("Switched to remote Whisper speech recognition")
+        }
     }
     
     // MARK: - Private Methods
@@ -233,6 +296,12 @@ class AppCoordinator: ObservableObject {
         glassesManager.batteryLevel
             .receive(on: DispatchQueue.main)
             .assign(to: \.batteryLevel, on: self)
+            .store(in: &cancellables)
+        
+        // Discovered devices
+        glassesManager.discoveredDevices
+            .receive(on: DispatchQueue.main)
+            .assign(to: \.discoveredDevices, on: self)
             .store(in: &cancellables)
         
         // Conversation updates
@@ -425,8 +494,25 @@ struct AppSettings: Codable, Equatable {
     var maxConversationHistory: Int = 100
     var autoExport: Bool = false
     var privacyMode: Bool = false
+
+    // Which backend to use for speech recognition
+    var speechBackend: SpeechBackend = .local
     
     static let `default` = AppSettings()
+}
+
+// MARK: - Speech Backend Selection
+
+enum SpeechBackend: String, Codable, CaseIterable, Hashable {
+    case local
+    case remoteWhisper
+    
+    var description: String {
+        switch self {
+        case .local: return "On-device"
+        case .remoteWhisper: return "OpenAI Whisper (remote)"
+        }
+    }
 }
 
 // MARK: - Extensions

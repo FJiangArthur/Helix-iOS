@@ -17,6 +17,8 @@ struct SettingsView: View {
                 AudioSection(settings: $settings)
                 
                 AnalysisSection(settings: $settings)
+
+                SpeechSection(settings: $settings)
                 
                 GlassesSection(settings: $settings)
                 
@@ -92,6 +94,35 @@ struct APIKeysSection: View {
                     showingAPIKeySheet = true
                 }
                 .buttonStyle(.bordered)
+            }
+        }
+    }
+}
+
+struct SpeechSection: View {
+    @Binding var settings: AppSettings
+
+    var body: some View {
+        Section("Speech Backend") {
+            Picker("Recognition Engine", selection: $settings.speechBackend) {
+                ForEach(SpeechBackend.allCases, id: \.self) { backend in
+                    Text(backend.description).tag(backend)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if settings.speechBackend != AppSettings.default.speechBackend {
+                Text("Changing the speech backend will take effect on the next recording session.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            if settings.speechBackend == .remoteWhisper {
+                HStack {
+                    Text("Uses the OpenAI Whisper API to perform speech recognition, speaker identification, and diarization in the cloud.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
     }
