@@ -241,6 +241,7 @@ class MockGlassesManager: GlassesManagerProtocol {
     private let connectionStateSubject = CurrentValueSubject<ConnectionState, Never>(.disconnected)
     private let batteryLevelSubject = CurrentValueSubject<Float, Never>(0.0)
     private let displayCapabilitiesSubject = CurrentValueSubject<DisplayCapabilities, Never>(.default)
+    private let discoveredDevicesSubject = CurrentValueSubject<[DiscoveredDevice], Never>([])
     
     var shouldFailConnection = false
     var connectionDelay: TimeInterval = 1.0
@@ -255,6 +256,10 @@ class MockGlassesManager: GlassesManagerProtocol {
     
     var displayCapabilities: AnyPublisher<DisplayCapabilities, Never> {
         displayCapabilitiesSubject.eraseToAnyPublisher()
+    }
+    
+    var discoveredDevices: AnyPublisher<[DiscoveredDevice], Never> {
+        discoveredDevicesSubject.eraseToAnyPublisher()
     }
     
     func connect() -> AnyPublisher<Void, GlassesError> {
@@ -343,6 +348,16 @@ class MockGlassesManager: GlassesManagerProtocol {
     
     func simulateBatteryLevel(_ level: Float) {
         batteryLevelSubject.send(level)
+    }
+    
+    func connectToDevice(_ device: DiscoveredDevice) -> AnyPublisher<Void, GlassesError> {
+        return connect() // Reuse the connect logic for simplicity in tests
+    }
+    
+    func stopScanning() {
+        // Mock implementation - clear discovered devices
+        discoveredDevicesSubject.send([])
+        connectionStateSubject.send(.disconnected)
     }
     
     func simulateError(_ error: GlassesError) {

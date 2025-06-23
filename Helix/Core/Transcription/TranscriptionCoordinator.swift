@@ -68,6 +68,10 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
     private var lastVoiceActivity: TimeInterval = 0
     private var backgroundNoiseProfile: AVAudioPCMBuffer?
     
+    // Streaming transcription state
+    private var activeTranscriptionMessage: ConversationMessage?
+    private var lastPartialTranscriptionTime: TimeInterval = 0
+    
     // Configuration
     private let minSpeechDuration: TimeInterval = 0.5
     private let maxSilenceDuration: TimeInterval = 2.0
@@ -97,7 +101,6 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
     
     func startConversationTranscription() {
         guard !isTranscribing else {
-            print("Transcription already in progress")
             return
         }
         
@@ -105,7 +108,6 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
             try audioManager.startRecording()
             speechRecognizer.startStreamingRecognition()
             isTranscribing = true
-            print("Started conversation transcription")
         } catch {
             conversationSubject.send(completion: .failure(.audioEngineError(error)))
         }
@@ -117,27 +119,19 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
         audioManager.stopRecording()
         speechRecognizer.stopRecognition()
         isTranscribing = false
-        print("Stopped conversation transcription")
     }
     
     func addSpeaker(_ speaker: Speaker) {
         currentSpeakers[speaker.id] = speaker
         speakerDiarization.addSpeaker(id: speaker.id, name: speaker.name, isCurrentUser: speaker.isCurrentUser)
-        print("Added speaker: \(speaker.name ?? "Unknown") (\(speaker.id))")
     }
     
     func trainSpeaker(_ speakerId: UUID, with samples: [AVAudioPCMBuffer]) {
         guard currentSpeakers[speakerId] != nil else {
-            print("Cannot train unknown speaker: \(speakerId)")
             return
         }
         
-        let success = speakerDiarization.trainSpeakerModel(samples: samples, speakerId: speakerId)
-        if success {
-            print("Successfully trained speaker model for: \(speakerId)")
-        } else {
-            print("Failed to train speaker model for: \(speakerId)")
-        }
+        speakerDiarization.trainSpeakerModel(samples: samples, speakerId: speakerId)
     }
     
     private func setupSubscriptions() {
@@ -191,19 +185,17 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
             lastVoiceActivity = Date().timeIntervalSince1970
         }
 
-        #if DEBUG
-        let vaDesc = voiceActivity.hasVoice ? "voice" : "silence"
-        print("🗣️ TX buffer -> STT (\(vaDesc)) len=\(cleanedBuffer.frameLength)")
-        #endif
         speechRecognizer.processAudioBuffer(cleanedBuffer)
     }
     
     private func processTranscriptionResult(_ result: TranscriptionResult) {
-        // Skip empty or very short transcriptions
-        guard !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              result.text.count > 2 else {
+        // Skip completely empty transcriptions
+        let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedText.isEmpty else {
             return
         }
+        
+        let currentTime = Date().timeIntervalSince1970
         
         // Process transcription for better quality
         let processedResult = transcriptionProcessor.processTranscription(result)
@@ -211,27 +203,58 @@ class TranscriptionCoordinator: TranscriptionCoordinatorProtocol {
         // Attempt speaker identification
         let speakerInfo = identifySpeakerForTranscription(processedResult)
         
-        // Create conversation message
-        let message = ConversationMessage(
-            from: processedResult,
-            speakerId: speakerInfo.speakerId
-        )
-        // Determine if this is a new speaker
-        let isNew = message.speakerId.map { currentSpeakers[$0] == nil } ?? false
-        // Lookup speaker object if exists
-        let speakerObj = message.speakerId.flatMap { currentSpeakers[$0] }
-        
-        // Create conversation update
-        let update = ConversationUpdate(
-            message: message,
-            speaker: speakerInfo.speaker,
-            isNewSpeaker: speakerInfo.isNewSpeaker,
-            timestamp: Date().timeIntervalSince1970
-        )
-        
-        // Send update
-        DispatchQueue.main.async { [weak self] in
-            self?.conversationSubject.send(update)
+        if result.isFinal {
+            // Final result: create or update the active message
+            let finalMessage = ConversationMessage(
+                from: processedResult,
+                speakerId: speakerInfo.speakerId
+            )
+            
+            // If we have an active partial message, this final result replaces it
+            // Otherwise, this is a new final message
+            let update = ConversationUpdate(
+                message: finalMessage,
+                speaker: speakerInfo.speaker,
+                isNewSpeaker: speakerInfo.isNewSpeaker,
+                timestamp: currentTime
+            )
+            
+            // Clear active transcription state
+            activeTranscriptionMessage = nil
+            lastPartialTranscriptionTime = 0
+            
+            DispatchQueue.main.async { [weak self] in
+                self?.conversationSubject.send(update)
+            }
+            
+            
+        } else {
+            // Partial result: update live transcription
+            // Only send partial updates if there's substantial content or time has passed
+            let timeSinceLastPartial = currentTime - lastPartialTranscriptionTime
+            let shouldSendPartial = trimmedText.count > 3 || timeSinceLastPartial > 0.5
+            
+            if shouldSendPartial {
+                let partialMessage = ConversationMessage(
+                    from: processedResult,
+                    speakerId: speakerInfo.speakerId
+                )
+                
+                let update = ConversationUpdate(
+                    message: partialMessage,
+                    speaker: speakerInfo.speaker,
+                    isNewSpeaker: speakerInfo.isNewSpeaker,
+                    timestamp: currentTime
+                )
+                
+                // Update state
+                activeTranscriptionMessage = partialMessage
+                lastPartialTranscriptionTime = currentTime
+                
+                DispatchQueue.main.async { [weak self] in
+                    self?.conversationSubject.send(update)
+                }
+            }
         }
     }
     

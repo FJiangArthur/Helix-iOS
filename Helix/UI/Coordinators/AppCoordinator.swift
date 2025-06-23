@@ -6,18 +6,18 @@ import AVFoundation
 class AppCoordinator: ObservableObject {
     // Core services
     private let audioManager: AudioManagerProtocol
-    private let speechRecognizer: SpeechRecognitionServiceProtocol
+    private var speechRecognizer: SpeechRecognitionServiceProtocol
     private let speakerDiarization: SpeakerDiarizationEngineProtocol
     private let voiceActivityDetector: VoiceActivityDetectorProtocol
     private let noiseReducer: NoiseReductionProcessorProtocol
     // Transcription service
-    let transcriptionCoordinator: TranscriptionCoordinatorProtocol
+    var transcriptionCoordinator: TranscriptionCoordinatorProtocol
     private let llmService: LLMServiceProtocol
     private let glassesManager: GlassesManagerProtocol
     private let hudRenderer: HUDRendererProtocol
     private let conversationContext: ConversationContextManager
     /// ViewModel for the conversation view
-    let conversationViewModel: ConversationViewModel
+    var conversationViewModel: ConversationViewModel
     
     // Published state
     @Published var isRecording = false
@@ -272,15 +272,39 @@ class AppCoordinator: ObservableObject {
     }
     
     private func updateSpeechRecognitionService(backend: SpeechBackend) {
-        // This is a simplified approach - in a production app, you'd want to
-        // handle this more gracefully with proper service lifecycle management
+        // Stop current recognition if active
+        if isRecording {
+            stopConversation()
+        }
+        
+        // Create new speech recognizer based on backend
         switch backend {
         case .local:
-            // For now, we'll just update the settings and let the user restart
-            print("Switched to local speech recognition")
+            speechRecognizer = SpeechRecognitionService()
+            print("✅ Switched to local speech recognition")
         case .remoteWhisper:
-            print("Switched to remote Whisper speech recognition")
+            if settings.openAIKey.isEmpty {
+                errorMessage = "OpenAI API key required for Whisper transcription. Please configure your API key in Settings."
+                return
+            }
+            speechRecognizer = RemoteWhisperRecognitionService(apiKey: settings.openAIKey)
+            print("✅ Switched to remote Whisper speech recognition")
         }
+        
+        // Recreate transcription coordinator with new speech recognizer
+        transcriptionCoordinator = TranscriptionCoordinator(
+            audioManager: audioManager,
+            speechRecognizer: speechRecognizer,
+            speakerDiarization: speakerDiarization,
+            voiceActivityDetector: voiceActivityDetector,
+            noiseReducer: noiseReducer
+        )
+        
+        // Update conversation view model with new coordinator
+        conversationViewModel = ConversationViewModel(transcriptionCoordinator: transcriptionCoordinator)
+        
+        // Re-setup subscriptions for the new coordinator
+        setupTranscriptionSubscriptions()
     }
     
     // MARK: - Private Methods
@@ -321,6 +345,32 @@ class AppCoordinator: ObservableObject {
 
         // Keep currentConversation in sync with VM messages so History export
         // never says “no conversation found”.
+        conversationViewModel.$messages
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] msgs in
+                self?.currentConversation = msgs
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func setupTranscriptionSubscriptions() {
+        // Conversation updates
+        transcriptionCoordinator.conversationPublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                if case .failure(let error) = completion {
+                    self?.errorMessage = error.localizedDescription
+                    self?.isProcessing = false
+                }
+            } receiveValue: { [weak self] update in
+                self?.conversationViewModel.messages.append(update.message)
+                self?.isProcessing = false
+                self?.handleConversationUpdate(update)
+            }
+            .store(in: &cancellables)
+
+        // Keep currentConversation in sync with VM messages so History export
+        // never says "no conversation found".
         conversationViewModel.$messages
             .receive(on: DispatchQueue.main)
             .sink { [weak self] msgs in

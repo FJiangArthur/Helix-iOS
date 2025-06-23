@@ -76,19 +76,41 @@ struct StatusBarView: View {
     @EnvironmentObject var coordinator: AppCoordinator
     
     var body: some View {
-        HStack {
-            // Recording Status
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(coordinator.isRecording ? .red : .gray)
-                    .frame(width: 8, height: 8)
-                    .scaleEffect(coordinator.isRecording ? 1.2 : 1.0)
-                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: coordinator.isRecording)
-                
-                Text(coordinator.isRecording ? "Recording" : "Stopped")
+        VStack(spacing: 4) {
+            // Error message display
+            if let errorMessage = coordinator.errorMessage {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                    Button("Dismiss") {
+                        coordinator.errorMessage = nil
+                    }
                     .font(.caption)
-                    .foregroundColor(coordinator.isRecording ? .red : .secondary)
+                    .foregroundColor(.blue)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(.orange.opacity(0.1))
+                .cornerRadius(6)
             }
+            
+            HStack {
+                // Recording Status
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(coordinator.isRecording ? .red : .gray)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(coordinator.isRecording ? 1.2 : 1.0)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: coordinator.isRecording)
+                    
+                    Text(coordinator.isRecording ? "Recording" : "Stopped")
+                        .font(.caption)
+                        .foregroundColor(coordinator.isRecording ? .red : .secondary)
+                }
             
             Spacer()
             
@@ -129,6 +151,7 @@ struct StatusBarView: View {
                 .buttonStyle(.plain)
                 .disabled(coordinator.isRecording)
             }
+        }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
