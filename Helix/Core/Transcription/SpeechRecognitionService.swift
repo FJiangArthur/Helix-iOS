@@ -116,7 +116,6 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
     
     func startStreamingRecognition() {
         guard !isCurrentlyRecognizing else {
-            print("Speech recognition already in progress")
             return
         }
         
@@ -149,17 +148,20 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         
         // Note: In a real implementation, you would replace the recognizer
         // For this demo, we'll just update the locale reference
-        print("Updated speech recognition locale to: \(locale.identifier)")
     }
     
     func addCustomVocabulary(_ words: [String]) {
         customVocabulary.append(contentsOf: words)
-        print("Added \(words.count) words to custom vocabulary")
     }
     
     func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
         guard isCurrentlyRecognizing,
               let request = recognitionRequest else {
+            return
+        }
+        
+        // Validate audio buffer has content
+        guard buffer.frameLength > 0 else {
             return
         }
         
@@ -173,7 +175,7 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
             DispatchQueue.main.async {
                 switch status {
                 case .authorized:
-                    print("Speech recognition authorized")
+                    break
                 case .denied, .restricted, .notDetermined:
                     self?.transcriptionSubject.send(completion: .failure(.permissionDenied))
                 @unknown default:
@@ -184,10 +186,13 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
     }
     
     private func setupRecognitionRequest() {
-        // Cancel and clean up any existing task
-        recognitionTask?.cancel()
-        recognitionRequest?.endAudio()
-        recognitionTask = nil
+        // Only clean up if we have an existing task
+        if recognitionTask != nil {
+            recognitionTask?.cancel()
+            recognitionRequest?.endAudio()
+            recognitionTask = nil
+            recognitionRequest = nil
+        }
         
         // Create new recognition request
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
@@ -197,9 +202,25 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
             return
         }
         
-        // Configure recognition request
+        // Configure recognition request for optimal real-time performance
         recognitionRequest.shouldReportPartialResults = true
         recognitionRequest.requiresOnDeviceRecognition = false
+        
+        // Add task hint to improve speech detection
+        if #available(iOS 13.0, *) {
+            recognitionRequest.taskHint = .dictation
+        }
+        
+        // Enable detection of partial results with lower confidence
+        if #available(iOS 16.0, *) {
+            recognitionRequest.addsPunctuation = true
+        }
+        
+        // Improve detection sensitivity
+        if #available(iOS 17.0, *) {
+            // Enable more aggressive partial result reporting
+            recognitionRequest.shouldReportPartialResults = true
+        }
         
         // Add context strings for better recognition
         if !customVocabulary.isEmpty {
@@ -213,27 +234,56 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         }
         
         recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            if let err = error {
-                print("🛑 Speech recogniser callback error: \(err.localizedDescription)")
-            }
             self?.handleRecognitionResult(result: result, error: error)
         }
         
         isCurrentlyRecognizing = true
-        print("Started speech recognition")
     }
     
     func handleRecognitionResult(result: SFSpeechRecognitionResult?, error: Error?) {
         if let error = error as NSError? {
-            // kAFAssistantErrorDomain 1101 => "No speech detected"
-            // Treat as non-fatal: keep the recognition session alive so the
-            // user can continue talking without the entire transcription
-            // pipeline shutting down.
-            if error.domain == "kAFAssistantErrorDomain" && error.code == 1101 {
-                print("⚠️ Speech recogniser reported 'no speech' – ignoring and continuing session")
-                return
+            // Handle common speech recognition errors gracefully
+            if error.domain == "kAFAssistantErrorDomain" {
+                switch error.code {
+                case 1101: // "No speech detected"
+                    // Restart recognition automatically after brief delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                        if self?.isCurrentlyRecognizing == true {
+                            self?.setupRecognitionRequest()
+                        }
+                    }
+                    return
+                case 1107: // "Speech recognition timed out"
+                    // Restart recognition automatically
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                        if self?.isCurrentlyRecognizing == true {
+                            self?.setupRecognitionRequest()
+                        }
+                    }
+                    return
+                case 203: // "Network not available"
+                    // Try to continue with on-device if possible
+                    if let request = recognitionRequest {
+                        request.requiresOnDeviceRecognition = true
+                    }
+                    return
+                default:
+                    // Check if it's a cancellation error
+                    if error.localizedDescription.contains("canceled") || error.localizedDescription.contains("cancelled") {
+                        return // Don't treat cancellation as fatal
+                    }
+                    // Only log truly unexpected errors
+                    print("🛑 Speech recogniser error: \(error.localizedDescription) (domain: \(error.domain), code: \(error.code))")
+                }
+            } else {
+                // Check if it's a cancellation error from other domains
+                if error.localizedDescription.contains("canceled") || error.localizedDescription.contains("cancelled") {
+                    return // Don't treat cancellation as fatal
+                }
+                print("🛑 Speech recogniser error: \(error.localizedDescription)")
             }
 
+            // Only shut down for truly fatal errors
             transcriptionSubject.send(completion: .failure(.recognitionFailed(error)))
             cleanupRecognition()
             return
@@ -269,8 +319,8 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         transcriptionSubject.send(transcriptionResult)
         
         if isFinal {
-            // Restart recognition for continuous transcription
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            // For continuous transcription, restart after a longer delay to avoid conflicts
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 if self?.isCurrentlyRecognizing == true {
                     self?.setupRecognitionRequest()
                 }
@@ -286,7 +336,6 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         recognitionRequest = nil
         
         isCurrentlyRecognizing = false
-        print("Stopped speech recognition")
     }
 }
 
@@ -299,7 +348,7 @@ extension SpeechRecognitionService: SFSpeechRecognizerDelegate {
             cleanupRecognition()
         }
         
-        print("Speech recognizer availability changed: \(available)")
+        // Speech recognizer availability changed
     }
 }
 

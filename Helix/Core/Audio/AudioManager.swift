@@ -50,7 +50,6 @@ class AudioManager: NSObject, AudioManagerProtocol {
         } else {
             try configureAudioEngine()
             try audioEngine.start()
-            print("Audio recording started")
         }
     }
     
@@ -60,7 +59,6 @@ class AudioManager: NSObject, AudioManagerProtocol {
         } else if audioEngine.isRunning {
             audioEngine.stop()
             audioEngine.inputNode.removeTap(onBus: 0)
-            print("Audio recording stopped")
         }
     }
     
@@ -76,8 +74,19 @@ class AudioManager: NSObject, AudioManagerProtocol {
     
     private func setupAudioSession() {
         do {
-            try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetooth])
+            // Use .default mode instead of .measurement for better speech recognition
+            // .measurement mode can be too aggressive with noise filtering
+            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
             try audioSession.setActive(true)
+            
+            // Request microphone permission explicitly
+            audioSession.requestRecordPermission { granted in
+                if !granted {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.audioSubject.send(completion: .failure(.permissionDenied))
+                    }
+                }
+            }
         } catch {
             audioSubject.send(completion: .failure(.sessionSetupFailed(error)))
         }
@@ -103,14 +112,6 @@ class AudioManager: NSObject, AudioManagerProtocol {
 
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, time in
             self?.processAudioBuffer(buffer, at: time)
-            #if DEBUG
-            if let self {
-                let sr = buffer.format.sampleRate
-                let ch = buffer.format.channelCount
-                let frames = buffer.frameLength
-                print("🎙️ Audio tap buffer SR=\(sr) ch=\(ch) frames=\(frames)")
-            }
-            #endif
         }
     }
     

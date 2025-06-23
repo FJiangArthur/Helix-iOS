@@ -168,6 +168,117 @@ class AppCoordinatorTests: XCTestCase {
         // Error handling would be tested with mock services
         // that can simulate various error conditions
     }
+    
+    // MARK: - Speech Backend Switching Tests
+    
+    func testSpeechBackendSwitchToLocal() {
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .local
+        
+        coordinator.updateSettings(newSettings)
+        
+        XCTAssertEqual(coordinator.settings.speechBackend, .local)
+        XCTAssertNil(coordinator.errorMessage) // Should not error for local backend
+    }
+    
+    func testSpeechBackendSwitchToWhisperWithoutAPIKey() {
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .remoteWhisper
+        newSettings.openAIKey = "" // Empty API key
+        
+        coordinator.updateSettings(newSettings)
+        
+        XCTAssertEqual(coordinator.settings.speechBackend, .remoteWhisper)
+        XCTAssertNotNil(coordinator.errorMessage)
+        XCTAssertTrue(coordinator.errorMessage?.contains("OpenAI API key required") ?? false)
+    }
+    
+    func testSpeechBackendSwitchToWhisperWithAPIKey() {
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .remoteWhisper
+        newSettings.openAIKey = "test-api-key"
+        
+        coordinator.updateSettings(newSettings)
+        
+        XCTAssertEqual(coordinator.settings.speechBackend, .remoteWhisper)
+        // Should not error with valid API key
+    }
+    
+    func testSpeechBackendSwitchStopsRecording() {
+        // Start recording first
+        coordinator.startConversation()
+        XCTAssertTrue(coordinator.isRecording)
+        
+        // Switch backend - should stop recording
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .local
+        
+        coordinator.updateSettings(newSettings)
+        
+        XCTAssertFalse(coordinator.isRecording)
+        XCTAssertEqual(coordinator.settings.speechBackend, .local)
+    }
+    
+    func testMultipleSpeechBackendSwitches() {
+        // Switch to Whisper
+        var settings1 = coordinator.settings
+        settings1.speechBackend = .remoteWhisper
+        settings1.openAIKey = "test-key"
+        coordinator.updateSettings(settings1)
+        XCTAssertEqual(coordinator.settings.speechBackend, .remoteWhisper)
+        
+        // Switch back to local
+        var settings2 = coordinator.settings
+        settings2.speechBackend = .local
+        coordinator.updateSettings(settings2)
+        XCTAssertEqual(coordinator.settings.speechBackend, .local)
+        
+        // Switch to Whisper again
+        var settings3 = coordinator.settings
+        settings3.speechBackend = .remoteWhisper
+        coordinator.updateSettings(settings3)
+        XCTAssertEqual(coordinator.settings.speechBackend, .remoteWhisper)
+    }
+    
+    func testSpeechBackendSwitchPreservesOtherSettings() {
+        // Set up initial settings
+        var initialSettings = coordinator.settings
+        initialSettings.enableFactChecking = false
+        initialSettings.primaryLanguage = Locale(identifier: "es-ES")
+        initialSettings.voiceSensitivity = 0.8
+        coordinator.updateSettings(initialSettings)
+        
+        // Switch speech backend
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .local
+        coordinator.updateSettings(newSettings)
+        
+        // Other settings should be preserved
+        XCTAssertEqual(coordinator.settings.speechBackend, .local)
+        XCTAssertEqual(coordinator.settings.enableFactChecking, false)
+        XCTAssertEqual(coordinator.settings.primaryLanguage?.identifier, "es-ES")
+        XCTAssertEqual(coordinator.settings.voiceSensitivity, 0.8)
+    }
+    
+    func testSpeechBackendSwitchWithActiveConversation() {
+        // Start a conversation
+        coordinator.startConversation()
+        XCTAssertTrue(coordinator.isRecording)
+        
+        // Switch backend during recording
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = .local
+        coordinator.updateSettings(newSettings)
+        
+        // Recording should be stopped during switch
+        XCTAssertFalse(coordinator.isRecording)
+        
+        // Should be able to start recording again with new backend
+        coordinator.startConversation()
+        XCTAssertTrue(coordinator.isRecording)
+        
+        coordinator.stopConversation()
+    }
 }
 
 // MARK: - Integration Tests

@@ -168,6 +168,21 @@ class MockAudioManager: AudioManagerProtocol {
         }
     }
     
+    // MARK: - Additional Mock Methods for Testing
+    
+    func simulateAudioFrame() {
+        sendMockAudioData()
+    }
+    
+    func simulateVoiceActivity() {
+        // Simulate more realistic voice activity
+        for i in 0..<5 {
+            DispatchQueue.global().asyncAfter(deadline: .now() + Double(i) * 0.1) {
+                self.sendMockAudioData()
+            }
+        }
+    }
+    
     func simulateError(_ error: AudioError) {
         audioSubject.send(completion: .failure(error))
     }

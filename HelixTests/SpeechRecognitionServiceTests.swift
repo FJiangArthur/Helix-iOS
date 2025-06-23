@@ -96,7 +96,7 @@ class SpeechRecognitionServiceTests: XCTestCase {
 // MARK: - Mock Speech Recognition Service
 
 class MockSpeechRecognitionService: SpeechRecognitionServiceProtocol {
-    private let transcriptionSubject = PassthroughSubject<TranscriptionResult, TranscriptionError>()
+    let transcriptionSubject = PassthroughSubject<TranscriptionResult, TranscriptionError>()
     private(set) var isRecognizing = false
     private var currentLanguage: Locale = Locale(identifier: "en-US")
     private var customVocabulary: [String] = []
