@@ -216,10 +216,14 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
             recognitionRequest.addsPunctuation = true
         }
         
-        // Improve detection sensitivity
+        // Improve detection sensitivity for quiet speech
         if #available(iOS 17.0, *) {
-            // Enable more aggressive partial result reporting
             recognitionRequest.shouldReportPartialResults = true
+        }
+        
+        // Enable detection of lower confidence speech
+        if #available(iOS 14.0, *) {
+            recognitionRequest.interactionIdentifier = UUID().uuidString
         }
         
         // Add context strings for better recognition
@@ -246,12 +250,8 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
             if error.domain == "kAFAssistantErrorDomain" {
                 switch error.code {
                 case 1101: // "No speech detected"
-                    // Restart recognition automatically after brief delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                        if self?.isCurrentlyRecognizing == true {
-                            self?.setupRecognitionRequest()
-                        }
-                    }
+                    // Log but don't restart immediately - let natural speech continue
+                    print("ℹ️ Speech recognition: No speech detected, continuing to listen...")
                     return
                 case 1107: // "Speech recognition timed out"
                     // Restart recognition automatically
