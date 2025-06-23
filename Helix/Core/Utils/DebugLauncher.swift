@@ -86,6 +86,16 @@ struct DebugConfiguration {
     )
 }
 
+// Allow SwiftUI views like `.fullScreenCover(item:)` to present a configuration
+// directly.  The `id` is derived from the combination of configuration fields
+// so that two configurations with identical settings are considered the same
+// value from the point-of-view of SwiftUI identity semantics.
+extension DebugConfiguration: Identifiable {
+    public var id: String {
+        "\(enableAudio)-\(enableSpeech)-\(enableBluetooth)-\(enableAI)-\(testMode.rawValue)"
+    }
+}
+
 enum DebugTestMode: String, CaseIterable {
     case minimal = "Minimal UI Only"
     case audioTesting = "Audio Service Testing"
@@ -248,8 +258,14 @@ struct DebugConfigurationView: View {
     @State private var selectedConfig: DebugConfiguration = .allEnabled
     @State private var showingLogs = false
     @StateObject private var logger = debugLogger
-    
-    let configurations: [(String, DebugConfiguration)] = [
+
+    /// Callback fired when user taps the “Launch” button.
+    /// The selected configuration is propagated so that the caller can
+    /// instantiate an `AppCoordinator` with the right feature flags and swap
+    /// it into the live environment.
+    var onLaunch: (DebugConfiguration) -> Void = { _ in }
+
+    private let configurations: [(String, DebugConfiguration)] = [
         ("Minimal (All Disabled)", .allDisabled),
         ("Audio Only", .audioOnly),
         ("Speech Only", .speechOnly),
@@ -259,18 +275,18 @@ struct DebugConfigurationView: View {
         ("Audio + Speech + Bluetooth", .incremental2),
         ("All Enabled", .allEnabled)
     ]
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
                 Text("Debug Test Harness")
                     .font(.largeTitle)
                     .fontWeight(.bold)
-                
+
                 Text("Select a configuration to test specific services")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                
+
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())
@@ -285,21 +301,21 @@ struct DebugConfigurationView: View {
                         }
                     }
                 }
-                
+
                 Spacer()
-                
+
                 VStack(spacing: 16) {
                     Button("Launch with Selected Configuration") {
                         launchApp()
                     }
                     .buttonStyle(.borderedProminent)
                     .font(.headline)
-                    
+
                     Button("View Debug Logs") {
                         showingLogs = true
                     }
                     .buttonStyle(.bordered)
-                    
+
                     if !logger.logs.isEmpty {
                         Text("\(logger.logs.count) log entries")
                             .font(.caption)
@@ -314,13 +330,11 @@ struct DebugConfigurationView: View {
             DebugLogsView()
         }
     }
-    
+
     private func launchApp() {
         debugLogger.log(.info, source: "DebugUI", message: "Launching app with \(selectedConfig.testMode.rawValue)")
-        
-        // In a real implementation, this would trigger the app launch
-        // For now, we'll just log the configuration
-        debugLogger.log(.debug, source: "DebugUI", message: "Configuration - Audio: \(selectedConfig.enableAudio), Speech: \(selectedConfig.enableSpeech), Bluetooth: \(selectedConfig.enableBluetooth), AI: \(selectedConfig.enableAI)")
+
+        onLaunch(selectedConfig)
     }
 }
 

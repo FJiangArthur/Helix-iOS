@@ -114,6 +114,20 @@ struct StatusBarView: View {
                 Text(formatDuration(coordinator.conversationDuration))
                     .font(.caption2)
                     .foregroundColor(.secondary)
+
+                // Speech backend indicator with tap to change
+                Button(action: {
+                    toggleSpeechBackend()
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: coordinator.settings.speechBackend == .local ? "cpu" : "cloud")
+                        Text(coordinator.settings.speechBackend == .local ? "On-device" : "Whisper")
+                    }
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(coordinator.isRecording)
             }
         }
         .padding(.vertical, 8)
@@ -126,6 +140,12 @@ struct StatusBarView: View {
         let minutes = Int(duration) / 60
         let seconds = Int(duration) % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    private func toggleSpeechBackend() {
+        var newSettings = coordinator.settings
+        newSettings.speechBackend = newSettings.speechBackend == .local ? .remoteWhisper : .local
+        coordinator.updateSettings(newSettings)
     }
 }
 
@@ -172,6 +192,12 @@ struct ConversationScrollView: View {
                             .id(message.id)
                     }
                     
+                    // Live transcription display
+                    if coordinator.isRecording, let liveTranscription = coordinator.conversationViewModel.liveTranscription {
+                        LiveTranscriptionBubble(text: liveTranscription)
+                            .id("live-transcription")
+                    }
+                    
                     if coordinator.isProcessing {
                         ProcessingIndicator()
                     }
@@ -182,6 +208,13 @@ struct ConversationScrollView: View {
                 if isAutoScrollEnabled, let lastMessage = coordinator.currentConversation.last {
                     withAnimation(.easeOut(duration: 0.3)) {
                         proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                    }
+                }
+            }
+            .onChange(of: coordinator.conversationViewModel.liveTranscription) { _ in
+                if isAutoScrollEnabled && coordinator.isRecording {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        proxy.scrollTo("live-transcription", anchor: .bottom)
                     }
                 }
             }
@@ -268,6 +301,46 @@ struct ConfidenceIndicator: View {
         case 0.8...1.0: return .green
         case 0.6..<0.8: return .orange
         default: return .red
+        }
+    }
+}
+
+struct LiveTranscriptionBubble: View {
+    let text: String
+    @State private var isAnimating = false
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Circle()
+                        .fill(Color.orange)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(isAnimating ? 1.2 : 0.8)
+                        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
+                    
+                    Text("Live transcription...")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+                
+                Text(text)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.orange.opacity(0.1))
+                    .foregroundColor(.primary)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+            }
+            .frame(maxWidth: 280, alignment: .leading)
+            
+            Spacer()
+        }
+        .onAppear {
+            isAnimating = true
         }
     }
 }

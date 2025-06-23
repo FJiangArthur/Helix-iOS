@@ -8,6 +8,7 @@ class ConversationViewModel: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var isProcessing: Bool = false
     @Published var errorMessage: String?
+    @Published var liveTranscription: String?
 
     private let transcriptionCoordinator: TranscriptionCoordinatorProtocol
     private var cancellables = Set<AnyCancellable>()
@@ -21,6 +22,7 @@ class ConversationViewModel: ObservableObject {
     func start() {
         guard !isRecording else { return }
         messages.removeAll()
+        liveTranscription = nil
         isRecording = true
         isProcessing = true
         transcriptionCoordinator.startConversationTranscription()
@@ -31,6 +33,7 @@ class ConversationViewModel: ObservableObject {
         guard isRecording else { return }
         isRecording = false
         isProcessing = false
+        liveTranscription = nil
         transcriptionCoordinator.stopConversationTranscription()
     }
 
@@ -43,7 +46,14 @@ class ConversationViewModel: ObservableObject {
                     self?.isProcessing = false
                 }
             }, receiveValue: { [weak self] update in
-                self?.messages.append(update.message)
+                // Show live transcription for partial results
+                if !update.message.isFinal && update.message.content.count > 2 {
+                    self?.liveTranscription = update.message.content
+                } else if update.message.isFinal {
+                    // Clear live transcription and add final message
+                    self?.liveTranscription = nil
+                    self?.messages.append(update.message)
+                }
                 self?.isProcessing = false
             })
             .store(in: &cancellables)

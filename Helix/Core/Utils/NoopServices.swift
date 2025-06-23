@@ -161,13 +161,23 @@ final class NoopGlassesManager: GlassesManagerProtocol {
     private let connectionStateSubject = CurrentValueSubject<ConnectionState, Never>(.disconnected)
     private let batterySubject = CurrentValueSubject<Float, Never>(0)
     private let capabilitiesSubject = CurrentValueSubject<DisplayCapabilities, Never>(.default)
+    private let discoveredDevicesSubject = CurrentValueSubject<[DiscoveredDevice], Never>([])
 
     var connectionState: AnyPublisher<ConnectionState, Never> { connectionStateSubject.eraseToAnyPublisher() }
     var batteryLevel: AnyPublisher<Float, Never> { batterySubject.eraseToAnyPublisher() }
     var displayCapabilities: AnyPublisher<DisplayCapabilities, Never> { capabilitiesSubject.eraseToAnyPublisher() }
+    var discoveredDevices: AnyPublisher<[DiscoveredDevice], Never> { discoveredDevicesSubject.eraseToAnyPublisher() }
 
     func connect() -> AnyPublisher<Void, GlassesError> {
         Just(()).setFailureType(to: GlassesError.self).eraseToAnyPublisher()
+    }
+    
+    func connectToDevice(_ device: DiscoveredDevice) -> AnyPublisher<Void, GlassesError> {
+        Just(()).setFailureType(to: GlassesError.self).eraseToAnyPublisher()
+    }
+    
+    func stopScanning() {
+        // no-op
     }
 
     func disconnect() {
