@@ -164,6 +164,9 @@ class AppCoordinator: ObservableObject {
                 self.conversationDuration = Date().timeIntervalSince(start)
             }
         
+        // Start recording storage for audio playback history
+        audioManager.startStoringRecording()
+        
         transcriptionCoordinator.startConversationTranscription()
     }
     
@@ -174,6 +177,12 @@ class AppCoordinator: ObservableObject {
         isProcessing = false
         // Stop duration timer
         durationTimer?.cancel()
+        
+        // Stop recording storage and save the recording
+        audioManager.stopStoringRecording()
+        if let savedURL = audioManager.saveLastRecording(filename: "conversation_\(Int(Date().timeIntervalSince1970)).wav") {
+            let _ = RecordingHistoryManager.shared.saveRecording(from: savedURL, date: conversationStartDate ?? Date())
+        }
         
         transcriptionCoordinator.stopConversationTranscription()
     }
@@ -241,7 +250,9 @@ class AppCoordinator: ObservableObject {
     }
     
     func exportConversation() -> ConversationExport {
-        return conversationContext.exportConversation()
+        let export = conversationContext.exportConversation()
+        ConversationHistoryManager.shared.saveConversation(export)
+        return export
     }
     
     func updateSettings(_ newSettings: AppSettings) {
@@ -337,7 +348,7 @@ class AppCoordinator: ObservableObject {
                     self?.isProcessing = false
                 }
             } receiveValue: { [weak self] update in
-                self?.conversationViewModel.messages.append(update.message)
+                // Don't append here - let ConversationViewModel handle it
                 self?.isProcessing = false
                 self?.handleConversationUpdate(update)
             }
@@ -363,7 +374,7 @@ class AppCoordinator: ObservableObject {
                     self?.isProcessing = false
                 }
             } receiveValue: { [weak self] update in
-                self?.conversationViewModel.messages.append(update.message)
+                // Don't append here - let ConversationViewModel handle it
                 self?.isProcessing = false
                 self?.handleConversationUpdate(update)
             }
@@ -388,8 +399,7 @@ class AppCoordinator: ObservableObject {
     }
     
     private func handleConversationUpdate(_ update: ConversationUpdate) {
-        // Add message to conversation
-        currentConversation.append(update.message)
+        // Add message to conversation context and history
         conversationContext.addMessage(update.message)
         
         // Update speakers list if new speaker

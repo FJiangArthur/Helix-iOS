@@ -36,6 +36,22 @@ final class NoopAudioManager: AudioManagerProtocol {
     func configure(sampleRate: Double, bufferDuration: TimeInterval) throws {
         // no-op
     }
+    
+    func startStoringRecording() {
+        // no-op
+    }
+    
+    func stopStoringRecording() {
+        // no-op
+    }
+    
+    func saveLastRecording(filename: String) -> URL? {
+        return nil
+    }
+    
+    func getRecordingDuration() -> TimeInterval {
+        return 0.0
+    }
 }
 
 final class NoopVoiceActivityDetector: VoiceActivityDetectorProtocol {
