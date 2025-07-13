@@ -2,12 +2,8 @@
 // ABOUTME: Configures theme, navigation, and dependency injection for the Helix app
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'providers/app_state_provider.dart';
-import 'services/service_locator.dart';
 import 'ui/screens/home_screen.dart';
-import 'ui/screens/loading_screen.dart';
 import 'ui/theme/app_theme.dart';
 
 class HelixApp extends StatelessWidget {
@@ -15,41 +11,14 @@ class HelixApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AppStateProvider>(
-          create: (context) => ServiceLocator.instance.get<AppStateProvider>(),
-        ),
-      ],
-      child: Consumer<AppStateProvider>(
-        builder: (context, appState, child) {
-          return MaterialApp(
-            title: 'Helix',
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: appState.darkMode ? ThemeMode.dark : ThemeMode.light,
-            home: _buildHome(appState),
-            debugShowCheckedModeBanner: false,
-          );
-        },
-      ),
+    return MaterialApp(
+      title: 'Helix',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      home: const HomeScreen(),
+      debugShowCheckedModeBanner: false,
     );
-  }
-
-  Widget _buildHome(AppStateProvider appState) {
-    switch (appState.appStatus) {
-      case AppStatus.initializing:
-        return const LoadingScreen();
-      case AppStatus.ready:
-        return const HomeScreen();
-      case AppStatus.error:
-        return ErrorScreen(
-          error: appState.currentError ?? 'Unknown error occurred',
-          onRetry: () => appState.retryInitialization(),
-        );
-      case AppStatus.updating:
-        return const LoadingScreen(message: 'Updating...');
-    }
   }
 }
 

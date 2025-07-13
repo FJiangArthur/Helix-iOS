@@ -2,9 +2,7 @@
 // ABOUTME: Provides access to conversation, analysis, glasses, history, and settings
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../providers/app_state_provider.dart';
 import '../../core/utils/constants.dart';
 import '../widgets/conversation_tab.dart';
 import '../widgets/analysis_tab.dart';
@@ -37,40 +35,36 @@ class _HomeScreenState extends State<HomeScreen> {
         index: _currentIndex,
         children: _tabs,
       ),
-      bottomNavigationBar: Consumer<AppStateProvider>(
-        builder: (context, appState, child) {
-          return BottomNavigationBar(
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            type: BottomNavigationBarType.fixed,
-            items: [
-              BottomNavigationBarItem(
-                icon: _buildTabIcon(Icons.mic, 0, appState.isRecording),
-                label: UIConstants.tabLabels[0],
-              ),
-              BottomNavigationBarItem(
-                icon: _buildTabIcon(Icons.analytics, 1, appState.isAnalyzing),
-                label: UIConstants.tabLabels[1],
-              ),
-              BottomNavigationBarItem(
-                icon: _buildTabIcon(Icons.glasses, 2, appState.glassesConnected),
-                label: UIConstants.tabLabels[2],
-              ),
-              BottomNavigationBarItem(
-                icon: _buildTabIcon(Icons.history, 3, false),
-                label: UIConstants.tabLabels[3],
-              ),
-              BottomNavigationBarItem(
-                icon: _buildTabIcon(Icons.settings, 4, false),
-                label: UIConstants.tabLabels[4],
-              ),
-            ],
-          );
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
         },
+        type: BottomNavigationBarType.fixed,
+        items: [
+          BottomNavigationBarItem(
+            icon: _buildTabIcon(Icons.mic, 0, false),
+            label: UIConstants.tabLabels[0],
+          ),
+          BottomNavigationBarItem(
+            icon: _buildTabIcon(Icons.analytics, 1, false),
+            label: UIConstants.tabLabels[1],
+          ),
+          BottomNavigationBarItem(
+            icon: _buildTabIcon(Icons.remove_red_eye, 2, false), // Use different icon
+            label: UIConstants.tabLabels[2],
+          ),
+          BottomNavigationBarItem(
+            icon: _buildTabIcon(Icons.history, 3, false),
+            label: UIConstants.tabLabels[3],
+          ),
+          BottomNavigationBarItem(
+            icon: _buildTabIcon(Icons.settings, 4, false),
+            label: UIConstants.tabLabels[4],
+          ),
+        ],
       ),
       floatingActionButton: _currentIndex == 0 ? _buildRecordingFab() : null,
     );
@@ -100,21 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecordingFab() {
-    return Consumer<AppStateProvider>(
-      builder: (context, appState, child) {
-        return FloatingActionButton(
-          onPressed: appState.readyForConversation
-              ? () => appState.toggleRecording()
-              : null,
-          backgroundColor: appState.isRecording
-              ? Colors.red
-              : Theme.of(context).colorScheme.primary,
-          child: Icon(
-            appState.isRecording ? Icons.stop : Icons.mic,
-            color: Colors.white,
-          ),
-        );
+    return FloatingActionButton(
+      onPressed: () {
+        // TODO: Connect to audio service in Phase 2
       },
+      child: const Icon(Icons.mic),
     );
   }
 }
