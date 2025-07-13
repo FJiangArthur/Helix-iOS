@@ -14,6 +14,9 @@ import 'settings_service.dart';
 // Service implementations
 import 'implementations/audio_service_impl.dart';
 import 'implementations/transcription_service_impl.dart';
+import 'implementations/llm_service_impl.dart';
+import 'implementations/glasses_service_impl.dart';
+import 'implementations/settings_service_impl.dart';
 
 // Providers
 import '../providers/app_state_provider.dart';
@@ -72,10 +75,17 @@ class ServiceLocator {
     // Transcription Service
     _getIt.registerLazySingleton<TranscriptionService>(() => TranscriptionServiceImpl(logger: logger));
     
-    // TODO: Register other services as they are implemented
-    // _getIt.registerLazySingleton<LLMService>(() => LLMServiceImpl());
-    // _getIt.registerLazySingleton<GlassesService>(() => GlassesServiceImpl());
-    // _getIt.registerLazySingleton<SettingsService>(() => SettingsServiceImpl());
+    // LLM Service
+    _getIt.registerLazySingleton<LLMService>(() => LLMServiceImpl(logger: logger));
+    
+    // Glasses Service
+    _getIt.registerLazySingleton<GlassesService>(() => GlassesServiceImpl(logger: logger));
+    
+    // Settings Service
+    _getIt.registerLazySingleton<SettingsService>(() => SettingsServiceImpl(
+      logger: logger,
+      prefs: _getIt<SharedPreferences>(),
+    ));
   }
   
   /// Register providers

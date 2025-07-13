@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 
 struct HistoryView: View {
     @EnvironmentObject var coordinator: AppCoordinator
@@ -6,8 +7,11 @@ struct HistoryView: View {
     @State private var selectedConversation: ConversationExport?
     @State private var showingExportSheet = false
     
-    // Mock conversation history for demo
+    // Real conversation history from persistent storage
     @State private var conversationHistory: [ConversationExport] = []
+    @State private var recordingHistory: [RecordingEntry] = []
+    @State private var selectedTab = 0
+    @State private var audioPlayer: AVAudioPlayer?
     
     var filteredConversations: [ConversationExport] {
         if searchText.isEmpty {
@@ -23,31 +27,50 @@ struct HistoryView: View {
     
     var body: some View {
         NavigationView {
-            VStack {
-                if conversationHistory.isEmpty {
-                    EmptyHistoryView()
-                } else {
-                    ConversationHistoryList(
-                        conversations: filteredConversations,
-                        selectedConversation: $selectedConversation,
-                        showingExportSheet: $showingExportSheet
-                    )
+            TabView(selection: $selectedTab) {
+                ConversationHistoryTab(
+                    conversations: filteredConversations,
+                    selectedConversation: $selectedConversation,
+                    showingExportSheet: $showingExportSheet,
+                    coordinator: coordinator
+                )
+                .tabItem {
+                    Image(systemName: "message")
+                    Text("Conversations")
                 }
+                .tag(0)
+                
+                RecordingHistoryTab(
+                    recordings: recordingHistory,
+                    audioPlayer: $audioPlayer
+                )
+                .tabItem {
+                    Image(systemName: "waveform")
+                    Text("Recordings")
+                }
+                .tag(1)
             }
-            .navigationTitle("History")
+            .navigationTitle(selectedTab == 0 ? "Conversation History" : "Recording History")
             .searchable(text: $searchText, prompt: "Search conversations")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
-                        Button("Export Current Session") {
-                            exportCurrentSession()
+                        if selectedTab == 0 {
+                            Button("Export Current Session") {
+                                exportCurrentSession()
+                            }
+                            .disabled(coordinator.currentConversation.isEmpty)
+                            
+                            Button("Clear Conversation History") {
+                                clearConversationHistory()
+                            }
+                            .disabled(conversationHistory.isEmpty)
+                        } else {
+                            Button("Clear Recording History") {
+                                clearRecordingHistory()
+                            }
+                            .disabled(recordingHistory.isEmpty)
                         }
-                        .disabled(coordinator.currentConversation.isEmpty)
-                        
-                        Button("Clear History") {
-                            clearHistory()
-                        }
-                        .disabled(conversationHistory.isEmpty)
                         
                         Button("Import Conversation") {
                             // TODO: Implement import
@@ -66,61 +89,18 @@ struct HistoryView: View {
         }
         .onAppear {
             loadConversationHistory()
+            loadRecordingHistory()
         }
     }
     
     private func loadConversationHistory() {
-        // Load from persistent storage or generate mock data
-        generateMockHistory()
+        // Load saved conversation history from UserDefaults
+        conversationHistory = ConversationHistoryManager.shared.loadHistory()
     }
     
-    private func generateMockHistory() {
-        // Create mock conversation history for demo
-        let mockSpeakers = [
-            Speaker(name: "You", isCurrentUser: true),
-            Speaker(name: "Alice", isCurrentUser: false),
-            Speaker(name: "Bob", isCurrentUser: false)
-        ]
-        
-        var tempHistory: [ConversationExport] = []
-        
-        for index in 1...5 {
-            let messageCount = Int.random(in: 3...8)
-            var messages: [ConversationMessage] = []
-            
-            for messageIndex in 1...messageCount {
-                let message = ConversationMessage(
-                    content: "This is message \(messageIndex) from conversation \(index). Sample content.",
-                    speakerId: mockSpeakers.randomElement()?.id,
-                    confidence: Float.random(in: 0.7...0.95),
-                    timestamp: Date().addingTimeInterval(-TimeInterval(index * 3600 + messageIndex * 60)).timeIntervalSince1970,
-                    isFinal: true,
-                    wordTimings: [],
-                    originalText: "Original text \(messageIndex)"
-                )
-                messages.append(message)
-            }
-            
-            let avgConfidence = messages.map(\.confidence).reduce(0, +) / Float(messages.count)
-            let summary = ConversationSummary(
-                messageCount: messages.count,
-                speakerCount: mockSpeakers.count,
-                duration: TimeInterval(messages.count * 30),
-                averageConfidence: avgConfidence,
-                startTime: messages.first?.timestamp ?? 0,
-                endTime: messages.last?.timestamp ?? 0
-            )
-            
-            let export = ConversationExport(
-                messages: messages,
-                speakers: mockSpeakers,
-                summary: summary,
-                exportDate: Date().addingTimeInterval(-TimeInterval(index * 3600))
-            )
-            tempHistory.append(export)
-        }
-        
-        conversationHistory = tempHistory
+    private func loadRecordingHistory() {
+        // Load recording history from Documents directory
+        recordingHistory = RecordingHistoryManager.shared.loadRecordings()
     }
     
     private func exportCurrentSession() {
@@ -128,11 +108,18 @@ struct HistoryView: View {
         
         let export = coordinator.exportConversation()
         conversationHistory.insert(export, at: 0)
+        ConversationHistoryManager.shared.saveConversation(export)
         showingExportSheet = true
     }
     
-    private func clearHistory() {
+    private func clearConversationHistory() {
         conversationHistory.removeAll()
+        ConversationHistoryManager.shared.clearHistory()
+    }
+    
+    private func clearRecordingHistory() {
+        recordingHistory.removeAll()
+        RecordingHistoryManager.shared.clearRecordings()
     }
 }
 
@@ -691,6 +678,269 @@ struct ExportSheet: View {
         print("Include timestamps: \(includeTimestamps)")
         
         dismiss()
+    }
+}
+
+// MARK: - Recording Management
+
+struct RecordingEntry: Identifiable, Codable {
+    let id: UUID = UUID()
+    let filename: String
+    let duration: TimeInterval
+    let date: Date
+    let fileURL: URL
+    
+    var formattedDuration: String {
+        let minutes = Int(duration) / 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+}
+
+struct ConversationHistoryTab: View {
+    let conversations: [ConversationExport]
+    @Binding var selectedConversation: ConversationExport?
+    @Binding var showingExportSheet: Bool
+    let coordinator: AppCoordinator
+    
+    var body: some View {
+        if conversations.isEmpty {
+            EmptyHistoryView()
+        } else {
+            ConversationHistoryList(
+                conversations: conversations,
+                selectedConversation: $selectedConversation,
+                showingExportSheet: $showingExportSheet
+            )
+        }
+    }
+}
+
+struct RecordingHistoryTab: View {
+    let recordings: [RecordingEntry]
+    @Binding var audioPlayer: AVAudioPlayer?
+    @State private var isPlayingRecording: UUID?
+    
+    var body: some View {
+        if recordings.isEmpty {
+            EmptyRecordingView()
+        } else {
+            List(recordings) { recording in
+                RecordingRow(
+                    recording: recording,
+                    isPlaying: isPlayingRecording == recording.id,
+                    onPlay: {
+                        playRecording(recording)
+                    },
+                    onStop: {
+                        stopPlayback()
+                    }
+                )
+            }
+        }
+    }
+    
+    private func playRecording(_ recording: RecordingEntry) {
+        stopPlayback() // Stop any current playback
+        
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: recording.fileURL)
+            audioPlayer?.play()
+            isPlayingRecording = recording.id
+            
+            // Auto-stop when finished
+            DispatchQueue.main.asyncAfter(deadline: .now() + recording.duration) {
+                if isPlayingRecording == recording.id {
+                    stopPlayback()
+                }
+            }
+        } catch {
+            print("Failed to play recording: \(error)")
+        }
+    }
+    
+    private func stopPlayback() {
+        audioPlayer?.stop()
+        audioPlayer = nil
+        isPlayingRecording = nil
+    }
+}
+
+struct EmptyRecordingView: View {
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "waveform.circle")
+                .font(.system(size: 60))
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 8) {
+                Text("No Recordings")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text("Audio recordings from your conversations will appear here. Start recording to build your audio history.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+        }
+    }
+}
+
+struct RecordingRow: View {
+    let recording: RecordingEntry
+    let isPlaying: Bool
+    let onPlay: () -> Void
+    let onStop: () -> Void
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(formatDate(recording.date))
+                    .font(.headline)
+                
+                Text(recording.formattedDuration)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            Button(action: isPlaying ? onStop : onPlay) {
+                Image(systemName: isPlaying ? "stop.circle.fill" : "play.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        if Calendar.current.isDateInToday(date) {
+            formatter.timeStyle = .short
+            return "Today at \(formatter.string(from: date))"
+        } else if Calendar.current.isDateInYesterday(date) {
+            formatter.timeStyle = .short
+            return "Yesterday at \(formatter.string(from: date))"
+        } else {
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        }
+    }
+}
+
+// MARK: - History Managers
+
+class ConversationHistoryManager {
+    static let shared = ConversationHistoryManager()
+    private let userDefaults = UserDefaults.standard
+    private let historyKey = "conversationHistory"
+    
+    private init() {}
+    
+    func saveConversation(_ conversation: ConversationExport) {
+        var history = loadHistory()
+        history.insert(conversation, at: 0)
+        
+        // Limit to 50 conversations
+        if history.count > 50 {
+            history = Array(history.prefix(50))
+        }
+        
+        if let data = try? JSONEncoder().encode(history) {
+            userDefaults.set(data, forKey: historyKey)
+        }
+    }
+    
+    func loadHistory() -> [ConversationExport] {
+        guard let data = userDefaults.data(forKey: historyKey),
+              let history = try? JSONDecoder().decode([ConversationExport].self, from: data) else {
+            return []
+        }
+        return history
+    }
+    
+    func clearHistory() {
+        userDefaults.removeObject(forKey: historyKey)
+    }
+}
+
+class RecordingHistoryManager {
+    static let shared = RecordingHistoryManager()
+    private let fileManager = FileManager.default
+    
+    private init() {}
+    
+    private var recordingsDirectory: URL {
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsPath.appendingPathComponent("Recordings")
+    }
+    
+    func saveRecording(from url: URL, date: Date = Date()) -> RecordingEntry? {
+        // Create recordings directory if needed
+        try? fileManager.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
+        
+        let filename = "recording_\(Int(date.timeIntervalSince1970)).wav"
+        let destinationURL = recordingsDirectory.appendingPathComponent(filename)
+        
+        do {
+            try fileManager.copyItem(at: url, to: destinationURL)
+            
+            // Get duration from audio file
+            let asset = AVURLAsset(url: destinationURL)
+            let duration = CMTimeGetSeconds(asset.duration)
+            
+            let entry = RecordingEntry(
+                filename: filename,
+                duration: duration,
+                date: date,
+                fileURL: destinationURL
+            )
+            
+            return entry
+        } catch {
+            print("Failed to save recording: \(error)")
+            return nil
+        }
+    }
+    
+    func loadRecordings() -> [RecordingEntry] {
+        guard fileManager.fileExists(atPath: recordingsDirectory.path) else {
+            return []
+        }
+        
+        do {
+            let files = try fileManager.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: [.creationDateKey])
+            
+            return files.compactMap { url in
+                guard url.pathExtension == "wav" else { return nil }
+                
+                let asset = AVURLAsset(url: url)
+                let duration = CMTimeGetSeconds(asset.duration)
+                
+                let attributes = try? fileManager.attributesOfItem(atPath: url.path)
+                let date = attributes?[.creationDate] as? Date ?? Date()
+                
+                return RecordingEntry(
+                    filename: url.lastPathComponent,
+                    duration: duration,
+                    date: date,
+                    fileURL: url
+                )
+            }
+            .sorted { $0.date > $1.date }
+        } catch {
+            print("Failed to load recordings: \(error)")
+            return []
+        }
+    }
+    
+    func clearRecordings() {
+        try? fileManager.removeItem(at: recordingsDirectory)
     }
 }
 

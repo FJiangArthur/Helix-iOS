@@ -27,10 +27,14 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
     private var currentTask: URLSessionDataTask?
     private let session = URLSession.shared
     
-    // Timing for chunk processing
+    // Voice activity detection for smart chunking
     private var lastProcessTime: Date = Date()
-    private let chunkInterval: TimeInterval = 2.0 // Process chunks every 2 seconds
+    private let maxChunkInterval: TimeInterval = 8.0 // Maximum time before forcing processing
     private var chunkTimer: Timer?
+    private let minimumBufferDuration: TimeInterval = 3.0 // Minimum 3 seconds of audio for better accuracy
+    private let silenceThreshold: Float = 0.02 // Audio level below this is considered silence
+    private var consecutiveSilenceCount = 0
+    private let silenceFramesRequired = 10 // Frames of silence before processing
 
     // MARK: - Init
     init(apiKey: String, sampleRate: Double = 16000) {
@@ -53,8 +57,8 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
         pendingBuffers.removeAll()
         lastProcessTime = Date()
         
-        // Start timer for periodic chunk processing
-        chunkTimer = Timer.scheduledTimer(withTimeInterval: chunkInterval, repeats: true) { [weak self] _ in
+        // Start timer for maximum chunk processing (fallback)
+        chunkTimer = Timer.scheduledTimer(withTimeInterval: maxChunkInterval, repeats: true) { [weak self] _ in
             self?.processAccumulatedAudio()
         }
         
@@ -95,9 +99,35 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
         processingQueue.async { [weak self] in
             guard let self = self else { return }
             
+            // Calculate audio level for voice activity detection
+            let audioLevel = self.calculateAudioLevel(buffer)
+            
             // Copy the buffer to avoid potential issues with the original buffer being modified
             if let copiedBuffer = self.copyBuffer(buffer) {
                 self.pendingBuffers.append(copiedBuffer)
+            }
+            
+            // Voice activity detection
+            if audioLevel < self.silenceThreshold {
+                self.consecutiveSilenceCount += 1
+                // Only log when approaching the threshold
+                if self.consecutiveSilenceCount == self.silenceFramesRequired - 2 {
+                    print("🔇 Approaching silence threshold...")
+                }
+            } else {
+                self.consecutiveSilenceCount = 0
+            }
+            
+            // Process if we have enough silence after speech
+            let totalDuration = self.pendingBuffers.reduce(0.0) { total, buffer in
+                return total + Double(buffer.frameLength) / buffer.format.sampleRate
+            }
+            
+            if totalDuration >= self.minimumBufferDuration && 
+               self.consecutiveSilenceCount >= self.silenceFramesRequired {
+                print("🎤 Processing due to silence after speech (\(String(format: "%.1f", totalDuration))s)")
+                self.processAccumulatedAudio()
+                self.consecutiveSilenceCount = 0
             }
         }
     }
@@ -107,6 +137,27 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
     private func processAccumulatedAudio(final: Bool = false) {
         processingQueue.async { [weak self] in
             guard let self = self, !self.pendingBuffers.isEmpty else { return }
+            
+            // Calculate total buffer duration
+            let totalDuration = self.pendingBuffers.reduce(0.0) { total, buffer in
+                return total + Double(buffer.frameLength) / buffer.format.sampleRate
+            }
+            
+            // Only process if we have minimum duration or if final
+            guard final || totalDuration >= self.minimumBufferDuration else {
+                print("⏱️ RemoteWhisper: Buffer too short (\(String(format: "%.1f", totalDuration))s), waiting for more audio")
+                return
+            }
+            
+            // Also check if we have enough actual audio content (not just silence)
+            let averageLevel = self.calculateAverageAudioLevel(self.pendingBuffers)
+            if averageLevel < 0.001 && !final {
+                print("🔇 RemoteWhisper: Audio too quiet (\(String(format: "%.4f", averageLevel))), skipping processing")
+                self.pendingBuffers.removeAll() // Clear silent buffers
+                return
+            }
+            
+            print("🎤 RemoteWhisper: Processing \(String(format: "%.1f", totalDuration))s of audio (level: \(String(format: "%.3f", averageLevel)))")
             
             // Convert accumulated buffers to audio data
             guard let audioData = self.convertBuffersToAudioData(self.pendingBuffers) else {
@@ -148,6 +199,16 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
         body.append("Content-Disposition: form-data; name=\"model\"\r\n\r\n".data(using: .utf8)!)
         body.append("whisper-1\r\n".data(using: .utf8)!)
         
+        // Add language parameter to force English and prevent Korean hallucinations
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"language\"\r\n\r\n".data(using: .utf8)!)
+        body.append("en\r\n".data(using: .utf8)!)
+        
+        // Add temperature for more conservative transcription
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"temperature\"\r\n\r\n".data(using: .utf8)!)
+        body.append("0.0\r\n".data(using: .utf8)!)
+        
         // Add response format parameter
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n".data(using: .utf8)!)
@@ -157,6 +218,11 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"timestamp_granularities[]\"\r\n\r\n".data(using: .utf8)!)
         body.append("word\r\n".data(using: .utf8)!)
+        
+        // Add prompt to guide transcription toward English business/technical content
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n".data(using: .utf8)!)
+        body.append("This is a conversation about technology, business, or processes. The speaker is discussing transcription, processes, or technical topics in English.\r\n".data(using: .utf8)!)
         
         // Add audio file
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -197,6 +263,12 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
         do {
             let response = try JSONDecoder().decode(WhisperResponse.self, from: data)
             
+            // Filter out obvious hallucinations and foreign language content
+            if isLikelyHallucination(response.text) {
+                print("🚫 RemoteWhisper: Filtered out likely hallucination: \"\(response.text)\"")
+                return
+            }
+            
             // Extract word timings
             let wordTimings = response.words?.map { word in
                 WordTiming(
@@ -225,6 +297,89 @@ final class RemoteWhisperRecognitionService: SpeechRecognitionServiceProtocol {
                 print("🔍 RemoteWhisper: Response data: \(responseString)")
             }
         }
+    }
+    
+    private func calculateAudioLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let channelData = buffer.floatChannelData else { return 0.0 }
+        
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        
+        var sum: Float = 0.0
+        for channel in 0..<channelCount {
+            let samples = channelData[channel]
+            for frame in 0..<frameCount {
+                let sample = samples[frame]
+                sum += sample * sample
+            }
+        }
+        
+        let rms = sqrt(sum / Float(frameCount * channelCount))
+        return rms
+    }
+    
+    private func calculateAverageAudioLevel(_ buffers: [AVAudioPCMBuffer]) -> Float {
+        guard !buffers.isEmpty else { return 0.0 }
+        
+        let levels = buffers.map { calculateAudioLevel($0) }
+        let average = levels.reduce(0, +) / Float(levels.count)
+        return average
+    }
+    
+    private func isLikelyHallucination(_ text: String) -> Bool {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        
+        // Filter out empty or very short responses
+        if trimmedText.count < 3 {
+            return true
+        }
+        
+        // Known hallucination patterns
+        let hallucinationPatterns = [
+            "mbc 뉴스",
+            "이덕영입니다",
+            "자막뉴스",
+            "방송", 
+            "kbs",
+            "sbs",
+            "tv조선",
+            "연합뉴스",
+            "ytn",
+            // Common Whisper hallucinations
+            "thanks for watching",
+            "thank you for watching",
+            "subscribe",
+            "like and subscribe",
+            "don't forget to subscribe",
+            "본 프로그램은",
+            "시청해주셔서 감사합니다",
+            "구독",
+            "알림설정"
+        ]
+        
+        // Check for Korean characters (likely hallucination for English speaker)
+        let koreanCharacterSet = CharacterSet(charactersIn: "가-힣ㄱ-ㅎㅏ-ㅣ")
+        if trimmedText.rangeOfCharacter(from: koreanCharacterSet) != nil {
+            return true
+        }
+        
+        // Check against known patterns
+        for pattern in hallucinationPatterns {
+            if trimmedText.contains(pattern) {
+                return true
+            }
+        }
+        
+        // Filter very repetitive text
+        let words = trimmedText.components(separatedBy: .whitespacesAndNewlines)
+        if words.count > 2 {
+            let uniqueWords = Set(words)
+            if Double(uniqueWords.count) / Double(words.count) < 0.3 {
+                return true // Too repetitive
+            }
+        }
+        
+        return false
     }
     
     private func copyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
