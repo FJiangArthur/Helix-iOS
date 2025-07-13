@@ -5,23 +5,12 @@ import 'dart:async';
 
 import '../models/analysis_result.dart';
 import '../models/conversation_model.dart';
-import '../core/utils/exceptions.dart';
 
 /// Available AI providers
 enum LLMProvider {
   openai,
   anthropic,
   local, // Future: local AI models
-}
-
-/// Type of AI analysis to perform
-enum AnalysisType {
-  factCheck,
-  summary,
-  actionItems,
-  sentiment,
-  topics,
-  comprehensive, // All analysis types
 }
 
 /// Analysis request priority
@@ -34,14 +23,11 @@ enum AnalysisPriority {
 
 /// Service interface for Large Language Model operations
 abstract class LLMService {
+  /// Whether the service is initialized
+  bool get isInitialized;
+  
   /// Currently active provider
   LLMProvider get currentProvider;
-  
-  /// Whether the service is available
-  bool get isAvailable;
-  
-  /// Stream of analysis results
-  Stream<AnalysisResult> get analysisStream;
 
   /// Initialize the LLM service with API keys
   Future<void> initialize({
@@ -50,14 +36,8 @@ abstract class LLMService {
     LLMProvider? preferredProvider,
   });
 
-  /// Check if a specific provider is available
-  Future<bool> isProviderAvailable(LLMProvider provider);
-
-  /// Set API key for a provider
-  Future<void> setAPIKey(LLMProvider provider, String apiKey);
-
-  /// Set preferred provider (with fallback to others)
-  Future<void> setPreferredProvider(LLMProvider provider);
+  /// Set the active provider
+  Future<void> setProvider(LLMProvider provider);
 
   /// Analyze conversation text
   Future<AnalysisResult> analyzeConversation(
@@ -68,61 +48,39 @@ abstract class LLMService {
     Map<String, dynamic>? context,
   });
 
-  /// Perform real-time fact-checking
-  Future<List<FactCheck>> factCheckClaims(
-    String text, {
-    int maxClaims = 5,
-    double confidenceThreshold = 0.7,
-  });
+  /// Perform fact-checking on claims
+  Future<List<FactCheckResult>> checkFacts(List<String> claims);
 
   /// Generate conversation summary
   Future<ConversationSummary> generateSummary(
     ConversationModel conversation, {
-    int maxWords = 200,
-    bool includeActionItems = true,
     bool includeKeyPoints = true,
+    bool includeActionItems = true,
+    int maxWords = 200,
   });
 
   /// Extract action items from conversation
-  Future<List<ActionItem>> extractActionItems(
+  Future<List<ActionItemResult>> extractActionItems(
     String conversationText, {
-    bool includePriority = true,
     bool includeDeadlines = true,
+    bool includePriority = true,
   });
 
   /// Analyze conversation sentiment and tone
-  Future<SentimentAnalysis> analyzeSentiment(String text);
-
-  /// Identify key topics and themes
-  Future<List<Topic>> identifyTopics(
-    String conversationText, {
-    int maxTopics = 10,
-  });
+  Future<SentimentAnalysisResult> analyzeSentiment(String text);
 
   /// Ask a custom question about the conversation
   Future<String> askQuestion(
     String question,
-    String conversationContext, {
+    String context, {
     LLMProvider? provider,
   });
 
-  /// Stream real-time analysis as conversation progresses
-  Stream<AnalysisResult> streamAnalysis(
-    Stream<String> conversationStream, {
-    AnalysisType type = AnalysisType.comprehensive,
-    Duration batchInterval = const Duration(seconds: 30),
-  });
-
   /// Configure analysis settings
-  Future<void> configureAnalysis({
-    double factCheckThreshold = 0.7,
-    int maxClaimsPerAnalysis = 10,
-    bool enableRealTimeAnalysis = true,
-    Duration analysisInterval = const Duration(seconds: 30),
-  });
+  Future<void> configureAnalysis(AnalysisConfiguration config);
 
   /// Get usage statistics
-  Future<LLMUsageStats> getUsageStats();
+  Future<Map<String, dynamic>> getUsageStats();
 
   /// Clear analysis cache
   Future<void> clearCache();
@@ -131,89 +89,16 @@ abstract class LLMService {
   Future<void> dispose();
 }
 
-/// Fact-check result for a specific claim
-class FactCheck {
-  final String claim;
-  final String verification; // 'verified', 'disputed', 'uncertain'
-  final double confidence;
-  final List<String> sources;
-  final String? explanation;
-
-  const FactCheck({
-    required this.claim,
-    required this.verification,
-    required this.confidence,
-    required this.sources,
-    this.explanation,
-  });
-
-  bool get isVerified => verification == 'verified';
-  bool get isDisputed => verification == 'disputed';
-  bool get isUncertain => verification == 'uncertain';
-}
-
-/// Conversation summary
-class ConversationSummary {
-  final String summary;
-  final List<String> keyPoints;
-  final List<ActionItem> actionItems;
-  final String tone;
-  final Duration estimatedReadTime;
-
-  const ConversationSummary({
-    required this.summary,
-    required this.keyPoints,
-    required this.actionItems,
-    required this.tone,
-    required this.estimatedReadTime,
-  });
-}
-
-/// Action item extracted from conversation
-class ActionItem {
-  final String description;
-  final String? assignee;
-  final DateTime? dueDate;
-  final String priority; // 'low', 'medium', 'high'
-  final String? context;
-
-  const ActionItem({
-    required this.description,
-    this.assignee,
-    this.dueDate,
-    required this.priority,
-    this.context,
-  });
-}
-
-/// Sentiment analysis result
-class SentimentAnalysis {
-  final String overallSentiment; // 'positive', 'negative', 'neutral'
-  final double confidence;
-  final String tone; // 'formal', 'casual', 'professional', etc.
-  final Map<String, double> emotions; // 'happy', 'frustrated', 'excited', etc.
-
-  const SentimentAnalysis({
-    required this.overallSentiment,
-    required this.confidence,
-    required this.tone,
-    required this.emotions,
-  });
-}
-
-/// Topic identified in conversation
-class Topic {
-  final String name;
-  final double relevance;
-  final List<String> keywords;
-  final String? category;
-
-  const Topic({
-    required this.name,
-    required this.relevance,
-    required this.keywords,
-    this.category,
-  });
+/// Exception types for LLM errors
+enum LLMErrorType {
+  serviceNotReady,
+  invalidApiKey,
+  apiError,
+  networkError,
+  quotaExceeded,
+  invalidResponse,
+  timeout,
+  unknown,
 }
 
 /// LLM service usage statistics
@@ -231,4 +116,50 @@ class LLMUsageStats {
     required this.totalTokensUsed,
     required this.estimatedCost,
   });
+}
+
+/// Configuration for analysis behavior
+class AnalysisConfiguration {
+  final bool enableCaching;
+  final Duration cacheTimeout;
+  final int maxRetries;
+  final double confidenceThreshold;
+  final bool enableBatching;
+  final int batchSize;
+
+  const AnalysisConfiguration({
+    this.enableCaching = true,
+    this.cacheTimeout = const Duration(minutes: 10),
+    this.maxRetries = 3,
+    this.confidenceThreshold = 0.5,
+    this.enableBatching = false,
+    this.batchSize = 5,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'enableCaching': enableCaching,
+    'cacheTimeoutMs': cacheTimeout.inMilliseconds,
+    'maxRetries': maxRetries,
+    'confidenceThreshold': confidenceThreshold,
+    'enableBatching': enableBatching,
+    'batchSize': batchSize,
+  };
+}
+
+/// Exception class for LLM service errors
+class LLMException implements Exception {
+  final String message;
+  final LLMErrorType type;
+  final dynamic originalError;
+
+  const LLMException(
+    this.message,
+    this.type, {
+    this.originalError,
+  });
+
+  @override
+  String toString() {
+    return 'LLMException: $message (type: $type)';
+  }
 }
