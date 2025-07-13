@@ -8,6 +8,12 @@ protocol AudioManagerProtocol {
     func startRecording() throws
     func stopRecording()
     func configure(sampleRate: Double, bufferDuration: TimeInterval) throws
+    
+    // Recording storage
+    func startStoringRecording()
+    func stopStoringRecording()
+    func saveLastRecording(filename: String) -> URL?
+    func getRecordingDuration() -> TimeInterval
 }
 
 class AudioManager: NSObject, AudioManagerProtocol {
@@ -24,6 +30,11 @@ class AudioManager: NSObject, AudioManagerProtocol {
     private var testRecording = false
     private var testSampleRate: Double = 16000.0
     private var testBufferDuration: TimeInterval = 0.005
+    
+    // Recording storage
+    private var recordedBuffers: [AVAudioPCMBuffer] = []
+    private var isStoringRecording = false
+    private let recordingQueue = DispatchQueue(label: "audio.recording", qos: .userInitiated)
     
     private let audioSubject = PassthroughSubject<ProcessedAudio, AudioError>()
     private var cancellables = Set<AnyCancellable>()
@@ -69,6 +80,53 @@ class AudioManager: NSObject, AudioManagerProtocol {
         } else {
             try audioSession.setPreferredSampleRate(sampleRate)
             try audioSession.setPreferredIOBufferDuration(bufferDuration)
+        }
+    }
+    
+    // MARK: - Recording Storage
+    
+    func startStoringRecording() {
+        recordingQueue.async { [weak self] in
+            self?.recordedBuffers.removeAll()
+            self?.isStoringRecording = true
+            print("🎙️ AudioManager: Started storing recording")
+        }
+    }
+    
+    func stopStoringRecording() {
+        recordingQueue.async { [weak self] in
+            self?.isStoringRecording = false
+            print("🎙️ AudioManager: Stopped storing recording (\(self?.recordedBuffers.count ?? 0) buffers)")
+        }
+    }
+    
+    func saveLastRecording(filename: String = "last_recording.wav") -> URL? {
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let fileURL = documentsPath.appendingPathComponent(filename)
+        
+        guard !recordedBuffers.isEmpty else {
+            print("❌ AudioManager: No recorded audio to save")
+            return nil
+        }
+        
+        // Convert recorded buffers to WAV data
+        if let wavData = convertBuffersToWAVData(recordedBuffers) {
+            do {
+                try wavData.write(to: fileURL)
+                print("✅ AudioManager: Saved recording to \(fileURL.path)")
+                return fileURL
+            } catch {
+                print("❌ AudioManager: Failed to save recording: \(error)")
+                return nil
+            }
+        }
+        
+        return nil
+    }
+    
+    func getRecordingDuration() -> TimeInterval {
+        return recordedBuffers.reduce(0.0) { total, buffer in
+            return total + Double(buffer.frameLength) / buffer.format.sampleRate
         }
     }
     
@@ -123,6 +181,13 @@ class AudioManager: NSObject, AudioManagerProtocol {
             let audioLevel = self.calculateAudioLevel(buffer)
             if audioLevel > 0.01 { // Only log when there's actual audio
                 print("🔊 Audio level: \(String(format: "%.3f", audioLevel))")
+            }
+            
+            // Store recording if enabled
+            if self.isStoringRecording, let copiedBuffer = self.copyAudioBuffer(buffer) {
+                self.recordingQueue.async {
+                    self.recordedBuffers.append(copiedBuffer)
+                }
             }
 
             let sourceFormat = buffer.format
@@ -184,6 +249,111 @@ class AudioManager: NSObject, AudioManagerProtocol {
     }
     
     // MARK: - Audio Analysis
+    private func copyAudioBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        let format = buffer.format
+        guard let copiedBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameLength) else {
+            return nil
+        }
+        
+        copiedBuffer.frameLength = buffer.frameLength
+        
+        // Copy the audio data
+        if let srcChannelData = buffer.floatChannelData,
+           let dstChannelData = copiedBuffer.floatChannelData {
+            for channel in 0..<Int(format.channelCount) {
+                memcpy(dstChannelData[channel], srcChannelData[channel], Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            }
+        }
+        
+        return copiedBuffer
+    }
+    
+    private func convertBuffersToWAVData(_ buffers: [AVAudioPCMBuffer]) -> Data? {
+        guard !buffers.isEmpty else { return nil }
+        
+        // Calculate total frame count
+        let totalFrames = buffers.reduce(0) { $0 + Int($1.frameLength) }
+        guard totalFrames > 0 else { return nil }
+        
+        // Use the format from the first buffer
+        guard let format = buffers.first?.format else { return nil }
+        
+        // Create a combined buffer
+        guard let combinedBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(totalFrames)) else {
+            return nil
+        }
+        
+        // Copy all buffers into the combined buffer
+        var currentFrame: AVAudioFrameCount = 0
+        for buffer in buffers {
+            guard let srcData = buffer.floatChannelData,
+                  let dstData = combinedBuffer.floatChannelData else {
+                continue
+            }
+            
+            for channel in 0..<Int(format.channelCount) {
+                let srcPtr = srcData[channel]
+                let dstPtr = dstData[channel].advanced(by: Int(currentFrame))
+                memcpy(dstPtr, srcPtr, Int(buffer.frameLength) * MemoryLayout<Float>.size)
+            }
+            
+            currentFrame += buffer.frameLength
+        }
+        
+        combinedBuffer.frameLength = currentFrame
+        
+        // Convert to WAV data
+        return convertPCMBufferToWAVData(combinedBuffer)
+    }
+    
+    private func convertPCMBufferToWAVData(_ buffer: AVAudioPCMBuffer) -> Data? {
+        guard let floatData = buffer.floatChannelData else { return nil }
+        
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(buffer.format.channelCount)
+        let sampleRate = Int(buffer.format.sampleRate)
+        
+        // Convert float samples to 16-bit PCM
+        var pcmData = Data()
+        for frame in 0..<frameCount {
+            for channel in 0..<channelCount {
+                let floatSample = floatData[channel][frame]
+                let intSample = Int16(max(min(floatSample * 32767.0, 32767.0), -32768.0))
+                pcmData.append(contentsOf: withUnsafeBytes(of: intSample.littleEndian) { Array($0) })
+            }
+        }
+        
+        // Create WAV header
+        let dataSize = pcmData.count
+        let fileSize = 44 + dataSize - 8
+        let byteRate = sampleRate * channelCount * 2
+        let blockAlign = channelCount * 2
+        
+        var wavData = Data()
+        
+        // RIFF header
+        wavData.append("RIFF".data(using: .ascii)!)
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(fileSize).littleEndian) { Array($0) })
+        wavData.append("WAVE".data(using: .ascii)!)
+        
+        // fmt chunk
+        wavData.append("fmt ".data(using: .ascii)!)
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(16).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt16(1).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt16(channelCount).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(sampleRate).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(byteRate).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt16(blockAlign).littleEndian) { Array($0) })
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt16(16).littleEndian) { Array($0) })
+        
+        // data chunk
+        wavData.append("data".data(using: .ascii)!)
+        wavData.append(contentsOf: withUnsafeBytes(of: UInt32(dataSize).littleEndian) { Array($0) })
+        wavData.append(pcmData)
+        
+        return wavData
+    }
+    
     private func calculateAudioLevel(_ buffer: AVAudioPCMBuffer) -> Float {
         guard let channelData = buffer.floatChannelData else { return 0.0 }
         
