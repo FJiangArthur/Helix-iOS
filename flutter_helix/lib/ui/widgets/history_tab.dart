@@ -2,9 +2,6 @@
 // ABOUTME: Displays conversation history with search and filtering capabilities
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../providers/app_state_provider.dart';
 
 class HistoryTab extends StatelessWidget {
   const HistoryTab({super.key});
@@ -23,34 +20,30 @@ class HistoryTab extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<AppStateProvider>(
-        builder: (context, appState, child) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.history,
-                  size: 64,
-                  color: Colors.grey,
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'No Conversations Yet',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Start a conversation to see it here',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ],
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.history,
+              size: 64,
+              color: Colors.grey,
             ),
-          );
-        },
+            SizedBox(height: 16),
+            Text(
+              'No Conversations Yet',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'Start a conversation to see it here',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
       ),
     );
   }
