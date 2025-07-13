@@ -9,37 +9,41 @@ part of 'transcription_segment.dart';
 _$TranscriptionSegmentImpl _$$TranscriptionSegmentImplFromJson(
   Map<String, dynamic> json,
 ) => _$TranscriptionSegmentImpl(
-  id: json['id'] as String,
   text: json['text'] as String,
-  startTimeMs: (json['startTimeMs'] as num).toInt(),
-  endTimeMs: (json['endTimeMs'] as num).toInt(),
+  startTime: DateTime.parse(json['startTime'] as String),
+  endTime: DateTime.parse(json['endTime'] as String),
   confidence: (json['confidence'] as num).toDouble(),
   speakerId: json['speakerId'] as String?,
   speakerName: json['speakerName'] as String?,
   language: json['language'] as String? ?? 'en-US',
   isFinal: json['isFinal'] as bool? ?? true,
-  backend: json['backend'] as String?,
+  segmentId: json['segmentId'] as String?,
+  backend: $enumDecodeNullable(_$TranscriptionBackendEnumMap, json['backend']),
   processingTimeMs: (json['processingTimeMs'] as num?)?.toInt(),
   metadata: json['metadata'] as Map<String, dynamic>? ?? const {},
-  timestamp: DateTime.parse(json['timestamp'] as String),
 );
 
 Map<String, dynamic> _$$TranscriptionSegmentImplToJson(
   _$TranscriptionSegmentImpl instance,
 ) => <String, dynamic>{
-  'id': instance.id,
   'text': instance.text,
-  'startTimeMs': instance.startTimeMs,
-  'endTimeMs': instance.endTimeMs,
+  'startTime': instance.startTime.toIso8601String(),
+  'endTime': instance.endTime.toIso8601String(),
   'confidence': instance.confidence,
   'speakerId': instance.speakerId,
   'speakerName': instance.speakerName,
   'language': instance.language,
   'isFinal': instance.isFinal,
-  'backend': instance.backend,
+  'segmentId': instance.segmentId,
+  'backend': _$TranscriptionBackendEnumMap[instance.backend],
   'processingTimeMs': instance.processingTimeMs,
   'metadata': instance.metadata,
-  'timestamp': instance.timestamp.toIso8601String(),
+};
+
+const _$TranscriptionBackendEnumMap = {
+  TranscriptionBackend.device: 'device',
+  TranscriptionBackend.whisper: 'whisper',
+  TranscriptionBackend.hybrid: 'hybrid',
 };
 
 _$TranscriptionResultImpl _$$TranscriptionResultImplFromJson(
