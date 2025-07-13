@@ -9,9 +9,16 @@ import '../core/utils/exceptions.dart';
 
 /// Backend type for transcription processing
 enum TranscriptionBackend {
-  local,    // On-device speech recognition
+  device,   // On-device speech recognition
   whisper,  // OpenAI Whisper API
   hybrid,   // Automatic selection based on quality/connectivity
+}
+
+/// Transcription quality settings
+enum TranscriptionQuality {
+  low,      // Fast, lower accuracy
+  standard, // Balanced speed and accuracy
+  high,     // High accuracy, slower processing
 }
 
 /// Real-time transcription state
@@ -22,82 +29,111 @@ enum TranscriptionState {
   error,
 }
 
+/// Transcription error types
+enum TranscriptionErrorType {
+  initializationFailed,
+  permissionDenied,
+  serviceNotReady,
+  networkError,
+  audioError,
+  unsupportedLanguage,
+  unknown,
+}
+
+/// Custom exception for transcription errors
+class TranscriptionException implements Exception {
+  final String message;
+  final TranscriptionErrorType type;
+  final dynamic originalError;
+
+  const TranscriptionException(
+    this.message,
+    this.type, {
+    this.originalError,
+  });
+
+  @override
+  String toString() => 'TranscriptionException: $message (type: $type)';
+}
+
 /// Service interface for speech-to-text transcription
 abstract class TranscriptionService {
-  /// Current transcription backend being used
+  /// Whether the service is initialized
+  bool get isInitialized;
+  
+  /// Whether currently transcribing
+  bool get isTranscribing;
+  
+  /// Whether microphone permissions are granted
+  bool get hasPermissions;
+  
+  /// Whether speech recognition is available
+  bool get isAvailable;
+  
+  /// Current language code
+  String get currentLanguage;
+  
+  /// Current transcription backend
   TranscriptionBackend get currentBackend;
   
-  /// Current transcription state
-  TranscriptionState get state;
+  /// Current quality setting
+  TranscriptionQuality get currentQuality;
   
-  /// Whether the service is currently active
-  bool get isActive;
+  /// Current VAD sensitivity (0.0 to 1.0)
+  double get vadSensitivity;
   
   /// Stream of real-time transcription segments
   Stream<TranscriptionSegment> get transcriptionStream;
   
-  /// Stream of transcription state changes
-  Stream<TranscriptionState> get stateStream;
-  
-  /// Stream of backend changes (for quality switching)
-  Stream<TranscriptionBackend> get backendStream;
+  /// Stream of confidence scores
+  Stream<double> get confidenceStream;
 
   /// Initialize the transcription service
   Future<void> initialize();
 
-  /// Check if speech recognition is available on this device
-  Future<bool> isAvailable();
-
-  /// Request speech recognition permission
-  Future<bool> requestPermission();
+  /// Request microphone permissions
+  Future<bool> requestPermissions();
 
   /// Start real-time transcription
   Future<void> startTranscription({
-    TranscriptionBackend? preferredBackend,
-    String? language,
-    bool enablePunctuation = true,
     bool enableCapitalization = true,
+    bool enablePunctuation = true,
+    String? language,
+    TranscriptionBackend? preferredBackend,
   });
 
   /// Stop real-time transcription
   Future<void> stopTranscription();
 
-  /// Process audio data and return transcription
-  Future<TranscriptionSegment> transcribeAudio(
-    Uint8List audioData, {
-    TranscriptionBackend? backend,
-    String? language,
-  });
+  /// Pause transcription (can be resumed)
+  Future<void> pauseTranscription();
 
-  /// Process audio file and return transcription
-  Future<List<TranscriptionSegment>> transcribeFile(
-    String filePath, {
-    TranscriptionBackend? backend,
-    String? language,
-  });
+  /// Resume paused transcription
+  Future<void> resumeTranscription();
 
-  /// Set preferred transcription backend
-  Future<void> setPreferredBackend(TranscriptionBackend backend);
-
-  /// Configure language settings
+  /// Set transcription language
   Future<void> setLanguage(String languageCode);
 
-  /// Get available languages for transcription
+  /// Configure transcription quality
+  Future<void> configureQuality(TranscriptionQuality quality);
+
+  /// Configure backend
+  Future<void> configureBackend(TranscriptionBackend backend);
+
+  /// Get available languages
   Future<List<String>> getAvailableLanguages();
 
-  /// Enable or disable automatic backend switching
-  Future<void> setAutomaticBackendSwitching(bool enabled);
-
-  /// Configure transcription quality settings
-  Future<void> configureQuality({
-    bool enablePunctuation = true,
-    bool enableCapitalization = true,
-    bool enableSpeakerDiarization = false,
-    double confidenceThreshold = 0.5,
-  });
-
-  /// Get transcription confidence for the last result
+  /// Get last confidence score
   double getLastConfidence();
+
+  /// Transcribe audio file
+  Future<TranscriptionSegment> transcribeAudio(String audioPath);
+
+  /// Calibrate voice activity detection
+  Future<void> calibrateVoiceActivity();
+
+  /// Set VAD sensitivity
+  Future<void> setVADSensitivity(double sensitivity);
 
   /// Clean up resources
   Future<void> dispose();

@@ -21,17 +21,14 @@ TranscriptionSegment _$TranscriptionSegmentFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$TranscriptionSegment {
-  /// Unique identifier for this segment
-  String get id => throw _privateConstructorUsedError;
-
   /// Transcribed text content
   String get text => throw _privateConstructorUsedError;
 
-  /// Start time of the segment (in milliseconds from recording start)
-  int get startTimeMs => throw _privateConstructorUsedError;
+  /// Start time of the segment
+  DateTime get startTime => throw _privateConstructorUsedError;
 
-  /// End time of the segment (in milliseconds from recording start)
-  int get endTimeMs => throw _privateConstructorUsedError;
+  /// End time of the segment
+  DateTime get endTime => throw _privateConstructorUsedError;
 
   /// Confidence score for the transcription (0.0 to 1.0)
   double get confidence => throw _privateConstructorUsedError;
@@ -48,17 +45,17 @@ mixin _$TranscriptionSegment {
   /// Whether this is a final transcription or interim result
   bool get isFinal => throw _privateConstructorUsedError;
 
-  /// Transcription backend used ('local', 'whisper', etc.)
-  String? get backend => throw _privateConstructorUsedError;
+  /// Unique identifier for this segment
+  String? get segmentId => throw _privateConstructorUsedError;
+
+  /// Transcription backend used
+  TranscriptionBackend? get backend => throw _privateConstructorUsedError;
 
   /// Processing time in milliseconds
   int? get processingTimeMs => throw _privateConstructorUsedError;
 
   /// Additional metadata
   Map<String, dynamic> get metadata => throw _privateConstructorUsedError;
-
-  /// Timestamp when this segment was created
-  DateTime get timestamp => throw _privateConstructorUsedError;
 
   /// Serializes this TranscriptionSegment to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -78,19 +75,18 @@ abstract class $TranscriptionSegmentCopyWith<$Res> {
   ) = _$TranscriptionSegmentCopyWithImpl<$Res, TranscriptionSegment>;
   @useResult
   $Res call({
-    String id,
     String text,
-    int startTimeMs,
-    int endTimeMs,
+    DateTime startTime,
+    DateTime endTime,
     double confidence,
     String? speakerId,
     String? speakerName,
     String language,
     bool isFinal,
-    String? backend,
+    String? segmentId,
+    TranscriptionBackend? backend,
     int? processingTimeMs,
     Map<String, dynamic> metadata,
-    DateTime timestamp,
   });
 }
 
@@ -112,42 +108,36 @@ class _$TranscriptionSegmentCopyWithImpl<
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? id = null,
     Object? text = null,
-    Object? startTimeMs = null,
-    Object? endTimeMs = null,
+    Object? startTime = null,
+    Object? endTime = null,
     Object? confidence = null,
     Object? speakerId = freezed,
     Object? speakerName = freezed,
     Object? language = null,
     Object? isFinal = null,
+    Object? segmentId = freezed,
     Object? backend = freezed,
     Object? processingTimeMs = freezed,
     Object? metadata = null,
-    Object? timestamp = null,
   }) {
     return _then(
       _value.copyWith(
-            id:
-                null == id
-                    ? _value.id
-                    : id // ignore: cast_nullable_to_non_nullable
-                        as String,
             text:
                 null == text
                     ? _value.text
                     : text // ignore: cast_nullable_to_non_nullable
                         as String,
-            startTimeMs:
-                null == startTimeMs
-                    ? _value.startTimeMs
-                    : startTimeMs // ignore: cast_nullable_to_non_nullable
-                        as int,
-            endTimeMs:
-                null == endTimeMs
-                    ? _value.endTimeMs
-                    : endTimeMs // ignore: cast_nullable_to_non_nullable
-                        as int,
+            startTime:
+                null == startTime
+                    ? _value.startTime
+                    : startTime // ignore: cast_nullable_to_non_nullable
+                        as DateTime,
+            endTime:
+                null == endTime
+                    ? _value.endTime
+                    : endTime // ignore: cast_nullable_to_non_nullable
+                        as DateTime,
             confidence:
                 null == confidence
                     ? _value.confidence
@@ -173,11 +163,16 @@ class _$TranscriptionSegmentCopyWithImpl<
                     ? _value.isFinal
                     : isFinal // ignore: cast_nullable_to_non_nullable
                         as bool,
+            segmentId:
+                freezed == segmentId
+                    ? _value.segmentId
+                    : segmentId // ignore: cast_nullable_to_non_nullable
+                        as String?,
             backend:
                 freezed == backend
                     ? _value.backend
                     : backend // ignore: cast_nullable_to_non_nullable
-                        as String?,
+                        as TranscriptionBackend?,
             processingTimeMs:
                 freezed == processingTimeMs
                     ? _value.processingTimeMs
@@ -188,11 +183,6 @@ class _$TranscriptionSegmentCopyWithImpl<
                     ? _value.metadata
                     : metadata // ignore: cast_nullable_to_non_nullable
                         as Map<String, dynamic>,
-            timestamp:
-                null == timestamp
-                    ? _value.timestamp
-                    : timestamp // ignore: cast_nullable_to_non_nullable
-                        as DateTime,
           )
           as $Val,
     );
@@ -209,19 +199,18 @@ abstract class _$$TranscriptionSegmentImplCopyWith<$Res>
   @override
   @useResult
   $Res call({
-    String id,
     String text,
-    int startTimeMs,
-    int endTimeMs,
+    DateTime startTime,
+    DateTime endTime,
     double confidence,
     String? speakerId,
     String? speakerName,
     String language,
     bool isFinal,
-    String? backend,
+    String? segmentId,
+    TranscriptionBackend? backend,
     int? processingTimeMs,
     Map<String, dynamic> metadata,
-    DateTime timestamp,
   });
 }
 
@@ -239,42 +228,36 @@ class __$$TranscriptionSegmentImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? id = null,
     Object? text = null,
-    Object? startTimeMs = null,
-    Object? endTimeMs = null,
+    Object? startTime = null,
+    Object? endTime = null,
     Object? confidence = null,
     Object? speakerId = freezed,
     Object? speakerName = freezed,
     Object? language = null,
     Object? isFinal = null,
+    Object? segmentId = freezed,
     Object? backend = freezed,
     Object? processingTimeMs = freezed,
     Object? metadata = null,
-    Object? timestamp = null,
   }) {
     return _then(
       _$TranscriptionSegmentImpl(
-        id:
-            null == id
-                ? _value.id
-                : id // ignore: cast_nullable_to_non_nullable
-                    as String,
         text:
             null == text
                 ? _value.text
                 : text // ignore: cast_nullable_to_non_nullable
                     as String,
-        startTimeMs:
-            null == startTimeMs
-                ? _value.startTimeMs
-                : startTimeMs // ignore: cast_nullable_to_non_nullable
-                    as int,
-        endTimeMs:
-            null == endTimeMs
-                ? _value.endTimeMs
-                : endTimeMs // ignore: cast_nullable_to_non_nullable
-                    as int,
+        startTime:
+            null == startTime
+                ? _value.startTime
+                : startTime // ignore: cast_nullable_to_non_nullable
+                    as DateTime,
+        endTime:
+            null == endTime
+                ? _value.endTime
+                : endTime // ignore: cast_nullable_to_non_nullable
+                    as DateTime,
         confidence:
             null == confidence
                 ? _value.confidence
@@ -300,11 +283,16 @@ class __$$TranscriptionSegmentImplCopyWithImpl<$Res>
                 ? _value.isFinal
                 : isFinal // ignore: cast_nullable_to_non_nullable
                     as bool,
+        segmentId:
+            freezed == segmentId
+                ? _value.segmentId
+                : segmentId // ignore: cast_nullable_to_non_nullable
+                    as String?,
         backend:
             freezed == backend
                 ? _value.backend
                 : backend // ignore: cast_nullable_to_non_nullable
-                    as String?,
+                    as TranscriptionBackend?,
         processingTimeMs:
             freezed == processingTimeMs
                 ? _value.processingTimeMs
@@ -315,11 +303,6 @@ class __$$TranscriptionSegmentImplCopyWithImpl<$Res>
                 ? _value._metadata
                 : metadata // ignore: cast_nullable_to_non_nullable
                     as Map<String, dynamic>,
-        timestamp:
-            null == timestamp
-                ? _value.timestamp
-                : timestamp // ignore: cast_nullable_to_non_nullable
-                    as DateTime,
       ),
     );
   }
@@ -329,40 +312,35 @@ class __$$TranscriptionSegmentImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
   const _$TranscriptionSegmentImpl({
-    required this.id,
     required this.text,
-    required this.startTimeMs,
-    required this.endTimeMs,
+    required this.startTime,
+    required this.endTime,
     required this.confidence,
     this.speakerId,
     this.speakerName,
     this.language = 'en-US',
     this.isFinal = true,
+    this.segmentId,
     this.backend,
     this.processingTimeMs,
     final Map<String, dynamic> metadata = const {},
-    required this.timestamp,
   }) : _metadata = metadata,
        super._();
 
   factory _$TranscriptionSegmentImpl.fromJson(Map<String, dynamic> json) =>
       _$$TranscriptionSegmentImplFromJson(json);
 
-  /// Unique identifier for this segment
-  @override
-  final String id;
-
   /// Transcribed text content
   @override
   final String text;
 
-  /// Start time of the segment (in milliseconds from recording start)
+  /// Start time of the segment
   @override
-  final int startTimeMs;
+  final DateTime startTime;
 
-  /// End time of the segment (in milliseconds from recording start)
+  /// End time of the segment
   @override
-  final int endTimeMs;
+  final DateTime endTime;
 
   /// Confidence score for the transcription (0.0 to 1.0)
   @override
@@ -386,9 +364,13 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
   @JsonKey()
   final bool isFinal;
 
-  /// Transcription backend used ('local', 'whisper', etc.)
+  /// Unique identifier for this segment
   @override
-  final String? backend;
+  final String? segmentId;
+
+  /// Transcription backend used
+  @override
+  final TranscriptionBackend? backend;
 
   /// Processing time in milliseconds
   @override
@@ -406,13 +388,9 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
     return EqualUnmodifiableMapView(_metadata);
   }
 
-  /// Timestamp when this segment was created
-  @override
-  final DateTime timestamp;
-
   @override
   String toString() {
-    return 'TranscriptionSegment(id: $id, text: $text, startTimeMs: $startTimeMs, endTimeMs: $endTimeMs, confidence: $confidence, speakerId: $speakerId, speakerName: $speakerName, language: $language, isFinal: $isFinal, backend: $backend, processingTimeMs: $processingTimeMs, metadata: $metadata, timestamp: $timestamp)';
+    return 'TranscriptionSegment(text: $text, startTime: $startTime, endTime: $endTime, confidence: $confidence, speakerId: $speakerId, speakerName: $speakerName, language: $language, isFinal: $isFinal, segmentId: $segmentId, backend: $backend, processingTimeMs: $processingTimeMs, metadata: $metadata)';
   }
 
   @override
@@ -420,12 +398,10 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$TranscriptionSegmentImpl &&
-            (identical(other.id, id) || other.id == id) &&
             (identical(other.text, text) || other.text == text) &&
-            (identical(other.startTimeMs, startTimeMs) ||
-                other.startTimeMs == startTimeMs) &&
-            (identical(other.endTimeMs, endTimeMs) ||
-                other.endTimeMs == endTimeMs) &&
+            (identical(other.startTime, startTime) ||
+                other.startTime == startTime) &&
+            (identical(other.endTime, endTime) || other.endTime == endTime) &&
             (identical(other.confidence, confidence) ||
                 other.confidence == confidence) &&
             (identical(other.speakerId, speakerId) ||
@@ -435,31 +411,30 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
             (identical(other.language, language) ||
                 other.language == language) &&
             (identical(other.isFinal, isFinal) || other.isFinal == isFinal) &&
+            (identical(other.segmentId, segmentId) ||
+                other.segmentId == segmentId) &&
             (identical(other.backend, backend) || other.backend == backend) &&
             (identical(other.processingTimeMs, processingTimeMs) ||
                 other.processingTimeMs == processingTimeMs) &&
-            const DeepCollectionEquality().equals(other._metadata, _metadata) &&
-            (identical(other.timestamp, timestamp) ||
-                other.timestamp == timestamp));
+            const DeepCollectionEquality().equals(other._metadata, _metadata));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
     runtimeType,
-    id,
     text,
-    startTimeMs,
-    endTimeMs,
+    startTime,
+    endTime,
     confidence,
     speakerId,
     speakerName,
     language,
     isFinal,
+    segmentId,
     backend,
     processingTimeMs,
     const DeepCollectionEquality().hash(_metadata),
-    timestamp,
   );
 
   /// Create a copy of TranscriptionSegment
@@ -482,40 +457,35 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
 
 abstract class _TranscriptionSegment extends TranscriptionSegment {
   const factory _TranscriptionSegment({
-    required final String id,
     required final String text,
-    required final int startTimeMs,
-    required final int endTimeMs,
+    required final DateTime startTime,
+    required final DateTime endTime,
     required final double confidence,
     final String? speakerId,
     final String? speakerName,
     final String language,
     final bool isFinal,
-    final String? backend,
+    final String? segmentId,
+    final TranscriptionBackend? backend,
     final int? processingTimeMs,
     final Map<String, dynamic> metadata,
-    required final DateTime timestamp,
   }) = _$TranscriptionSegmentImpl;
   const _TranscriptionSegment._() : super._();
 
   factory _TranscriptionSegment.fromJson(Map<String, dynamic> json) =
       _$TranscriptionSegmentImpl.fromJson;
 
-  /// Unique identifier for this segment
-  @override
-  String get id;
-
   /// Transcribed text content
   @override
   String get text;
 
-  /// Start time of the segment (in milliseconds from recording start)
+  /// Start time of the segment
   @override
-  int get startTimeMs;
+  DateTime get startTime;
 
-  /// End time of the segment (in milliseconds from recording start)
+  /// End time of the segment
   @override
-  int get endTimeMs;
+  DateTime get endTime;
 
   /// Confidence score for the transcription (0.0 to 1.0)
   @override
@@ -537,9 +507,13 @@ abstract class _TranscriptionSegment extends TranscriptionSegment {
   @override
   bool get isFinal;
 
-  /// Transcription backend used ('local', 'whisper', etc.)
+  /// Unique identifier for this segment
   @override
-  String? get backend;
+  String? get segmentId;
+
+  /// Transcription backend used
+  @override
+  TranscriptionBackend? get backend;
 
   /// Processing time in milliseconds
   @override
@@ -548,10 +522,6 @@ abstract class _TranscriptionSegment extends TranscriptionSegment {
   /// Additional metadata
   @override
   Map<String, dynamic> get metadata;
-
-  /// Timestamp when this segment was created
-  @override
-  DateTime get timestamp;
 
   /// Create a copy of TranscriptionSegment
   /// with the given fields replaced by the non-null parameter values.

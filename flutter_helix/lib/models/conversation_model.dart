@@ -150,7 +150,7 @@ class ConversationModel with _$ConversationModel {
     }
     if (segments.isNotEmpty) {
       final lastSegment = segments.last;
-      return Duration(milliseconds: lastSegment.endTimeMs);
+      return lastSegment.endTime.difference(startTime);
     }
     return DateTime.now().difference(startTime);
   }
@@ -211,11 +211,11 @@ class ConversationModel with _$ConversationModel {
     Duration start, 
     Duration end,
   ) {
-    final startMs = start.inMilliseconds;
-    final endMs = end.inMilliseconds;
+    final startTime = this.startTime.add(start);
+    final endTime = this.startTime.add(end);
     
     return segments
-        .where((s) => s.startTimeMs >= startMs && s.endTimeMs <= endMs)
+        .where((s) => s.startTime.isAfter(startTime) && s.endTime.isBefore(endTime))
         .toList();
   }
 
