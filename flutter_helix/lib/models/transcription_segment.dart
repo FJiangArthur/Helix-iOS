@@ -3,24 +3,33 @@
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../services/transcription_service.dart';
+
 part 'transcription_segment.freezed.dart';
 part 'transcription_segment.g.dart';
+
+// JSON converters for TranscriptionBackend enum
+TranscriptionBackend? _backendFromJson(String? json) {
+  if (json == null) return null;
+  return TranscriptionBackend.values
+      .where((e) => e.name == json)
+      .firstOrNull;
+}
+
+String? _backendToJson(TranscriptionBackend? backend) => backend?.name;
 
 /// Transcription segment representing a piece of spoken text
 @freezed
 class TranscriptionSegment with _$TranscriptionSegment {
   const factory TranscriptionSegment({
-    /// Unique identifier for this segment
-    required String id,
-    
     /// Transcribed text content
     required String text,
     
-    /// Start time of the segment (in milliseconds from recording start)
-    required int startTimeMs,
+    /// Start time of the segment
+    required DateTime startTime,
     
-    /// End time of the segment (in milliseconds from recording start)
-    required int endTimeMs,
+    /// End time of the segment
+    required DateTime endTime,
     
     /// Confidence score for the transcription (0.0 to 1.0)
     required double confidence,
@@ -37,17 +46,17 @@ class TranscriptionSegment with _$TranscriptionSegment {
     /// Whether this is a final transcription or interim result
     @Default(true) bool isFinal,
     
-    /// Transcription backend used ('local', 'whisper', etc.)
-    String? backend,
+    /// Unique identifier for this segment
+    String? segmentId,
+    
+    /// Transcription backend used
+    TranscriptionBackend? backend,
     
     /// Processing time in milliseconds
     int? processingTimeMs,
     
     /// Additional metadata
     @Default({}) Map<String, dynamic> metadata,
-    
-    /// Timestamp when this segment was created
-    required DateTime timestamp,
   }) = _TranscriptionSegment;
 
   factory TranscriptionSegment.fromJson(Map<String, dynamic> json) =>
@@ -56,11 +65,11 @@ class TranscriptionSegment with _$TranscriptionSegment {
   /// Create a new segment with updated text (for interim results)
   const TranscriptionSegment._();
 
-  /// Duration of this segment in milliseconds
-  int get durationMs => endTimeMs - startTimeMs;
-
   /// Duration of this segment
-  Duration get duration => Duration(milliseconds: durationMs);
+  Duration get duration => endTime.difference(startTime);
+
+  /// Duration of this segment in milliseconds
+  int get durationMs => duration.inMilliseconds;
 
   /// Whether this segment has speaker information
   bool get hasSpeakerInfo => speakerId != null || speakerName != null;
@@ -80,18 +89,13 @@ class TranscriptionSegment with _$TranscriptionSegment {
 
   /// Formatted time range string
   String get timeRangeString {
-    final start = Duration(milliseconds: startTimeMs);
-    final end = Duration(milliseconds: endTimeMs);
-    return '${_formatDuration(start)} - ${_formatDuration(end)}';
+    return '${_formatDateTime(startTime)} - ${_formatDateTime(endTime)}';
   }
 
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes;
-    final seconds = duration.inSeconds % 60;
-    final milliseconds = duration.inMilliseconds % 1000;
-    return '${minutes.toString().padLeft(2, '0')}:'
-           '${seconds.toString().padLeft(2, '0')}.'
-           '${(milliseconds ~/ 10).toString().padLeft(2, '0')}';
+  String _formatDateTime(DateTime dateTime) {
+    return '${dateTime.hour.toString().padLeft(2, '0')}:'
+           '${dateTime.minute.toString().padLeft(2, '0')}:'
+           '${dateTime.second.toString().padLeft(2, '0')}';
   }
 }
 
@@ -156,9 +160,9 @@ class TranscriptionResult with _$TranscriptionResult {
   }
 
   /// Get segments within a time range
-  List<TranscriptionSegment> getSegmentsInRange(int startMs, int endMs) {
+  List<TranscriptionSegment> getSegmentsInRange(DateTime start, DateTime end) {
     return segments
-        .where((s) => s.startTimeMs >= startMs && s.endTimeMs <= endMs)
+        .where((s) => s.startTime.isAfter(start) && s.endTime.isBefore(end))
         .toList();
   }
 
