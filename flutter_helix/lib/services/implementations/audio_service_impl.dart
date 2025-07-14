@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:audio_session/audio_session.dart';
 
 import '../audio_service.dart';
 import '../../models/audio_configuration.dart';
@@ -421,14 +422,25 @@ class AudioServiceImpl implements AudioService {
 
   Future<void> _configureAudioSession() async {
     try {
-      // Platform-specific audio session configuration
-      if (Platform.isIOS) {
-        // iOS-specific audio session setup would go here
-        _logger.log(_tag, 'Configured iOS audio session', LogLevel.debug);
-      } else if (Platform.isAndroid) {
-        // Android-specific audio session setup would go here
-        _logger.log(_tag, 'Configured Android audio session', LogLevel.debug);
-      }
+      final session = await AudioSession.instance;
+      
+      // Configure the audio session for recording
+      await session.configure(AudioSessionConfiguration(
+        avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
+        avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.defaultToSpeaker,
+        avAudioSessionMode: AVAudioSessionMode.measurement,
+        avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+        avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+        androidAudioAttributes: const AndroidAudioAttributes(
+          contentType: AndroidAudioContentType.speech,
+          flags: AndroidAudioFlags.audibilityEnforced,
+          usage: AndroidAudioUsage.voiceCommunication,
+        ),
+        androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        androidWillPauseWhenDucked: true,
+      ));
+      
+      _logger.log(_tag, 'Audio session configured successfully', LogLevel.debug);
     } catch (e) {
       _logger.log(_tag, 'Audio session configuration failed: $e', LogLevel.warning);
     }
