@@ -6,6 +6,7 @@
 import 'dart:async' as _i7;
 import 'dart:typed_data' as _i8;
 
+import 'package:flutter_helix/core/utils/logging_service.dart' as _i15;
 import 'package:flutter_helix/models/analysis_result.dart' as _i4;
 import 'package:flutter_helix/models/audio_configuration.dart' as _i2;
 import 'package:flutter_helix/models/conversation_model.dart' as _i12;
@@ -1649,4 +1650,80 @@ class MockSettingsService extends _i1.Mock implements _i14.SettingsService {
             returnValueForMissingStub: _i7.Future<void>.value(),
           )
           as _i7.Future<void>);
+}
+
+/// A class which mocks [LoggingService].
+///
+/// See the documentation for Mockito's code generation for more information.
+class MockLoggingService extends _i1.Mock implements _i15.LoggingService {
+  MockLoggingService() {
+    _i1.throwOnMissingStub(this);
+  }
+
+  @override
+  void setLogLevel(_i15.LogLevel? level) => super.noSuchMethod(
+    Invocation.method(#setLogLevel, [level]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void log(String? tag, String? message, _i15.LogLevel? level) =>
+      super.noSuchMethod(
+        Invocation.method(#log, [tag, message, level]),
+        returnValueForMissingStub: null,
+      );
+
+  @override
+  void debug(String? tag, String? message) => super.noSuchMethod(
+    Invocation.method(#debug, [tag, message]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void info(String? tag, String? message) => super.noSuchMethod(
+    Invocation.method(#info, [tag, message]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void warning(String? tag, String? message) => super.noSuchMethod(
+    Invocation.method(#warning, [tag, message]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void error(
+    String? tag,
+    String? message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) => super.noSuchMethod(
+    Invocation.method(#error, [tag, message, error, stackTrace]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  void critical(
+    String? tag,
+    String? message, [
+    Object? error,
+    StackTrace? stackTrace,
+  ]) => super.noSuchMethod(
+    Invocation.method(#critical, [tag, message, error, stackTrace]),
+    returnValueForMissingStub: null,
+  );
+
+  @override
+  List<_i15.LogEntry> getRecentLogs([int? limit]) =>
+      (super.noSuchMethod(
+            Invocation.method(#getRecentLogs, [limit]),
+            returnValue: <_i15.LogEntry>[],
+          )
+          as List<_i15.LogEntry>);
+
+  @override
+  void clearLogs() => super.noSuchMethod(
+    Invocation.method(#clearLogs, []),
+    returnValueForMissingStub: null,
+  );
 }
