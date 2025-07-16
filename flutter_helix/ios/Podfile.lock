@@ -9,6 +9,8 @@ PODS:
     - Flutter
     - flutter_sound_core (= 9.28.0)
   - flutter_sound_core (9.28.0)
+  - integration_test (0.0.1):
+    - Flutter
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -27,6 +29,7 @@ DEPENDENCIES:
   - Flutter (from `Flutter`)
   - flutter_blue_plus_darwin (from `.symlinks/plugins/flutter_blue_plus_darwin/darwin`)
   - flutter_sound (from `.symlinks/plugins/flutter_sound/ios`)
+  - integration_test (from `.symlinks/plugins/integration_test/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
@@ -46,6 +49,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/flutter_blue_plus_darwin/darwin"
   flutter_sound:
     :path: ".symlinks/plugins/flutter_sound/ios"
+  integration_test:
+    :path: ".symlinks/plugins/integration_test/ios"
   path_provider_foundation:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   permission_handler_apple:
@@ -61,6 +66,7 @@ SPEC CHECKSUMS:
   flutter_blue_plus_darwin: 20a08bfeaa0f7804d524858d3d8744bcc1b6dbc3
   flutter_sound: b9236a5875299aaa4cef1690afd2f01d52a3f890
   flutter_sound_core: 427465f72d07ab8c3edbe8ffdde709ddacd3763c
+  integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
   path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
   permission_handler_apple: 3787117e48f80715ff04a3830ca039283d6a4f29
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
