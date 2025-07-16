@@ -13,6 +13,9 @@ import 'package:flutter_helix/services/glasses_service.dart';
 import 'package:flutter_helix/services/settings_service.dart';
 import 'package:flutter_helix/models/transcription_segment.dart';
 import 'package:flutter_helix/models/analysis_result.dart';
+import 'package:flutter_helix/core/utils/logging_service.dart';
+
+import 'test_helpers.mocks.dart';
 
 // Generate mocks for all services
 @GenerateMocks([
@@ -21,6 +24,7 @@ import 'package:flutter_helix/models/analysis_result.dart';
   LLMService,
   GlassesService,
   SettingsService,
+  LoggingService,
 ])
 void main() {}
 
