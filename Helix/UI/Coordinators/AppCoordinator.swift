@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import AVFoundation
+import Speech
 
 @MainActor
 class AppCoordinator: ObservableObject {
@@ -80,6 +81,9 @@ class AppCoordinator: ObservableObject {
             case .local:
                 debugLogger.log(.info, source: "AppCoordinator", message: "Using local iOS speech recognizer backend")
                 self.speechRecognizer = SpeechRecognitionService()
+            case .localDictation:
+                debugLogger.log(.info, source: "AppCoordinator", message: "Using local dictation backend")
+                self.speechRecognizer = LocalDictationService()
             case .remoteWhisper:
                 debugLogger.log(.info, source: "AppCoordinator", message: "Using remote OpenAI Whisper backend")
                 self.speechRecognizer = RemoteWhisperRecognitionService(apiKey: settings.openAIKey)
@@ -133,8 +137,9 @@ class AppCoordinator: ObservableObject {
         // Apply initial settings
         self.settings = settings
         configureServices(with: settings)
-
-        print("✅ AppCoordinator initialization complete!")
+        
+        // Check permissions on startup to prepare for recording
+        checkInitialPermissions()
     }
 
     /// Back-compat convenience initialiser so existing call-sites that do
@@ -149,6 +154,20 @@ class AppCoordinator: ObservableObject {
     func startConversation() {
         guard !isRecording else { return }
         
+        // Check and request permissions before starting
+        requestPermissionsIfNeeded { [weak self] success in
+            guard success else {
+                self?.errorMessage = "Microphone and speech recognition permissions are required to record conversations."
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self?.performStartConversation()
+            }
+        }
+    }
+    
+    private func performStartConversation() {
         isRecording = true
         isProcessing = true
         // Reset conversation history and timing
@@ -293,6 +312,9 @@ class AppCoordinator: ObservableObject {
         case .local:
             speechRecognizer = SpeechRecognitionService()
             print("✅ Switched to local speech recognition")
+        case .localDictation:
+            speechRecognizer = LocalDictationService()
+            print("✅ Switched to local dictation")
         case .remoteWhisper:
             if settings.openAIKey.isEmpty {
                 errorMessage = "OpenAI API key required for Whisper transcription. Please configure your API key in Settings."
@@ -316,6 +338,61 @@ class AppCoordinator: ObservableObject {
         
         // Re-setup subscriptions for the new coordinator
         setupTranscriptionSubscriptions()
+    }
+    
+    // MARK: - Permissions
+    
+    private func requestPermissionsIfNeeded(completion: @escaping (Bool) -> Void) {
+        // Check microphone permission
+        let microphoneStatus = AVAudioSession.sharedInstance().recordPermission
+        
+        // Check speech recognition permission
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        
+        // If both are already authorized, proceed
+        if microphoneStatus == .granted && speechStatus == .authorized {
+            completion(true)
+            return
+        }
+        
+        // Request microphone permission first
+        if microphoneStatus != .granted {
+            AVAudioSession.sharedInstance().requestRecordPermission { micGranted in
+                guard micGranted else {
+                    DispatchQueue.main.async {
+                        completion(false)
+                    }
+                    return
+                }
+                
+                // Then request speech recognition permission
+                self.requestSpeechPermission(completion: completion)
+            }
+        } else {
+            // Microphone already granted, just need speech
+            requestSpeechPermission(completion: completion)
+        }
+    }
+    
+    private func requestSpeechPermission(completion: @escaping (Bool) -> Void) {
+        SFSpeechRecognizer.requestAuthorization { status in
+            DispatchQueue.main.async {
+                completion(status == .authorized)
+            }
+        }
+    }
+    
+    private func checkInitialPermissions() {
+        // Check current permission status without requesting
+        let microphoneStatus = AVAudioSession.sharedInstance().recordPermission
+        let speechStatus = SFSpeechRecognizer.authorizationStatus()
+        
+        debugLogger.log(.info, source: "AppCoordinator", message: "Initial permissions - Microphone: \(microphoneStatus.rawValue), Speech: \(speechStatus.rawValue)")
+        
+        // If permissions are denied, show helpful message
+        if microphoneStatus == .denied || speechStatus == .denied {
+            errorMessage = "To use Helix, please enable microphone and speech recognition permissions in Settings > Privacy & Security."
+        }
     }
     
     // MARK: - Private Methods
@@ -565,11 +642,13 @@ struct AppSettings: Codable, Equatable {
 
 enum SpeechBackend: String, Codable, CaseIterable, Hashable {
     case local
+    case localDictation
     case remoteWhisper
     
     var description: String {
         switch self {
-        case .local: return "On-device"
+        case .local: return "On-device (iOS Speech)"
+        case .localDictation: return "Local Dictation"
         case .remoteWhisper: return "OpenAI Whisper (remote)"
         }
     }

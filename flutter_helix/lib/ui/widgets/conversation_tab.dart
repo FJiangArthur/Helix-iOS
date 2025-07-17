@@ -3,14 +3,19 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:provider/provider.dart';
 
 import '../../services/audio_service.dart';
+import '../../services/conversation_storage_service.dart';
 import '../../services/service_locator.dart';
 import '../../models/audio_configuration.dart';
+import '../../models/conversation_model.dart';
 
 class ConversationTab extends StatefulWidget {
-  const ConversationTab({super.key});
+  final VoidCallback? onHistoryTap;
+  
+  const ConversationTab({super.key, this.onHistoryTap});
 
   @override
   State<ConversationTab> createState() => _ConversationTabState();
@@ -23,13 +28,18 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   late AnimationController _waveController;
   late AnimationController _pulseController;
   
-  // AudioService integration
+  // Service integration
   late AudioService _audioService;
+  late ConversationStorageService _storageService;
   StreamSubscription<double>? _audioLevelSubscription;
   StreamSubscription<bool>? _voiceActivitySubscription;
+  StreamSubscription<Duration>? _recordingDurationSubscription;
+  
+  // Current conversation state
+  String? _currentConversationId;
+  String? _currentRecordingPath;
   
   // Recording timer
-  Stopwatch _recordingStopwatch = Stopwatch();
   Timer? _timerUpdateTimer;
   Duration _recordingDuration = Duration.zero;
   
@@ -72,6 +82,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   Future<void> _initializeAudioService() async {
     try {
       _audioService = ServiceLocator.instance.get<AudioService>();
+      _storageService = ServiceLocator.instance.get<ConversationStorageService>();
       
       // Initialize with default configuration
       final config = AudioConfiguration(
@@ -91,6 +102,15 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         }
       });
       
+      // Subscribe to recording duration stream
+      _recordingDurationSubscription = _audioService.recordingDurationStream.listen((duration) {
+        if (mounted) {
+          setState(() {
+            _recordingDuration = duration;
+          });
+        }
+      });
+      
     } catch (e) {
       debugPrint('Failed to initialize AudioService: $e');
     }
@@ -100,6 +120,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   void dispose() {
     _audioLevelSubscription?.cancel();
     _voiceActivitySubscription?.cancel();
+    _recordingDurationSubscription?.cancel();
     _timerUpdateTimer?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
@@ -118,20 +139,33 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     });
   }
 
+  String _generateConversationId() {
+    // Simple UUID-like ID generator
+    final random = math.Random();
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final randomPart = random.nextInt(999999);
+    return 'conv_${timestamp}_$randomPart';
+  }
+
   Future<void> _toggleRecording() async {
     try {
       if (_isRecording) {
         // Stop recording
         await _audioService.stopRecording();
-        _recordingStopwatch.stop();
-        _timerUpdateTimer?.cancel();
         _pulseController.stop();
+        
+        // Create and save conversation
+        await _saveCurrentConversation();
         
         setState(() {
           _isRecording = false;
           _isPaused = false;
           _audioLevel = 0.0;
         });
+        
+        // Clear current conversation state
+        _currentConversationId = null;
+        _currentRecordingPath = null;
       } else {
         // Request permission first
         if (!_audioService.hasPermission) {
@@ -144,11 +178,9 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
           }
         }
         
-        // Start recording
-        await _audioService.startRecording();
-        _recordingStopwatch.reset();
-        _recordingStopwatch.start();
-        _startTimerUpdates();
+        // Generate conversation ID and start recording
+        _currentConversationId = _generateConversationId();
+        _currentRecordingPath = await _audioService.startConversationRecording(_currentConversationId!);
         _pulseController.repeat();
         
         setState(() {
@@ -162,16 +194,56 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       );
     }
   }
-  
-  void _startTimerUpdates() {
-    _timerUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
-      if (mounted && _isRecording) {
-        setState(() {
-          _recordingDuration = _recordingStopwatch.elapsed;
-        });
-      }
-    });
+
+  Future<void> _saveCurrentConversation() async {
+    if (_currentConversationId == null) return;
+    
+    try {
+      // Create conversation from current transcription segments
+      final conversation = Conversation(
+        id: _currentConversationId!,
+        title: 'Conversation ${DateTime.now().toLocal().toString().split(' ')[0]}',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        participants: [
+          const Participant(
+            id: 'user_1',
+            name: 'You',
+            email: '',
+            role: 'user',
+          ),
+          const Participant(
+            id: 'speaker_2',
+            name: 'Speaker 2',
+            email: '',
+            role: 'speaker',
+          ),
+        ],
+        segments: _transcriptSegments.map((segment) => ConversationSegment(
+          id: 'segment_${segment.timestamp.millisecondsSinceEpoch}',
+          participantId: segment.speaker == 'You' ? 'user_1' : 'speaker_2',
+          content: segment.text,
+          timestamp: segment.timestamp,
+          confidence: segment.confidence,
+          metadata: const {},
+        )).toList(),
+        audioFilePath: _currentRecordingPath,
+        duration: _recordingDuration,
+        metadata: const {},
+      );
+      
+      await _storageService.saveConversation(conversation);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversation saved')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to save conversation: $e')),
+      );
+    }
   }
+  
   
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -314,9 +386,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                 children: [
                   // Secondary Actions
                   IconButton(
-                    onPressed: () {
-                      // TODO: Open conversation history
-                    },
+                    onPressed: widget.onHistoryTap,
                     icon: const Icon(Icons.history),
                     iconSize: 28,
                   ),
@@ -532,13 +602,27 @@ class AudioLevelBars extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: List.generate(20, (index) {
-        final barHeight = 4.0 + (level * 20 * (index / 20));
+        // Create a more realistic waveform by varying bar heights based on position
+        final normalizedIndex = index / 20.0;
+        final baseHeight = 4.0;
+        final maxHeight = 28.0;
+        
+        // Create a wave-like pattern that responds to audio level
+        final waveMultiplier = (0.5 + 0.5 * (1.0 - (normalizedIndex - 0.5).abs() * 2)).clamp(0.0, 1.0);
+        final barHeight = baseHeight + (level * maxHeight * waveMultiplier);
+        
+        // Add some randomness for more realistic appearance
+        final randomVariation = (index % 3) * 0.1;
+        final finalHeight = (barHeight + randomVariation).clamp(baseHeight, maxHeight);
+        
         return Container(
           width: 3,
-          height: barHeight,
+          height: finalHeight,
           margin: const EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.7 + 0.3 * (level)),
+            color: level > 0.1 
+              ? Colors.green.withOpacity(0.7 + 0.3 * level)
+              : Colors.grey.withOpacity(0.3),
             borderRadius: BorderRadius.circular(2),
           ),
         );

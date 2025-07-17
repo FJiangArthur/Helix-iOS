@@ -117,6 +117,23 @@ struct SpeechSection: View {
                     .foregroundColor(.secondary)
             }
 
+            if settings.speechBackend == .localDictation {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "iphone")
+                            .foregroundColor(.blue)
+                        Text("Uses iOS local dictation for offline speech recognition.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Text("• Works completely offline\n• Faster processing\n• Enhanced privacy")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 20)
+                }
+            }
+            
             if settings.speechBackend == .remoteWhisper {
                 if settings.openAIKey.isEmpty {
                     HStack {

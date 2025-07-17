@@ -45,6 +45,11 @@ class AudioServiceImpl implements AudioService {
   final List<double> _volumeHistory = [];
   static const int _volumeHistorySize = 10;
   
+  // Recording timing
+  DateTime? _recordingStartTime;
+  final StreamController<Duration> _recordingDurationStreamController = 
+      StreamController<Duration>.broadcast();
+  
   AudioServiceImpl({required LoggingService logger}) : _logger = logger;
 
   @override
@@ -64,6 +69,9 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Stream<bool> get voiceActivityStream => _voiceActivityStreamController.stream;
+  
+  @override
+  Stream<Duration> get recordingDurationStream => _recordingDurationStreamController.stream;
 
   @override
   Future<void> initialize(AudioConfiguration config) async {
@@ -141,10 +149,12 @@ class AudioServiceImpl implements AudioService {
       );
       
       _isRecording = true;
+      _recordingStartTime = DateTime.now();
       
       // Start volume monitoring and VAD
       _startVolumeMonitoring();
       _startVoiceActivityDetection();
+      _startDurationTracking();
       
       // Start streaming audio data
       if (_currentConfiguration.enableRealTimeStreaming) {
@@ -176,6 +186,7 @@ class AudioServiceImpl implements AudioService {
       await _recorder.stopRecorder();
       
       _isRecording = false;
+      _recordingStartTime = null;
       
       _logger.log(_tag, 'Recording stopped successfully', LogLevel.info);
     } catch (e) {
@@ -237,10 +248,12 @@ class AudioServiceImpl implements AudioService {
       );
       
       _isRecording = true;
+      _recordingStartTime = DateTime.now();
       
       // Start volume monitoring and VAD
       _startVolumeMonitoring();
       _startVoiceActivityDetection();
+      _startDurationTracking();
       
       return _currentRecordingPath!;
     } catch (e) {
@@ -403,6 +416,7 @@ class AudioServiceImpl implements AudioService {
       await _audioStreamController.close();
       await _audioLevelStreamController.close();
       await _voiceActivityStreamController.close();
+      await _recordingDurationStreamController.close();
       
       // Clean up temporary files
       if (_currentRecordingPath != null) {
@@ -482,18 +496,28 @@ class AudioServiceImpl implements AudioService {
   void _startVolumeMonitoring() {
     _volumeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
       try {
-        // For now, simulate volume data
-        // In a full implementation, this would use flutter_sound's amplitude API
+        if (_isRecording && _recorder.isRecording) {
+          // Get actual audio amplitude from flutter_sound
+          final amplitude = await _recorder.getRecordingDecibelLevel();
+          if (amplitude != null) {
+            // Convert decibels to linear scale (0.0 to 1.0)
+            final volume = _decibelToLinear(amplitude);
+            
+            _currentVolume = volume;
+            _audioLevelStreamController.add(volume);
+            
+            // Update volume history for VAD
+            _updateVolumeHistory(volume);
+          }
+        }
+      } catch (e) {
+        // Fallback to simulated data if real amplitude fails
         final simulatedVolume = _currentVolume + (math.Random().nextDouble() - 0.5) * 0.1;
         final volume = simulatedVolume.clamp(0.0, 1.0);
         
         _currentVolume = volume;
         _audioLevelStreamController.add(volume);
-        
-        // Update volume history for VAD
         _updateVolumeHistory(volume);
-      } catch (e) {
-        // Ignore errors during volume monitoring
       }
     });
   }
@@ -501,6 +525,18 @@ class AudioServiceImpl implements AudioService {
   void _startVoiceActivityDetection() {
     _vadTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       _updateVoiceActivityDetection();
+    });
+  }
+  
+  void _startDurationTracking() {
+    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!_isRecording || _recordingStartTime == null) {
+        timer.cancel();
+        return;
+      }
+      
+      final duration = DateTime.now().difference(_recordingStartTime!);
+      _recordingDurationStreamController.add(duration);
     });
   }
 
