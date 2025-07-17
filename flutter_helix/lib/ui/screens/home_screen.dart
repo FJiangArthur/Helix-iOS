@@ -20,8 +20,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _tabs = [
-    const ConversationTab(),
+  List<Widget> get _tabs => [
+    ConversationTab(onHistoryTap: () => _navigateToHistory()),
     const AnalysisTab(),
     const GlassesTab(),
     const HistoryTab(),
@@ -91,6 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return Icon(icon);
+  }
+
+  void _navigateToHistory() {
+    setState(() {
+      _currentIndex = 3; // History tab index
+    });
   }
 
   Widget _buildRecordingFab() {

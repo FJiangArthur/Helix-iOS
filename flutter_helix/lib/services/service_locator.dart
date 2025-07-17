@@ -10,6 +10,7 @@ import 'transcription_service.dart';
 import 'llm_service.dart';
 import 'glasses_service.dart';
 import 'settings_service.dart';
+import 'conversation_storage_service.dart';
 
 // Service implementations
 import 'implementations/audio_service_impl.dart';
@@ -86,6 +87,9 @@ class ServiceLocator {
       logger: logger,
       prefs: _getIt<SharedPreferences>(),
     ));
+    
+    // Conversation Storage Service
+    _getIt.registerLazySingleton<ConversationStorageService>(() => InMemoryConversationStorageService(logger: logger));
   }
   
   /// Register providers
