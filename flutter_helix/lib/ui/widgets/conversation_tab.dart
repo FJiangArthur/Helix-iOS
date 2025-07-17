@@ -71,13 +71,13 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   
   Future<void> _initializeAudioService() async {
     try {
-      _audioService = ServiceLocator.instance<AudioService>();
+      _audioService = ServiceLocator.instance.get<AudioService>();
       
       // Initialize with default configuration
       final config = AudioConfiguration(
         sampleRate: 16000,
         channels: 1,
-        bitsPerSample: 16,
+        quality: AudioQuality.medium,
       );
       
       await _audioService.initialize(config);
@@ -351,15 +351,16 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                           boxShadow: _isRecording ? [
                             BoxShadow(
                               color: theme.colorScheme.error.withOpacity(0.3),
-                            blurRadius: 12,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        _isRecording ? Icons.stop : Icons.mic,
-                        color: Colors.white,
-                        size: 32,
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ] : null,
+                        ),
+                        child: Icon(
+                          _isRecording ? Icons.stop : Icons.mic,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
                     ),
                   ),
