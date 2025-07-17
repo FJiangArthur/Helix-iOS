@@ -25,6 +25,9 @@ abstract class AudioService {
   
   /// Stream of voice activity detection updates
   Stream<bool> get voiceActivityStream;
+  
+  /// Stream of recording duration updates
+  Stream<Duration> get recordingDurationStream;
 
   /// Initialize the audio service with configuration
   Future<void> initialize(AudioConfiguration config);

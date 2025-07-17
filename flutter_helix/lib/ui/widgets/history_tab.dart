@@ -3,6 +3,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
+
+import '../../services/conversation_storage_service.dart';
+import '../../services/service_locator.dart';
+import '../../models/conversation_model.dart';
 
 class HistoryTab extends StatefulWidget {
   const HistoryTab({super.key});
@@ -20,7 +25,12 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
   ConversationSort _currentSort = ConversationSort.newest;
   bool _isSearching = false;
   
-  final List<ConversationHistory> _conversations = [
+  // Storage service integration
+  late ConversationStorageService _storageService;
+  StreamSubscription<List<Conversation>>? _conversationSubscription;
+  List<Conversation> _conversations = [];
+  
+  final List<ConversationHistory> _mockConversations = [
     ConversationHistory(
       id: 'conv_001',
       title: 'Team Meeting Discussion',
@@ -84,12 +94,37 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _searchController.addListener(_onSearchChanged);
+    _initializeStorageService();
+  }
+  
+  Future<void> _initializeStorageService() async {
+    try {
+      _storageService = ServiceLocator.instance.get<ConversationStorageService>();
+      
+      // Load existing conversations
+      final conversations = await _storageService.getAllConversations();
+      setState(() {
+        _conversations = conversations;
+      });
+      
+      // Listen for conversation updates
+      _conversationSubscription = _storageService.conversationStream.listen((conversations) {
+        if (mounted) {
+          setState(() {
+            _conversations = conversations;
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint('Failed to initialize storage service: $e');
+    }
   }
   
   @override
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _conversationSubscription?.cancel();
     super.dispose();
   }
   
@@ -99,24 +134,27 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
     });
   }
   
-  List<ConversationHistory> get _filteredConversations {
+  List<Conversation> get _filteredConversations {
     var filtered = _conversations.where((conv) {
       // Search filter
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
-        if (!conv.title.toLowerCase().contains(query) &&
-            !conv.summary.toLowerCase().contains(query) &&
-            !conv.tags.any((tag) => tag.toLowerCase().contains(query))) {
-          return false;
+        if (!conv.title.toLowerCase().contains(query)) {
+          // Also search in conversation segments
+          final hasMatchingSegment = conv.segments.any((segment) =>
+              segment.content.toLowerCase().contains(query));
+          if (!hasMatchingSegment) {
+            return false;
+          }
         }
       }
       
       // Category filter
       switch (_currentFilter) {
         case ConversationFilter.starred:
-          return conv.isStarred;
+          return false; // No starred concept in Conversation model yet
         case ConversationFilter.withFactChecks:
-          return conv.hasFactChecks;
+          return false; // No fact checks in Conversation model yet
         case ConversationFilter.withActions:
           return conv.hasActionItems;
         case ConversationFilter.thisWeek:
