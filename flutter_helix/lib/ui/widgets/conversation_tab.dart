@@ -2,6 +2,12 @@
 // ABOUTME: Features recording controls, live transcription, speaker identification, and audio levels
 
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:provider/provider.dart';
+
+import '../../services/audio_service.dart';
+import '../../services/service_locator.dart';
+import '../../models/audio_configuration.dart';
 
 class ConversationTab extends StatefulWidget {
   const ConversationTab({super.key});
@@ -16,6 +22,16 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   double _audioLevel = 0.0;
   late AnimationController _waveController;
   late AnimationController _pulseController;
+  
+  // AudioService integration
+  late AudioService _audioService;
+  StreamSubscription<double>? _audioLevelSubscription;
+  StreamSubscription<bool>? _voiceActivitySubscription;
+  
+  // Recording timer
+  Stopwatch _recordingStopwatch = Stopwatch();
+  Timer? _timerUpdateTimer;
+  Duration _recordingDuration = Duration.zero;
   
   final List<TranscriptionSegment> _transcriptSegments = [
     TranscriptionSegment(
@@ -50,14 +66,41 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       vsync: this,
     );
     
-    // Simulate audio levels when recording
-    if (_isRecording) {
-      _simulateAudioLevels();
+    _initializeAudioService();
+  }
+  
+  Future<void> _initializeAudioService() async {
+    try {
+      _audioService = ServiceLocator.instance<AudioService>();
+      
+      // Initialize with default configuration
+      final config = AudioConfiguration(
+        sampleRate: 16000,
+        channels: 1,
+        bitsPerSample: 16,
+      );
+      
+      await _audioService.initialize(config);
+      
+      // Subscribe to audio level stream
+      _audioLevelSubscription = _audioService.audioLevelStream.listen((level) {
+        if (mounted) {
+          setState(() {
+            _audioLevel = level;
+          });
+        }
+      });
+      
+    } catch (e) {
+      debugPrint('Failed to initialize AudioService: $e');
     }
   }
 
   @override
   void dispose() {
+    _audioLevelSubscription?.cancel();
+    _voiceActivitySubscription?.cancel();
+    _timerUpdateTimer?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -75,19 +118,66 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     });
   }
 
-  void _toggleRecording() {
-    setState(() {
-      _isRecording = !_isRecording;
-      _isPaused = false;
-    });
-    
-    if (_isRecording) {
-      _pulseController.repeat();
-      _simulateAudioLevels();
-    } else {
-      _pulseController.stop();
-      _audioLevel = 0.0;
+  Future<void> _toggleRecording() async {
+    try {
+      if (_isRecording) {
+        // Stop recording
+        await _audioService.stopRecording();
+        _recordingStopwatch.stop();
+        _timerUpdateTimer?.cancel();
+        _pulseController.stop();
+        
+        setState(() {
+          _isRecording = false;
+          _isPaused = false;
+          _audioLevel = 0.0;
+        });
+      } else {
+        // Request permission first
+        if (!_audioService.hasPermission) {
+          final granted = await _audioService.requestPermission();
+          if (!granted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Microphone permission required for recording')),
+            );
+            return;
+          }
+        }
+        
+        // Start recording
+        await _audioService.startRecording();
+        _recordingStopwatch.reset();
+        _recordingStopwatch.start();
+        _startTimerUpdates();
+        _pulseController.repeat();
+        
+        setState(() {
+          _isRecording = true;
+          _isPaused = false;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Recording error: $e')),
+      );
     }
+  }
+  
+  void _startTimerUpdates() {
+    _timerUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (mounted && _isRecording) {
+        setState(() {
+          _recordingDuration = _recordingStopwatch.elapsed;
+        });
+      }
+    });
+  }
+  
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes);
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
   }
 
   void _togglePause() {
@@ -128,19 +218,22 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       ),
       body: Column(
         children: [
-          // Audio Level Indicator
+          // Modern Recording Status Bar
           Container(
             height: 80,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.primaryContainer,
-                  theme.colorScheme.surface,
-                ],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
+              color: _isRecording 
+                ? theme.colorScheme.errorContainer.withOpacity(0.1)
+                : theme.colorScheme.surface,
+              border: _isRecording 
+                ? Border(
+                    bottom: BorderSide(
+                      color: theme.colorScheme.error.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  )
+                : null,
             ),
             child: Row(
               children: [
@@ -182,7 +275,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
-                    _isRecording ? '${DateTime.now().second.toString().padLeft(2, '0')}:${(DateTime.now().millisecond ~/ 10).toString().padLeft(2, '0')}' : '00:00',
+                    _formatDuration(_recordingDuration),
                     style: theme.textTheme.labelMedium?.copyWith(
                       fontFamily: 'monospace',
                       fontWeight: FontWeight.w600,
@@ -240,19 +333,24 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                       ),
                     ),
                   
-                  // Main Record Button
-                  GestureDetector(
-                    onTap: _toggleRecording,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _isRecording ? Colors.red : theme.colorScheme.primary,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (_isRecording ? Colors.red : theme.colorScheme.primary).withOpacity(0.3),
+                  // Modern Record Button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _toggleRecording,
+                      borderRadius: BorderRadius.circular(36),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _isRecording 
+                            ? theme.colorScheme.error 
+                            : theme.colorScheme.primary,
+                          boxShadow: _isRecording ? [
+                            BoxShadow(
+                              color: theme.colorScheme.error.withOpacity(0.3),
                             blurRadius: 12,
                             spreadRadius: 2,
                           ),
