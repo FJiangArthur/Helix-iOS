@@ -19,20 +19,8 @@ import 'implementations/llm_service_impl.dart';
 import 'implementations/glasses_service_impl.dart';
 import 'implementations/settings_service_impl.dart';
 
-// Providers
-import '../providers/app_state_provider.dart';
-
-// Models
-import '../models/transcription_segment.dart';
-import '../models/analysis_result.dart';
-import '../models/conversation_model.dart';
-import '../models/glasses_connection_state.dart';
-
 // Utils
 import '../core/utils/logging_service.dart';
-
-// Flutter imports
-import 'package:flutter/material.dart';
 
 class ServiceLocator {
   static final ServiceLocator _instance = ServiceLocator._internal();
