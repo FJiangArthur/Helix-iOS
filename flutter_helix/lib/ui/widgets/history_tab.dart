@@ -27,8 +27,8 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
   
   // Storage service integration
   late ConversationStorageService _storageService;
-  StreamSubscription<List<Conversation>>? _conversationSubscription;
-  List<Conversation> _conversations = [];
+  StreamSubscription<List<ConversationModel>>? _conversationSubscription;
+  List<ConversationModel> _conversations = [];
   
   final List<ConversationHistory> _mockConversations = [
     ConversationHistory(
@@ -134,7 +134,7 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
     });
   }
   
-  List<Conversation> get _filteredConversations {
+  List<ConversationModel> get _filteredConversations {
     var filtered = _conversations.where((conv) {
       // Search filter
       if (_searchQuery.isNotEmpty) {
@@ -142,7 +142,7 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
         if (!conv.title.toLowerCase().contains(query)) {
           // Also search in conversation segments
           final hasMatchingSegment = conv.segments.any((segment) =>
-              segment.content.toLowerCase().contains(query));
+              segment.text.toLowerCase().contains(query));
           if (!hasMatchingSegment) {
             return false;
           }
@@ -152,13 +152,13 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
       // Category filter
       switch (_currentFilter) {
         case ConversationFilter.starred:
-          return false; // No starred concept in Conversation model yet
+          return conv.isPinned; // Use isPinned as starred
         case ConversationFilter.withFactChecks:
-          return false; // No fact checks in Conversation model yet
+          return conv.hasAIAnalysis; // Use hasAIAnalysis as fact checks
         case ConversationFilter.withActions:
-          return conv.hasActionItems;
+          return false; // No action items in ConversationModel yet
         case ConversationFilter.thisWeek:
-          return conv.date.isAfter(DateTime.now().subtract(const Duration(days: 7)));
+          return conv.startTime.isAfter(DateTime.now().subtract(const Duration(days: 7)));
         case ConversationFilter.all:
         default:
           return true;
@@ -168,16 +168,16 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
     // Sort
     switch (_currentSort) {
       case ConversationSort.newest:
-        filtered.sort((a, b) => b.date.compareTo(a.date));
+        filtered.sort((a, b) => b.startTime.compareTo(a.startTime));
         break;
       case ConversationSort.oldest:
-        filtered.sort((a, b) => a.date.compareTo(b.date));
+        filtered.sort((a, b) => a.startTime.compareTo(b.startTime));
         break;
       case ConversationSort.longest:
         filtered.sort((a, b) => b.duration.compareTo(a.duration));
         break;
       case ConversationSort.mostParticipants:
-        filtered.sort((a, b) => b.participantCount.compareTo(a.participantCount));
+        filtered.sort((a, b) => b.participants.length.compareTo(a.participants.length));
         break;
     }
     
@@ -560,7 +560,8 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
   Widget _buildSentimentCard(ThemeData theme) {
     final sentimentCounts = <SentimentType, int>{};
     for (final conv in _conversations) {
-      sentimentCounts[conv.sentiment] = (sentimentCounts[conv.sentiment] ?? 0) + 1;
+      // Default to neutral sentiment for ConversationModel since it doesn't have sentiment
+      sentimentCounts[SentimentType.neutral] = (sentimentCounts[SentimentType.neutral] ?? 0) + 1;
     }
     
     return Card(
@@ -656,7 +657,7 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
   String _getAverageParticipants() {
     if (_conversations.isEmpty) return '0';
     final avg = _conversations.fold<int>(
-      0, (sum, conv) => sum + conv.participantCount,
+      0, (sum, conv) => sum + conv.participants.length,
     ) / _conversations.length;
     return avg.toStringAsFixed(1);
   }
@@ -687,24 +688,29 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
     }
   }
   
-  void _openConversationDetail(ConversationHistory conversation) {
+  void _openConversationDetail(ConversationModel conversation) {
     // TODO: Navigate to conversation detail page
   }
   
-  void _toggleStar(ConversationHistory conversation) {
-    setState(() {
-      final index = _conversations.indexWhere((c) => c.id == conversation.id);
-      if (index != -1) {
-        _conversations[index] = conversation.copyWith(isStarred: !conversation.isStarred);
+  void _toggleStar(ConversationModel conversation) async {
+    try {
+      final updatedConversation = conversation.copyWith(isPinned: !conversation.isPinned);
+      await _storageService.saveConversation(updatedConversation);
+      // The conversation stream will automatically update the UI
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update conversation: $e')),
+        );
       }
-    });
+    }
   }
   
-  void _shareConversation(ConversationHistory conversation) {
+  void _shareConversation(ConversationModel conversation) {
     // TODO: Implement share functionality
   }
   
-  void _deleteConversation(ConversationHistory conversation) {
+  void _deleteConversation(ConversationModel conversation) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -716,11 +722,23 @@ class _HistoryTabState extends State<HistoryTab> with TickerProviderStateMixin {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _conversations.removeWhere((c) => c.id == conversation.id);
-              });
-              Navigator.of(context).pop();
+            onPressed: () async {
+              try {
+                await _storageService.deleteConversation(conversation.id);
+                Navigator.of(context).pop();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Conversation deleted')),
+                  );
+                }
+              } catch (e) {
+                Navigator.of(context).pop();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to delete conversation: $e')),
+                  );
+                }
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
@@ -856,7 +874,7 @@ enum ConversationSort { newest, oldest, longest, mostParticipants }
 
 // Custom Widgets
 class ConversationCard extends StatelessWidget {
-  final ConversationHistory conversation;
+  final ConversationModel conversation;
   final VoidCallback onTap;
   final VoidCallback onStar;
   final VoidCallback onShare;
@@ -898,8 +916,8 @@ class ConversationCard extends StatelessWidget {
                   IconButton(
                     onPressed: onStar,
                     icon: Icon(
-                      conversation.isStarred ? Icons.star : Icons.star_border,
-                      color: conversation.isStarred ? Colors.amber : null,
+                      conversation.isPinned ? Icons.star : Icons.star_border,
+                      color: conversation.isPinned ? Colors.amber : null,
                     ),
                   ),
                   PopupMenuButton<String>(
@@ -940,7 +958,12 @@ class ConversationCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                conversation.summary,
+                conversation.description ?? 
+                (conversation.segments.isNotEmpty 
+                  ? conversation.segments.take(2).map((s) => s.text).join(' ').length > 100
+                    ? '${conversation.segments.take(2).map((s) => s.text).join(' ').substring(0, 100)}...'
+                    : conversation.segments.take(2).map((s) => s.text).join(' ')
+                  : 'No content available'),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -974,7 +997,7 @@ class ConversationCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    DateFormat('MMM d, h:mm a').format(conversation.date),
+                    DateFormat('MMM d, h:mm a').format(conversation.startTime),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -1000,7 +1023,7 @@ class ConversationCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${conversation.participantCount}',
+                    '${conversation.participants.length}',
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -1008,7 +1031,7 @@ class ConversationCard extends StatelessWidget {
                   const Spacer(),
                   
                   // Features
-                  if (conversation.hasFactChecks)
+                  if (conversation.hasAIAnalysis)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
@@ -1016,30 +1039,13 @@ class ConversationCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'FACTS',
+                        'AI',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: Colors.green,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  if (conversation.hasActionItems) ...[
-                    if (conversation.hasFactChecks) const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'ACTIONS',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
             ],

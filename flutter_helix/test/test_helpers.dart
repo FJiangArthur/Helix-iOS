@@ -13,6 +13,7 @@ import 'package:flutter_helix/services/glasses_service.dart';
 import 'package:flutter_helix/services/settings_service.dart';
 import 'package:flutter_helix/models/transcription_segment.dart';
 import 'package:flutter_helix/models/analysis_result.dart';
+import 'package:flutter_helix/models/conversation_model.dart';
 import 'package:flutter_helix/core/utils/logging_service.dart';
 
 import 'test_helpers.mocks.dart';
@@ -78,6 +79,71 @@ class TestHelpers {
       text: text ?? 'This is a test transcription segment',
       timestamp: timestamp ?? DateTime.now(),
       confidence: confidence ?? 0.95,
+    );
+  }
+
+  /// Creates a sample TranscriptionSegment for conversation model testing
+  static TranscriptionSegment createSampleSegment({
+    String? id,
+    String? participantId,
+    String? content,
+    DateTime? timestamp,
+    double? confidence,
+    String? language,
+    TranscriptionBackend? backend,
+  }) {
+    return TranscriptionSegment(
+      id: id ?? 'seg_${DateTime.now().millisecondsSinceEpoch}',
+      participantId: participantId ?? 'participant_1',
+      content: content ?? 'This is a test segment content',
+      timestamp: timestamp ?? DateTime.now(),
+      confidence: confidence ?? 0.95,
+      language: language ?? 'en-US',
+      backend: backend ?? TranscriptionBackend.device,
+    );
+  }
+
+  /// Creates a sample ConversationModel for testing
+  static ConversationModel createSampleConversation({
+    String? id,
+    String? title,
+    DateTime? startTime,
+    DateTime? endTime,
+    List<ConversationParticipant>? participants,
+    List<TranscriptionSegment>? segments,
+  }) {
+    final now = DateTime.now();
+    
+    return ConversationModel(
+      id: id ?? 'test_conv_${now.millisecondsSinceEpoch}',
+      title: title ?? 'Test Conversation',
+      startTime: startTime ?? now.subtract(const Duration(hours: 1)),
+      endTime: endTime ?? now,
+      lastUpdated: now,
+      participants: participants ?? [
+        const ConversationParticipant(
+          id: 'participant_1',
+          name: 'Alice',
+          isOwner: true,
+        ),
+        const ConversationParticipant(
+          id: 'participant_2',
+          name: 'Bob',
+          isOwner: false,
+        ),
+      ],
+      segments: segments ?? [
+        createSampleSegment(
+          participantId: 'participant_1',
+          content: 'Hello, how are you?',
+          timestamp: now.subtract(const Duration(minutes: 5)),
+        ),
+        createSampleSegment(
+          participantId: 'participant_2',
+          content: 'I\'m doing well, thanks for asking!',
+          timestamp: now.subtract(const Duration(minutes: 4)),
+        ),
+      ],
     );
   }
 
