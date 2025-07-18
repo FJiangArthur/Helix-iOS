@@ -568,15 +568,15 @@ class AudioServiceImpl implements AudioService {
   }
 
   void _startVolumeMonitoring() {
-    _volumeTimer = Timer.periodic(_volumeUpdateInterval, (timer) async {
+    // Subscribe to FlutterSound onProgress stream for real-time audio levels
+    _recorder.onProgress!.listen((RecordingDisposition disposition) {
       try {
-        if (_isRecording && _recorder.isRecording) {
-          // Note: flutter_sound doesn't have getRecordingDecibelLevel method
-          // For now, use simulated data with some randomness based on recording state
-          final baseLevel = 0.3;
-          final randomVariation = (math.Random().nextDouble() - 0.5) * 0.4;
-          final volume = (baseLevel + randomVariation).clamp(0.0, 1.0);
-          
+        // Get real decibel level from FlutterSound
+        final decibels = disposition.decibels;
+        
+        if (decibels != null && decibels.isFinite) {
+          // Convert decibels to linear scale (0.0 to 1.0)
+          final volume = _decibelToLinear(decibels);
           _currentVolume = volume;
           
           // Only emit audio level if there are listeners (performance optimization)
@@ -586,19 +586,34 @@ class AudioServiceImpl implements AudioService {
           
           // Update volume history for VAD
           _updateVolumeHistory(volume);
+          
+          _logger.log(_tag, 'Real audio level: ${decibels.toStringAsFixed(1)}dB -> ${volume.toStringAsFixed(3)}', LogLevel.debug);
+        } else {
+          // Handle null or invalid decibel values
+          _updateVolumeHistory(_currentVolume);
         }
       } catch (e) {
-        // Fallback to simulated data if real amplitude fails
-        final simulatedVolume = _currentVolume + (math.Random().nextDouble() - 0.5) * 0.1;
-        final volume = simulatedVolume.clamp(0.0, 1.0);
-        
-        _currentVolume = volume;
-        
-        // Only emit audio level if there are listeners (performance optimization)
-        if (_audioLevelStreamController.hasListener) {
-          _audioLevelStreamController.add(volume);
+        _logger.log(_tag, 'Error processing audio level from onProgress: $e', LogLevel.warning);
+        _updateVolumeHistory(_currentVolume);
+      }
+    });
+    
+    // Backup timer-based monitoring for additional robustness
+    _volumeTimer = Timer.periodic(_volumeUpdateInterval, (timer) async {
+      try {
+        if (!_isRecording || !_recorder.isRecording) {
+          // Decay audio level when not recording
+          final decayRate = 0.1;
+          final volume = math.max(0.0, _currentVolume - decayRate);
+          _currentVolume = volume;
+          
+          if (_audioLevelStreamController.hasListener) {
+            _audioLevelStreamController.add(volume);
+          }
+          _updateVolumeHistory(volume);
         }
-        _updateVolumeHistory(volume);
+      } catch (e) {
+        _logger.log(_tag, 'Error in backup volume monitoring: $e', LogLevel.debug);
       }
     });
   }
@@ -624,12 +639,22 @@ class AudioServiceImpl implements AudioService {
 
   double _decibelToLinear(double decibels) {
     // Convert decibels to linear scale
-    // Typical microphone range: -80 dB (silence) to 0 dB (max)
-    const minDb = -80.0;
-    const maxDb = 0.0;
+    // Improved sensitivity for voice detection:
+    // -60 dB = silence threshold, -20 dB = normal speech, 0 dB = max
+    const minDb = -60.0;  // More sensitive silence threshold
+    const maxDb = -10.0;  // Normal speech range ceiling
     
-    final normalizedDb = (decibels - minDb) / (maxDb - minDb);
-    return normalizedDb.clamp(0.0, 1.0);
+    // Clamp input to expected range
+    final clampedDb = decibels.clamp(-80.0, 0.0);
+    
+    // Normalize to 0.0-1.0 range with better sensitivity
+    final normalizedDb = (clampedDb - minDb) / (maxDb - minDb);
+    final linearValue = normalizedDb.clamp(0.0, 1.0);
+    
+    // Apply slight curve to enhance low-level audio visibility
+    final enhancedValue = math.pow(linearValue, 0.7).toDouble();
+    
+    return enhancedValue;
   }
 
   void _updateVolumeHistory(double volume) {
