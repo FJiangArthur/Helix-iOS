@@ -310,7 +310,7 @@ class SpeechRecognitionService: NSObject, SpeechRecognitionServiceProtocol {
         let transcriptionResult = TranscriptionResult(
             text: transcription.formattedString,
             speakerId: nil, // Will be set by speaker identification
-            confidence: transcription.segments.isEmpty ? 0.0 : transcription.segments.map { $0.confidence }.reduce(0, +) / Float(transcription.segments.count),
+            confidence: transcription.segments.isEmpty ? 0.0 : transcription.segments.map { $0.confidence }.reduce(0, +) / /Float(transcription.segments.count),
             isFinal: isFinal,
             wordTimings: wordTimings,
             alternatives: Array(alternatives.prefix(3))
