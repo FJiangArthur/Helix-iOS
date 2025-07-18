@@ -29,6 +29,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   bool _isPaused = false;
   bool _isProcessingRecordingToggle = false;
   double _audioLevel = 0.0;
+  final List<double> _audioLevelHistory = [];
   late AnimationController _waveController;
   late AnimationController _pulseController;
   
@@ -181,6 +182,14 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     _isProcessingRecordingToggle = true;
     
     try {
+      // Ensure AudioService is initialized
+      if (_audioService == null) {
+        debugPrint('AudioService not initialized, initializing now...');
+        await _initializeAudioService();
+        if (_audioService == null) {
+          throw Exception('Failed to initialize AudioService');
+        }
+      }
       if (_isRecording) {
         debugPrint('Stopping recording...');
         
@@ -219,30 +228,44 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       } else {
         debugPrint('Starting recording...');
         
-        // Request permission first
-        if (!_audioService.hasPermission) {
+        // Always check current permission status first
+        final audioServiceImpl = _audioService as AudioServiceImpl;
+        final currentStatus = await audioServiceImpl.checkPermissionStatus();
+        debugPrint('Current permission status: ${currentStatus.name}');
+        
+        if (currentStatus != PermissionStatus.granted && 
+            currentStatus != PermissionStatus.limited && 
+            currentStatus != PermissionStatus.provisional) {
+          
+          debugPrint('Requesting microphone permission...');
           final granted = await _audioService.requestPermission();
+          debugPrint('Permission request result: $granted');
+          
           if (!granted) {
             if (mounted) {
-              // Check if permission was permanently denied
-              final audioServiceImpl = _audioService as AudioServiceImpl;
-              final status = await audioServiceImpl.checkPermissionStatus();
+              // Re-check status after request
+              final newStatus = await audioServiceImpl.checkPermissionStatus();
+              debugPrint('Permission request failed with final status: ${newStatus.name}');
               
-              debugPrint('Permission request failed with status: ${status.name}');
-              
-              if (status == PermissionStatus.permanentlyDenied) {
+              if (newStatus == PermissionStatus.permanentlyDenied) {
                 // Show dialog to guide user to settings
                 _showPermissionPermanentlyDeniedDialog();
               } else {
                 String message = 'Microphone permission required for recording';
-                if (status == PermissionStatus.restricted) {
+                if (newStatus == PermissionStatus.restricted) {
                   message = 'Microphone access is restricted (parental controls)';
+                } else if (newStatus == PermissionStatus.denied) {
+                  message = 'Please allow microphone access to record conversations';
                 }
                 
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(message),
-                    duration: const Duration(seconds: 3),
+                    duration: const Duration(seconds: 4),
+                    action: SnackBarAction(
+                      label: 'Retry',
+                      onPressed: () => _toggleRecording(),
+                    ),
                   ),
                 );
               }
@@ -251,6 +274,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
           } else {
             debugPrint('Microphone permission granted successfully');
           }
+        } else {
+          debugPrint('Microphone permission already available: ${currentStatus.name}');
         }
         
         try {
