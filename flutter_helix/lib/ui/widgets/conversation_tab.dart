@@ -237,6 +237,13 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
             currentStatus != PermissionStatus.limited && 
             currentStatus != PermissionStatus.provisional) {
           
+          // Only skip requesting if permanently denied - go straight to settings
+          if (currentStatus == PermissionStatus.permanentlyDenied) {
+            debugPrint('Permission permanently denied, showing settings dialog');
+            _showPermissionPermanentlyDeniedDialog();
+            return;
+          }
+          
           debugPrint('Requesting microphone permission...');
           final granted = await _audioService.requestPermission();
           debugPrint('Permission request result: $granted');
@@ -247,15 +254,13 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
               final newStatus = await audioServiceImpl.checkPermissionStatus();
               debugPrint('Permission request failed with final status: ${newStatus.name}');
               
-              if (newStatus == PermissionStatus.permanentlyDenied) {
+              if (newStatus == PermissionStatus.permanentlyDenied || newStatus == PermissionStatus.denied) {
                 // Show dialog to guide user to settings
                 _showPermissionPermanentlyDeniedDialog();
               } else {
                 String message = 'Microphone permission required for recording';
                 if (newStatus == PermissionStatus.restricted) {
                   message = 'Microphone access is restricted (parental controls)';
-                } else if (newStatus == PermissionStatus.denied) {
-                  message = 'Please allow microphone access to record conversations';
                 }
                 
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -376,9 +381,23 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Microphone Permission Required'),
-          content: const Text(
-            'Recording requires microphone access. Since permission was permanently denied, '
-            'please enable microphone access in your device settings.',
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Helix needs microphone access to record conversations. Please enable it in Settings:',
+                style: TextStyle(fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              Text(
+                '1. Tap "Open Settings" below\n'
+                '2. Find "Flutter Helix" in the list\n'
+                '3. Toggle ON "Microphone"\n'
+                '4. Return to the app and try recording again',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
           ),
           actions: [
             TextButton(
