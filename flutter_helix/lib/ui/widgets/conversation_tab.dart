@@ -4,13 +4,16 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:provider/provider.dart';
 
 import '../../services/audio_service.dart';
+import '../../services/implementations/audio_service_impl.dart';
 import '../../services/conversation_storage_service.dart';
 import '../../services/service_locator.dart';
 import '../../models/audio_configuration.dart';
 import '../../models/conversation_model.dart';
+import '../../models/transcription_segment.dart';
+import '../../services/transcription_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ConversationTab extends StatefulWidget {
   final VoidCallback? onHistoryTap;
@@ -24,6 +27,7 @@ class ConversationTab extends StatefulWidget {
 class _ConversationTabState extends State<ConversationTab> with TickerProviderStateMixin {
   bool _isRecording = false;
   bool _isPaused = false;
+  bool _isProcessingRecordingToggle = false;
   double _audioLevel = 0.0;
   late AnimationController _waveController;
   late AnimationController _pulseController;
@@ -37,7 +41,6 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   
   // Current conversation state
   String? _currentConversationId;
-  String? _currentRecordingPath;
   
   // Recording timer
   Timer? _timerUpdateTimer;
@@ -45,22 +48,37 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   
   final List<TranscriptionSegment> _transcriptSegments = [
     TranscriptionSegment(
-      speaker: 'You',
       text: 'Welcome to Helix! This is a demo of real-time conversation transcription.',
-      timestamp: DateTime.now().subtract(const Duration(seconds: 30)),
+      startTime: DateTime.now().subtract(const Duration(seconds: 30)),
+      endTime: DateTime.now().subtract(const Duration(seconds: 27)),
       confidence: 0.95,
+      speakerId: 'user_1',
+      speakerName: 'You',
+      language: 'en-US',
+      backend: TranscriptionBackend.device,
+      segmentId: 'demo_1',
     ),
     TranscriptionSegment(
-      speaker: 'Speaker 2',
       text: 'The AI analysis features look impressive. How accurate is the fact-checking?',
-      timestamp: DateTime.now().subtract(const Duration(seconds: 15)),
+      startTime: DateTime.now().subtract(const Duration(seconds: 15)),
+      endTime: DateTime.now().subtract(const Duration(seconds: 12)),
       confidence: 0.88,
+      speakerId: 'speaker_2',
+      speakerName: 'Speaker 2',
+      language: 'en-US',
+      backend: TranscriptionBackend.device,
+      segmentId: 'demo_2',
     ),
     TranscriptionSegment(
-      speaker: 'You',
       text: 'Our fact-checking uses multiple AI providers for high accuracy and confidence scoring.',
-      timestamp: DateTime.now().subtract(const Duration(seconds: 5)),
+      startTime: DateTime.now().subtract(const Duration(seconds: 5)),
+      endTime: DateTime.now().subtract(const Duration(seconds: 2)),
       confidence: 0.92,
+      speakerId: 'user_1',
+      speakerName: 'You',
+      language: 'en-US',
+      backend: TranscriptionBackend.device,
+      segmentId: 'demo_3',
     ),
   ];
 
@@ -111,8 +129,29 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         }
       });
       
+      // Check initial permission status
+      _checkInitialPermissionStatus();
+      
     } catch (e) {
       debugPrint('Failed to initialize AudioService: $e');
+    }
+  }
+  
+  Future<void> _checkInitialPermissionStatus() async {
+    try {
+      final audioServiceImpl = _audioService as AudioServiceImpl;
+      final status = await audioServiceImpl.checkPermissionStatus();
+      
+      debugPrint('Initial microphone permission status: ${status.name}');
+      
+      // Update UI based on permission status if needed
+      if (mounted) {
+        setState(() {
+          // Permission status is already updated in the service
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to check initial permission status: $e');
     }
   }
 
@@ -127,17 +166,6 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     super.dispose();
   }
 
-  void _simulateAudioLevels() {
-    // Simulate varying audio levels for demo purposes
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (_isRecording && mounted) {
-        setState(() {
-          _audioLevel = (0.3 + (0.7 * (DateTime.now().millisecondsSinceEpoch % 1000) / 1000));
-        });
-        _simulateAudioLevels();
-      }
-    });
-  }
 
   String _generateConversationId() {
     // Simple UUID-like ID generator
@@ -148,88 +176,153 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   }
 
   Future<void> _toggleRecording() async {
+    // Prevent multiple simultaneous calls
+    if (_isProcessingRecordingToggle) return;
+    _isProcessingRecordingToggle = true;
+    
     try {
       if (_isRecording) {
-        // Stop recording
-        await _audioService.stopRecording();
-        _pulseController.stop();
+        debugPrint('Stopping recording...');
         
-        // Create and save conversation
-        await _saveCurrentConversation();
-        
-        setState(() {
-          _isRecording = false;
-          _isPaused = false;
-          _audioLevel = 0.0;
-        });
-        
-        // Clear current conversation state
-        _currentConversationId = null;
-        _currentRecordingPath = null;
+        try {
+          await _audioService.stopRecording();
+          _pulseController.stop();
+          
+          // Create and save conversation
+          await _saveCurrentConversation();
+          
+          setState(() {
+            _isRecording = false;
+            _isPaused = false;
+            _audioLevel = 0.0;
+          });
+          
+          // Clear current conversation state
+          _currentConversationId = null;
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Recording stopped and saved'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          debugPrint('Error stopping recording: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to stop recording: $e')),
+            );
+          }
+        }
       } else {
+        debugPrint('Starting recording...');
+        
         // Request permission first
         if (!_audioService.hasPermission) {
           final granted = await _audioService.requestPermission();
           if (!granted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Microphone permission required for recording')),
-            );
+            if (mounted) {
+              // Check if permission was permanently denied
+              final audioServiceImpl = _audioService as AudioServiceImpl;
+              final status = await audioServiceImpl.checkPermissionStatus();
+              
+              debugPrint('Permission request failed with status: ${status.name}');
+              
+              if (status == PermissionStatus.permanentlyDenied) {
+                // Show dialog to guide user to settings
+                _showPermissionPermanentlyDeniedDialog();
+              } else {
+                String message = 'Microphone permission required for recording';
+                if (status == PermissionStatus.restricted) {
+                  message = 'Microphone access is restricted (parental controls)';
+                }
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
             return;
+          } else {
+            debugPrint('Microphone permission granted successfully');
           }
         }
         
-        // Generate conversation ID and start recording
-        _currentConversationId = _generateConversationId();
-        _currentRecordingPath = await _audioService.startConversationRecording(_currentConversationId!);
-        _pulseController.repeat();
-        
-        setState(() {
-          _isRecording = true;
-          _isPaused = false;
-        });
+        try {
+          // Generate conversation ID and start recording
+          _currentConversationId = _generateConversationId();
+          await _audioService.startConversationRecording(_currentConversationId!);
+          _pulseController.repeat();
+          
+          setState(() {
+            _isRecording = true;
+            _isPaused = false;
+          });
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Recording started'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
+        } catch (e) {
+          debugPrint('Error starting recording: $e');
+          _currentConversationId = null;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to start recording: $e')),
+            );
+          }
+        }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Recording error: $e')),
-      );
+      debugPrint('Unexpected error in recording toggle: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Recording error: $e')),
+        );
+      }
+    } finally {
+      _isProcessingRecordingToggle = false;
     }
   }
 
   Future<void> _saveCurrentConversation() async {
-    if (_currentConversationId == null) return;
+    if (_currentConversationId == null) {
+      debugPrint('Cannot save conversation: No conversation ID');
+      return;
+    }
     
     try {
+      debugPrint('Saving conversation: $_currentConversationId');
+      
       // Create conversation from current transcription segments
-      final conversation = Conversation(
+      final conversation = ConversationModel(
         id: _currentConversationId!,
         title: 'Conversation ${DateTime.now().toLocal().toString().split(' ')[0]}',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
+        startTime: DateTime.now().subtract(_recordingDuration),
+        endTime: DateTime.now(),
+        lastUpdated: DateTime.now(),
         participants: [
-          const Participant(
+          const ConversationParticipant(
             id: 'user_1',
             name: 'You',
-            email: '',
-            role: 'user',
+            isOwner: true,
           ),
-          const Participant(
+          const ConversationParticipant(
             id: 'speaker_2',
             name: 'Speaker 2',
-            email: '',
-            role: 'speaker',
+            isOwner: false,
           ),
         ],
-        segments: _transcriptSegments.map((segment) => ConversationSegment(
-          id: 'segment_${segment.timestamp.millisecondsSinceEpoch}',
-          participantId: segment.speaker == 'You' ? 'user_1' : 'speaker_2',
-          content: segment.text,
-          timestamp: segment.timestamp,
-          confidence: segment.confidence,
-          metadata: const {},
-        )).toList(),
-        audioFilePath: _currentRecordingPath,
-        duration: _recordingDuration,
-        metadata: const {},
+        segments: _transcriptSegments,
       );
       
       await _storageService.saveConversation(conversation);
@@ -250,6 +343,35 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     final minutes = twoDigits(duration.inMinutes);
     final seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$minutes:$seconds';
+  }
+  
+  void _showPermissionPermanentlyDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Microphone Permission Required'),
+          content: const Text(
+            'Recording requires microphone access. Since permission was permanently denied, '
+            'please enable microphone access in your device settings.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                final audioServiceImpl = _audioService as AudioServiceImpl;
+                await audioServiceImpl.openPermissionSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _togglePause() {
@@ -487,7 +609,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       itemCount: _transcriptSegments.length,
       itemBuilder: (context, index) {
         final segment = _transcriptSegments[index];
-        final isCurrentUser = segment.speaker == 'You';
+        final isCurrentUser = segment.speakerId == 'user_1';
+        final speakerName = segment.speakerName ?? 'Unknown';
         
         return Container(
           margin: const EdgeInsets.only(bottom: 16),
@@ -501,7 +624,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                   ? theme.colorScheme.primary 
                   : theme.colorScheme.secondary,
                 child: Text(
-                  segment.speaker[0],
+                  speakerName[0],
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w600,
@@ -518,7 +641,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                     Row(
                       children: [
                         Text(
-                          segment.speaker,
+                          speakerName,
                           style: theme.textTheme.labelMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: theme.colorScheme.primary,
@@ -526,7 +649,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _formatTimestamp(segment.timestamp),
+                          _formatTimestamp(segment.startTime),
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -577,20 +700,6 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   }
 }
 
-// Helper Models
-class TranscriptionSegment {
-  final String speaker;
-  final String text;
-  final DateTime timestamp;
-  final double confidence;
-
-  TranscriptionSegment({
-    required this.speaker,
-    required this.text,
-    required this.timestamp,
-    required this.confidence,
-  });
-}
 
 // Custom Widgets
 class AudioLevelBars extends StatelessWidget {

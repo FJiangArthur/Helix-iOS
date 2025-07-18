@@ -3,8 +3,6 @@
 
 import 'dart:async';
 
-import '../core/utils/exceptions.dart';
-
 /// Theme mode options
 enum ThemeMode {
   system,

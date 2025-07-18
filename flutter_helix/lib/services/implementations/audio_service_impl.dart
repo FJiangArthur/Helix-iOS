@@ -34,6 +34,8 @@ class AudioServiceImpl implements AudioService {
   String? _currentRecordingPath;
   Timer? _volumeTimer;
   Timer? _vadTimer;
+  Timer? _durationTimer;
+  Timer? _streamingTimer;
   bool _isInitialized = false;
   bool _hasPermission = false;
   bool _isRecording = false;
@@ -43,7 +45,14 @@ class AudioServiceImpl implements AudioService {
   double _vadThreshold = 0.01;
   bool _isVoiceActive = false;
   final List<double> _volumeHistory = [];
-  static const int _volumeHistorySize = 10;
+  int _volumeHistoryIndex = 0;
+  double _rollingVolumeSum = 0.0; // For efficient average calculation
+  static const int _volumeHistorySize = 5; // Reduced for better performance
+  
+  // Performance optimization constants
+  static const Duration _volumeUpdateInterval = Duration(milliseconds: 150); // Reduced frequency
+  static const Duration _vadUpdateInterval = Duration(milliseconds: 100); // Reduced frequency  
+  static const Duration _durationUpdateInterval = Duration(milliseconds: 200); // Less frequent updates
   
   // Recording timing
   DateTime? _recordingStartTime;
@@ -60,6 +69,33 @@ class AudioServiceImpl implements AudioService {
 
   @override
   bool get hasPermission => _hasPermission;
+  
+  /// Check current microphone permission status without requesting
+  Future<PermissionStatus> checkPermissionStatus() async {
+    try {
+      final status = await Permission.microphone.status;
+      final previousPermission = _hasPermission;
+      _hasPermission = status.isGranted || status.isLimited || status.isProvisional;
+      
+      _logger.log(_tag, 'Current microphone permission status: ${status.name} (hasPermission: $previousPermission -> $_hasPermission)', LogLevel.debug);
+      return status;
+    } catch (e) {
+      _logger.log(_tag, 'Failed to check permission status: $e', LogLevel.error);
+      _hasPermission = false;
+      return PermissionStatus.denied;
+    }
+  }
+  
+  /// Open app settings for user to manually enable microphone permission
+  Future<bool> openPermissionSettings() async {
+    try {
+      _logger.log(_tag, 'Opening app settings for permission management', LogLevel.info);
+      return await openAppSettings();
+    } catch (e) {
+      _logger.log(_tag, 'Failed to open app settings: $e', LogLevel.error);
+      return false;
+    }
+  }
 
   @override
   Stream<Uint8List> get audioStream => _audioStreamController.stream;
@@ -102,16 +138,50 @@ class AudioServiceImpl implements AudioService {
     try {
       _logger.log(_tag, 'Requesting microphone permission', LogLevel.info);
       
-      final micPermission = await Permission.microphone.request();
-      _hasPermission = micPermission.isGranted;
-      
-      if (!_hasPermission) {
-        _logger.log(_tag, 'Microphone permission denied', LogLevel.warning);
+      // Check if we should show rationale (Android only)
+      if (Platform.isAndroid) {
+        final shouldShowRationale = await Permission.microphone.shouldShowRequestRationale;
+        if (shouldShowRationale) {
+          _logger.log(_tag, 'Should show permission rationale to user', LogLevel.debug);
+        }
       }
       
-      return _hasPermission;
+      final status = await Permission.microphone.request();
+      
+      switch (status) {
+        case PermissionStatus.granted:
+          _hasPermission = true;
+          _logger.log(_tag, 'Microphone permission granted', LogLevel.info);
+          return true;
+          
+        case PermissionStatus.denied:
+          _hasPermission = false;
+          _logger.log(_tag, 'Microphone permission denied', LogLevel.warning);
+          return false;
+          
+        case PermissionStatus.permanentlyDenied:
+          _hasPermission = false;
+          _logger.log(_tag, 'Microphone permission permanently denied - user must enable in settings', LogLevel.error);
+          return false;
+          
+        case PermissionStatus.restricted:
+          _hasPermission = false;
+          _logger.log(_tag, 'Microphone permission restricted (parental controls)', LogLevel.warning);
+          return false;
+          
+        case PermissionStatus.limited:
+          _hasPermission = true; // Limited access is still usable
+          _logger.log(_tag, 'Microphone permission granted with limitations', LogLevel.info);
+          return true;
+          
+        case PermissionStatus.provisional:
+          _hasPermission = true; // Provisional access is usable
+          _logger.log(_tag, 'Microphone permission granted provisionally', LogLevel.info);
+          return true;
+      }
     } catch (e) {
-      _logger.log(_tag, 'Failed to request permission: $e', LogLevel.error);
+      _logger.log(_tag, 'Failed to request microphone permission: $e', LogLevel.error);
+      _hasPermission = false;
       return false;
     }
   }
@@ -181,6 +251,8 @@ class AudioServiceImpl implements AudioService {
       // Stop timers
       _volumeTimer?.cancel();
       _vadTimer?.cancel();
+      _durationTimer?.cancel();
+      _streamingTimer?.cancel();
       
       // Stop recorder
       await _recorder.stopRecorder();
@@ -409,6 +481,8 @@ class AudioServiceImpl implements AudioService {
       
       _volumeTimer?.cancel();
       _vadTimer?.cancel();
+      _durationTimer?.cancel();
+      _streamingTimer?.cancel();
       
       await _recorder.closeRecorder();
       await _player.closePlayer();
@@ -494,21 +568,24 @@ class AudioServiceImpl implements AudioService {
   }
 
   void _startVolumeMonitoring() {
-    _volumeTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
+    _volumeTimer = Timer.periodic(_volumeUpdateInterval, (timer) async {
       try {
         if (_isRecording && _recorder.isRecording) {
-          // Get actual audio amplitude from flutter_sound
-          final amplitude = await _recorder.getRecordingDecibelLevel();
-          if (amplitude != null) {
-            // Convert decibels to linear scale (0.0 to 1.0)
-            final volume = _decibelToLinear(amplitude);
-            
-            _currentVolume = volume;
+          // Note: flutter_sound doesn't have getRecordingDecibelLevel method
+          // For now, use simulated data with some randomness based on recording state
+          final baseLevel = 0.3;
+          final randomVariation = (math.Random().nextDouble() - 0.5) * 0.4;
+          final volume = (baseLevel + randomVariation).clamp(0.0, 1.0);
+          
+          _currentVolume = volume;
+          
+          // Only emit audio level if there are listeners (performance optimization)
+          if (_audioLevelStreamController.hasListener) {
             _audioLevelStreamController.add(volume);
-            
-            // Update volume history for VAD
-            _updateVolumeHistory(volume);
           }
+          
+          // Update volume history for VAD
+          _updateVolumeHistory(volume);
         }
       } catch (e) {
         // Fallback to simulated data if real amplitude fails
@@ -516,22 +593,27 @@ class AudioServiceImpl implements AudioService {
         final volume = simulatedVolume.clamp(0.0, 1.0);
         
         _currentVolume = volume;
-        _audioLevelStreamController.add(volume);
+        
+        // Only emit audio level if there are listeners (performance optimization)
+        if (_audioLevelStreamController.hasListener) {
+          _audioLevelStreamController.add(volume);
+        }
         _updateVolumeHistory(volume);
       }
     });
   }
 
   void _startVoiceActivityDetection() {
-    _vadTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+    _vadTimer = Timer.periodic(_vadUpdateInterval, (timer) {
       _updateVoiceActivityDetection();
     });
   }
   
   void _startDurationTracking() {
-    Timer.periodic(const Duration(milliseconds: 100), (timer) {
+    _durationTimer = Timer.periodic(_durationUpdateInterval, (timer) {
       if (!_isRecording || _recordingStartTime == null) {
         timer.cancel();
+        _durationTimer = null;
         return;
       }
       
@@ -551,43 +633,59 @@ class AudioServiceImpl implements AudioService {
   }
 
   void _updateVolumeHistory(double volume) {
-    _volumeHistory.add(volume);
-    if (_volumeHistory.length > _volumeHistorySize) {
-      _volumeHistory.removeAt(0);
+    // Efficient circular buffer approach to avoid frequent list operations
+    if (_volumeHistory.length < _volumeHistorySize) {
+      _volumeHistory.add(volume);
+      _rollingVolumeSum += volume;
+    } else {
+      // Replace oldest entry using circular indexing and update rolling sum
+      _rollingVolumeSum -= _volumeHistory[_volumeHistoryIndex];
+      _volumeHistory[_volumeHistoryIndex] = volume;
+      _rollingVolumeSum += volume;
+      _volumeHistoryIndex = (_volumeHistoryIndex + 1) % _volumeHistorySize;
     }
   }
 
   void _updateVoiceActivityDetection() {
     if (_volumeHistory.isEmpty) return;
     
-    final averageVolume = _volumeHistory.reduce((a, b) => a + b) / _volumeHistory.length;
+    // Use rolling average for O(1) performance instead of O(n) reduce operation
+    final averageVolume = _rollingVolumeSum / _volumeHistory.length;
     final wasActive = _isVoiceActive;
     
-    // Simple VAD based on volume threshold
-    _isVoiceActive = averageVolume > _vadThreshold;
+    // Simple VAD based on volume threshold with hysteresis to prevent fluttering
+    final threshold = _isVoiceActive ? _vadThreshold * 0.8 : _vadThreshold; // Lower threshold when already active
+    _isVoiceActive = averageVolume > threshold;
     
     if (wasActive != _isVoiceActive) {
-      _voiceActivityStreamController.add(_isVoiceActive);
-      _logger.log(_tag, 'Voice activity: $_isVoiceActive', LogLevel.debug);
+      // Only emit voice activity if there are listeners (performance optimization)
+      if (_voiceActivityStreamController.hasListener) {
+        _voiceActivityStreamController.add(_isVoiceActive);
+      }
+      _logger.log(_tag, 'Voice activity: $_isVoiceActive (avg: ${averageVolume.toStringAsFixed(3)})', LogLevel.debug);
     }
   }
 
   Future<void> _startAudioStreaming() async {
     try {
-      // Set up real-time audio streaming
-      // This is a simplified implementation
-      // In practice, you'd want to stream raw audio data chunks
+      // Set up real-time audio streaming with optimized chunk size
       _logger.log(_tag, 'Started real-time audio streaming', LogLevel.debug);
       
-      // For now, we'll simulate streaming by reading the recording file periodically
-      Timer.periodic(Duration(milliseconds: _currentConfiguration.chunkDurationMs), (timer) {
+      // Use more efficient streaming interval based on configuration
+      final streamingInterval = Duration(milliseconds: math.max(50, _currentConfiguration.chunkDurationMs));
+      
+      _streamingTimer = Timer.periodic(streamingInterval, (timer) {
         if (!_isRecording) {
           timer.cancel();
+          _streamingTimer = null;
           return;
         }
         
-        // In a real implementation, this would stream actual audio chunks
-        _audioStreamController.add(Uint8List.fromList([]));
+        // Optimized: Only send empty chunks when needed to maintain stream flow
+        // In a real implementation, this would process actual audio buffer chunks
+        if (_audioStreamController.hasListener) {
+          _audioStreamController.add(Uint8List.fromList([]));
+        }
       });
     } catch (e) {
       _logger.log(_tag, 'Failed to start audio streaming: $e', LogLevel.error);

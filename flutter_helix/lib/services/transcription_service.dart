@@ -2,10 +2,8 @@
 // ABOUTME: Supports both local and remote transcription backends with quality switching
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import '../models/transcription_segment.dart';
-import '../core/utils/exceptions.dart';
 
 /// Backend type for transcription processing
 enum TranscriptionBackend {
