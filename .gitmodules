@@ -1,9 +1,0 @@
-[submodule "libs/EvenDemoApp"]
-	path = libs/EvenDemoApp
-	url = git@github.com:even-realities/EvenDemoApp.git
-[submodule "libs/even_glasses"]
-	path = libs/even_glasses
-	url = https://github.com/emingenc/even_glasses
-[submodule "libs/g1_flutter_blue_plus"]
-	path = libs/g1_flutter_blue_plus
-	url = git@github.com:emingenc/g1_flutter_blue_plus.git
