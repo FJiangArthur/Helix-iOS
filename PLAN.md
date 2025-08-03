@@ -798,7 +798,7 @@ Core AI Services:
 
 1. LLMServiceImpl - Multi-provider AI orchestration:
    - OpenAI GPT integration with dart_openai package
-   - Anthropic Claude API integration with custom HTTP client
+   - Anthropic API integration with custom HTTP client
    - Provider fallback and load balancing
    - Response caching and optimization
    - Rate limiting and cost management
