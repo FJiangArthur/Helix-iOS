@@ -37,7 +37,8 @@ class ServiceLocator {
   /// Initialize all services and dependencies
   Future<void> initialize() async {
     try {
-      logger.info('ServiceLocator', 'Initializing dependency injection...');
+      // Use LoggingService directly since it's not registered yet
+      LoggingService.instance.info('ServiceLocator', 'Initializing dependency injection...');
       
       // Initialize SharedPreferences
       final sharedPreferences = await SharedPreferences.getInstance();
@@ -49,42 +50,45 @@ class ServiceLocator {
       // Register providers
       await _registerProviders();
       
-      logger.info('ServiceLocator', 'Dependency injection initialized successfully');
+      LoggingService.instance.info('ServiceLocator', 'Dependency injection initialized successfully');
     } catch (e, stackTrace) {
-      logger.error('ServiceLocator', 'Failed to initialize dependency injection', e, stackTrace);
+      LoggingService.instance.error('ServiceLocator', 'Failed to initialize dependency injection', e, stackTrace);
       rethrow;
     }
   }
   
   /// Register core services
   Future<void> _registerServices() async {
+    // Register LoggingService first (needed by all other services)
+    _getIt.registerSingleton<LoggingService>(LoggingService.instance);
+    
     // Audio Service
-    _getIt.registerLazySingleton<AudioService>(() => AudioServiceImpl(logger: logger));
+    _getIt.registerLazySingleton<AudioService>(() => AudioServiceImpl(logger: _getIt<LoggingService>()));
     
     // Transcription Service
-    _getIt.registerLazySingleton<TranscriptionService>(() => TranscriptionServiceImpl(logger: logger));
+    _getIt.registerLazySingleton<TranscriptionService>(() => TranscriptionServiceImpl(logger: _getIt<LoggingService>()));
     
     // LLM Service
-    _getIt.registerLazySingleton<LLMService>(() => LLMServiceImpl(logger: logger));
+    _getIt.registerLazySingleton<LLMService>(() => LLMServiceImpl(logger: _getIt<LoggingService>()));
     
     // Glasses Service
-    _getIt.registerLazySingleton<GlassesService>(() => GlassesServiceImpl(logger: logger));
+    _getIt.registerLazySingleton<GlassesService>(() => GlassesServiceImpl(logger: _getIt<LoggingService>()));
     
     // Settings Service
     _getIt.registerLazySingleton<SettingsService>(() => SettingsServiceImpl(
-      logger: logger,
+      logger: _getIt<LoggingService>(),
       prefs: _getIt<SharedPreferences>(),
     ));
     
     // Conversation Storage Service
-    _getIt.registerLazySingleton<ConversationStorageService>(() => InMemoryConversationStorageService(logger: logger));
+    _getIt.registerLazySingleton<ConversationStorageService>(() => InMemoryConversationStorageService(logger: _getIt<LoggingService>()));
   }
   
   /// Register providers
   Future<void> _registerProviders() async {
     // For now, skip AppStateProvider registration until all services are implemented
     // This allows the app to build without complex mock implementations
-    logger.info('ServiceLocator', 'Skipping AppStateProvider registration - services not yet implemented');
+    LoggingService.instance.info('ServiceLocator', 'Skipping AppStateProvider registration - services not yet implemented');
   }
 }
 
