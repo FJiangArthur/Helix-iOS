@@ -120,7 +120,7 @@ class AudioServiceImpl implements AudioService {
       
       _currentConfiguration = config;
       
-      // Check if we're on macOS and flutter_sound isn't working
+      // Check platform compatibility and handle iOS 26 beta issues
       if (Platform.isMacOS) {
         try {
           // Try to initialize recorder and player
@@ -135,8 +135,27 @@ class AudioServiceImpl implements AudioService {
           _logger.log(_tag, 'Audio service initialized in mock mode for macOS', LogLevel.info);
           return;
         }
+      } else if (Platform.isIOS) {
+        try {
+          // iOS-specific initialization with threading safety for iOS 26 beta
+          _logger.log(_tag, 'Initializing flutter_sound for iOS (handling iOS 26 beta compatibility)', LogLevel.info);
+          
+          // Add delay to avoid threading race conditions in iOS 26 beta
+          await Future.delayed(const Duration(milliseconds: 100));
+          
+          await _recorder.openRecorder();
+          await _player.openPlayer();
+        } catch (e) {
+          _logger.log(_tag, 'flutter_sound initialization failed on iOS, enabling mock mode: $e', LogLevel.warning);
+          // Fallback to mock mode for iOS 26 beta if flutter_sound crashes
+          _isMockMode = true;
+          _vadThreshold = _currentConfiguration.vadThreshold;
+          _isInitialized = true;
+          _logger.log(_tag, 'Audio service initialized in mock mode for iOS (iOS 26 beta fallback)', LogLevel.info);
+          return;
+        }
       } else {
-        // Initialize recorder and player for non-macOS platforms
+        // Initialize recorder and player for other platforms
         await _recorder.openRecorder();
         await _player.openPlayer();
       }
@@ -159,8 +178,8 @@ class AudioServiceImpl implements AudioService {
     try {
       _logger.log(_tag, 'Requesting microphone permission', LogLevel.info);
       
-      // For macOS in mock mode, simulate permission granted
-      if (Platform.isMacOS && _isMockMode) {
+      // For mock mode (macOS or iOS 26 beta fallback), simulate permission granted
+      if (_isMockMode) {
         _hasPermission = true;
         _logger.log(_tag, 'Mock mode: Microphone permission granted automatically', LogLevel.info);
         return true;

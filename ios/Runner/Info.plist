@@ -46,6 +46,14 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	
+	<!-- iOS 26 beta compatibility settings -->
+	<key>UISceneStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	
 	<!-- Permissions for Helix app functionality -->
 	<!-- Audio Recording -->
 	<key>NSMicrophoneUsageDescription</key>
