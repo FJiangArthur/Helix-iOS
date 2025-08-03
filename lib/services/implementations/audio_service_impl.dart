@@ -39,6 +39,7 @@ class AudioServiceImpl implements AudioService {
   bool _isInitialized = false;
   bool _hasPermission = false;
   bool _isRecording = false;
+  bool _isMockMode = false;
   
   // Voice Activity Detection state
   double _currentVolume = 0.0;
@@ -119,9 +120,26 @@ class AudioServiceImpl implements AudioService {
       
       _currentConfiguration = config;
       
-      // Initialize recorder and player
-      await _recorder.openRecorder();
-      await _player.openPlayer();
+      // Check if we're on macOS and flutter_sound isn't working
+      if (Platform.isMacOS) {
+        try {
+          // Try to initialize recorder and player
+          await _recorder.openRecorder();
+          await _player.openPlayer();
+        } catch (e) {
+          _logger.log(_tag, 'flutter_sound not working on macOS, enabling mock mode: $e', LogLevel.warning);
+          // Set up for mock mode but still mark as initialized
+          _isMockMode = true;
+          _vadThreshold = _currentConfiguration.vadThreshold;
+          _isInitialized = true;
+          _logger.log(_tag, 'Audio service initialized in mock mode for macOS', LogLevel.info);
+          return;
+        }
+      } else {
+        // Initialize recorder and player for non-macOS platforms
+        await _recorder.openRecorder();
+        await _player.openPlayer();
+      }
       
       // Configure audio session
       await _configureAudioSession();
@@ -140,6 +158,13 @@ class AudioServiceImpl implements AudioService {
   Future<bool> requestPermission() async {
     try {
       _logger.log(_tag, 'Requesting microphone permission', LogLevel.info);
+      
+      // For macOS in mock mode, simulate permission granted
+      if (Platform.isMacOS && _isMockMode) {
+        _hasPermission = true;
+        _logger.log(_tag, 'Mock mode: Microphone permission granted automatically', LogLevel.info);
+        return true;
+      }
       
       // Check if we should show rationale (Android only)
       if (Platform.isAndroid) {
@@ -205,8 +230,24 @@ class AudioServiceImpl implements AudioService {
     }
     
     try {
-      _logger.log(_tag, 'Starting audio recording', LogLevel.info);
+      _logger.log(_tag, 'Starting audio recording${_isMockMode ? ' (mock mode)' : ''}', LogLevel.info);
       
+      if (_isMockMode) {
+        // Mock mode: simulate recording without flutter_sound
+        _currentRecordingPath = await _createTempRecordingFile();
+        _isRecording = true;
+        _recordingStartTime = DateTime.now();
+        
+        // Start mock monitoring
+        _startMockVolumeMonitoring();
+        _startVoiceActivityDetection();
+        _startDurationTracking();
+        
+        _logger.log(_tag, 'Mock recording started successfully', LogLevel.info);
+        return;
+      }
+      
+      // Real recording mode
       // Create temporary file for recording
       _currentRecordingPath = await _createTempRecordingFile();
       
@@ -249,7 +290,7 @@ class AudioServiceImpl implements AudioService {
     }
     
     try {
-      _logger.log(_tag, 'Stopping audio recording', LogLevel.info);
+      _logger.log(_tag, 'Stopping audio recording${_isMockMode ? ' (mock mode)' : ''}', LogLevel.info);
       
       // Stop timers
       _volumeTimer?.cancel();
@@ -257,8 +298,10 @@ class AudioServiceImpl implements AudioService {
       _durationTimer?.cancel();
       _streamingTimer?.cancel();
       
-      // Stop recorder
-      await _recorder.stopRecorder();
+      // Stop recorder (only if not in mock mode)
+      if (!_isMockMode) {
+        await _recorder.stopRecorder();
+      }
       
       _isRecording = false;
       _recordingStartTime = null;
@@ -303,7 +346,7 @@ class AudioServiceImpl implements AudioService {
         throw const AudioException('Microphone permission required');
       }
       
-      _logger.log(_tag, 'Starting conversation recording: $conversationId', LogLevel.info);
+      _logger.log(_tag, 'Starting conversation recording: $conversationId${_isMockMode ? ' (mock mode)' : ''}', LogLevel.info);
       
       // Create recording file for this conversation
       final directory = Directory.systemTemp;
@@ -311,6 +354,20 @@ class AudioServiceImpl implements AudioService {
       final extension = _getFileExtension(_currentConfiguration.format);
       _currentRecordingPath = '${directory.path}/helix_conversation_${conversationId}_$timestamp.$extension';
       
+      if (_isMockMode) {
+        // Mock mode: simulate conversation recording
+        _isRecording = true;
+        _recordingStartTime = DateTime.now();
+        
+        // Start mock monitoring
+        _startMockVolumeMonitoring();
+        _startVoiceActivityDetection();
+        _startDurationTracking();
+        
+        return _currentRecordingPath!;
+      }
+      
+      // Real recording mode
       // Configure recording codec and settings
       final codec = _getCodecFromFormat(_currentConfiguration.format);
       
@@ -570,6 +627,33 @@ class AudioServiceImpl implements AudioService {
     }
   }
 
+  void _startMockVolumeMonitoring() {
+    // Mock volume monitoring with simulated audio levels
+    _volumeTimer = Timer.periodic(_volumeUpdateInterval, (timer) {
+      if (!_isRecording) {
+        timer.cancel();
+        return;
+      }
+      
+      // Generate realistic mock audio levels with variation
+      final baseLevel = 0.1 + (math.sin(DateTime.now().millisecondsSinceEpoch / 1000.0) * 0.3);
+      final noiseLevel = math.Random().nextDouble() * 0.2;
+      final volume = (baseLevel + noiseLevel).clamp(0.0, 1.0);
+      
+      _currentVolume = volume;
+      
+      // Only emit audio level if there are listeners
+      if (_audioLevelStreamController.hasListener) {
+        _audioLevelStreamController.add(volume);
+      }
+      
+      // Update volume history for VAD
+      _updateVolumeHistory(volume);
+      
+      _logger.log(_tag, 'Mock audio level: ${volume.toStringAsFixed(3)}', LogLevel.debug);
+    });
+  }
+  
   void _startVolumeMonitoring() {
     // Subscribe to FlutterSound onProgress stream for real-time audio levels
     _recorder.onProgress!.listen((RecordingDisposition disposition) {
