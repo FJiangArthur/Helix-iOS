@@ -37,9 +37,12 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   // Service integration
   late AudioService _audioService;
   late ConversationStorageService _storageService;
+  late TranscriptionService _transcriptionService;
   StreamSubscription<double>? _audioLevelSubscription;
   StreamSubscription<bool>? _voiceActivitySubscription;
   StreamSubscription<Duration>? _recordingDurationSubscription;
+  StreamSubscription<TranscriptionSegment>? _transcriptionSubscription;
+  StreamSubscription<double>? _transcriptionConfidenceSubscription;
   
   // Current conversation state
   String? _currentConversationId;
@@ -48,41 +51,11 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   Timer? _timerUpdateTimer;
   Duration _recordingDuration = Duration.zero;
   
-  final List<TranscriptionSegment> _transcriptSegments = [
-    TranscriptionSegment(
-      text: 'Welcome to Helix! This is a demo of real-time conversation transcription.',
-      startTime: DateTime.now().subtract(const Duration(seconds: 30)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 27)),
-      confidence: 0.95,
-      speakerId: 'user_1',
-      speakerName: 'You',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_1',
-    ),
-    TranscriptionSegment(
-      text: 'The AI analysis features look impressive. How accurate is the fact-checking?',
-      startTime: DateTime.now().subtract(const Duration(seconds: 15)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 12)),
-      confidence: 0.88,
-      speakerId: 'speaker_2',
-      speakerName: 'Speaker 2',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_2',
-    ),
-    TranscriptionSegment(
-      text: 'Our fact-checking uses multiple AI providers for high accuracy and confidence scoring.',
-      startTime: DateTime.now().subtract(const Duration(seconds: 5)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 2)),
-      confidence: 0.92,
-      speakerId: 'user_1',
-      speakerName: 'You',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_3',
-    ),
-  ];
+  final List<TranscriptionSegment> _transcriptSegments = <TranscriptionSegment>[];
+  
+  // Current transcription state
+  String _currentInterimText = '';
+  double _lastTranscriptionConfidence = 0.0;
 
   @override
   void initState() {
@@ -103,6 +76,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     try {
       _audioService = ServiceLocator.instance.get<AudioService>();
       _storageService = ServiceLocator.instance.get<ConversationStorageService>();
+      _transcriptionService = ServiceLocator.instance.get<TranscriptionService>();
       
       final audioConfig = AudioConfiguration.speechRecognition().copyWith(
         enableRealTimeStreaming: true,
@@ -152,7 +126,50 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         },
       );
       
-      debugPrint('AudioService initialized successfully');
+      // Initialize transcription service
+      await _transcriptionService.initialize();
+      
+      // Set up transcription stream
+      _transcriptionSubscription = _transcriptionService.transcriptionStream.listen(
+        (segment) {
+          if (mounted) {
+            setState(() {
+              if (segment.isFinal) {
+                // Add final segment to history
+                _transcriptSegments.add(segment.copyWith(
+                  speakerId: segment.speakerId ?? 'speaker_1',
+                  speakerName: segment.speakerName ?? _getSpeakerName(segment.speakerId ?? 'speaker_1'),
+                ));
+                _currentInterimText = '';
+              } else {
+                // Update interim text
+                _currentInterimText = segment.text;
+              }
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Transcription stream error: $error');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Transcription error: $error')),
+            );
+          }
+        },
+      );
+      
+      // Set up transcription confidence stream
+      _transcriptionConfidenceSubscription = _transcriptionService.confidenceStream.listen(
+        (confidence) {
+          if (mounted) {
+            setState(() {
+              _lastTranscriptionConfidence = confidence;
+            });
+          }
+        },
+      );
+      
+      debugPrint('AudioService and TranscriptionService initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize AudioService: $e');
     }
@@ -181,6 +198,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     _audioLevelSubscription?.cancel();
     _voiceActivitySubscription?.cancel();
     _recordingDurationSubscription?.cancel();
+    _transcriptionSubscription?.cancel();
+    _transcriptionConfidenceSubscription?.cancel();
     _timerUpdateTimer?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
@@ -226,6 +245,9 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         debugPrint('Stopping recording...');
         
         try {
+          // Stop transcription first
+          await _transcriptionService.stopTranscription();
+          
           await _audioService.stopRecording();
           _pulseController.stop();
           
@@ -236,6 +258,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
             _isRecording = false;
             _isPaused = false;
             _audioLevel = 0.0;
+            _currentInterimText = '';
           });
           
           // Clear current conversation state
@@ -318,6 +341,10 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
           // Generate conversation ID and start recording
           _currentConversationId = _generateConversationId();
           await _audioService.startConversationRecording(_currentConversationId!);
+          
+          // Start transcription
+          await _transcriptionService.startTranscription();
+          
           _pulseController.repeat();
           
           setState(() {
@@ -592,7 +619,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
           Expanded(
             child: Container(
               padding: const EdgeInsets.all(16),
-              child: _transcriptSegments.isEmpty
+              child: _transcriptSegments.isEmpty && _currentInterimText.isEmpty
                 ? _buildEmptyState(theme)
                 : _buildTranscriptList(theme),
             ),
@@ -713,104 +740,153 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   }
 
   Widget _buildTranscriptList(ThemeData theme) {
-    return ListView.separated(
+    final allItems = <Widget>[];
+    
+    // Add all finalized segments
+    for (int i = 0; i < _transcriptSegments.length; i++) {
+      allItems.add(_buildTranscriptSegment(_transcriptSegments[i], theme, isFinal: true));
+      if (i < _transcriptSegments.length - 1 || _currentInterimText.isNotEmpty) {
+        allItems.add(Divider(
+          height: 1,
+          color: theme.colorScheme.outline.withOpacity(0.1),
+        ));
+      }
+    }
+    
+    // Add interim text if available
+    if (_currentInterimText.isNotEmpty) {
+      final interimSegment = TranscriptionSegment(
+        text: _currentInterimText,
+        startTime: DateTime.now(),
+        endTime: DateTime.now(),
+        confidence: _lastTranscriptionConfidence,
+        speakerId: 'speaker_1',
+        speakerName: 'You',
+        isFinal: false,
+      );
+      allItems.add(_buildTranscriptSegment(interimSegment, theme, isFinal: false));
+    }
+    
+    return ListView.builder(
       padding: const EdgeInsets.only(top: 8),
-      itemCount: _transcriptSegments.length,
-      separatorBuilder: (context, index) => Divider(
-        height: 1,
-        color: theme.colorScheme.outline.withOpacity(0.1),
-      ),
-      itemBuilder: (context, index) {
-        final segment = _transcriptSegments[index];
-        final isCurrentUser = segment.speakerId == 'user_1';
-        final speakerName = segment.speakerName ?? 'Unknown';
-        final duration = segment.endTime.difference(segment.startTime);
-        
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      itemCount: allItems.length,
+      itemBuilder: (context, index) => allItems[index],
+    );
+  }
+
+  Widget _buildTranscriptSegment(TranscriptionSegment segment, ThemeData theme, {required bool isFinal}) {
+    final isCurrentUser = segment.speakerId == 'user_1' || segment.speakerId == 'speaker_1';
+    final speakerName = segment.speakerName ?? 'Unknown';
+    final duration = segment.endTime.difference(segment.startTime);
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: !isFinal ? BoxDecoration(
+        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(8),
+      ) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Compact header with speaker info and metadata
+          Row(
             children: [
-              // Compact header with speaker info and metadata
-              Row(
-                children: [
-                  // Speaker indicator
-                  Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isCurrentUser 
-                        ? theme.colorScheme.primary 
-                        : theme.colorScheme.secondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  
-                  // Speaker name
-                  Text(
-                    speakerName,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: isCurrentUser 
-                        ? theme.colorScheme.primary 
-                        : theme.colorScheme.secondary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  
-                  // Timestamp
-                  Text(
-                    _formatTimestamp(segment.startTime),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  
-                  // Duration
-                  Text(
-                    '${duration.inSeconds}s',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  
-                  const Spacer(),
-                  
-                  // Confidence indicator
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: _getConfidenceColor(segment.confidence).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${(segment.confidence * 100).round()}%',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: _getConfidenceColor(segment.confidence),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
+              // Speaker indicator
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isCurrentUser 
+                    ? theme.colorScheme.primary 
+                    : theme.colorScheme.secondary,
+                ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(width: 8),
               
-              // Transcript text - compact formatting
-              Padding(
-                padding: const EdgeInsets.only(left: 20),
+              // Speaker name
+              Text(
+                speakerName,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: isCurrentUser 
+                    ? theme.colorScheme.primary 
+                    : theme.colorScheme.secondary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              
+              // Timestamp
+              if (isFinal) Text(
+                _formatTimestamp(segment.startTime),
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (isFinal) const SizedBox(width: 8),
+              
+              // Duration (only for final segments)
+              if (isFinal) Text(
+                '${duration.inSeconds}s',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              
+              // "Live" indicator for interim text
+              if (!isFinal) Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
-                  segment.text,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    height: 1.3, // Slightly tighter line height for density
+                  'LIVE',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+              
+              const Spacer(),
+              
+              // Confidence indicator
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: _getConfidenceColor(segment.confidence).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${(segment.confidence * 100).round()}%',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: _getConfidenceColor(segment.confidence),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
             ],
           ),
-        );
-      },
+          const SizedBox(height: 4),
+          
+          // Transcript text - compact formatting
+          Padding(
+            padding: const EdgeInsets.only(left: 20),
+            child: Text(
+              segment.text,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.3, // Slightly tighter line height for density
+                fontStyle: !isFinal ? FontStyle.italic : FontStyle.normal,
+                color: !isFinal 
+                  ? theme.colorScheme.onSurface.withOpacity(0.7) 
+                  : theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
