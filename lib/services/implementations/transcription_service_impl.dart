@@ -162,16 +162,17 @@ class TranscriptionServiceImpl implements TranscriptionService {
       _segmentCounter = 0;
       _segmentStartTime = DateTime.now();
 
-      // Start listening
+      // Start listening with optimized settings for real-time transcription
       await _speechToText.listen(
         onResult: _onSpeechResult,
         listenFor: const Duration(minutes: 30), // Long session support
-        pauseFor: const Duration(seconds: 3),
+        pauseFor: const Duration(milliseconds: 1500), // Shorter pause for better real-time response
         localeId: _currentLanguage,
         listenOptions: stt.SpeechListenOptions(
-          partialResults: true,
-          listenMode: stt.ListenMode.confirmation,
+          partialResults: true, // Critical for real-time feedback
+          listenMode: stt.ListenMode.dictation, // Better for continuous speech
           cancelOnError: false,
+          sampleRate: 16000, // Optimal for speech recognition
         ),
       );
 
@@ -346,45 +347,70 @@ class TranscriptionServiceImpl implements TranscriptionService {
 
   void _onSpeechResult(result) {
     try {
+      final previousTranscription = _currentTranscription;
       _currentTranscription = result.recognizedWords;
       _lastConfidence = result.confidence;
 
-      // Emit confidence update
+      // Emit confidence update for UI feedback
       _confidenceController.add(_lastConfidence);
 
-      // Send partial results for real-time display
-      if (result.hasConfidenceRating && result.confidence > 0.3) {
-        _sendTranscriptionSegment(isFinal: result.finalResult);
+      // Always send partial results for immediate feedback (lower confidence threshold)
+      if (_currentTranscription.isNotEmpty && result.confidence > 0.1) {
+        _sendTranscriptionSegment(
+          isFinal: result.finalResult,
+          isPartialUpdate: !result.finalResult && _currentTranscription != previousTranscription,
+        );
       }
 
       // If final result, prepare for next segment
       if (result.finalResult && _currentTranscription.isNotEmpty) {
         _segmentCounter++;
         _segmentStartTime = DateTime.now();
-        _currentTranscription = '';
+        // Don't clear transcription immediately to allow for better continuity
       }
     } catch (e) {
       _logger.log(_tag, 'Error processing speech result: $e', LogLevel.error);
     }
   }
 
-  void _sendTranscriptionSegment({required bool isFinal}) {
+  void _sendTranscriptionSegment({
+    required bool isFinal, 
+    bool isPartialUpdate = false
+  }) {
     if (_currentTranscription.isEmpty || _segmentStartTime == null) return;
 
     try {
+      final now = DateTime.now();
+      final processingTime = now.difference(_segmentStartTime!).inMilliseconds;
+      
       final segment = TranscriptionSegment(
         text: _currentTranscription.trim(),
         speakerId: _detectSpeaker(), // Simple speaker detection
         confidence: _lastConfidence,
         startTime: _segmentStartTime!,
-        endTime: DateTime.now(),
+        endTime: now,
         isFinal: isFinal,
-        segmentId: 'seg_${_segmentCounter}_${DateTime.now().millisecondsSinceEpoch}',
+        segmentId: isFinal 
+            ? 'seg_${_segmentCounter}_${now.millisecondsSinceEpoch}'
+            : 'partial_${_segmentCounter}_${now.millisecondsSinceEpoch}',
         language: _currentLanguage,
         backend: _currentBackend,
+        processingTimeMs: processingTime,
+        metadata: {
+          'isPartialUpdate': isPartialUpdate,
+          'wordCount': _currentTranscription.trim().split(' ').length,
+          'quality': _currentQuality.name,
+        },
       );
 
       _transcriptionController.add(segment);
+      
+      // Log different types of results
+      if (isFinal) {
+        _logger.log(_tag, 'Final transcription segment: "${segment.text}" (${processingTime}ms)', LogLevel.info);
+      } else if (isPartialUpdate) {
+        _logger.log(_tag, 'Partial update: "${segment.text}" (confidence: ${_lastConfidence.toStringAsFixed(2)})', LogLevel.debug);
+      }
     } catch (e) {
       _logger.log(_tag, 'Error sending transcription segment: $e', LogLevel.error);
     }

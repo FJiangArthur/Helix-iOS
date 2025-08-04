@@ -16,6 +16,7 @@ import 'implementations/glasses_service_impl.dart';
 import 'implementations/llm_service_impl.dart';
 import 'implementations/settings_service_impl.dart';
 import 'implementations/transcription_service_impl.dart';
+import 'real_time_transcription_service.dart';
 
 class ServiceLocator {
   static final GetIt _getIt = GetIt.instance;
@@ -59,6 +60,13 @@ Future<void> setupServiceLocator() async {
   
   getIt.registerLazySingleton<TranscriptionService>(() => TranscriptionServiceImpl(
     logger: logger,
+  ));
+  
+  // Real-time transcription pipeline service
+  getIt.registerLazySingleton<RealTimeTranscriptionService>(() => RealTimeTranscriptionServiceImpl(
+    logger: logger,
+    audioService: getIt.get<AudioService>(),
+    transcriptionService: getIt.get<TranscriptionService>(),
   ));
   
   // AI and LLM services
