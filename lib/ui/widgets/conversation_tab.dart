@@ -14,6 +14,7 @@ import '../../models/audio_configuration.dart';
 import '../../models/conversation_model.dart';
 import '../../models/transcription_segment.dart';
 import '../../services/transcription_service.dart';
+import '../../services/real_time_transcription_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ConversationTab extends StatefulWidget {
@@ -37,12 +38,11 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   // Service integration
   late AudioService _audioService;
   late ConversationStorageService _storageService;
-  late TranscriptionService _transcriptionService;
+  late RealTimeTranscriptionService _realTimeTranscriptionService;
   StreamSubscription<double>? _audioLevelSubscription;
   StreamSubscription<bool>? _voiceActivitySubscription;
   StreamSubscription<Duration>? _recordingDurationSubscription;
   StreamSubscription<TranscriptionSegment>? _transcriptionSubscription;
-  StreamSubscription<double>? _transcriptionConfidenceSubscription;
   
   // Current conversation state
   String? _currentConversationId;
@@ -76,7 +76,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     try {
       _audioService = ServiceLocator.instance.get<AudioService>();
       _storageService = ServiceLocator.instance.get<ConversationStorageService>();
-      _transcriptionService = ServiceLocator.instance.get<TranscriptionService>();
+      _realTimeTranscriptionService = ServiceLocator.instance.get<RealTimeTranscriptionService>();
       
       final audioConfig = AudioConfiguration.speechRecognition().copyWith(
         enableRealTimeStreaming: true,
@@ -126,11 +126,11 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         },
       );
       
-      // Initialize transcription service
-      await _transcriptionService.initialize();
+      // Initialize real-time transcription service
+      await _realTimeTranscriptionService.initialize();
       
       // Set up transcription stream
-      _transcriptionSubscription = _transcriptionService.transcriptionStream.listen(
+      _transcriptionSubscription = _realTimeTranscriptionService.transcriptionStream.listen(
         (segment) {
           if (mounted) {
             setState(() {
@@ -154,17 +154,6 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Transcription error: $error')),
             );
-          }
-        },
-      );
-      
-      // Set up transcription confidence stream
-      _transcriptionConfidenceSubscription = _transcriptionService.confidenceStream.listen(
-        (confidence) {
-          if (mounted) {
-            setState(() {
-              _lastTranscriptionConfidence = confidence;
-            });
           }
         },
       );
@@ -199,7 +188,6 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     _voiceActivitySubscription?.cancel();
     _recordingDurationSubscription?.cancel();
     _transcriptionSubscription?.cancel();
-    _transcriptionConfidenceSubscription?.cancel();
     _timerUpdateTimer?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
@@ -245,8 +233,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         debugPrint('Stopping recording...');
         
         try {
-          // Stop transcription first
-          await _transcriptionService.stopTranscription();
+          // Stop real-time transcription first
+          await _realTimeTranscriptionService.stopTranscription();
           
           await _audioService.stopRecording();
           _pulseController.stop();
@@ -342,8 +330,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
           _currentConversationId = _generateConversationId();
           await _audioService.startConversationRecording(_currentConversationId!);
           
-          // Start transcription
-          await _transcriptionService.startTranscription();
+          // Start real-time transcription
+          await _realTimeTranscriptionService.startTranscription();
           
           _pulseController.repeat();
           
