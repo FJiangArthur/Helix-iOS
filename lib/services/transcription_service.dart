@@ -38,22 +38,6 @@ enum TranscriptionErrorType {
   unknown,
 }
 
-/// Custom exception for transcription errors
-class TranscriptionException implements Exception {
-  final String message;
-  final TranscriptionErrorType type;
-  final dynamic originalError;
-
-  const TranscriptionException(
-    this.message,
-    this.type, {
-    this.originalError,
-  });
-
-  @override
-  String toString() => 'TranscriptionException: $message (type: $type)';
-}
-
 /// Service interface for speech-to-text transcription
 abstract class TranscriptionService {
   /// Whether the service is initialized

@@ -9,6 +9,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../transcription_service.dart';
 import '../../models/transcription_segment.dart';
 import '../../core/utils/logging_service.dart';
+import '../../core/utils/exceptions.dart';
 
 class TranscriptionServiceImpl implements TranscriptionService {
   static const String _tag = 'TranscriptionServiceImpl';
@@ -85,9 +86,8 @@ class TranscriptionServiceImpl implements TranscriptionService {
       );
 
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw const TranscriptionException(
           'Failed to initialize speech recognition',
-          TranscriptionErrorType.initializationFailed,
         );
       }
 
@@ -127,16 +127,14 @@ class TranscriptionServiceImpl implements TranscriptionService {
   }) async {
     try {
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw const TranscriptionException(
           'Service not initialized',
-          TranscriptionErrorType.serviceNotReady,
         );
       }
 
       if (!_hasPermissions) {
-        throw TranscriptionException(
+        throw const TranscriptionException(
           'Microphone permission required',
-          TranscriptionErrorType.permissionDenied,
         );
       }
 
@@ -239,7 +237,6 @@ class TranscriptionServiceImpl implements TranscriptionService {
       if (!_availableLanguages.contains(languageCode)) {
         throw TranscriptionException(
           'Language not supported: $languageCode',
-          TranscriptionErrorType.unsupportedLanguage,
         );
       }
 
@@ -405,7 +402,6 @@ class TranscriptionServiceImpl implements TranscriptionService {
     
     final transcriptionError = TranscriptionException(
       error.errorMsg,
-      _mapErrorType(error.errorMsg),
       originalError: error,
     );
     
@@ -413,16 +409,4 @@ class TranscriptionServiceImpl implements TranscriptionService {
     _transcriptionController.addError(transcriptionError);
   }
 
-  TranscriptionErrorType _mapErrorType(String errorMessage) {
-    final message = errorMessage.toLowerCase();
-    if (message.contains('permission')) {
-      return TranscriptionErrorType.permissionDenied;
-    } else if (message.contains('network')) {
-      return TranscriptionErrorType.networkError;
-    } else if (message.contains('audio')) {
-      return TranscriptionErrorType.audioError;
-    } else {
-      return TranscriptionErrorType.unknown;
-    }
-  }
 }
