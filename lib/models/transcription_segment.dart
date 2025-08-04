@@ -50,7 +50,7 @@ class TranscriptionSegment with _$TranscriptionSegment {
     String? segmentId,
     
     /// Transcription backend used
-    TranscriptionBackend? backend,
+    @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson) TranscriptionBackend? backend,
     
     /// Processing time in milliseconds
     int? processingTimeMs,
