@@ -196,6 +196,18 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     return 'conv_${timestamp}_$randomPart';
   }
 
+  String _getSpeakerName(String speakerId) {
+    switch (speakerId) {
+      case 'speaker_1':
+      case 'user_1':
+        return 'You';
+      case 'speaker_2':
+        return 'Speaker 2';
+      default:
+        return 'Speaker $speakerId';
+    }
+  }
+
   Future<void> _toggleRecording() async {
     // Prevent multiple simultaneous calls
     if (_isProcessingRecordingToggle) return;
