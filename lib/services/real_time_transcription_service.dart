@@ -142,9 +142,7 @@ class RealTimeTranscriptionServiceImpl implements RealTimeTranscriptionService {
   
   // Transcription buffering and sentence completion
   final List<TranscriptionSegment> _partialSegments = [];
-  String _sentenceBuffer = '';
   Timer? _sentenceFinalizationTimer;
-  DateTime? _lastPartialResultTime;
   
   RealTimeTranscriptionServiceImpl({
     required LoggingService logger,
@@ -355,10 +353,8 @@ class RealTimeTranscriptionServiceImpl implements RealTimeTranscriptionService {
     
     // Clear transcription buffering
     _partialSegments.clear();
-    _sentenceBuffer = '';
     _sentenceFinalizationTimer?.cancel();
     _sentenceFinalizationTimer = null;
-    _lastPartialResultTime = null;
     
     _logger.log(_tag, 'Session data cleared', LogLevel.debug);
   }
