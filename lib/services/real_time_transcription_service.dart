@@ -765,6 +765,6 @@ class RealTimeTranscriptionServiceImpl implements RealTimeTranscriptionService {
         ? (_totalWordsProcessed / sessionDuration).toStringAsFixed(1)
         : '0.0';
     
-    _logger.log(_tag, 'Memory stats - Session: ${sessionDuration}min, Total words: $_totalWordsProcessed, Avg: ${avgWordsPerMinute} words/min, Buffered segments: ${_currentSegments.length}, Buffered words: ${_pendingWords.length}', LogLevel.debug);
+    _logger.log(_tag, 'Memory stats - Session: ${sessionDuration}min, Total words: $_totalWordsProcessed, Avg: $avgWordsPerMinute words/min, Buffered segments: ${_currentSegments.length}, Buffered words: ${_pendingWords.length}', LogLevel.debug);
   }
 }
