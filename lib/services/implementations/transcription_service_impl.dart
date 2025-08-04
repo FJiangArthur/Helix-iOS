@@ -85,7 +85,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
       );
 
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Failed to initialize speech recognition',
           TranscriptionErrorType.initializationFailed,
         );
@@ -127,14 +127,14 @@ class TranscriptionServiceImpl implements TranscriptionService {
   }) async {
     try {
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Service not initialized',
           TranscriptionErrorType.serviceNotReady,
         );
       }
 
       if (!_hasPermissions) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Microphone permission required',
           TranscriptionErrorType.permissionDenied,
         );
@@ -238,7 +238,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
   Future<void> setLanguage(String languageCode) async {
     try {
       if (!_availableLanguages.contains(languageCode)) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Language not supported: $languageCode',
           TranscriptionErrorType.unsupportedLanguage,
         );
@@ -429,7 +429,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
   void _onError(error) {
     _logger.log(_tag, 'Speech recognition error: ${error.errorMsg}', LogLevel.error);
     
-    final transcriptionError = TranscriptionException(
+    final transcriptionError = TranscriptionServiceException(
       error.errorMsg,
       _mapErrorType(error.errorMsg),
       originalError: error,
