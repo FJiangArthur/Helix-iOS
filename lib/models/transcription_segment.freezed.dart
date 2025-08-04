@@ -49,6 +49,7 @@ mixin _$TranscriptionSegment {
   String? get segmentId => throw _privateConstructorUsedError;
 
   /// Transcription backend used
+  @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
   TranscriptionBackend? get backend => throw _privateConstructorUsedError;
 
   /// Processing time in milliseconds
@@ -84,6 +85,7 @@ abstract class $TranscriptionSegmentCopyWith<$Res> {
     String language,
     bool isFinal,
     String? segmentId,
+    @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
     TranscriptionBackend? backend,
     int? processingTimeMs,
     Map<String, dynamic> metadata,
@@ -208,6 +210,7 @@ abstract class _$$TranscriptionSegmentImplCopyWith<$Res>
     String language,
     bool isFinal,
     String? segmentId,
+    @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
     TranscriptionBackend? backend,
     int? processingTimeMs,
     Map<String, dynamic> metadata,
@@ -321,7 +324,7 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
     this.language = 'en-US',
     this.isFinal = true,
     this.segmentId,
-    this.backend,
+    @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson) this.backend,
     this.processingTimeMs,
     final Map<String, dynamic> metadata = const {},
   }) : _metadata = metadata,
@@ -370,6 +373,7 @@ class _$TranscriptionSegmentImpl extends _TranscriptionSegment {
 
   /// Transcription backend used
   @override
+  @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
   final TranscriptionBackend? backend;
 
   /// Processing time in milliseconds
@@ -466,6 +470,7 @@ abstract class _TranscriptionSegment extends TranscriptionSegment {
     final String language,
     final bool isFinal,
     final String? segmentId,
+    @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
     final TranscriptionBackend? backend,
     final int? processingTimeMs,
     final Map<String, dynamic> metadata,
@@ -513,6 +518,7 @@ abstract class _TranscriptionSegment extends TranscriptionSegment {
 
   /// Transcription backend used
   @override
+  @JsonKey(fromJson: _backendFromJson, toJson: _backendToJson)
   TranscriptionBackend? get backend;
 
   /// Processing time in milliseconds

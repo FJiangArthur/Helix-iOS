@@ -18,7 +18,7 @@ _$TranscriptionSegmentImpl _$$TranscriptionSegmentImplFromJson(
   language: json['language'] as String? ?? 'en-US',
   isFinal: json['isFinal'] as bool? ?? true,
   segmentId: json['segmentId'] as String?,
-  backend: $enumDecodeNullable(_$TranscriptionBackendEnumMap, json['backend']),
+  backend: _backendFromJson(json['backend'] as String?),
   processingTimeMs: (json['processingTimeMs'] as num?)?.toInt(),
   metadata: json['metadata'] as Map<String, dynamic>? ?? const {},
 );
@@ -35,15 +35,9 @@ Map<String, dynamic> _$$TranscriptionSegmentImplToJson(
   'language': instance.language,
   'isFinal': instance.isFinal,
   'segmentId': instance.segmentId,
-  'backend': _$TranscriptionBackendEnumMap[instance.backend],
+  'backend': _backendToJson(instance.backend),
   'processingTimeMs': instance.processingTimeMs,
   'metadata': instance.metadata,
-};
-
-const _$TranscriptionBackendEnumMap = {
-  TranscriptionBackend.device: 'device',
-  TranscriptionBackend.whisper: 'whisper',
-  TranscriptionBackend.hybrid: 'hybrid',
 };
 
 _$TranscriptionResultImpl _$$TranscriptionResultImplFromJson(
