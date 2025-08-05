@@ -85,7 +85,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
       );
 
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Failed to initialize speech recognition',
           TranscriptionErrorType.initializationFailed,
         );
@@ -127,14 +127,14 @@ class TranscriptionServiceImpl implements TranscriptionService {
   }) async {
     try {
       if (!_isInitialized) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Service not initialized',
           TranscriptionErrorType.serviceNotReady,
         );
       }
 
       if (!_hasPermissions) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Microphone permission required',
           TranscriptionErrorType.permissionDenied,
         );
@@ -166,14 +166,13 @@ class TranscriptionServiceImpl implements TranscriptionService {
       await _speechToText.listen(
         onResult: _onSpeechResult,
         listenFor: const Duration(minutes: 30), // Long session support
-        pauseFor: const Duration(milliseconds: 1500), // Shorter pause for better responsiveness
+        pauseFor: const Duration(milliseconds: 1500), // Shorter pause for better real-time response
         localeId: _currentLanguage,
         listenOptions: stt.SpeechListenOptions(
-          partialResults: true, // Essential for real-time feedback
+          partialResults: true, // Critical for real-time feedback
           listenMode: stt.ListenMode.dictation, // Better for continuous speech
           cancelOnError: false,
-          autoPunctuation: true, // Help with sentence completion
-          enableHapticFeedback: false, // Reduce processing overhead
+          sampleRate: 16000, // Optimal for speech recognition
         ),
       );
 
@@ -239,7 +238,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
   Future<void> setLanguage(String languageCode) async {
     try {
       if (!_availableLanguages.contains(languageCode)) {
-        throw TranscriptionException(
+        throw TranscriptionServiceException(
           'Language not supported: $languageCode',
           TranscriptionErrorType.unsupportedLanguage,
         );
@@ -348,38 +347,36 @@ class TranscriptionServiceImpl implements TranscriptionService {
 
   void _onSpeechResult(result) {
     try {
-      final recognizedWords = result.recognizedWords ?? '';
-      final confidence = result.confidence ?? 0.0;
-      
-      _currentTranscription = recognizedWords;
-      _lastConfidence = confidence;
+      final previousTranscription = _currentTranscription;
+      _currentTranscription = result.recognizedWords;
+      _lastConfidence = result.confidence;
 
-      // Emit confidence update for real-time feedback
+      // Emit confidence update for UI feedback
       _confidenceController.add(_lastConfidence);
 
-      // Real-time streaming logic with improved partial result handling
-      if (recognizedWords.isNotEmpty) {
-        // Send partial results immediately for <200ms feedback (requirement)
-        if (!result.finalResult) {
-          _sendTranscriptionSegment(isFinal: false, isPartial: true);
-        } else {
-          // Send final result with better confidence filtering
-          if (confidence > 0.2) { // Lower threshold for final results
-            _sendTranscriptionSegment(isFinal: true, isPartial: false);
-            
-            // Prepare for next segment
-            _segmentCounter++;
-            _segmentStartTime = DateTime.now();
-            _currentTranscription = '';
-          }
-        }
+      // Always send partial results for immediate feedback (lower confidence threshold)
+      if (_currentTranscription.isNotEmpty && result.confidence > 0.1) {
+        _sendTranscriptionSegment(
+          isFinal: result.finalResult,
+          isPartialUpdate: !result.finalResult && _currentTranscription != previousTranscription,
+        );
+      }
+
+      // If final result, prepare for next segment
+      if (result.finalResult && _currentTranscription.isNotEmpty) {
+        _segmentCounter++;
+        _segmentStartTime = DateTime.now();
+        // Don't clear transcription immediately to allow for better continuity
       }
     } catch (e) {
       _logger.log(_tag, 'Error processing speech result: $e', LogLevel.error);
     }
   }
 
-  void _sendTranscriptionSegment({required bool isFinal, bool isPartial = false}) {
+  void _sendTranscriptionSegment({
+    required bool isFinal, 
+    bool isPartialUpdate = false
+  }) {
     if (_currentTranscription.isEmpty || _segmentStartTime == null) return;
 
     try {
@@ -388,19 +385,19 @@ class TranscriptionServiceImpl implements TranscriptionService {
       
       final segment = TranscriptionSegment(
         text: _currentTranscription.trim(),
-        speakerId: _detectSpeaker(),
+        speakerId: _detectSpeaker(), // Simple speaker detection
         confidence: _lastConfidence,
         startTime: _segmentStartTime!,
         endTime: now,
         isFinal: isFinal,
-        segmentId: isPartial 
-            ? 'partial_${_segmentCounter}_${now.millisecondsSinceEpoch}'
-            : 'seg_${_segmentCounter}_${now.millisecondsSinceEpoch}',
+        segmentId: isFinal 
+            ? 'seg_${_segmentCounter}_${now.millisecondsSinceEpoch}'
+            : 'partial_${_segmentCounter}_${now.millisecondsSinceEpoch}',
         language: _currentLanguage,
         backend: _currentBackend,
         processingTimeMs: processingTime,
         metadata: {
-          'isPartial': isPartial,
+          'isPartialUpdate': isPartialUpdate,
           'wordCount': _currentTranscription.trim().split(' ').length,
           'quality': _currentQuality.name,
         },
@@ -408,11 +405,11 @@ class TranscriptionServiceImpl implements TranscriptionService {
 
       _transcriptionController.add(segment);
       
-      // Log performance metrics for streaming
-      if (isPartial) {
-        _logger.log(_tag, 'Partial result: "${segment.text}" (${processingTime}ms)', LogLevel.debug);
-      } else {
-        _logger.log(_tag, 'Final result: "${segment.text}" (confidence: ${_lastConfidence.toStringAsFixed(2)}, ${processingTime}ms)', LogLevel.info);
+      // Log different types of results
+      if (isFinal) {
+        _logger.log(_tag, 'Final transcription segment: "${segment.text}" (${processingTime}ms)', LogLevel.info);
+      } else if (isPartialUpdate) {
+        _logger.log(_tag, 'Partial update: "${segment.text}" (confidence: ${_lastConfidence.toStringAsFixed(2)})', LogLevel.debug);
       }
     } catch (e) {
       _logger.log(_tag, 'Error sending transcription segment: $e', LogLevel.error);
@@ -432,7 +429,7 @@ class TranscriptionServiceImpl implements TranscriptionService {
   void _onError(error) {
     _logger.log(_tag, 'Speech recognition error: ${error.errorMsg}', LogLevel.error);
     
-    final transcriptionError = TranscriptionException(
+    final transcriptionError = TranscriptionServiceException(
       error.errorMsg,
       _mapErrorType(error.errorMsg),
       originalError: error,

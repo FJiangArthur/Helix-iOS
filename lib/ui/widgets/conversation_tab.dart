@@ -14,6 +14,7 @@ import '../../models/audio_configuration.dart';
 import '../../models/conversation_model.dart';
 import '../../models/transcription_segment.dart';
 import '../../services/transcription_service.dart';
+import '../../services/real_time_transcription_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class ConversationTab extends StatefulWidget {
@@ -37,9 +38,12 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   // Service integration
   late AudioService _audioService;
   late ConversationStorageService _storageService;
+  late RealTimeTranscriptionService _transcriptionPipelineService;
   StreamSubscription<double>? _audioLevelSubscription;
   StreamSubscription<bool>? _voiceActivitySubscription;
   StreamSubscription<Duration>? _recordingDurationSubscription;
+  StreamSubscription<TranscriptionSegment>? _transcriptionSubscription;
+  StreamSubscription<TranscriptionSegment>? _partialTranscriptionSubscription;
   
   // Current conversation state
   String? _currentConversationId;
@@ -48,41 +52,9 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   Timer? _timerUpdateTimer;
   Duration _recordingDuration = Duration.zero;
   
-  final List<TranscriptionSegment> _transcriptSegments = [
-    TranscriptionSegment(
-      text: 'Welcome to Helix! This is a demo of real-time conversation transcription.',
-      startTime: DateTime.now().subtract(const Duration(seconds: 30)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 27)),
-      confidence: 0.95,
-      speakerId: 'user_1',
-      speakerName: 'You',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_1',
-    ),
-    TranscriptionSegment(
-      text: 'The AI analysis features look impressive. How accurate is the fact-checking?',
-      startTime: DateTime.now().subtract(const Duration(seconds: 15)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 12)),
-      confidence: 0.88,
-      speakerId: 'speaker_2',
-      speakerName: 'Speaker 2',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_2',
-    ),
-    TranscriptionSegment(
-      text: 'Our fact-checking uses multiple AI providers for high accuracy and confidence scoring.',
-      startTime: DateTime.now().subtract(const Duration(seconds: 5)),
-      endTime: DateTime.now().subtract(const Duration(seconds: 2)),
-      confidence: 0.92,
-      speakerId: 'user_1',
-      speakerName: 'You',
-      language: 'en-US',
-      backend: TranscriptionBackend.device,
-      segmentId: 'demo_3',
-    ),
-  ];
+  // Dynamic transcription segments populated by real-time transcription
+  final List<TranscriptionSegment> _transcriptSegments = [];
+  TranscriptionSegment? _currentPartialSegment;
 
   @override
   void initState() {
@@ -103,13 +75,25 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     try {
       _audioService = ServiceLocator.instance.get<AudioService>();
       _storageService = ServiceLocator.instance.get<ConversationStorageService>();
+      _transcriptionPipelineService = ServiceLocator.instance.get<RealTimeTranscriptionService>();
       
       final audioConfig = AudioConfiguration.speechRecognition().copyWith(
         enableRealTimeStreaming: true,
         vadThreshold: 0.01,
+        chunkDurationMs: 100, // Optimized for real-time transcription
       );
       
       await _audioService.initialize(audioConfig);
+      
+      // Initialize transcription pipeline
+      const transcriptionConfig = TranscriptionPipelineConfig(
+        audioChunkDurationMs: 100,
+        targetLatencyMs: 200, // Target 200ms for word-by-word updates
+        enablePartialResults: true,
+        maxBufferedSegments: 500,
+      );
+      await _transcriptionPipelineService.initialize(transcriptionConfig);
+      
       await _checkInitialPermissionStatus();
       
       // Set up audio level subscription for real-time waveform
@@ -152,7 +136,44 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         },
       );
       
-      debugPrint('AudioService initialized successfully');
+      // Set up real-time transcription subscriptions
+      _transcriptionSubscription = _transcriptionPipelineService.transcriptionStream.listen(
+        (segment) {
+          if (mounted) {
+            setState(() {
+              // Add final transcription segments to the list
+              if (segment.isFinal) {
+                _transcriptSegments.add(segment);
+                _currentPartialSegment = null; // Clear partial segment
+                
+                // Keep list manageable (last 100 segments)
+                if (_transcriptSegments.length > 100) {
+                  _transcriptSegments.removeAt(0);
+                }
+              }
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Transcription stream error: $error');
+        },
+      );
+      
+      _partialTranscriptionSubscription = _transcriptionPipelineService.partialTranscriptionStream.listen(
+        (segment) {
+          if (mounted) {
+            setState(() {
+              // Update current partial segment for immediate UI feedback
+              _currentPartialSegment = segment;
+            });
+          }
+        },
+        onError: (error) {
+          debugPrint('Partial transcription stream error: $error');
+        },
+      );
+      
+      debugPrint('AudioService and transcription pipeline initialized successfully');
     } catch (e) {
       debugPrint('Failed to initialize AudioService: $e');
     }
@@ -181,6 +202,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
     _audioLevelSubscription?.cancel();
     _voiceActivitySubscription?.cancel();
     _recordingDurationSubscription?.cancel();
+    _transcriptionSubscription?.cancel();
+    _partialTranscriptionSubscription?.cancel();
     _timerUpdateTimer?.cancel();
     _waveController.dispose();
     _pulseController.dispose();
@@ -214,7 +237,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         debugPrint('Stopping recording...');
         
         try {
-          await _audioService.stopRecording();
+          // Stop transcription pipeline first
+          await _transcriptionPipelineService.stopTranscription();
           _pulseController.stop();
           
           // Create and save conversation
@@ -224,6 +248,7 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
             _isRecording = false;
             _isPaused = false;
             _audioLevel = 0.0;
+            _currentPartialSegment = null;
           });
           
           // Clear current conversation state
@@ -303,14 +328,23 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
         }
         
         try {
-          // Generate conversation ID and start recording
+          // Generate conversation ID and start recording with transcription
           _currentConversationId = _generateConversationId();
-          await _audioService.startConversationRecording(_currentConversationId!);
+          
+          // Start the real-time transcription pipeline
+          await _transcriptionPipelineService.startTranscription(
+            language: 'en-US',
+            preferredBackend: TranscriptionBackend.device,
+          );
+          
           _pulseController.repeat();
           
           setState(() {
             _isRecording = true;
             _isPaused = false;
+            // Clear previous transcription data
+            _transcriptSegments.clear();
+            _currentPartialSegment = null;
           });
           
           if (mounted) {
@@ -701,21 +735,37 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
   }
 
   Widget _buildTranscriptList(ThemeData theme) {
+    // Combine final segments with current partial segment for display
+    final displaySegments = List<TranscriptionSegment>.from(_transcriptSegments);
+    if (_currentPartialSegment != null) {
+      displaySegments.add(_currentPartialSegment!);
+    }
+    
     return ListView.separated(
       padding: const EdgeInsets.only(top: 8),
-      itemCount: _transcriptSegments.length,
+      itemCount: displaySegments.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
         color: theme.colorScheme.outline.withOpacity(0.1),
       ),
       itemBuilder: (context, index) {
-        final segment = _transcriptSegments[index];
-        final isCurrentUser = segment.speakerId == 'user_1';
-        final speakerName = segment.speakerName ?? 'Unknown';
+        final segment = displaySegments[index];
+        final isCurrentUser = segment.speakerId == 'user_1' || segment.speakerId == 'speaker_1';
+        final isPartial = !segment.isFinal;
+        final speakerName = segment.speakerName ?? (isCurrentUser ? 'You' : 'Speaker');
         final duration = segment.endTime.difference(segment.startTime);
         
-        return Container(
+        return AnimatedContainer(
+          duration: Duration(milliseconds: isPartial ? 100 : 0),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: isPartial ? BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.colorScheme.primary.withOpacity(0.3),
+              width: 1,
+            ),
+          ) : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -723,7 +773,8 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
               Row(
                 children: [
                   // Speaker indicator
-                  Container(
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
@@ -732,6 +783,14 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                         ? theme.colorScheme.primary 
                         : theme.colorScheme.secondary,
                     ),
+                    child: isPartial ? Container(
+                      width: 4,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ) : null,
                   ),
                   const SizedBox(width: 8),
                   
@@ -766,17 +825,23 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
                   
                   const Spacer(),
                   
-                  // Confidence indicator
+                  // Confidence indicator or partial indicator
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: _getConfidenceColor(segment.confidence).withOpacity(0.1),
+                      color: isPartial 
+                        ? theme.colorScheme.primary.withOpacity(0.1)
+                        : _getConfidenceColor(segment.confidence).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '${(segment.confidence * 100).round()}%',
+                      isPartial 
+                        ? 'LIVE'
+                        : '${(segment.confidence * 100).round()}%',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: _getConfidenceColor(segment.confidence),
+                        color: isPartial 
+                          ? theme.colorScheme.primary
+                          : _getConfidenceColor(segment.confidence),
                         fontWeight: FontWeight.w500,
                       ),
                     ),

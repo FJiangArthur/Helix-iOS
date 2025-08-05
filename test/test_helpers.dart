@@ -74,11 +74,14 @@ class TestHelpers {
     DateTime? timestamp,
     double? confidence,
   }) {
+    final now = timestamp ?? DateTime.now();
     return TranscriptionSegment(
-      speaker: speaker ?? 'Test Speaker',
       text: text ?? 'This is a test transcription segment',
-      timestamp: timestamp ?? DateTime.now(),
+      startTime: now,
+      endTime: now.add(const Duration(seconds: 2)),
       confidence: confidence ?? 0.95,
+      speakerId: speaker ?? 'test_speaker',
+      speakerName: speaker ?? 'Test Speaker',
     );
   }
 
@@ -92,12 +95,14 @@ class TestHelpers {
     String? language,
     TranscriptionBackend? backend,
   }) {
+    final now = timestamp ?? DateTime.now();
     return TranscriptionSegment(
-      id: id ?? 'seg_${DateTime.now().millisecondsSinceEpoch}',
-      participantId: participantId ?? 'participant_1',
-      content: content ?? 'This is a test segment content',
-      timestamp: timestamp ?? DateTime.now(),
+      text: content ?? 'This is a test segment content',
+      startTime: now,
+      endTime: now.add(const Duration(seconds: 2)),
       confidence: confidence ?? 0.95,
+      speakerId: participantId ?? 'participant_1',
+      segmentId: id ?? 'seg_${DateTime.now().millisecondsSinceEpoch}',
       language: language ?? 'en-US',
       backend: backend ?? TranscriptionBackend.device,
     );
