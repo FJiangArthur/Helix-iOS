@@ -11,9 +11,11 @@ import 'glasses_service.dart';
 import 'llm_service.dart';
 import 'settings_service.dart';
 import 'transcription_service.dart';
+import 'fact_checking_service.dart';
+import 'ai_insights_service.dart';
 import 'implementations/audio_service_impl.dart';
 import 'implementations/glasses_service_impl.dart';
-import 'implementations/llm_service_impl.dart';
+import 'implementations/llm_service_impl_v2.dart';
 import 'implementations/settings_service_impl.dart';
 import 'implementations/transcription_service_impl.dart';
 import 'real_time_transcription_service.dart';
@@ -70,7 +72,19 @@ Future<void> setupServiceLocator() async {
   ));
   
   // AI and LLM services
-  getIt.registerLazySingleton<LLMService>(() => LLMServiceImpl(
+  getIt.registerLazySingleton<LLMService>(() => LLMServiceImplV2(
+    logger: logger,
+  ));
+  
+  // Fact-checking service
+  getIt.registerLazySingleton<FactCheckingService>(() => FactCheckingService(
+    llmService: getIt.get<LLMService>(),
+    logger: logger,
+  ));
+  
+  // AI insights service
+  getIt.registerLazySingleton<AIInsightsService>(() => AIInsightsService(
+    llmService: getIt.get<LLMService>(),
     logger: logger,
   ));
   

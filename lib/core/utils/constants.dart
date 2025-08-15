@@ -12,7 +12,7 @@ class APIConstants {
   // Anthropic Configuration
   static const String anthropicBaseURL = 'https://api.anthropic.com/v1';
   static const String anthropicMessagesEndpoint = '/messages';
-  static const String defaultAnthropicModel = 'anthropic-3-sonnet-20240229';
+  static const String defaultAnthropicModel = 'anthropic-3-5-sonnet-20241022';
   
   // Request Configuration
   static const Duration apiTimeout = Duration(seconds: 30);
