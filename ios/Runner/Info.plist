@@ -54,51 +54,8 @@
 		<string>arm64</string>
 	</array>
 	
-	<!-- Permissions for Helix app functionality -->
-	<!-- Audio Recording -->
+	<!-- Permissions for audio recording -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Helix needs microphone access to transcribe conversations and provide real-time AI analysis on your Even Realities glasses.</string>
-	
-	<!-- Speech Recognition -->
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Helix uses speech recognition to provide real-time transcription and AI-powered conversation insights.</string>
-	
-	<!-- Bluetooth for Even Realities Glasses -->
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Helix needs Bluetooth access to connect to your Even Realities smart glasses and display AI insights on the HUD.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Helix connects to Even Realities smart glasses via Bluetooth to provide real-time conversation analysis and HUD display.</string>
-	
-	<!-- Background Processing -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>background-processing</string>
-		<string>bluetooth-central</string>
-		<string>audio</string>
-	</array>
-	
-	<!-- App Transport Security -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>api.openai.com</key>
-			<dict>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-			<key>api.anthropic.com</key>
-			<dict>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-		</dict>
-	</dict>
+	<string>Helix needs microphone access to record audio.</string>
 </dict>
 </plist>
