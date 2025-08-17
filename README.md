@@ -1,84 +1,259 @@
-# Helix - Real Time Conversation Prompter for Even Realities G1S App
+# Helix - AI-Powered Conversation Intelligence for Smart Glasses
 
-Helix is an iOS companion app for Even Realities smart glasses that provides real-time conversation analysis and AI-powered insights displayed directly on the glasses HUD. The app processes live audio, performs speech-to-text conversion, and sends conversation data to LLM APIs for fact-checking, summarization, and contextual assistance.
+[![Flutter](https://img.shields.io/badge/Flutter-3.24+-blue?logo=flutter)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.5+-blue?logo=dart)](https://dart.dev)
+[![AI](https://img.shields.io/badge/AI-OpenAI%20%7C%20Anthropic-green)](https://platform.openai.com)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## Features
-- Real-time audio capture with noise reduction and voice activity detection
-- Live speech-to-text transcription with speaker diarization
-- Multi-provider AI analysis (OpenAI GPT, Anthropic Claude) for fact-checking and summarization
-- Intelligent HUD rendering on Even Realities smart glasses
-- Conversation history and export
-- Configurable privacy and security settings
+Helix is a Flutter-based companion app for Even Realities smart glasses that provides **real-time conversation analysis** and **AI-powered insights** displayed directly on the glasses HUD. The app processes live audio, performs speech-to-text conversion, and leverages advanced LLM APIs for fact-checking, summarization, and contextual assistance.
 
-## Getting Started
-### Prerequisites
-- Xcode 16.2 or later
-- Swift 5.0+
-- iOS 18.2 SDK
-- CocoaPods or Swift Package Manager for dependency management
+## ✨ Key Features
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-org/helix.git
-   cd helix
-   ```
-2. Install dependencies (if using CocoaPods):
-   ```bash
-   pod install
-   ```
-3. Open the workspace in Xcode:
-   ```bash
-   open Helix.xcodeproj
-   ```
+### 🎤 **Real-Time Audio Processing**
+- High-quality audio capture (16kHz, mono)
+- Voice activity detection and noise reduction
+- Real-time waveform visualization
+- Cross-platform audio support
 
-### Building
+### 🧠 **AI-Powered Analysis Engine**
+- **Multi-Provider LLM Support**: OpenAI GPT-4 + Anthropic integration
+- **Real-Time Fact Checking**: AI-powered claim detection and verification
+- **Conversation Intelligence**: Action items, sentiment analysis, topic extraction
+- **Smart Insights**: Contextual suggestions and recommendations
+- **Automatic Failover**: Health monitoring with intelligent provider switching
+
+### 📱 **Smart Glasses Integration**
+- Bluetooth connectivity to Even Realities glasses
+- Real-time HUD content rendering
+- Battery monitoring and display control
+- Gesture-based interaction support
+
+### 🔒 **Privacy & Security**
+- Local-first processing when possible
+- Encrypted API communications
+- Configurable data retention policies
+- No persistent storage without explicit consent
+
+## 🚀 Quick Start
+
+### **Get Running in 2 Minutes**
+
 ```bash
-xcodebuild -project Helix.xcodeproj \
-           -scheme Helix \
-           -destination 'platform=iOS Simulator,name=iPhone 15' build
+# Clone and setup
+git clone https://github.com/FJiangArthur/Helix-iOS.git
+cd Helix-iOS
+flutter pub get
+
+# Generate code (Freezed models)
+flutter packages pub run build_runner build --delete-conflicting-outputs
+
+# Run the app
+flutter run
 ```
 
-### Testing
-Run all tests:
+### **Configure AI Features** (Optional)
+
+Create `settings.local.json`:
+```json
+{
+  "openai_api_key": "sk-your-openai-key",
+  "anthropic_api_key": "sk-ant-your-anthropic-key"
+}
+```
+
+> **🔑 New Developer?** See [QUICK_START.md](docs/QUICK_START.md) for complete setup guide.
+
+## 🏗️ Architecture Overview
+
+### **Epic 2.2: AI Analysis Engine** ✅ **COMPLETE**
+
+```mermaid
+graph TD
+    A[Audio Input] --> B[Real-Time Transcription]
+    B --> C[AI Analysis Engine]
+    C --> D[Fact Checking Service]
+    C --> E[AI Insights Service]
+    C --> F[LLM Service Multi-Provider]
+    F --> G[OpenAI Provider]
+    F --> H[Anthropic Provider]
+    D --> I[HUD Display]
+    E --> I
+```
+
+### **Technology Stack**
+- **Platform**: Flutter 3.24+ (Dart 3.5+)
+- **State Management**: Riverpod + Freezed
+- **Audio**: flutter_sound, audio_session
+- **AI Integration**: OpenAI GPT-4, Anthropic
+- **Hardware**: flutter_bluetooth_serial
+- **DI**: get_it
+
+### **Project Structure**
+```
+lib/
+├── core/utils/                 # Constants, logging, exceptions
+├── models/                     # Freezed data models
+├── services/                   # Business logic services
+│   ├── ai_providers/          # OpenAI, Anthropic integrations
+│   ├── implementations/       # Service implementations
+│   ├── fact_checking_service.dart  # Real-time fact verification
+│   ├── ai_insights_service.dart    # Conversation intelligence
+│   └── llm_service.dart       # Multi-provider LLM interface
+├── ui/                        # Flutter UI components
+└── main.dart                  # App entry point
+```
+
+## 🧠 AI Services Showcase
+
+### **Comprehensive Conversation Analysis**
+```dart
+final result = await llmService.analyzeConversation(
+  'We need to meet next Friday to discuss the Q4 budget',
+  type: AnalysisType.comprehensive,
+);
+
+// Get rich insights
+print('Action Items: ${result.actionItems?.length}');
+print('Sentiment: ${result.sentiment?.overallSentiment}');
+print('Confidence: ${result.confidence}');
+```
+
+### **Real-Time Fact Checking**
+```dart
+factChecker.results.listen((fact) {
+  switch (fact.status) {
+    case FactCheckStatus.verified:
+      showCheckmark(fact.claim);
+    case FactCheckStatus.disputed:
+      showWarning(fact.claim, fact.explanation);
+  }
+});
+
+await factChecker.processText('The Earth revolves around the Sun');
+```
+
+### **AI Insights Generation**
+```dart
+insights.insights.listen((insight) {
+  if (insight.category == InsightCategory.actionItem) {
+    addToTaskList(insight.content, insight.metadata['assignee']);
+  }
+});
+```
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[📖 Architecture](docs/Architecture.md)** | Complete system architecture and design patterns |
+| **[🚀 Quick Start](docs/QUICK_START.md)** | Get up and running in 10 minutes |
+| **[👩‍💻 Developer Guide](docs/DEVELOPER_GUIDE.md)** | Comprehensive development workflows and patterns |
+| **[🔌 AI Services API](docs/AI_SERVICES_API.md)** | Complete API reference for AI services |
+| **[🧪 Testing Strategy](docs/TESTING_STRATEGY.md)** | Testing approaches and best practices |
+
+## 🛠️ Development
+
+### **Prerequisites**
+- Flutter SDK 3.24+
+- VS Code or Android Studio
+- OpenAI/Anthropic API keys (optional)
+
+### **Development Commands**
 ```bash
-xcodebuild test -project Helix.xcodeproj \
-           -scheme Helix \
-           -destination 'platform=iOS Simulator,name=iPhone 15'
+# Run with hot reload
+flutter run
+
+# Generate code (after model changes)
+flutter packages pub run build_runner build --delete-conflicting-outputs
+
+# Run tests
+flutter test
+
+# Code analysis
+flutter analyze
+
+# Build for production
+flutter build apk --release
 ```
-Run unit tests only:
+
+### **Testing**
 ```bash
-xcodebuild test -project Helix.xcodeproj \
-           -scheme Helix \
-           -destination 'platform=iOS Simulator,name=iPhone 15' \
-           -only-testing:HelixTests
+# Unit tests
+flutter test test/unit/
+
+# Integration tests  
+flutter test test/integration/
+
+# Widget tests
+flutter test test/widget_test.dart
+
+# Coverage report
+flutter test --coverage
 ```
 
-## Project Structure
-```
-Helix/                # iOS SwiftUI application
-├── Core/             # Core modules (Audio, Transcription, AI, Glasses, Display)
-├── UI/               # SwiftUI views and coordinators
-├── Assets.xcassets    # App icons and colors
-├── HelixApp.swift     # Entry point
-HelixTests/           # Unit tests
-HelixUITests/         # UI automation tests
-docs/                 # Architecture, requirements, plans, SLA, technical specs
-libs/                 # External libraries and demos
-```
+## 🎯 Current Status (Epic 2.2)
 
-## Documentation
-- docs/Requirements.md - Software requirements
-- docs/Architecture.md - System architecture and design
-- docs/Implementation-Plan.md - Development roadmap and milestones
-- docs/TechnicalSpecs.md - Detailed technical specifications
-- docs/SLA.md - Service level agreement and support guidelines
+### **✅ Completed Features**
+- ✅ **Multi-Provider LLM Service** - OpenAI + Anthropic with failover
+- ✅ **Real-Time Fact Checking** - Claim detection and verification pipeline
+- ✅ **AI Insights Engine** - Conversation intelligence and suggestions
+- ✅ **Automatic Failover** - Health monitoring and provider switching
+- ✅ **Comprehensive Testing** - Unit, integration, and widget tests
+- ✅ **Production Architecture** - Scalable, maintainable codebase
 
-## Contributing
-- Follow MVVM-C pattern and protocol-oriented programming
-- Write comprehensive unit tests (>= 90% coverage)
-- Document all public APIs and configuration settings
-- Use Combine publishers for reactive flows
+### **🚀 Next Milestones**
+- **Epic 2.3**: Smart Glasses UI Integration
+- **Epic 2.4**: Real-Time Transcription Pipeline
+- **Epic 3.0**: Production Polish & Optimization
 
-## License
-MIT License. See LICENSE for details.
+## 🤝 Contributing
+
+### **Development Workflow**
+1. **Fork & Clone**: `git clone your-fork-url`
+2. **Create Branch**: `git checkout -b feature/amazing-feature`
+3. **Develop**: Follow patterns in [Developer Guide](docs/DEVELOPER_GUIDE.md)
+4. **Test**: `flutter test` + `flutter analyze`
+5. **Submit PR**: Include tests and documentation
+
+### **Code Standards**
+- Use Effective Dart guidelines
+- Add ABOUTME comments to new files
+- Maintain 90%+ test coverage
+- Follow existing architecture patterns
+
+### **PR Requirements**
+- [ ] Tests pass (`flutter test`)
+- [ ] Code analysis clean (`flutter analyze`)
+- [ ] Documentation updated
+- [ ] Breaking changes documented
+
+## 📊 Performance Metrics
+
+### **Real-Time Requirements**
+- **Audio Latency**: <100ms capture to processing
+- **AI Analysis**: <2 seconds for comprehensive analysis
+- **Memory Usage**: <200MB sustained operation
+- **UI Updates**: 60fps smooth rendering
+
+### **AI Service Performance**
+- **Provider Failover**: <5 second recovery
+- **Fact Checking**: <3 seconds per claim
+- **Insight Generation**: <1 second for basic insights
+- **Caching Hit Rate**: >80% for repeated analysis
+
+## 🔗 Useful Links
+
+- **[Linear Project](https://linear.app/art-jiang/project/helix-real-time-transcription-and-fact-checking-4ac9c858372e)** - Issue tracking and roadmap
+- **[GitHub Repository](https://github.com/FJiangArthur/Helix-iOS)** - Source code and releases
+- **[Flutter Documentation](https://docs.flutter.dev)** - Flutter framework docs
+- **[Riverpod Guide](https://riverpod.dev)** - State management documentation
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Built with ❤️ by the Helix Team**
+
+*For questions, issues, or contributions, please reach out through GitHub Issues or our Linear project board.*
