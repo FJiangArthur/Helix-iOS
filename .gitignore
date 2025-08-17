@@ -46,3 +46,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+ios/build/ios/XCBuildData/PIFCache/project/PROJECT@v11_mod=e586e7129ff5f2e6f341c4426f9dfb34_hash=bfdfe7dc352907fc980b868725387e98plugins=1OJSG6M1FOV3XYQCBH7Z29RZ0FPR9XDE1-json
+pubspec.lock
+ios/Podfile.lock

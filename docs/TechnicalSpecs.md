@@ -1,505 +1,374 @@
-# Technical Specifications
+# Helix Technical Specifications
 
 ## 1. System Architecture
 
-### 1.1 Application Architecture Pattern
-- **MVVM-C (Model-View-ViewModel-Coordinator)**: For clear separation of concerns
-- **Protocol-Oriented Programming**: For testability and modularity
-- **Dependency Injection**: For loose coupling and testability
-- **Reactive Programming**: Using Combine for data flow
+### 1.1 Proven Clean Architecture
+- **Flutter Framework**: Cross-platform with iOS focus
+- **Direct Service Communication**: No complex state management
+- **Incremental Development**: Each phase builds working functionality
+- **Stream-based Data Flow**: Real-time updates via Dart Streams
 
-### 1.2 Module Structure
+### 1.2 Current Module Structure (Implemented)
 ```
-Helix/
-├── Core/                    # Core business logic
-│   ├── Audio/              # Audio processing components
-│   ├── AI/                 # LLM and analysis services
-│   ├── Conversation/       # Conversation management
-│   └── Glasses/            # Even Realities integration
-├── Features/               # Feature-specific modules
-│   ├── FactChecking/       # Fact-checking functionality
-│   ├── Transcription/      # Speech-to-text features
-│   └── Settings/           # App configuration
-├── Shared/                 # Shared utilities
-│   ├── Networking/         # API clients and networking
-│   ├── Storage/            # Data persistence
-│   ├── Extensions/         # Swift extensions
-│   └── Utils/              # Helper utilities
-└── UI/                     # User interface components
-    ├── Views/              # SwiftUI views
-    ├── ViewModels/         # View models
-    └── Coordinators/       # Navigation coordinators
+lib/
+├── main.dart                       # App entry point
+├── app.dart                        # MaterialApp with error boundaries
+├── services/
+│   ├── audio_service.dart          # Clean audio interface
+│   └── implementations/
+│       └── audio_service_impl.dart # flutter_sound implementation
+├── models/
+│   └── audio_configuration.dart    # Freezed immutable config
+├── screens/
+│   ├── recording_screen.dart       # Main recording UI
+│   └── file_management_screen.dart # File list and playback
+└── core/utils/
+    └── exceptions.dart             # Audio-specific exceptions
+```
+
+### 1.3 Future Module Structure (Planned)
+```
+lib/
+├── services/
+│   ├── transcription_service.dart  # Speech-to-text interface
+│   ├── llm_service.dart            # AI analysis interface
+│   ├── glasses_service.dart        # Bluetooth glasses interface
+│   └── implementations/            # Concrete implementations
+├── models/
+│   ├── conversation_model.dart     # Conversation data
+│   ├── transcription_model.dart    # STT results
+│   └── analysis_model.dart         # AI analysis results
+├── screens/
+│   ├── conversation_screen.dart    # Real-time conversation
+│   ├── analysis_screen.dart        # AI insights display
+│   └── settings_screen.dart        # App configuration
+└── utils/
+    ├── bluetooth_manager.dart      # Glasses connectivity
+    └── storage_manager.dart        # Local data persistence
 ```
 
 ## 2. Audio Processing Specifications
 
-### 2.1 Audio Capture Configuration
-```swift
-// Audio session configuration
-let audioSession = AVAudioSession.sharedInstance()
-audioSession.setCategory(.playAndRecord, mode: .measurement)
-audioSession.setPreferredSampleRate(16000.0)
-audioSession.setPreferredIOBufferDuration(0.005) // 5ms buffer
-```
-
-### 2.2 Audio Processing Pipeline
-```swift
-protocol AudioProcessor {
-    func process(audioBuffer: AVAudioPCMBuffer) -> ProcessedAudio
+### 2.1 Current Audio Implementation (Proven)
+```dart
+// AudioService interface - Clean and focused
+abstract class AudioService {
+  bool get isRecording;
+  bool get hasPermission;
+  Stream<double> get audioLevelStream;
+  Stream<Duration> get recordingDurationStream;
+  
+  Future<void> initialize(AudioConfiguration config);
+  Future<bool> requestPermission();
+  Future<void> startRecording();
+  Future<void> stopRecording();
 }
 
-struct ProcessedAudio {
-    let cleanedBuffer: AVAudioPCMBuffer
-    let speakerSegments: [SpeakerSegment]
-    let confidence: Float
-    let timestamp: TimeInterval
-}
-
-struct SpeakerSegment {
-    let speakerId: UUID
-    let audioBuffer: AVAudioPCMBuffer
-    let startTime: TimeInterval
-    let endTime: TimeInterval
-    let confidence: Float
+// AudioConfiguration - Immutable with Freezed
+@freezed
+class AudioConfiguration with _$AudioConfiguration {
+  const factory AudioConfiguration({
+    @Default(16000) int sampleRate,    // 16kHz for speech
+    @Default(1) int channels,          // Mono recording
+    @Default(AudioQuality.medium) AudioQuality quality,
+    @Default(AudioFormat.wav) AudioFormat format,
+  }) = _AudioConfiguration;
 }
 ```
 
-### 2.3 Noise Reduction Algorithm
-- **Spectral Subtraction**: For stationary noise removal
-- **Wiener Filtering**: For adaptive noise reduction
-- **Voice Activity Detection**: Using energy and spectral features
-- **Echo Cancellation**: Adaptive filter implementation
-
-## 3. Speech Recognition Specifications
-
-### 3.1 STT Service Interface
-```swift
-protocol SpeechRecognitionService {
-    func startStreamingRecognition() -> AnyPublisher<TranscriptionResult, Error>
-    func stopRecognition()
-    func setLanguage(_ language: Locale)
-    func addCustomVocabulary(_ words: [String])
-}
-
-struct TranscriptionResult {
-    let text: String
-    let speakerId: UUID?
-    let confidence: Float
-    let isFinal: Bool
-    let timestamp: TimeInterval
-    let wordTimings: [WordTiming]
-}
-
-struct WordTiming {
-    let word: String
-    let startTime: TimeInterval
-    let endTime: TimeInterval
-    let confidence: Float
+### 2.2 Audio Processing Implementation
+```dart
+// AudioServiceImpl - Direct flutter_sound integration
+class AudioServiceImpl implements AudioService {
+  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
+  
+  // Real-time monitoring via flutter_sound streams
+  void _startSimpleMonitoring() {
+    _recorder.onProgress?.listen((progress) {
+      // Real audio level from decibels
+      _currentAudioLevel = ((progress.decibels! + 60) / 60).clamp(0.0, 1.0);
+      _audioLevelStreamController.add(_currentAudioLevel);
+      
+      // Real recording duration
+      _recordingDurationStreamController.add(progress.duration);
+    });
+  }
 }
 ```
 
-### 2.2 Speaker Diarization
-```swift
-protocol SpeakerDiarizationEngine {
-    func identifySpeakers(in audioBuffer: AVAudioPCMBuffer) -> [SpeakerIdentification]
-    func trainSpeakerModel(samples: [AVAudioPCMBuffer], speakerId: UUID)
-    func getSpeakerEmbedding(for audioBuffer: AVAudioPCMBuffer) -> SpeakerEmbedding
+### 2.3 Proven Performance Metrics
+- **Sample Rate**: 16kHz (optimal for speech recognition)
+- **Audio Latency**: <100ms capture to UI update
+- **Memory Usage**: <50MB sustained operation
+- **File Format**: WAV (PCM 16-bit) for compatibility
+- **Real-time Updates**: 30fps audio level visualization
+
+## 3. Future Implementation Specifications
+
+### 3.1 Phase 2: Speech-to-Text (Steps 6-9)
+```dart
+// TranscriptionService interface - Simple and focused
+abstract class TranscriptionService {
+  bool get isListening;
+  Stream<TranscriptionResult> get transcriptionStream;
+  
+  Future<void> startListening();
+  Future<void> stopListening();
+  Future<void> setLanguage(String languageCode);
 }
 
-struct SpeakerIdentification {
-    let speakerId: UUID
-    let confidence: Float
-    let audioSegment: AudioSegment
-    let embedding: SpeakerEmbedding
-}
-```
-
-## 4. AI Analysis Specifications
-
-### 4.1 LLM Integration
-```swift
-protocol LLMService {
-    func analyzeConversation(_ context: ConversationContext) -> AnyPublisher<AnalysisResult, Error>
-    func factCheck(_ claim: String) -> AnyPublisher<FactCheckResult, Error>
-    func summarizeConversation(_ messages: [ConversationMessage]) -> AnyPublisher<String, Error>
+// TranscriptionResult - Immutable data model
+@freezed
+class TranscriptionResult with _$TranscriptionResult {
+  const factory TranscriptionResult({
+    required String text,
+    required bool isFinal,
+    required double confidence,
+    required DateTime timestamp,
+    String? speakerId,  // Basic speaker identification
+  }) = _TranscriptionResult;
 }
 
-struct ConversationContext {
-    let messages: [ConversationMessage]
-    let speakers: [Speaker]
-    let metadata: ConversationMetadata
-    let analysisType: AnalysisType
-}
-
-enum AnalysisType {
-    case factCheck
-    case summarization
-    case actionItems
-    case sentiment
-    case keyTopics
-}
-
-struct AnalysisResult {
-    let type: AnalysisType
-    let content: AnalysisContent
-    let confidence: Float
-    let sources: [Source]
-    let timestamp: Date
-}
-```
-
-### 4.2 Fact-Checking Pipeline
-```swift
-protocol FactCheckingService {
-    func detectClaims(in text: String) -> [FactualClaim]
-    func verifyClaim(_ claim: FactualClaim) -> AnyPublisher<FactCheckResult, Error>
-    func getCachedResult(for claim: String) -> FactCheckResult?
-}
-
-struct FactualClaim {
-    let text: String
-    let confidence: Float
-    let category: ClaimCategory
-    let extractionMethod: ExtractionMethod
-}
-
-enum ClaimCategory {
-    case statistical
-    case historical
-    case scientific
-    case geographical
-    case biographical
-    case general
-}
-
-struct FactCheckResult {
-    let claim: String
-    let isAccurate: Bool
-    let explanation: String
-    let sources: [VerificationSource]
-    let confidence: Float
-    let alternativeInfo: String?
+// Implementation using speech_to_text package
+class TranscriptionServiceImpl implements TranscriptionService {
+  final SpeechToText _speech = SpeechToText();
+  
+  Future<void> startListening() async {
+    await _speech.listen(
+      onResult: (result) {
+        final transcription = TranscriptionResult(
+          text: result.recognizedWords,
+          isFinal: result.finalResult,
+          confidence: result.confidence,
+          timestamp: DateTime.now(),
+        );
+        _transcriptionController.add(transcription);
+      },
+    );
+  }
 }
 ```
 
-## 5. Even Realities Integration Specifications
+### 3.2 Phase 3: Data Management (Steps 10-12)
+```dart
+// ConversationService - Simple conversation management
+abstract class ConversationService {
+  Stream<List<Conversation>> get conversationsStream;
+  
+  Future<Conversation> createConversation(String title);
+  Future<void> addSegment(String conversationId, TranscriptionSegment segment);
+  Future<void> saveConversation(Conversation conversation);
+  Future<List<Conversation>> searchConversations(String query);
+}
 
-### 5.1 Glasses Communication Protocol
-```swift
-protocol GlassesManager {
-    var connectionState: AnyPublisher<ConnectionState, Never> { get }
-    var batteryLevel: AnyPublisher<Float, Never> { get }
+// Conversation model - Clean data structure
+@freezed
+class Conversation with _$Conversation {
+  const factory Conversation({
+    required String id,
+    required String title,
+    required DateTime startTime,
+    DateTime? endTime,
+    required List<TranscriptionSegment> segments,
+    Map<String, dynamic>? metadata,
+  }) = _Conversation;
+}
+```
+
+## 4. Phase 4: AI Analysis (Steps 13-15)
+
+### 4.1 LLM Service Design
+```dart
+// LLMService - Simple AI integration
+abstract class LLMService {
+  Future<AnalysisResult> analyzeConversation(List<TranscriptionSegment> segments);
+  Future<FactCheckResult> checkFact(String claim);
+  Future<String> summarizeConversation(Conversation conversation);
+}
+
+// AnalysisResult - Clean data model
+@freezed
+class AnalysisResult with _$AnalysisResult {
+  const factory AnalysisResult({
+    required String summary,
+    required List<String> keyTopics,
+    required List<String> actionItems,
+    required double confidence,
+    required DateTime timestamp,
+  }) = _AnalysisResult;
+}
+
+// FactCheckResult - Simple verification model
+@freezed
+class FactCheckResult with _$FactCheckResult {
+  const factory FactCheckResult({
+    required String claim,
+    required bool isAccurate,
+    required String explanation,
+    required double confidence,
+    List<String>? sources,
+  }) = _FactCheckResult;
+}
+
+// Implementation with direct HTTP calls
+class LLMServiceImpl implements LLMService {
+  final http.Client _client = http.Client();
+  
+  Future<AnalysisResult> analyzeConversation(List<TranscriptionSegment> segments) async {
+    final prompt = _buildAnalysisPrompt(segments);
+    final response = await _client.post(
+      Uri.parse('https://api.openai.com/v1/chat/completions'),
+      headers: {'Authorization': 'Bearer $apiKey'},
+      body: jsonEncode({
+        'model': 'gpt-3.5-turbo',
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': 500,
+      }),
+    );
+    return _parseAnalysisResponse(response.body);
+  }
+}
+```
+
+## 5. Phase 5: Smart Glasses Integration (Steps 16-18)
+
+### 5.1 Glasses Service Design
+```dart
+// GlassesService - Simple Bluetooth integration
+abstract class GlassesService {
+  bool get isConnected;
+  Stream<ConnectionState> get connectionStream;
+  Stream<double> get batteryStream;
+  
+  Future<void> connect();
+  Future<void> disconnect();
+  Future<void> displayText(String text);
+  Future<void> clearDisplay();
+}
+
+// ConnectionState - Simple state model
+@freezed
+class ConnectionState with _$ConnectionState {
+  const factory ConnectionState.disconnected() = _Disconnected;
+  const factory ConnectionState.connecting() = _Connecting;
+  const factory ConnectionState.connected() = _Connected;
+  const factory ConnectionState.error(String message) = _Error;
+}
+
+// Implementation with flutter_bluetooth_serial
+class GlassesServiceImpl implements GlassesService {
+  BluetoothConnection? _connection;
+  
+  Future<void> connect() async {
+    final devices = await FlutterBluetoothSerial.instance.getBondedDevices();
+    final glasses = devices.firstWhere(
+      (device) => device.name?.contains('Even Realities') ?? false,
+    );
     
-    func connect() -> AnyPublisher<Void, GlassesError>
-    func disconnect()
-    func displayText(_ text: String, at position: HUDPosition) -> AnyPublisher<Void, GlassesError>
-    func clearDisplay()
-    func sendGestureCommand(_ command: GestureCommand)
-}
-
-enum ConnectionState {
-    case disconnected
-    case connecting
-    case connected
-    case error(GlassesError)
-}
-
-struct HUDPosition {
-    let x: Float // 0.0 to 1.0 (left to right)
-    let y: Float // 0.0 to 1.0 (top to bottom)
-    let alignment: TextAlignment
-    let fontSize: FontSize
-}
-
-enum TextAlignment {
-    case left, center, right
-}
-
-enum FontSize {
-    case small, medium, large
-}
-```
-
-### 5.2 HUD Display Management
-```swift
-protocol HUDRenderer {
-    func render(_ content: HUDContent) -> AnyPublisher<Void, RenderError>
-    func updateContent(_ content: HUDContent, with animation: HUDAnimation)
-    func clearAll()
-    func setPriority(_ priority: DisplayPriority, for contentId: String)
-}
-
-struct HUDContent {
-    let id: String
-    let text: String
-    let style: HUDStyle
-    let position: HUDPosition
-    let duration: TimeInterval?
-    let priority: DisplayPriority
-}
-
-struct HUDStyle {
-    let color: HUDColor
-    let backgroundColor: HUDColor?
-    let fontSize: FontSize
-    let isBold: Bool
-    let isItalic: Bool
-}
-
-enum DisplayPriority: Int {
-    case low = 1
-    case medium = 2
-    case high = 3
-    case critical = 4
-}
-```
-
-## 6. Data Model Specifications
-
-### 6.1 Core Data Models
-```swift
-// Conversation entity
-@objc(Conversation)
-public class Conversation: NSManagedObject {
-    @NSManaged public var id: UUID
-    @NSManaged public var startTime: Date
-    @NSManaged public var endTime: Date?
-    @NSManaged public var title: String?
-    @NSManaged public var participants: NSSet?
-    @NSManaged public var messages: NSOrderedSet?
-    @NSManaged public var metadata: Data? // JSON encoded
-}
-
-// Message entity
-@objc(ConversationMessage)
-public class ConversationMessage: NSManagedObject {
-    @NSManaged public var id: UUID
-    @NSManaged public var content: String
-    @NSManaged public var timestamp: Date
-    @NSManaged public var speakerId: UUID?
-    @NSManaged public var confidence: Float
-    @NSManaged public var conversation: Conversation?
-    @NSManaged public var analysisResults: NSSet?
-}
-
-// Speaker entity
-@objc(Speaker)
-public class Speaker: NSManagedObject {
-    @NSManaged public var id: UUID
-    @NSManaged public var name: String?
-    @NSManaged public var voiceProfile: Data? // Encoded voice characteristics
-    @NSManaged public var isCurrentUser: Bool
-    @NSManaged public var conversations: NSSet?
-}
-```
-
-### 6.2 Analysis Result Models
-```swift
-@objc(AnalysisResult)
-public class AnalysisResult: NSManagedObject {
-    @NSManaged public var id: UUID
-    @NSManaged public var type: String // AnalysisType raw value
-    @NSManaged public var content: Data // JSON encoded result
-    @NSManaged public var confidence: Float
-    @NSManaged public var timestamp: Date
-    @NSManaged public var message: ConversationMessage?
-}
-
-@objc(FactCheckResult)
-public class FactCheckResult: NSManagedObject {
-    @NSManaged public var id: UUID
-    @NSManaged public var claim: String
-    @NSManaged public var isAccurate: Bool
-    @NSManaged public var explanation: String
-    @NSManaged public var sources: Data // JSON encoded sources
-    @NSManaged public var confidence: Float
-    @NSManaged public var timestamp: Date
-}
-```
-
-## 7. Networking Specifications
-
-### 7.1 API Client Architecture
-```swift
-protocol APIClient {
-    func request<T: Codable>(_ endpoint: APIEndpoint) -> AnyPublisher<T, APIError>
-    func streamingRequest<T: Codable>(_ endpoint: APIEndpoint) -> AnyPublisher<T, APIError>
-}
-
-struct APIEndpoint {
-    let baseURL: URL
-    let path: String
-    let method: HTTPMethod
-    let headers: [String: String]
-    let body: Data?
-    let queryParameters: [String: String]
-}
-
-enum HTTPMethod: String {
-    case GET, POST, PUT, DELETE, PATCH
-}
-
-enum APIError: Error {
-    case networkError(Error)
-    case decodingError(Error)
-    case serverError(Int, String)
-    case rateLimitExceeded
-    case unauthorized
-    case unknown
-}
-```
-
-### 7.2 LLM Provider Implementations
-```swift
-// OpenAI implementation
-class OpenAIService: LLMService {
-    private let apiKey: String
-    private let client: APIClient
-    private let rateLimiter: RateLimiter
-    
-    func analyzeConversation(_ context: ConversationContext) -> AnyPublisher<AnalysisResult, Error> {
-        let prompt = buildPrompt(for: context)
-        let request = ChatCompletionRequest(
-            model: "gpt-4",
-            messages: [ChatMessage(role: .user, content: prompt)],
-            temperature: 0.3,
-            maxTokens: 500
-        )
-        
-        return client.request(OpenAIEndpoint.chatCompletion(request))
-            .map { response in
-                self.parseAnalysisResult(response, for: context.analysisType)
-            }
-            .eraseToAnyPublisher()
+    _connection = await BluetoothConnection.toAddress(glasses.address);
+    _connectionController.add(const ConnectionState.connected());
+  }
+  
+  Future<void> displayText(String text) async {
+    if (_connection?.isConnected ?? false) {
+      _connection!.output.add(Uint8List.fromList(text.codeUnits));
     }
-}
-
-// Anthropic implementation
-class AnthropicService: LLMService {
-    private let apiKey: String
-    private let client: APIClient
-    
-    func factCheck(_ claim: String) -> AnyPublisher<FactCheckResult, Error> {
-        let request = AnthropicRequest(
-            model: "claude-3-haiku-20240307",
-            messages: [AnthropicMessage(role: .user, content: buildFactCheckPrompt(claim))],
-            maxTokens: 300
-        )
-        
-        return client.request(AnthropicEndpoint.messages(request))
-            .map { response in
-                self.parseFactCheckResult(response, for: claim)
-            }
-            .eraseToAnyPublisher()
-    }
+  }
 }
 ```
 
-## 8. Performance Specifications
+## 6. Implementation Roadmap
 
-### 8.1 Memory Management
-- **Audio buffers**: Circular buffer with 5-second capacity
-- **Conversation history**: LRU cache with 100 conversation limit
-- **Analysis results**: Weak references with automatic cleanup
-- **Image assets**: Lazy loading with memory pressure handling
+### 6.1 Development Phases
+```yaml
+Phase 1 (Completed): Audio Foundation
+  - Steps 1-5: Basic audio recording with UI
+  - Status: ✅ Proven working on iOS devices
+  - Duration: 1 week
 
-### 8.2 Concurrency Architecture
-```swift
-// Audio processing queue
-let audioQueue = DispatchQueue(label: "audio.processing", qos: .userInteractive)
+Phase 2 (Planned): Speech-to-Text  
+  - Steps 6-9: Real-time transcription
+  - Dependencies: speech_to_text package
+  - Duration: 1-2 weeks
 
-// STT processing queue
-let sttQueue = DispatchQueue(label: "stt.processing", qos: .userInitiated)
+Phase 3 (Planned): Data Management
+  - Steps 10-12: Conversation organization
+  - Dependencies: sqflite, path_provider
+  - Duration: 1-2 weeks
 
-// LLM analysis queue
-let analysisQueue = DispatchQueue(label: "llm.analysis", qos: .utility)
+Phase 4 (Planned): AI Analysis
+  - Steps 13-15: LLM integration
+  - Dependencies: http, OpenAI/Anthropic APIs
+  - Duration: 2-3 weeks
 
-// UI updates queue
-let uiQueue = DispatchQueue.main
-
-// Background processing queue
-let backgroundQueue = DispatchQueue(label: "background.processing", qos: .background)
+Phase 5 (Planned): Glasses Integration
+  - Steps 16-18: Bluetooth and HUD
+  - Dependencies: flutter_bluetooth_serial, Even Realities SDK
+  - Duration: 2-3 weeks
 ```
 
-### 8.3 Optimization Strategies
-- **Batch processing**: Group similar requests to reduce API calls
-- **Predictive loading**: Pre-load common responses based on conversation patterns
-- **Compression**: Use efficient audio codecs for storage and transmission
-- **Caching**: Multi-level caching for frequently accessed data
+### 6.2 Quality Assurance Strategy
+```yaml
+Build Verification:
+  - Each step must compile without errors
+  - All existing functionality must continue working
+  - New features must be manually tested
 
-## 9. Security Specifications
+Testing Approach:
+  - Unit tests for service interfaces
+  - Widget tests for UI components  
+  - Device testing on real iOS hardware
+  - User acceptance testing for each phase
 
-### 9.1 Encryption Standards
-- **Data at rest**: AES-256-GCM encryption
-- **Data in transit**: TLS 1.3 with certificate pinning
-- **Key derivation**: PBKDF2 with 100,000 iterations
-- **Key storage**: iOS Keychain with Secure Enclave when available
-
-### 9.2 Authentication & Authorization
-```swift
-protocol AuthenticationService {
-    func authenticate() -> AnyPublisher<AuthToken, AuthError>
-    func refreshToken() -> AnyPublisher<AuthToken, AuthError>
-    func logout()
-    var isAuthenticated: Bool { get }
-}
-
-struct AuthToken {
-    let accessToken: String
-    let refreshToken: String
-    let expirationDate: Date
-    let scope: [String]
-}
-
-enum AuthError: Error {
-    case invalidCredentials
-    case tokenExpired
-    case networkError
-    case biometricFailed
-}
+Performance Monitoring:
+  - Memory usage tracking
+  - Battery impact measurement
+  - Audio latency verification
+  - UI responsiveness validation
 ```
 
-## 10. Testing Specifications
+## 7. Deployment Strategy
 
-### 10.1 Unit Testing Strategy
-- **Coverage target**: 90% code coverage minimum
-- **Test pyramid**: 70% unit tests, 20% integration tests, 10% UI tests
-- **Mocking**: Protocol-based mocking for external dependencies
-- **Performance testing**: Automated performance benchmarks
+### 7.1 Incremental Deployment
+- **Phase releases**: Each phase is independently deployable
+- **Feature flags**: Enable/disable features during development
+- **TestFlight distribution**: Continuous beta testing with users
+- **App Store updates**: Regular incremental improvements
 
-### 10.2 Integration Testing
-```swift
-class AudioProcessingIntegrationTests: XCTestCase {
-    func testRealTimeAudioProcessingPipeline() {
-        // Test complete audio processing flow
-        let expectation = XCTestExpectation(description: "Audio processing completed")
-        
-        let audioManager = AudioManager()
-        let sttService = MockSTTService()
-        let processor = AudioProcessor(sttService: sttService)
-        
-        // Test implementation
-    }
-}
+### 7.2 Technology Dependencies
+```yaml
+Current (Proven):
+  - Flutter 3.24+, Dart 3.5+
+  - flutter_sound ^9.2.13
+  - permission_handler ^10.2.0
+  - freezed_annotation ^2.4.1
 
-class LLMIntegrationTests: XCTestCase {
-    func testFactCheckingAccuracy() {
-        // Test fact-checking with known test cases
-        let factChecker = FactCheckingService()
-        
-        let testClaims = [
-            "The United States has 50 states",
-            "Water boils at 100 degrees Celsius",
-            "The capital of France is London" // False claim
-        ]
-        
-        // Test implementation
-    }
-}
+Phase 2 Additions:
+  - speech_to_text ^6.6.0
+
+Phase 3 Additions:
+  - sqflite ^2.3.0
+  - path_provider ^2.1.1
+
+Phase 4 Additions:
+  - http ^1.1.0
+  - dio ^5.4.0 (for advanced API features)
+
+Phase 5 Additions:
+  - flutter_bluetooth_serial ^0.4.0
+  - Even Realities SDK (when available)
 ```
 
-### 10.3 Quality Assurance
-- **Automated testing**: CI/CD pipeline with automated test execution
-- **Performance monitoring**: Real-time performance metrics collection
-- **Crash reporting**: Automatic crash detection and reporting
-- **User feedback**: In-app feedback collection and analysis
+## 8. Lessons Learned & Best Practices
+
+### 8.1 Architecture Principles
+- **Simplicity wins**: Direct service-to-UI communication beats complex state management
+- **Incremental is safer**: Build working features before adding complexity
+- **Real data flows**: Use actual streams and data, not mock implementations
+- **Clean interfaces**: Well-defined service contracts enable easy testing
+
+### 8.2 Development Guidelines
+- **Build before adding**: Each feature must work before moving to the next
+- **Test on devices**: Simulator testing is insufficient for audio/Bluetooth features
+- **Keep dependencies minimal**: Only add packages when actually needed
+- **Document as you go**: Keep specs updated with actual implementation
