@@ -1,10 +1,6 @@
-// ABOUTME: Main Flutter app widget with provider setup and routing
-// ABOUTME: Configures theme, navigation, and dependency injection for the Helix app
-
 import 'package:flutter/material.dart';
 
-import 'ui/screens/home_screen.dart';
-import 'ui/theme/app_theme.dart';
+import 'screens/recording_screen.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -12,13 +8,77 @@ class HelixApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Helix',
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
-      home: const HomeScreen(),
+      title: 'Helix Audio Recorder',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        useMaterial3: true,
+      ),
+      home: const SafeRecordingScreen(),
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class SafeRecordingScreen extends StatefulWidget {
+  const SafeRecordingScreen({super.key});
+
+  @override
+  State<SafeRecordingScreen> createState() => _SafeRecordingScreenState();
+}
+
+class _SafeRecordingScreenState extends State<SafeRecordingScreen> {
+  Object? _error;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return ErrorScreen(
+        error: _error.toString(),
+        onRetry: () {
+          setState(() {
+            _error = null;
+          });
+        },
+      );
+    }
+
+    return ErrorBoundary(
+      onError: (error) {
+        setState(() {
+          _error = error;
+        });
+      },
+      child: const RecordingScreen(),
+    );
+  }
+}
+
+class ErrorBoundary extends StatefulWidget {
+  final Widget child;
+  final void Function(Object error) onError;
+
+  const ErrorBoundary({
+    super.key,
+    required this.child,
+    required this.onError,
+  });
+
+  @override
+  State<ErrorBoundary> createState() => _ErrorBoundaryState();
+}
+
+class _ErrorBoundaryState extends State<ErrorBoundary> {
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    FlutterError.onError = (FlutterErrorDetails details) {
+      widget.onError(details.exception);
+    };
   }
 }
 
