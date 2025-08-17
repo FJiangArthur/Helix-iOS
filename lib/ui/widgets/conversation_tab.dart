@@ -15,6 +15,7 @@ import '../../models/conversation_model.dart';
 import '../../models/transcription_segment.dart';
 import '../../services/transcription_service.dart';
 import '../../services/real_time_transcription_service.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 
 class ConversationTab extends StatefulWidget {
@@ -127,7 +128,15 @@ class _ConversationTabState extends State<ConversationTab> with TickerProviderSt
       );
       
       // Initialize real-time transcription service
-      await _realTimeTranscriptionService.initialize();
+      await _realTimeTranscriptionService.initialize(
+        const TranscriptionPipelineConfig(
+          audioChunkDurationMs: 100,
+          targetLatencyMs: 500,
+          enablePartialResults: true,
+          maxSessionDurationMinutes: 60,
+          maxBufferedSegments: 1000,
+        ),
+      );
       
       // Set up transcription stream
       _transcriptionSubscription = _realTimeTranscriptionService.transcriptionStream.listen(
