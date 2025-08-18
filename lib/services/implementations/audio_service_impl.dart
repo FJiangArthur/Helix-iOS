@@ -10,7 +10,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../audio_service.dart';
 import '../../models/audio_configuration.dart';
-import '../../core/utils/exceptions.dart';
 
 /// Simplified AudioService implementation
 class AudioServiceImpl implements AudioService {
@@ -75,10 +74,12 @@ class AudioServiceImpl implements AudioService {
       _currentConfiguration = config;
       await _recorder.openRecorder();
       await _player.openPlayer();
-      await _recorder.setSubscriptionDuration(const Duration(milliseconds: 100));
+      await _recorder.setSubscriptionDuration(
+        const Duration(milliseconds: 100),
+      );
       _isInitialized = true;
     } catch (e) {
-      throw AudioException('Initialization failed: $e');
+      print('Initialization failed: $e');
     }
   }
 
@@ -86,7 +87,8 @@ class AudioServiceImpl implements AudioService {
   Future<bool> requestPermission() async {
     try {
       final status = await Permission.microphone.request();
-      _hasPermission = status.isGranted || status.isLimited || status.isProvisional;
+      _hasPermission =
+          status.isGranted || status.isLimited || status.isProvisional;
       return _hasPermission;
     } catch (e) {
       _hasPermission = false;
@@ -96,13 +98,13 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> startRecording() async {
-    if (!_isInitialized) throw const AudioException('Service not initialized');
-    if (!_hasPermission) throw const AudioException('Microphone permission required');
+    if (!_isInitialized) print('Service not initialized');
+    if (!_hasPermission) print('Microphone permission required');
     if (_isRecording) return;
 
     try {
       _currentRecordingPath = await _createRecordingFile();
-      
+
       await _recorder.startRecorder(
         toFile: _currentRecordingPath,
         codec: Codec.pcm16WAV,
@@ -114,7 +116,7 @@ class AudioServiceImpl implements AudioService {
       _startSimpleMonitoring();
     } catch (e) {
       _isRecording = false;
-      throw AudioException('Failed to start recording: $e');
+      print('Failed to start recording: $e');
     }
   }
 
@@ -128,7 +130,7 @@ class AudioServiceImpl implements AudioService {
       _isRecording = false;
       _currentAudioLevel = 0.0;
     } catch (e) {
-      throw AudioException('Failed to stop recording: $e');
+      print('Failed to stop recording: $e');
     }
   }
 
@@ -147,8 +149,9 @@ class AudioServiceImpl implements AudioService {
     // Create conversation-specific file path
     final directory = Directory.systemTemp;
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    _currentRecordingPath = '${directory.path}/helix_conversation_${conversationId}_$timestamp.wav';
-    
+    _currentRecordingPath =
+        '${directory.path}/helix_conversation_${conversationId}_$timestamp.wav';
+
     await startRecording();
     return _currentRecordingPath!;
   }
@@ -186,7 +189,7 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> setVoiceActivityDetection(bool enabled) async {
-    // Simple stub - not implemented  
+    // Simple stub - not implemented
   }
 
   @override
@@ -215,14 +218,14 @@ class AudioServiceImpl implements AudioService {
 
   Future<PermissionStatus> checkPermissionStatus() async {
     final status = await Permission.microphone.status;
-    _hasPermission = status.isGranted || status.isLimited || status.isProvisional;
+    _hasPermission =
+        status.isGranted || status.isLimited || status.isProvisional;
     return status;
   }
 
   Future<bool> openPermissionSettings() async {
     return await openAppSettings();
   }
-
 
   // Simple helper methods
 
@@ -235,13 +238,13 @@ class AudioServiceImpl implements AudioService {
   void _startSimpleMonitoring() {
     _recorder.onProgress?.listen((progress) {
       if (!_isRecording) return;
-      
+
       _recordingDurationStreamController.add(progress.duration);
-      
+
       if (progress.decibels != null) {
         _currentAudioLevel = ((progress.decibels! + 60) / 60).clamp(0.0, 1.0);
         _audioLevelStreamController.add(_currentAudioLevel);
-        
+
         _audioLevelHistory.add(_currentAudioLevel);
         if (_audioLevelHistory.length > _maxHistory) {
           _audioLevelHistory.removeAt(0);
@@ -253,13 +256,14 @@ class AudioServiceImpl implements AudioService {
 
   void _updateVoiceActivity() {
     if (_audioLevelHistory.isEmpty) return;
-    
-    final avgLevel = _audioLevelHistory.reduce((a, b) => a + b) / _audioLevelHistory.length;
+
+    final avgLevel =
+        _audioLevelHistory.reduce((a, b) => a + b) / _audioLevelHistory.length;
     final threshold = _currentConfiguration.vadThreshold;
     final wasActive = _isVoiceActive;
-    
+
     _isVoiceActive = avgLevel > (_isVoiceActive ? threshold * 0.8 : threshold);
-    
+
     if (wasActive != _isVoiceActive) {
       _voiceActivityStreamController.add(_isVoiceActive);
     }

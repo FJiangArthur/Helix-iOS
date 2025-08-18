@@ -24,6 +24,15 @@ dependencies:
   # Data Models and Serialization
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1
+  
+  # State Management
+  get: ^4.6.6
+  
+  # UI Components
+  fluttertoast: ^8.2.8
+  
+  # Utilities
+  crclib: ^3.0.0
 
 dev_dependencies:
   flutter_test:

@@ -135,81 +135,66 @@ class _$AudioConfigurationCopyWithImpl<$Res, $Val extends AudioConfiguration>
   }) {
     return _then(
       _value.copyWith(
-            sampleRate:
-                null == sampleRate
-                    ? _value.sampleRate
-                    : sampleRate // ignore: cast_nullable_to_non_nullable
-                        as int,
-            channels:
-                null == channels
-                    ? _value.channels
-                    : channels // ignore: cast_nullable_to_non_nullable
-                        as int,
-            bitRate:
-                null == bitRate
-                    ? _value.bitRate
-                    : bitRate // ignore: cast_nullable_to_non_nullable
-                        as int,
-            quality:
-                null == quality
-                    ? _value.quality
-                    : quality // ignore: cast_nullable_to_non_nullable
-                        as AudioQuality,
-            format:
-                null == format
-                    ? _value.format
-                    : format // ignore: cast_nullable_to_non_nullable
-                        as AudioFormat,
-            enableNoiseReduction:
-                null == enableNoiseReduction
-                    ? _value.enableNoiseReduction
-                    : enableNoiseReduction // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            enableEchoCancellation:
-                null == enableEchoCancellation
-                    ? _value.enableEchoCancellation
-                    : enableEchoCancellation // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            enableAutomaticGainControl:
-                null == enableAutomaticGainControl
-                    ? _value.enableAutomaticGainControl
-                    : enableAutomaticGainControl // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            gainLevel:
-                null == gainLevel
-                    ? _value.gainLevel
-                    : gainLevel // ignore: cast_nullable_to_non_nullable
-                        as double,
-            enableVoiceActivityDetection:
-                null == enableVoiceActivityDetection
-                    ? _value.enableVoiceActivityDetection
-                    : enableVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            vadThreshold:
-                null == vadThreshold
-                    ? _value.vadThreshold
-                    : vadThreshold // ignore: cast_nullable_to_non_nullable
-                        as double,
-            bufferSize:
-                null == bufferSize
-                    ? _value.bufferSize
-                    : bufferSize // ignore: cast_nullable_to_non_nullable
-                        as int,
-            selectedDeviceId:
-                freezed == selectedDeviceId
-                    ? _value.selectedDeviceId
-                    : selectedDeviceId // ignore: cast_nullable_to_non_nullable
-                        as String?,
-            enableRealTimeStreaming:
-                null == enableRealTimeStreaming
-                    ? _value.enableRealTimeStreaming
-                    : enableRealTimeStreaming // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            chunkDurationMs:
-                null == chunkDurationMs
-                    ? _value.chunkDurationMs
-                    : chunkDurationMs // ignore: cast_nullable_to_non_nullable
-                        as int,
+            sampleRate: null == sampleRate
+                ? _value.sampleRate
+                : sampleRate // ignore: cast_nullable_to_non_nullable
+                      as int,
+            channels: null == channels
+                ? _value.channels
+                : channels // ignore: cast_nullable_to_non_nullable
+                      as int,
+            bitRate: null == bitRate
+                ? _value.bitRate
+                : bitRate // ignore: cast_nullable_to_non_nullable
+                      as int,
+            quality: null == quality
+                ? _value.quality
+                : quality // ignore: cast_nullable_to_non_nullable
+                      as AudioQuality,
+            format: null == format
+                ? _value.format
+                : format // ignore: cast_nullable_to_non_nullable
+                      as AudioFormat,
+            enableNoiseReduction: null == enableNoiseReduction
+                ? _value.enableNoiseReduction
+                : enableNoiseReduction // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            enableEchoCancellation: null == enableEchoCancellation
+                ? _value.enableEchoCancellation
+                : enableEchoCancellation // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            enableAutomaticGainControl: null == enableAutomaticGainControl
+                ? _value.enableAutomaticGainControl
+                : enableAutomaticGainControl // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            gainLevel: null == gainLevel
+                ? _value.gainLevel
+                : gainLevel // ignore: cast_nullable_to_non_nullable
+                      as double,
+            enableVoiceActivityDetection: null == enableVoiceActivityDetection
+                ? _value.enableVoiceActivityDetection
+                : enableVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            vadThreshold: null == vadThreshold
+                ? _value.vadThreshold
+                : vadThreshold // ignore: cast_nullable_to_non_nullable
+                      as double,
+            bufferSize: null == bufferSize
+                ? _value.bufferSize
+                : bufferSize // ignore: cast_nullable_to_non_nullable
+                      as int,
+            selectedDeviceId: freezed == selectedDeviceId
+                ? _value.selectedDeviceId
+                : selectedDeviceId // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            enableRealTimeStreaming: null == enableRealTimeStreaming
+                ? _value.enableRealTimeStreaming
+                : enableRealTimeStreaming // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            chunkDurationMs: null == chunkDurationMs
+                ? _value.chunkDurationMs
+                : chunkDurationMs // ignore: cast_nullable_to_non_nullable
+                      as int,
           )
           as $Val,
     );
@@ -276,81 +261,66 @@ class __$$AudioConfigurationImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$AudioConfigurationImpl(
-        sampleRate:
-            null == sampleRate
-                ? _value.sampleRate
-                : sampleRate // ignore: cast_nullable_to_non_nullable
-                    as int,
-        channels:
-            null == channels
-                ? _value.channels
-                : channels // ignore: cast_nullable_to_non_nullable
-                    as int,
-        bitRate:
-            null == bitRate
-                ? _value.bitRate
-                : bitRate // ignore: cast_nullable_to_non_nullable
-                    as int,
-        quality:
-            null == quality
-                ? _value.quality
-                : quality // ignore: cast_nullable_to_non_nullable
-                    as AudioQuality,
-        format:
-            null == format
-                ? _value.format
-                : format // ignore: cast_nullable_to_non_nullable
-                    as AudioFormat,
-        enableNoiseReduction:
-            null == enableNoiseReduction
-                ? _value.enableNoiseReduction
-                : enableNoiseReduction // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        enableEchoCancellation:
-            null == enableEchoCancellation
-                ? _value.enableEchoCancellation
-                : enableEchoCancellation // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        enableAutomaticGainControl:
-            null == enableAutomaticGainControl
-                ? _value.enableAutomaticGainControl
-                : enableAutomaticGainControl // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        gainLevel:
-            null == gainLevel
-                ? _value.gainLevel
-                : gainLevel // ignore: cast_nullable_to_non_nullable
-                    as double,
-        enableVoiceActivityDetection:
-            null == enableVoiceActivityDetection
-                ? _value.enableVoiceActivityDetection
-                : enableVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        vadThreshold:
-            null == vadThreshold
-                ? _value.vadThreshold
-                : vadThreshold // ignore: cast_nullable_to_non_nullable
-                    as double,
-        bufferSize:
-            null == bufferSize
-                ? _value.bufferSize
-                : bufferSize // ignore: cast_nullable_to_non_nullable
-                    as int,
-        selectedDeviceId:
-            freezed == selectedDeviceId
-                ? _value.selectedDeviceId
-                : selectedDeviceId // ignore: cast_nullable_to_non_nullable
-                    as String?,
-        enableRealTimeStreaming:
-            null == enableRealTimeStreaming
-                ? _value.enableRealTimeStreaming
-                : enableRealTimeStreaming // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        chunkDurationMs:
-            null == chunkDurationMs
-                ? _value.chunkDurationMs
-                : chunkDurationMs // ignore: cast_nullable_to_non_nullable
-                    as int,
+        sampleRate: null == sampleRate
+            ? _value.sampleRate
+            : sampleRate // ignore: cast_nullable_to_non_nullable
+                  as int,
+        channels: null == channels
+            ? _value.channels
+            : channels // ignore: cast_nullable_to_non_nullable
+                  as int,
+        bitRate: null == bitRate
+            ? _value.bitRate
+            : bitRate // ignore: cast_nullable_to_non_nullable
+                  as int,
+        quality: null == quality
+            ? _value.quality
+            : quality // ignore: cast_nullable_to_non_nullable
+                  as AudioQuality,
+        format: null == format
+            ? _value.format
+            : format // ignore: cast_nullable_to_non_nullable
+                  as AudioFormat,
+        enableNoiseReduction: null == enableNoiseReduction
+            ? _value.enableNoiseReduction
+            : enableNoiseReduction // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        enableEchoCancellation: null == enableEchoCancellation
+            ? _value.enableEchoCancellation
+            : enableEchoCancellation // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        enableAutomaticGainControl: null == enableAutomaticGainControl
+            ? _value.enableAutomaticGainControl
+            : enableAutomaticGainControl // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        gainLevel: null == gainLevel
+            ? _value.gainLevel
+            : gainLevel // ignore: cast_nullable_to_non_nullable
+                  as double,
+        enableVoiceActivityDetection: null == enableVoiceActivityDetection
+            ? _value.enableVoiceActivityDetection
+            : enableVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        vadThreshold: null == vadThreshold
+            ? _value.vadThreshold
+            : vadThreshold // ignore: cast_nullable_to_non_nullable
+                  as double,
+        bufferSize: null == bufferSize
+            ? _value.bufferSize
+            : bufferSize // ignore: cast_nullable_to_non_nullable
+                  as int,
+        selectedDeviceId: freezed == selectedDeviceId
+            ? _value.selectedDeviceId
+            : selectedDeviceId // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        enableRealTimeStreaming: null == enableRealTimeStreaming
+            ? _value.enableRealTimeStreaming
+            : enableRealTimeStreaming // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        chunkDurationMs: null == chunkDurationMs
+            ? _value.chunkDurationMs
+            : chunkDurationMs // ignore: cast_nullable_to_non_nullable
+                  as int,
       ),
     );
   }
@@ -727,56 +697,47 @@ class _$AudioCapabilitiesCopyWithImpl<$Res, $Val extends AudioCapabilities>
   }) {
     return _then(
       _value.copyWith(
-            supportedSampleRates:
-                null == supportedSampleRates
-                    ? _value.supportedSampleRates
-                    : supportedSampleRates // ignore: cast_nullable_to_non_nullable
-                        as List<int>,
-            supportedChannels:
-                null == supportedChannels
-                    ? _value.supportedChannels
-                    : supportedChannels // ignore: cast_nullable_to_non_nullable
-                        as List<int>,
-            supportedFormats:
-                null == supportedFormats
-                    ? _value.supportedFormats
-                    : supportedFormats // ignore: cast_nullable_to_non_nullable
-                        as List<AudioFormat>,
-            supportsNoiseReduction:
-                null == supportsNoiseReduction
-                    ? _value.supportsNoiseReduction
-                    : supportsNoiseReduction // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            supportsEchoCancellation:
-                null == supportsEchoCancellation
-                    ? _value.supportsEchoCancellation
-                    : supportsEchoCancellation // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            supportsAutomaticGainControl:
-                null == supportsAutomaticGainControl
-                    ? _value.supportsAutomaticGainControl
-                    : supportsAutomaticGainControl // ignore: cast_nullable_to_non_nullable
-                        as bool,
+            supportedSampleRates: null == supportedSampleRates
+                ? _value.supportedSampleRates
+                : supportedSampleRates // ignore: cast_nullable_to_non_nullable
+                      as List<int>,
+            supportedChannels: null == supportedChannels
+                ? _value.supportedChannels
+                : supportedChannels // ignore: cast_nullable_to_non_nullable
+                      as List<int>,
+            supportedFormats: null == supportedFormats
+                ? _value.supportedFormats
+                : supportedFormats // ignore: cast_nullable_to_non_nullable
+                      as List<AudioFormat>,
+            supportsNoiseReduction: null == supportsNoiseReduction
+                ? _value.supportsNoiseReduction
+                : supportsNoiseReduction // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            supportsEchoCancellation: null == supportsEchoCancellation
+                ? _value.supportsEchoCancellation
+                : supportsEchoCancellation // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            supportsAutomaticGainControl: null == supportsAutomaticGainControl
+                ? _value.supportsAutomaticGainControl
+                : supportsAutomaticGainControl // ignore: cast_nullable_to_non_nullable
+                      as bool,
             supportsVoiceActivityDetection:
                 null == supportsVoiceActivityDetection
-                    ? _value.supportsVoiceActivityDetection
-                    : supportsVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
-                        as bool,
-            maxGainLevel:
-                null == maxGainLevel
-                    ? _value.maxGainLevel
-                    : maxGainLevel // ignore: cast_nullable_to_non_nullable
-                        as double,
-            minGainLevel:
-                null == minGainLevel
-                    ? _value.minGainLevel
-                    : minGainLevel // ignore: cast_nullable_to_non_nullable
-                        as double,
-            availableBufferSizes:
-                null == availableBufferSizes
-                    ? _value.availableBufferSizes
-                    : availableBufferSizes // ignore: cast_nullable_to_non_nullable
-                        as List<int>,
+                ? _value.supportsVoiceActivityDetection
+                : supportsVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            maxGainLevel: null == maxGainLevel
+                ? _value.maxGainLevel
+                : maxGainLevel // ignore: cast_nullable_to_non_nullable
+                      as double,
+            minGainLevel: null == minGainLevel
+                ? _value.minGainLevel
+                : minGainLevel // ignore: cast_nullable_to_non_nullable
+                      as double,
+            availableBufferSizes: null == availableBufferSizes
+                ? _value.availableBufferSizes
+                : availableBufferSizes // ignore: cast_nullable_to_non_nullable
+                      as List<int>,
           )
           as $Val,
     );
@@ -833,56 +794,46 @@ class __$$AudioCapabilitiesImplCopyWithImpl<$Res>
   }) {
     return _then(
       _$AudioCapabilitiesImpl(
-        supportedSampleRates:
-            null == supportedSampleRates
-                ? _value._supportedSampleRates
-                : supportedSampleRates // ignore: cast_nullable_to_non_nullable
-                    as List<int>,
-        supportedChannels:
-            null == supportedChannels
-                ? _value._supportedChannels
-                : supportedChannels // ignore: cast_nullable_to_non_nullable
-                    as List<int>,
-        supportedFormats:
-            null == supportedFormats
-                ? _value._supportedFormats
-                : supportedFormats // ignore: cast_nullable_to_non_nullable
-                    as List<AudioFormat>,
-        supportsNoiseReduction:
-            null == supportsNoiseReduction
-                ? _value.supportsNoiseReduction
-                : supportsNoiseReduction // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        supportsEchoCancellation:
-            null == supportsEchoCancellation
-                ? _value.supportsEchoCancellation
-                : supportsEchoCancellation // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        supportsAutomaticGainControl:
-            null == supportsAutomaticGainControl
-                ? _value.supportsAutomaticGainControl
-                : supportsAutomaticGainControl // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        supportsVoiceActivityDetection:
-            null == supportsVoiceActivityDetection
-                ? _value.supportsVoiceActivityDetection
-                : supportsVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
-                    as bool,
-        maxGainLevel:
-            null == maxGainLevel
-                ? _value.maxGainLevel
-                : maxGainLevel // ignore: cast_nullable_to_non_nullable
-                    as double,
-        minGainLevel:
-            null == minGainLevel
-                ? _value.minGainLevel
-                : minGainLevel // ignore: cast_nullable_to_non_nullable
-                    as double,
-        availableBufferSizes:
-            null == availableBufferSizes
-                ? _value._availableBufferSizes
-                : availableBufferSizes // ignore: cast_nullable_to_non_nullable
-                    as List<int>,
+        supportedSampleRates: null == supportedSampleRates
+            ? _value._supportedSampleRates
+            : supportedSampleRates // ignore: cast_nullable_to_non_nullable
+                  as List<int>,
+        supportedChannels: null == supportedChannels
+            ? _value._supportedChannels
+            : supportedChannels // ignore: cast_nullable_to_non_nullable
+                  as List<int>,
+        supportedFormats: null == supportedFormats
+            ? _value._supportedFormats
+            : supportedFormats // ignore: cast_nullable_to_non_nullable
+                  as List<AudioFormat>,
+        supportsNoiseReduction: null == supportsNoiseReduction
+            ? _value.supportsNoiseReduction
+            : supportsNoiseReduction // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        supportsEchoCancellation: null == supportsEchoCancellation
+            ? _value.supportsEchoCancellation
+            : supportsEchoCancellation // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        supportsAutomaticGainControl: null == supportsAutomaticGainControl
+            ? _value.supportsAutomaticGainControl
+            : supportsAutomaticGainControl // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        supportsVoiceActivityDetection: null == supportsVoiceActivityDetection
+            ? _value.supportsVoiceActivityDetection
+            : supportsVoiceActivityDetection // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        maxGainLevel: null == maxGainLevel
+            ? _value.maxGainLevel
+            : maxGainLevel // ignore: cast_nullable_to_non_nullable
+                  as double,
+        minGainLevel: null == minGainLevel
+            ? _value.minGainLevel
+            : minGainLevel // ignore: cast_nullable_to_non_nullable
+                  as double,
+        availableBufferSizes: null == availableBufferSizes
+            ? _value._availableBufferSizes
+            : availableBufferSizes // ignore: cast_nullable_to_non_nullable
+                  as List<int>,
       ),
     );
   }

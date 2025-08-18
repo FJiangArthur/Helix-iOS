@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import 'screens/recording_screen.dart';
+import 'screens/g1_test_screen.dart';
+import 'screens/even_features_screen.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -13,8 +15,71 @@ class HelixApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const SafeRecordingScreen(),
+      home: const MainNavigationScreen(),
       debugShowCheckedModeBanner: false,
+    );
+  }
+}
+
+class MainNavigationScreen extends StatelessWidget {
+  const MainNavigationScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Helix'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.mic),
+                title: const Text('Audio Recording'),
+                subtitle: const Text('Record and analyze conversations'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const SafeRecordingScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.bluetooth),
+                title: const Text('G1 Glasses Test'),
+                subtitle: const Text('Connect and test G1 glasses'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const G1TestScreen()),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.featured_play_list),
+                title: const Text('Even Features'),
+                subtitle: const Text('BMP images, text transfer, and AI history'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const FeaturesPage()),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
