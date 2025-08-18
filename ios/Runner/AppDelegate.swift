@@ -41,9 +41,8 @@ import Speech
         let controller = window?.rootViewController as! FlutterViewController
         let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
         
-        // Initialize BluetoothManager with the Flutter channel
-        let bluetoothManager = BluetoothManager.shared
-        bluetoothManager.channel = channel
+        // Initialize BluetoothManager with the Flutter channel (like EvenDemoApp)
+        let bluetoothManager = BluetoothManager(channel: channel)
         
         // Set method call handler to delegate to real BluetoothManager
         channel.setMethodCallHandler { (call, result) in
