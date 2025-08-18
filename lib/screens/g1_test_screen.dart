@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_helix/screens/even_features_screen.dart';
 import '../ble_manager.dart';
+import 'package:get/get.dart';
 
 /// Simple test screen for G1 glasses connection and text sending
 class G1TestScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class G1TestScreen extends StatefulWidget {
 class _G1TestScreenState extends State<G1TestScreen> {
   Timer? scanTimer;
   bool isScanning = false;
+
   @override
   void initState() {
     super.initState();
@@ -23,11 +25,12 @@ class _G1TestScreenState extends State<G1TestScreen> {
   }
 
   void _refreshPage() => setState(() {});
+
   Future<void> _startScan() async {
     setState(() => isScanning = true);
     await BleManager.get().startScan();
     scanTimer?.cancel();
-    scanTimer = Timer(const Duration(seconds: 15), () {
+    scanTimer = Timer(15.seconds, () {
       // todo
       _stopScan();
     });
@@ -147,10 +150,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
                   alignment: Alignment.center,
                   child: const Text(
                     "Tap to access Even Features",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.blue,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.blue),
                     textAlign: TextAlign.center,
                   ),
                 ),
