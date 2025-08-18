@@ -57,5 +57,15 @@
 	<!-- Permissions for audio recording -->
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Helix needs microphone access to record audio.</string>
+	
+	<!-- Bluetooth permissions for connecting to Even Realities G1 glasses -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Helix needs Bluetooth access to connect to Even Realities G1 glasses for real-time AI assistance.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Helix needs Bluetooth access to communicate with Even Realities G1 glasses.</string>
+	
+	<!-- Speech recognition permissions -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Helix needs speech recognition to transcribe conversations for AI analysis.</string>
 </dict>
 </plist>

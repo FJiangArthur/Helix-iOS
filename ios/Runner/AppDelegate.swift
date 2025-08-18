@@ -2,9 +2,11 @@ import UIKit
 import Flutter
 import AVFoundation
 import CoreBluetooth
+import Speech
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
+    private var speechEventSink: FlutterEventSink?
 
     override func application(
         _ application: UIApplication,
@@ -35,36 +37,40 @@ import CoreBluetooth
         
         GeneratedPluginRegistrant.register(with: self)
         
-        // Setup G1 Bluetooth method channel with mock responses for development  
+        // Setup real Bluetooth manager
         let controller = window?.rootViewController as! FlutterViewController
         let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
         
-        // Set method call handler for Flutter channel with development responses
+        // Initialize BluetoothManager with the Flutter channel
+        let bluetoothManager = BluetoothManager.shared
+        bluetoothManager.channel = channel
+        
+        // Set method call handler to delegate to real BluetoothManager
         channel.setMethodCallHandler { (call, result) in
-            print("AppDelegate----call----\(call)----\(call.method)---------")
-            
-            // Mock responses for development - replace with real BluetoothManager later
             switch call.method {
             case "startScan":
-                result("Mock: Started scanning for glasses...")
+                bluetoothManager.startScan(result: result)
             case "stopScan":
-                result("Mock: Stopped scanning")
+                bluetoothManager.stopScan(result: result)
             case "connectToGlasses":
                 if let args = call.arguments as? [String: Any], let deviceName = args["deviceName"] as? String {
-                    result("Mock: Connected to \(deviceName)")
+                    bluetoothManager.connectToDevice(deviceName: deviceName, result: result)
                 } else {
                     result(FlutterError(code: "InvalidArguments", message: "Invalid arguments", details: nil))
                 }
             case "disconnectFromGlasses":
-                result("Mock: Disconnected from glasses")
+                bluetoothManager.disconnectFromGlasses(result: result)
             case "send":
+                if let params = call.arguments as? [String: Any] {
+                    bluetoothManager.sendData(params: params)
+                }
                 result(nil)
             case "startEvenAI":
-                // TODO: Implement speech recognition
-                result("Mock: Started Even AI")
+                SpeechStreamRecognizer.shared.startRecognition(identifier: "EN")
+                result("Started Even AI speech recognition")
             case "stopEvenAI":
-                // TODO: Implement speech recognition
-                result("Mock: Stopped Even AI")
+                SpeechStreamRecognizer.shared.stopRecognition()
+                result("Stopped Even AI speech recognition")
             default:
                 result(FlutterMethodNotImplemented)
             }
@@ -72,6 +78,9 @@ import CoreBluetooth
      
         let scheduleEvent = FlutterEventChannel(name: "eventBleReceive", binaryMessenger: controller.binaryMessenger)
         scheduleEvent.setStreamHandler(self)
+        
+        let speechEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: controller.binaryMessenger)
+        speechEvent.setStreamHandler(self)
         
         // Basic audio session setup - flutter_sound and audio_session will handle the rest
         do {
@@ -88,17 +97,14 @@ import CoreBluetooth
 // MARK: - FlutterStreamHandler
 extension AppDelegate : FlutterStreamHandler {
     func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        // Mock BLE event streaming for development
-       if (arguments as? String == "eventBleStatus"){
-            // TODO: Implement BLE status events
-        } else if (arguments as? String == "eventBleReceive") {
-            // TODO: Implement BLE data events  
-        } else {
-            // TODO: Handle other event types
+        if (arguments as? String == "eventBleReceive") {
+            BluetoothManager.shared.blueInfoSink = events
+        } else if (arguments as? String == "eventSpeechRecognize") {
+            BluetoothManager.shared.blueSpeechSink = events
         }
         return nil
     }
-
+    
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
         return nil
     }

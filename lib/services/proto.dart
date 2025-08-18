@@ -12,6 +12,14 @@ class Proto {
     //if (BleManager.isConnectedR()) return "R";
     return "L";
   }
+  
+  static Future<bool> pushScreen(int screenId) async {
+    return await BleManager.sendBoth(
+      Uint8List.fromList([0xf4, screenId]),
+      timeoutMs: 300,
+      isSuccess: (res) => res[1] == 0xc9,
+    );
+  }
 
   /// Returns the time consumed by the command and whether it is successful
   static Future<(int, bool)> micOn({String? lr}) async {
