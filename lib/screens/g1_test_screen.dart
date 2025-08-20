@@ -84,28 +84,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Even AI Demo'),
-      actions: [
-        InkWell(
-          onTap: () {
-            print("To Features Page...");
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const FeaturesPage()),
-            );
-          },
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          child: const Padding(
-            padding: EdgeInsets.only(left: 16, top: 12, bottom: 14, right: 16),
-            child: Icon(Icons.menu),
-          ),
-        ),
-      ],
-    ),
-    body: Padding(
+  Widget build(BuildContext context) => Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 44),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
@@ -158,8 +137,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
             ),
         ],
       ),
-    ),
-  );
+    );
 
   @override
   void dispose() {

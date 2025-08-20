@@ -15,11 +15,7 @@ class FeaturesPage extends StatefulWidget {
 
 class _FeaturesPageState extends State<FeaturesPage> {
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('Features'),
-        ),
-        body: Padding(
+  Widget build(BuildContext context) => Padding(
           padding:
               const EdgeInsets.only(left: 16, right: 16, top: 12, bottom: 44),
           child: Column(
@@ -88,6 +84,5 @@ class _FeaturesPageState extends State<FeaturesPage> {
               ),
             ],
           ),
-        ),
-      );
+        );
 }

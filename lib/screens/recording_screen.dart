@@ -136,27 +136,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Helix Audio Recorder'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.folder),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FileManagementScreen(),
-                ),
-              );
-            },
-            tooltip: 'View Recordings',
-          ),
-        ],
-      ),
-      body: Center(
+    return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -309,9 +289,25 @@ class _RecordingScreenState extends State<RecordingScreen> {
                 color: Colors.grey,
               ),
             ),
+            const SizedBox(height: 32),
+            // View Recordings Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FileManagementScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.folder),
+              label: const Text('View Recordings'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
           ],
         ),
-      ),
-    );
+      );
   }
 }
