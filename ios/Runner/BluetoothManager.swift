@@ -284,8 +284,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         //print("\(Date()) didUpdateValueFor------\(peripheral.identifier.uuidString)----\(peripheral.name)-----\(characteristic.value)--")
-        let data = characteristic.value
-        self.getCommandValue(data: data!,cbPeripheral: peripheral)
+        guard let data = characteristic.value else {
+            print("Warning: characteristic.value is nil for \(peripheral.name ?? "unknown device")")
+            return
+        }
+        self.getCommandValue(data: data, cbPeripheral: peripheral)
     }
     
     func getCommandValue(data:Data,cbPeripheral:CBPeripheral? = nil){
