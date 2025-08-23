@@ -8,7 +8,7 @@
 PRODUCT_NAME = flutter_helix
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix
+PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.hololens
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2025 com.evenrealities. All rights reserved.

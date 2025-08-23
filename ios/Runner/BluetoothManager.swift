@@ -284,18 +284,23 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         //print("\(Date()) didUpdateValueFor------\(peripheral.identifier.uuidString)----\(peripheral.name)-----\(characteristic.value)--")
-        guard let data = characteristic.value else {
-            print("Warning: characteristic.value is nil for \(peripheral.name ?? "unknown device")")
-            return
-        }
-        self.getCommandValue(data: data, cbPeripheral: peripheral)
+        let data = characteristic.value
+        self.getCommandValue(data: data!,cbPeripheral: peripheral)
     }
     
     func getCommandValue(data:Data,cbPeripheral:CBPeripheral? = nil){
+//        guard !data.isEmpty else {
+//            print("Warning: Empty data received from peripheral")
+//            return
+//        }
         let rspCommand = AG_BLE_REQ(rawValue: (data[0]))
         switch rspCommand{
             case .BLE_REQ_TRANSFER_MIC_DATA:
                  let hexString = data.map { String(format: "%02hhx", $0) }.joined()
+                 guard data.count > 2 else {
+                     print("Warning: Insufficient data for MIC_DATA, need at least 3 bytes")
+                     break
+                 }
                  let effectiveData = data.subdata(in: 2..<data.count)
                  let pcmConverter = PcmConverter()
                  var pcmData = pcmConverter.decode(effectiveData)
@@ -312,7 +317,12 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 dictionary["lr"] = legStr
                 dictionary["data"] = data
 
-                self.blueInfoSink(dictionary)
+                // self.blueInfoSink(dictionary)
+                if let sink = self.blueInfoSink {
+                    sink(dictionary)
+                } else {
+                    print("blueInfoSink not ready, dropping data")
+                }
                 break
         }
     }
