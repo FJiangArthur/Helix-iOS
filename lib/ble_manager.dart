@@ -6,6 +6,7 @@ import 'services/evenai.dart';
 import 'services/proto.dart';
 import 'services/app.dart';
 import 'utils/app_logger.dart';
+import 'models/ble_health_metrics.dart';
 
 typedef SendResultParse = bool Function(Uint8List value);
 
@@ -36,7 +37,23 @@ class BleManager {
   bool isConnected = false;
   String connectionStatus = 'Not connected';
 
+  // Health metrics tracking
+  BleHealthMetrics _healthMetrics = const BleHealthMetrics();
+
   void _init() {}
+
+  /// Get current health metrics
+  BleHealthMetrics getHealthMetrics() => _healthMetrics;
+
+  /// Reset health metrics
+  void resetHealthMetrics() {
+    _healthMetrics = _healthMetrics.reset();
+  }
+
+  /// Get health metrics summary
+  Map<String, dynamic> getHealthSummary() {
+    return _healthMetrics.toSummary();
+  }
 
   void startListening() {
     eventBleReceive.listen((res) {
@@ -233,6 +250,7 @@ class BleManager {
       //var showData = data.length > 50 ? data.sublist(0, 50) : data;
       print("send Timeout $cmd of $timeoutMs");
       cb.complete(res);
+      // Metric recording happens in the completer.future.then() in request()
     }
 
     _reqTimeout[cmd]?.cancel();
@@ -253,6 +271,11 @@ class BleManager {
   }) async {
     BleReceive ret;
     for (var i = 0; i <= retry; i++) {
+      if (i > 0) {
+        // Record retry attempts (not for first attempt)
+        _instance?._healthMetrics = _instance!._healthMetrics.recordRetry();
+      }
+
       ret = await request(
         data,
         lr: lr,
@@ -354,6 +377,7 @@ class BleManager {
     int timeoutMs = 1000, //500,
     bool useNext = false,
   }) async {
+    final startTime = DateTime.now();
     var lr0 = lr ?? Proto.lR();
     var completer = Completer<BleReceive>();
     String cmd = "$lr0${data[0].toRadixString(16).padLeft(2, '0')}";
@@ -381,6 +405,12 @@ class BleManager {
 
     completer.future.then((result) {
       _reqTimeout.remove(cmd)?.cancel();
+      final latency = DateTime.now().difference(startTime);
+      if (result.isTimeout) {
+        _instance?._healthMetrics = _instance!._healthMetrics.recordTimeout();
+      } else {
+        _instance?._healthMetrics = _instance!._healthMetrics.recordSuccess(latency);
+      }
     });
 
     await sendData(data, lr: lr, other: other).timeout(
@@ -390,6 +420,7 @@ class BleManager {
         var ret = BleReceive();
         ret.isTimeout = true;
         _reqListen.remove(cmd)?.complete(ret);
+        _instance?._healthMetrics = _instance!._healthMetrics.recordTimeout();
       },
     );
 
