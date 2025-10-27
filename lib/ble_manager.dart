@@ -5,6 +5,7 @@ import 'services/ble.dart';
 import 'services/evenai.dart';
 import 'services/proto.dart';
 import 'services/app.dart';
+import 'utils/app_logger.dart';
 
 typedef SendResultParse = bool Function(Uint8List value);
 
@@ -47,7 +48,7 @@ class BleManager {
     try {
       await _channel.invokeMethod('startScan');
     } catch (e) {
-      print('Error starting scan: $e');
+      appLogger.e('Error starting scan', error: e);
     }
   }
 
@@ -55,7 +56,7 @@ class BleManager {
     try {
       await _channel.invokeMethod('stopScan');
     } catch (e) {
-      print('Error stopping scan: $e');
+      appLogger.e('Error stopping scan', error: e);
     }
   }
 
@@ -67,6 +68,16 @@ class BleManager {
       connectionStatus = 'Connecting...';
     } catch (e) {
       print('Error connecting to device: $e');
+    }
+  }
+
+  Future<void> disconnect() async {
+    try {
+      stopSendBeatHeart();
+      await _channel.invokeMethod('disconnect');
+      _onGlassesDisconnected();
+    } catch (e) {
+      print('Error disconnecting: $e');
     }
   }
 
@@ -117,6 +128,12 @@ class BleManager {
         tryTime = 0;
       }
     });
+  }
+
+  void stopSendBeatHeart() {
+    beatHeartTimer?.cancel();
+    beatHeartTimer = null;
+    tryTime = 0;
   }
 
   void _onGlassesConnecting() {

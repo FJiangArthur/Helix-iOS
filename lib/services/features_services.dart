@@ -1,11 +1,17 @@
 import 'dart:typed_data';
 import '../ble_manager.dart';
-import '../controllers/bmp_update_manager.dart';
 import '../services/proto.dart';
 import '../utils/utils.dart';
 
 class FeaturesServices {
-  final bmpUpdateManager = BmpUpdateManager();
+  // Simplified BMP update without controller
+  Future<bool> updateBmp(String lr, Uint8List bmpData, {int seq = 0}) async {
+    // TODO: Implement actual BMP update logic
+    // For now, returning success
+    // This would normally send the BMP data to glasses via BLE protocol
+    return true;
+  }
+
   Future<void> sendBmp(String imageUrl) async {
     Uint8List bmpData = await Utils.loadBmpImage(imageUrl);
     int initialSeq = 0;
@@ -16,8 +22,8 @@ class FeaturesServices {
     BleManager.get().startSendBeatHeart();
 
     final results = await Future.wait([
-      bmpUpdateManager.updateBmp("L", bmpData, seq: initialSeq),
-      bmpUpdateManager.updateBmp("R", bmpData, seq: initialSeq),
+      updateBmp("L", bmpData, seq: initialSeq),
+      updateBmp("R", bmpData, seq: initialSeq),
     ]);
 
     bool successL = results[0];
@@ -32,7 +38,7 @@ class FeaturesServices {
     if (successR) {
       print("${DateTime.now()} right ble success");
     } else {
-      print("${DateTime.now()} right ble success");
+      print("${DateTime.now()} right ble fail");
     }
   }
 

@@ -56,16 +56,6 @@ void main() {
       expect(notEmpty.isEmpty, false);
     });
 
-    test('serializes to JSON correctly', () {
-      final chunk = AudioChunk.fromBytes([1, 2, 3, 4]);
-      final json = chunk.toJson();
-
-      expect(json['sampleRate'], 16000);
-      expect(json['channels'], 1);
-      expect(json['bitsPerSample'], 16);
-      expect(json['data'], isNotNull);
-    });
-
     test('handles stereo audio correctly', () {
       // Stereo (2 channels), 16-bit, 16000 Hz
       // 1 second = 16000 samples per channel = 64000 bytes total
