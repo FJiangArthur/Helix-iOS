@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math';
-import 'evenai.dart';
 import 'proto.dart';
+import 'text_paginator.dart';
+import 'hud_controller.dart';
 
 class TextService {
   static TextService? _instance;
@@ -19,7 +20,14 @@ class TextService {
     isRunning = true;
 
     _currentLine = 0;
-    list = EvenAIDataMethod.measureStringList(text);
+    // Use TextPaginator to split text into pages
+    final paginator = TextPaginator.instance;
+    paginator.paginateText(text);
+    list = List.generate(paginator.pageCount, (i) {
+      paginator.goToPage(i);
+      return paginator.currentPageText;
+    });
+    paginator.clear();
    
     if (list.length < 4) {
       String startScreenWords =
@@ -66,7 +74,7 @@ class TextService {
     }
 
     bool isSuccess = await Proto.sendEvenAIData(text,
-        newScreen: EvenAIDataMethod.transferToNewScreen(type, status),
+        newScreen: HudController.transferToNewScreen(type, status),
         pos: pos,
         current_page_num: getCurrentPage(),
         max_page_num: getTotalPages()); // todo pos
