@@ -2,9 +2,9 @@ import 'dart:typed_data';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'audio_chunk.freezed.dart';
-part 'audio_chunk.g.dart';
 
 /// Represents a chunk of audio data
+/// NOTE: No JSON serialization - audio data is binary, not meant for JSON
 @freezed
 class AudioChunk with _$AudioChunk {
   const factory AudioChunk({
@@ -14,9 +14,6 @@ class AudioChunk with _$AudioChunk {
     @Default(1) int channels,
     @Default(16) int bitsPerSample,
   }) = _AudioChunk;
-
-  factory AudioChunk.fromJson(Map<String, dynamic> json) =>
-      _$AudioChunkFromJson(json);
 
   /// Create from raw bytes
   factory AudioChunk.fromBytes(List<int> bytes) => AudioChunk(

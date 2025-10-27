@@ -69,6 +69,15 @@ class AudioServiceImpl implements AudioService {
       _recordingDurationStreamController.stream;
 
   @override
+  Stream<Duration> get durationStream => recordingDurationStream;
+
+  @override
+  Future<Duration?> getRecordingDuration() async {
+    if (!_isRecording) return null;
+    return _recorder.onProgress?.last.then((e) => e.duration);
+  }
+
+  @override
   Future<void> initialize(AudioConfiguration config) async {
     try {
       _currentConfiguration = config;

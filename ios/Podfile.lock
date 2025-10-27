@@ -37,11 +37,11 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_sound: b9236a5875299aaa4cef1690afd2f01d52a3f890
+  flutter_sound: 82aba29055d6feba684d08906e0623217b87bcd3
   flutter_sound_core: 427465f72d07ab8c3edbe8ffdde709ddacd3763c
-  fluttertoast: 2c67e14dce98bbdb200df9e1acf610d7a6264ea1
-  path_provider_foundation: 080d55be775b7414fd5a5ef3ac137b97b097e564
-  permission_handler_apple: 3787117e48f80715ff04a3830ca039283d6a4f29
+  fluttertoast: 21eecd6935e7064cc1fcb733a4c5a428f3f24f0f
+  path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
+  permission_handler_apple: e76247795d700c14ea09e3a2d8855d41ee80a2e6
 
 PODFILE CHECKSUM: c3f3b6f8ce595ef8576673c60b69d7205a9e28e1
 
