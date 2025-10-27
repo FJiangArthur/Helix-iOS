@@ -40,6 +40,10 @@ class BleManager {
   // Health metrics tracking
   BleHealthMetrics _healthMetrics = const BleHealthMetrics();
 
+  // Transaction history (keep last 100 transactions)
+  final List<Map<String, dynamic>> _transactionHistory = [];
+  static const int _maxHistorySize = 100;
+
   void _init() {}
 
   /// Get current health metrics
@@ -53,6 +57,41 @@ class BleManager {
   /// Get health metrics summary
   Map<String, dynamic> getHealthSummary() {
     return _healthMetrics.toSummary();
+  }
+
+  /// Get transaction history
+  List<Map<String, dynamic>> getTransactionHistory() {
+    return List.unmodifiable(_transactionHistory);
+  }
+
+  /// Clear transaction history
+  void clearTransactionHistory() {
+    _transactionHistory.clear();
+  }
+
+  /// Record a transaction in history
+  void _recordTransaction({
+    required String command,
+    required String target,
+    required bool isSuccess,
+    Duration? latency,
+    String? error,
+  }) {
+    final record = {
+      'timestamp': DateTime.now().toIso8601String(),
+      'command': command,
+      'target': target,
+      'isSuccess': isSuccess,
+      'latency': latency?.inMilliseconds,
+      'error': error,
+    };
+
+    _transactionHistory.add(record);
+
+    // Keep only last N transactions
+    if (_transactionHistory.length > _maxHistorySize) {
+      _transactionHistory.removeAt(0);
+    }
   }
 
   void startListening() {
@@ -408,8 +447,21 @@ class BleManager {
       final latency = DateTime.now().difference(startTime);
       if (result.isTimeout) {
         _instance?._healthMetrics = _instance!._healthMetrics.recordTimeout();
+        _instance?._recordTransaction(
+          command: cmd,
+          target: lr0,
+          isSuccess: false,
+          latency: latency,
+          error: 'timeout',
+        );
       } else {
         _instance?._healthMetrics = _instance!._healthMetrics.recordSuccess(latency);
+        _instance?._recordTransaction(
+          command: cmd,
+          target: lr0,
+          isSuccess: true,
+          latency: latency,
+        );
       }
     });
 
