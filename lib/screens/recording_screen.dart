@@ -47,7 +47,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
       }
       
       // Subscribe to recording duration updates
-      _durationSubscription = _audioService.recordingDurationStream.listen(
+      _durationSubscription = _audioService.durationStream.listen(
         (duration) {
           setState(() {
             _recordingDuration = duration;

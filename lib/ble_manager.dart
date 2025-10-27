@@ -5,6 +5,8 @@ import 'services/ble.dart';
 import 'services/evenai.dart';
 import 'services/proto.dart';
 import 'services/app.dart';
+import 'utils/app_logger.dart';
+import 'models/ble_health_metrics.dart';
 
 typedef SendResultParse = bool Function(Uint8List value);
 
@@ -35,7 +37,62 @@ class BleManager {
   bool isConnected = false;
   String connectionStatus = 'Not connected';
 
+  // Health metrics tracking
+  BleHealthMetrics _healthMetrics = const BleHealthMetrics();
+
+  // Transaction history (keep last 100 transactions)
+  final List<Map<String, dynamic>> _transactionHistory = [];
+  static const int _maxHistorySize = 100;
+
   void _init() {}
+
+  /// Get current health metrics
+  BleHealthMetrics getHealthMetrics() => _healthMetrics;
+
+  /// Reset health metrics
+  void resetHealthMetrics() {
+    _healthMetrics = _healthMetrics.reset();
+  }
+
+  /// Get health metrics summary
+  Map<String, dynamic> getHealthSummary() {
+    return _healthMetrics.toSummary();
+  }
+
+  /// Get transaction history
+  List<Map<String, dynamic>> getTransactionHistory() {
+    return List.unmodifiable(_transactionHistory);
+  }
+
+  /// Clear transaction history
+  void clearTransactionHistory() {
+    _transactionHistory.clear();
+  }
+
+  /// Record a transaction in history
+  void _recordTransaction({
+    required String command,
+    required String target,
+    required bool isSuccess,
+    Duration? latency,
+    String? error,
+  }) {
+    final record = {
+      'timestamp': DateTime.now().toIso8601String(),
+      'command': command,
+      'target': target,
+      'isSuccess': isSuccess,
+      'latency': latency?.inMilliseconds,
+      'error': error,
+    };
+
+    _transactionHistory.add(record);
+
+    // Keep only last N transactions
+    if (_transactionHistory.length > _maxHistorySize) {
+      _transactionHistory.removeAt(0);
+    }
+  }
 
   void startListening() {
     eventBleReceive.listen((res) {
@@ -47,7 +104,7 @@ class BleManager {
     try {
       await _channel.invokeMethod('startScan');
     } catch (e) {
-      print('Error starting scan: $e');
+      appLogger.e('Error starting scan', error: e);
     }
   }
 
@@ -55,7 +112,7 @@ class BleManager {
     try {
       await _channel.invokeMethod('stopScan');
     } catch (e) {
-      print('Error stopping scan: $e');
+      appLogger.e('Error stopping scan', error: e);
     }
   }
 
@@ -67,6 +124,16 @@ class BleManager {
       connectionStatus = 'Connecting...';
     } catch (e) {
       print('Error connecting to device: $e');
+    }
+  }
+
+  Future<void> disconnect() async {
+    try {
+      stopSendBeatHeart();
+      await _channel.invokeMethod('disconnect');
+      _onGlassesDisconnected();
+    } catch (e) {
+      print('Error disconnecting: $e');
     }
   }
 
@@ -117,6 +184,12 @@ class BleManager {
         tryTime = 0;
       }
     });
+  }
+
+  void stopSendBeatHeart() {
+    beatHeartTimer?.cancel();
+    beatHeartTimer = null;
+    tryTime = 0;
   }
 
   void _onGlassesConnecting() {
@@ -216,6 +289,7 @@ class BleManager {
       //var showData = data.length > 50 ? data.sublist(0, 50) : data;
       print("send Timeout $cmd of $timeoutMs");
       cb.complete(res);
+      // Metric recording happens in the completer.future.then() in request()
     }
 
     _reqTimeout[cmd]?.cancel();
@@ -236,6 +310,11 @@ class BleManager {
   }) async {
     BleReceive ret;
     for (var i = 0; i <= retry; i++) {
+      if (i > 0) {
+        // Record retry attempts (not for first attempt)
+        _instance?._healthMetrics = _instance!._healthMetrics.recordRetry();
+      }
+
       ret = await request(
         data,
         lr: lr,
@@ -337,6 +416,7 @@ class BleManager {
     int timeoutMs = 1000, //500,
     bool useNext = false,
   }) async {
+    final startTime = DateTime.now();
     var lr0 = lr ?? Proto.lR();
     var completer = Completer<BleReceive>();
     String cmd = "$lr0${data[0].toRadixString(16).padLeft(2, '0')}";
@@ -364,6 +444,25 @@ class BleManager {
 
     completer.future.then((result) {
       _reqTimeout.remove(cmd)?.cancel();
+      final latency = DateTime.now().difference(startTime);
+      if (result.isTimeout) {
+        _instance?._healthMetrics = _instance!._healthMetrics.recordTimeout();
+        _instance?._recordTransaction(
+          command: cmd,
+          target: lr0,
+          isSuccess: false,
+          latency: latency,
+          error: 'timeout',
+        );
+      } else {
+        _instance?._healthMetrics = _instance!._healthMetrics.recordSuccess(latency);
+        _instance?._recordTransaction(
+          command: cmd,
+          target: lr0,
+          isSuccess: true,
+          latency: latency,
+        );
+      }
     });
 
     await sendData(data, lr: lr, other: other).timeout(
@@ -373,6 +472,7 @@ class BleManager {
         var ret = BleReceive();
         ret.isTimeout = true;
         _reqListen.remove(cmd)?.complete(ret);
+        _instance?._healthMetrics = _instance!._healthMetrics.recordTimeout();
       },
     );
 
