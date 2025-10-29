@@ -6,6 +6,7 @@ import 'audio_buffer_manager.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
 import 'ai/ai_coordinator.dart';
+import 'conversation_insights.dart';
 
 /// Even AI coordinator service for conversation analysis
 /// Coordinates audio buffering, text pagination, HUD display, and AI analysis
@@ -20,6 +21,7 @@ class EvenAI {
   final _textPaginator = TextPaginator.instance;
   final _hudController = HudController.instance;
   final _aiCoordinator = AICoordinator.instance;
+  final _conversationInsights = ConversationInsights.instance;  // US 2.3
 
   static bool _isRunning = false;
   static bool get isRunning => _isRunning;
@@ -41,6 +43,9 @@ class EvenAI {
 
   /// Text stream from HUD controller
   Stream<String> get textStream => _hudController.displayTextStream;
+
+  /// Insights stream (US 2.3)
+  Stream<Map<String, dynamic>> get insightsStream => _conversationInsights.insightsStream;
   
   static RxBool isEvenAISyncing = false.obs;
   
@@ -96,6 +101,11 @@ class EvenAI {
     // Paginate text for glasses display
     _textPaginator.paginateText(text);
     _updateDisplay();
+
+    // US 2.3: Add to conversation buffer for insights
+    if (_aiCoordinator.isEnabled) {
+      _conversationInsights.addConversationText(text);
+    }
 
     // Process with AI (asynchronously, don't block display)
     if (_aiCoordinator.isEnabled) {
@@ -283,6 +293,7 @@ class EvenAI {
   void clear() {
     _audioBuffer.clear();
     _textPaginator.clear();
+    _conversationInsights.clear();  // US 2.3
     sendReplys.clear();
   }
 
@@ -318,10 +329,28 @@ class EvenAI {
     return _aiCoordinator.getStats();
   }
 
+  /// Get conversation insights (US 2.3)
+  Map<String, dynamic> getInsights() {
+    return {
+      'summary': _conversationInsights.summary,
+      'keyPoints': _conversationInsights.keyPoints,
+      'actionItems': _conversationInsights.actionItems,
+      'sentiment': _conversationInsights.sentiment,
+      'lastUpdate': _conversationInsights.lastUpdateTime?.toIso8601String(),
+      'stats': _conversationInsights.getStats(),
+    };
+  }
+
+  /// Manually trigger insights generation (US 2.3)
+  Future<void> generateInsights() async {
+    await _conversationInsights.generateInsights();
+  }
+
   /// Dispose resources
   void dispose() {
     _hudController.dispose();
     _audioBuffer.dispose();
     _aiCoordinator.dispose();
+    _conversationInsights.dispose();  // US 2.3
   }
 }
