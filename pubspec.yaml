@@ -34,6 +34,12 @@ dependencies:
   # Utilities
   crclib: ^3.0.0
 
+  # HTTP Client (for AI providers and Whisper API)
+  http: ^1.2.0
+
+  # Network Connectivity Detection (for transcription mode auto-switching)
+  connectivity_plus: ^6.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
