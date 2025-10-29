@@ -103,13 +103,26 @@ class EvenAI {
     }
   }
 
-  /// Process text with AI analysis
+  /// Process text with AI analysis (US 2.2: Enhanced with claim detection)
   /// Runs asynchronously to avoid blocking HUD updates
   void _processWithAI(String text) async {
     try {
       final results = await _aiCoordinator.analyzeText(text);
 
-      // Display fact-check result
+      // US 2.2: Handle claim detection results
+      if (results.containsKey('claimDetection')) {
+        final claimDetection = results['claimDetection'] as Map<String, dynamic>;
+        final isClaim = claimDetection['isClaim'] as bool? ?? false;
+        final confidence = claimDetection['confidence'] as double? ?? 0.0;
+
+        // Only display fact-check if it's actually a claim
+        if (!isClaim || confidence < 0.6) {
+          // Not a claim - no need to display fact-check icon
+          return;
+        }
+      }
+
+      // Display fact-check result (only shown if claim detected)
       if (results.containsKey('factCheck') && !results.containsKey('error')) {
         final factCheck = results['factCheck'] as Map<String, dynamic>;
         _displayFactCheckResult(factCheck);
@@ -125,17 +138,33 @@ class EvenAI {
     }
   }
 
-  /// Display fact-check result on HUD
+  /// Display fact-check result on HUD (US 2.2: Enhanced with better icons)
   void _displayFactCheckResult(Map<String, dynamic> result) {
     final isTrue = result['isTrue'] as bool?;
     final confidence = result['confidence'] as double?;
 
-    if (isTrue != null && confidence != null && confidence > 0.7) {
-      final icon = isTrue ? '✓' : '✗';
-      final currentText = _textPaginator.currentPageText;
-      final withFactCheck = '$icon $currentText';
-      _hudController.updateDisplay(withFactCheck);
+    if (isTrue == null || confidence == null) return;
+
+    // US 2.2: Enhanced display with confidence-based icons
+    String icon;
+    if (confidence > 0.8) {
+      // High confidence: strong indicators
+      icon = isTrue ? '✅' : '❌';
+    } else if (confidence > 0.6) {
+      // Medium confidence: moderate indicators
+      icon = isTrue ? '✓' : '✗';
+    } else {
+      // Low confidence: uncertain indicator
+      icon = '❓';
     }
+
+    // Prepend icon to current text
+    final currentText = _textPaginator.currentPageText;
+    final withFactCheck = '$icon $currentText';
+    _hudController.updateDisplay(withFactCheck);
+
+    // Log for debugging
+    print("Fact-check: ${isTrue ? 'TRUE' : 'FALSE'} (confidence: ${(confidence * 100).toStringAsFixed(0)}%)");
   }
 
   /// Display sentiment result (for future use)
@@ -267,16 +296,20 @@ class EvenAI {
     }
   }
 
-  /// Configure AI features
+  /// Configure AI features (US 2.2: Added claim detection options)
   void configureAI({
     bool? enabled,
     bool? factCheck,
     bool? sentiment,
+    bool? claimDetection,
+    double? claimThreshold,
   }) {
     _aiCoordinator.configure(
       enabled: enabled,
       factCheck: factCheck,
       sentiment: sentiment,
+      claimDetection: claimDetection,
+      claimThreshold: claimThreshold,
     );
   }
 

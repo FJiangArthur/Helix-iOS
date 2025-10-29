@@ -35,6 +35,10 @@ abstract class BaseAIProvider {
   /// Returns a map with: summary (String), keyPoints (List<String>)
   Future<Map<String, dynamic>> summarize(String text, {int maxWords = 200});
 
+  /// Detect if text contains a factual claim worth fact-checking
+  /// Returns a map with: isClaim (bool), confidence (double), extractedClaim (String)
+  Future<Map<String, dynamic>> detectClaim(String text);
+
   /// Validate the API key
   Future<bool> validateApiKey(String apiKey);
 

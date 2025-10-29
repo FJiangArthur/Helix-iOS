@@ -199,6 +199,74 @@ class OpenAIProvider implements BaseAIProvider {
   }
 
   @override
+  Future<Map<String, dynamic>> detectClaim(String text) async {
+    final systemPrompt = '''You are a claim detector. Determine if the text contains a factual claim worth fact-checking.
+
+A factual claim is:
+- A statement presented as fact (not opinion or question)
+- Verifiable (can be checked for accuracy)
+- Specific enough to evaluate
+
+NOT a factual claim:
+- Questions ("How are you?")
+- Greetings ("Hello", "Thanks")
+- Opinions ("I think...", "Maybe...")
+- Commands ("Please do this")
+- Vague statements ("Things are good")
+
+Respond in JSON format with keys:
+- isClaim (boolean): true if text contains a factual claim
+- confidence (number 0-1): how confident you are
+- extractedClaim (string): the specific claim if found, or empty string''';
+
+    final prompt = 'Text: "$text"';
+
+    final response = await complete(
+      prompt,
+      systemPrompt: systemPrompt,
+      temperature: 0.2,  // Low temperature for consistent detection
+      maxTokens: 150,    // Keep it fast
+    );
+
+    try {
+      final json = jsonDecode(response);
+      return {
+        'isClaim': json['isClaim'] as bool,
+        'confidence': (json['confidence'] as num).toDouble(),
+        'extractedClaim': json['extractedClaim'] as String,
+      };
+    } catch (e) {
+      // Fallback: conservative detection
+      final lowerText = text.toLowerCase().trim();
+
+      // Quick pattern matching for obvious non-claims
+      final nonClaimPatterns = [
+        r'^(hello|hi|hey|thanks|thank you)',  // Greetings
+        r'\?$',                                // Questions
+        r'^(i think|maybe|perhaps|probably)',  // Opinions
+        r'^(please|can you|could you)',       // Commands
+      ];
+
+      for (final pattern in nonClaimPatterns) {
+        if (RegExp(pattern).hasMatch(lowerText)) {
+          return {
+            'isClaim': false,
+            'confidence': 0.9,
+            'extractedClaim': '',
+          };
+        }
+      }
+
+      // If unsure, assume it might be a claim (err on the side of checking)
+      return {
+        'isClaim': true,
+        'confidence': 0.5,
+        'extractedClaim': text,
+      };
+    }
+  }
+
+  @override
   Future<bool> validateApiKey(String apiKey) async {
     try {
       final response = await http.get(

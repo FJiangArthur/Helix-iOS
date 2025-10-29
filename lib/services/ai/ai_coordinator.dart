@@ -18,6 +18,8 @@ class AICoordinator {
   bool _isEnabled = false;
   bool _factCheckEnabled = true;
   bool _sentimentEnabled = true;
+  bool _claimDetectionEnabled = true;  // US 2.2: Enhanced fact-checking
+  double _claimConfidenceThreshold = 0.6;  // Only check claims with >60% confidence
 
   // Simple cache
   final Map<String, Map<String, dynamic>> _cache = {};
@@ -30,6 +32,7 @@ class AICoordinator {
   bool get isEnabled => _isEnabled;
   bool get factCheckEnabled => _factCheckEnabled;
   bool get sentimentEnabled => _sentimentEnabled;
+  bool get claimDetectionEnabled => _claimDetectionEnabled;
 
   /// Initialize AI coordinator with OpenAI API key
   Future<void> initialize(String openAIApiKey) async {
@@ -43,13 +46,17 @@ class AICoordinator {
     bool? enabled,
     bool? factCheck,
     bool? sentiment,
+    bool? claimDetection,
+    double? claimThreshold,
   }) {
     if (enabled != null) _isEnabled = enabled;
     if (factCheck != null) _factCheckEnabled = factCheck;
     if (sentiment != null) _sentimentEnabled = sentiment;
+    if (claimDetection != null) _claimDetectionEnabled = claimDetection;
+    if (claimThreshold != null) _claimConfidenceThreshold = claimThreshold;
   }
 
-  /// Process text with AI analysis
+  /// Process text with AI analysis (US 2.2: Enhanced with claim detection)
   /// Returns a map with factCheck and sentiment results
   Future<Map<String, dynamic>> analyzeText(String text) async {
     if (!_isEnabled || _currentProvider == null) {
@@ -59,17 +66,48 @@ class AICoordinator {
     final results = <String, dynamic>{};
 
     try {
-      // Fact-checking
-      if (_factCheckEnabled) {
+      // US 2.2: Claim detection pipeline
+      if (_factCheckEnabled && _claimDetectionEnabled) {
+        // Check cache for claim detection
+        final claimCacheKey = 'claim:$text';
+        Map<String, dynamic>? claimResult;
+
+        if (_cache.containsKey(claimCacheKey)) {
+          claimResult = _cache[claimCacheKey];
+        } else if (_checkRateLimit()) {
+          claimResult = await _currentProvider!.detectClaim(text);
+          _addToCache(claimCacheKey, claimResult);
+        }
+
+        // Only fact-check if it's a claim with sufficient confidence
+        if (claimResult != null) {
+          final isClaim = claimResult['isClaim'] as bool? ?? false;
+          final confidence = claimResult['confidence'] as double? ?? 0.0;
+          final extractedClaim = claimResult['extractedClaim'] as String? ?? text;
+
+          results['claimDetection'] = claimResult;
+
+          if (isClaim && confidence >= _claimConfidenceThreshold) {
+            // Fact-check the extracted claim
+            final factCacheKey = 'fact:$extractedClaim';
+            if (_cache.containsKey(factCacheKey)) {
+              results['factCheck'] = _cache[factCacheKey];
+            } else if (_checkRateLimit()) {
+              final factCheck = await _currentProvider!.factCheck(extractedClaim);
+              results['factCheck'] = factCheck;
+              _addToCache(factCacheKey, factCheck);
+            }
+          }
+        }
+      } else if (_factCheckEnabled && !_claimDetectionEnabled) {
+        // Original behavior: fact-check everything
         final cacheKey = 'fact:$text';
         if (_cache.containsKey(cacheKey)) {
           results['factCheck'] = _cache[cacheKey];
-        } else {
-          if (_checkRateLimit()) {
-            final factCheck = await _currentProvider!.factCheck(text);
-            results['factCheck'] = factCheck;
-            _addToCache(cacheKey, factCheck);
-          }
+        } else if (_checkRateLimit()) {
+          final factCheck = await _currentProvider!.factCheck(text);
+          results['factCheck'] = factCheck;
+          _addToCache(cacheKey, factCheck);
         }
       }
 
@@ -78,12 +116,10 @@ class AICoordinator {
         final cacheKey = 'sentiment:$text';
         if (_cache.containsKey(cacheKey)) {
           results['sentiment'] = _cache[cacheKey];
-        } else {
-          if (_checkRateLimit()) {
-            final sentiment = await _currentProvider!.analyzeSentiment(text);
-            results['sentiment'] = sentiment;
-            _addToCache(cacheKey, sentiment);
-          }
+        } else if (_checkRateLimit()) {
+          final sentiment = await _currentProvider!.analyzeSentiment(text);
+          results['sentiment'] = sentiment;
+          _addToCache(cacheKey, sentiment);
         }
       }
 
