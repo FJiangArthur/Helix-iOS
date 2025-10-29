@@ -5,9 +5,10 @@ import '../ble_manager.dart';
 import 'audio_buffer_manager.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
+import 'ai/ai_coordinator.dart';
 
 /// Even AI coordinator service for conversation analysis
-/// Coordinates audio buffering, text pagination, and HUD display
+/// Coordinates audio buffering, text pagination, HUD display, and AI analysis
 class EvenAI {
   static EvenAI? _instance;
   static EvenAI get get => _instance ??= EvenAI._();
@@ -18,6 +19,7 @@ class EvenAI {
   final _audioBuffer = AudioBufferManager.instance;
   final _textPaginator = TextPaginator.instance;
   final _hudController = HudController.instance;
+  final _aiCoordinator = AICoordinator.instance;
 
   static bool _isRunning = false;
   static bool get isRunning => _isRunning;
@@ -94,6 +96,56 @@ class EvenAI {
     // Paginate text for glasses display
     _textPaginator.paginateText(text);
     _updateDisplay();
+
+    // Process with AI (asynchronously, don't block display)
+    if (_aiCoordinator.isEnabled) {
+      _processWithAI(text);
+    }
+  }
+
+  /// Process text with AI analysis
+  /// Runs asynchronously to avoid blocking HUD updates
+  void _processWithAI(String text) async {
+    try {
+      final results = await _aiCoordinator.analyzeText(text);
+
+      // Display fact-check result
+      if (results.containsKey('factCheck') && !results.containsKey('error')) {
+        final factCheck = results['factCheck'] as Map<String, dynamic>;
+        _displayFactCheckResult(factCheck);
+      }
+
+      // Display sentiment result
+      if (results.containsKey('sentiment') && !results.containsKey('error')) {
+        final sentiment = results['sentiment'] as Map<String, dynamic>;
+        _displaySentimentResult(sentiment);
+      }
+    } catch (e) {
+      print("AI processing error: $e");
+    }
+  }
+
+  /// Display fact-check result on HUD
+  void _displayFactCheckResult(Map<String, dynamic> result) {
+    final isTrue = result['isTrue'] as bool?;
+    final confidence = result['confidence'] as double?;
+
+    if (isTrue != null && confidence != null && confidence > 0.7) {
+      final icon = isTrue ? '✓' : '✗';
+      final currentText = _textPaginator.currentPageText;
+      final withFactCheck = '$icon $currentText';
+      _hudController.updateDisplay(withFactCheck);
+    }
+  }
+
+  /// Display sentiment result (for future use)
+  void _displaySentimentResult(Map<String, dynamic> result) {
+    final sentiment = result['sentiment'] as String?;
+    final score = result['score'] as double?;
+
+    // Could display sentiment indicator on HUD
+    // For now, just log it
+    print("Sentiment: $sentiment (${score?.toStringAsFixed(2)})");
   }
   
   /// Receiving starting Even AI request from BLE
@@ -205,9 +257,38 @@ class EvenAI {
     sendReplys.clear();
   }
 
+  /// Initialize AI features with API key
+  Future<void> initializeAI(String openAIApiKey) async {
+    try {
+      await _aiCoordinator.initialize(openAIApiKey);
+      print("AI features initialized successfully");
+    } catch (e) {
+      print("Failed to initialize AI: $e");
+    }
+  }
+
+  /// Configure AI features
+  void configureAI({
+    bool? enabled,
+    bool? factCheck,
+    bool? sentiment,
+  }) {
+    _aiCoordinator.configure(
+      enabled: enabled,
+      factCheck: factCheck,
+      sentiment: sentiment,
+    );
+  }
+
+  /// Get AI statistics
+  Map<String, dynamic> getAIStats() {
+    return _aiCoordinator.getStats();
+  }
+
   /// Dispose resources
   void dispose() {
     _hudController.dispose();
     _audioBuffer.dispose();
+    _aiCoordinator.dispose();
   }
 }
