@@ -16,6 +16,27 @@
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		9EB3FDF2C62CCE0C546124FB /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F87A0947B1F639832528FD7F /* Pods_RunnerTests.framework */; };
 		B8EF73A4598341FBF09B8038 /* Pods_Runner.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5B751CAB5D5F07D84D4016F1 /* Pods_Runner.framework */; };
+		DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */; };
+		DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */; };
+		DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD502E52F4A900220CE1 /* GattProtocal.swift */; };
+		DA91AD5C2E52F4A900220CE1 /* PcmConverter.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD522E52F4A900220CE1 /* PcmConverter.m */; };
+		DA91AD5D2E52F4A900220CE1 /* DebugHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */; };
+		DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */; };
+		DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD572E52F4A900220CE1 /* TestRecording.swift */; };
+		DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD722E52F4C500220CE1 /* makefile.mk */; };
+		DA91AD842E52F4C500220CE1 /* meson.build in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD762E52F4C500220CE1 /* meson.build */; };
+		DA91AD852E52F4C500220CE1 /* lc3.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6B2E52F4C500220CE1 /* lc3.c */; };
+		DA91AD862E52F4C500220CE1 /* bits.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD632E52F4C500220CE1 /* bits.c */; };
+		DA91AD872E52F4C500220CE1 /* attdet.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD612E52F4C500220CE1 /* attdet.c */; };
+		DA91AD882E52F4C500220CE1 /* bwdet.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD652E52F4C500220CE1 /* bwdet.c */; };
+		DA91AD892E52F4C500220CE1 /* plc.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD782E52F4C500220CE1 /* plc.c */; };
+		DA91AD8A2E52F4C500220CE1 /* tables.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD7F2E52F4C500220CE1 /* tables.c */; };
+		DA91AD8B2E52F4C500220CE1 /* mdct.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD742E52F4C500220CE1 /* mdct.c */; };
+		DA91AD8C2E52F4C500220CE1 /* spec.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD7D2E52F4C500220CE1 /* spec.c */; };
+		DA91AD8D2E52F4C500220CE1 /* energy.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD682E52F4C500220CE1 /* energy.c */; };
+		DA91AD8E2E52F4C500220CE1 /* tns.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD812E52F4C500220CE1 /* tns.c */; };
+		DA91AD8F2E52F4C500220CE1 /* sns.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD7B2E52F4C500220CE1 /* sns.c */; };
+		DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6F2E52F4C500220CE1 /* ltpf.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -64,6 +85,48 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9F6A72620AAA82AB3EEF18C8 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		AAA07B27B9E95382CFD69B01 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
+		DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHelper.swift; sourceTree = "<group>"; };
+		DA91AD502E52F4A900220CE1 /* GattProtocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GattProtocal.swift; sourceTree = "<group>"; };
+		DA91AD512E52F4A900220CE1 /* PcmConverter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PcmConverter.h; sourceTree = "<group>"; };
+		DA91AD522E52F4A900220CE1 /* PcmConverter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PcmConverter.m; sourceTree = "<group>"; };
+		DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceIdentifiers.swift; sourceTree = "<group>"; };
+		DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechStreamRecognizer.swift; sourceTree = "<group>"; };
+		DA91AD572E52F4A900220CE1 /* TestRecording.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestRecording.swift; sourceTree = "<group>"; };
+		DA91AD602E52F4C500220CE1 /* attdet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = attdet.h; sourceTree = "<group>"; };
+		DA91AD612E52F4C500220CE1 /* attdet.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = attdet.c; sourceTree = "<group>"; };
+		DA91AD622E52F4C500220CE1 /* bits.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bits.h; sourceTree = "<group>"; };
+		DA91AD632E52F4C500220CE1 /* bits.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bits.c; sourceTree = "<group>"; };
+		DA91AD642E52F4C500220CE1 /* bwdet.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = bwdet.h; sourceTree = "<group>"; };
+		DA91AD652E52F4C500220CE1 /* bwdet.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = bwdet.c; sourceTree = "<group>"; };
+		DA91AD662E52F4C500220CE1 /* common.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = common.h; sourceTree = "<group>"; };
+		DA91AD672E52F4C500220CE1 /* energy.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = energy.h; sourceTree = "<group>"; };
+		DA91AD682E52F4C500220CE1 /* energy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = energy.c; sourceTree = "<group>"; };
+		DA91AD692E52F4C500220CE1 /* fastmath.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = fastmath.h; sourceTree = "<group>"; };
+		DA91AD6A2E52F4C500220CE1 /* lc3.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lc3.h; sourceTree = "<group>"; };
+		DA91AD6B2E52F4C500220CE1 /* lc3.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = lc3.c; sourceTree = "<group>"; };
+		DA91AD6C2E52F4C500220CE1 /* lc3_cpp.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lc3_cpp.h; sourceTree = "<group>"; };
+		DA91AD6D2E52F4C500220CE1 /* lc3_private.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = lc3_private.h; sourceTree = "<group>"; };
+		DA91AD6E2E52F4C500220CE1 /* ltpf.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ltpf.h; sourceTree = "<group>"; };
+		DA91AD6F2E52F4C500220CE1 /* ltpf.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = ltpf.c; sourceTree = "<group>"; };
+		DA91AD702E52F4C500220CE1 /* ltpf_arm.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ltpf_arm.h; sourceTree = "<group>"; };
+		DA91AD712E52F4C500220CE1 /* ltpf_neon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ltpf_neon.h; sourceTree = "<group>"; };
+		DA91AD722E52F4C500220CE1 /* makefile.mk */ = {isa = PBXFileReference; lastKnownFileType = text; path = makefile.mk; sourceTree = "<group>"; };
+		DA91AD732E52F4C500220CE1 /* mdct.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mdct.h; sourceTree = "<group>"; };
+		DA91AD742E52F4C500220CE1 /* mdct.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = mdct.c; sourceTree = "<group>"; };
+		DA91AD752E52F4C500220CE1 /* mdct_neon.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = mdct_neon.h; sourceTree = "<group>"; };
+		DA91AD762E52F4C500220CE1 /* meson.build */ = {isa = PBXFileReference; lastKnownFileType = text; path = meson.build; sourceTree = "<group>"; };
+		DA91AD772E52F4C500220CE1 /* plc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = plc.h; sourceTree = "<group>"; };
+		DA91AD782E52F4C500220CE1 /* plc.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = plc.c; sourceTree = "<group>"; };
+		DA91AD792E52F4C500220CE1 /* rnnoise.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = rnnoise.h; sourceTree = "<group>"; };
+		DA91AD7A2E52F4C500220CE1 /* sns.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sns.h; sourceTree = "<group>"; };
+		DA91AD7B2E52F4C500220CE1 /* sns.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = sns.c; sourceTree = "<group>"; };
+		DA91AD7C2E52F4C500220CE1 /* spec.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = spec.h; sourceTree = "<group>"; };
+		DA91AD7D2E52F4C500220CE1 /* spec.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = spec.c; sourceTree = "<group>"; };
+		DA91AD7E2E52F4C500220CE1 /* tables.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tables.h; sourceTree = "<group>"; };
+		DA91AD7F2E52F4C500220CE1 /* tables.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tables.c; sourceTree = "<group>"; };
+		DA91AD802E52F4C500220CE1 /* tns.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = tns.h; sourceTree = "<group>"; };
+		DA91AD812E52F4C500220CE1 /* tns.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tns.c; sourceTree = "<group>"; };
 		F87A0947B1F639832528FD7F /* Pods_RunnerTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_RunnerTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -139,6 +202,15 @@
 		97C146F01CF9000F007C117D /* Runner */ = {
 			isa = PBXGroup;
 			children = (
+				DA91AD822E52F4C500220CE1 /* lc3 */,
+				DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */,
+				DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */,
+				DA91AD502E52F4A900220CE1 /* GattProtocal.swift */,
+				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
+				DA91AD522E52F4A900220CE1 /* PcmConverter.m */,
+				DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */,
+				DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */,
+				DA91AD572E52F4A900220CE1 /* TestRecording.swift */,
 				97C146FA1CF9000F007C117D /* Main.storyboard */,
 				97C146FD1CF9000F007C117D /* Assets.xcassets */,
 				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
@@ -161,8 +233,48 @@
 				4C424B4DDB9608CCD14688C7 /* Pods-RunnerTests.release.xcconfig */,
 				7FDA0F4FF95CE4D8781C56A2 /* Pods-RunnerTests.profile.xcconfig */,
 			);
-			name = Pods;
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		DA91AD822E52F4C500220CE1 /* lc3 */ = {
+			isa = PBXGroup;
+			children = (
+				DA91AD602E52F4C500220CE1 /* attdet.h */,
+				DA91AD612E52F4C500220CE1 /* attdet.c */,
+				DA91AD622E52F4C500220CE1 /* bits.h */,
+				DA91AD632E52F4C500220CE1 /* bits.c */,
+				DA91AD642E52F4C500220CE1 /* bwdet.h */,
+				DA91AD652E52F4C500220CE1 /* bwdet.c */,
+				DA91AD662E52F4C500220CE1 /* common.h */,
+				DA91AD672E52F4C500220CE1 /* energy.h */,
+				DA91AD682E52F4C500220CE1 /* energy.c */,
+				DA91AD692E52F4C500220CE1 /* fastmath.h */,
+				DA91AD6A2E52F4C500220CE1 /* lc3.h */,
+				DA91AD6B2E52F4C500220CE1 /* lc3.c */,
+				DA91AD6C2E52F4C500220CE1 /* lc3_cpp.h */,
+				DA91AD6D2E52F4C500220CE1 /* lc3_private.h */,
+				DA91AD6E2E52F4C500220CE1 /* ltpf.h */,
+				DA91AD6F2E52F4C500220CE1 /* ltpf.c */,
+				DA91AD702E52F4C500220CE1 /* ltpf_arm.h */,
+				DA91AD712E52F4C500220CE1 /* ltpf_neon.h */,
+				DA91AD722E52F4C500220CE1 /* makefile.mk */,
+				DA91AD732E52F4C500220CE1 /* mdct.h */,
+				DA91AD742E52F4C500220CE1 /* mdct.c */,
+				DA91AD752E52F4C500220CE1 /* mdct_neon.h */,
+				DA91AD762E52F4C500220CE1 /* meson.build */,
+				DA91AD772E52F4C500220CE1 /* plc.h */,
+				DA91AD782E52F4C500220CE1 /* plc.c */,
+				DA91AD792E52F4C500220CE1 /* rnnoise.h */,
+				DA91AD7A2E52F4C500220CE1 /* sns.h */,
+				DA91AD7B2E52F4C500220CE1 /* sns.c */,
+				DA91AD7C2E52F4C500220CE1 /* spec.h */,
+				DA91AD7D2E52F4C500220CE1 /* spec.c */,
+				DA91AD7E2E52F4C500220CE1 /* tables.h */,
+				DA91AD7F2E52F4C500220CE1 /* tables.c */,
+				DA91AD802E52F4C500220CE1 /* tns.h */,
+				DA91AD812E52F4C500220CE1 /* tns.c */,
+			);
+			path = lc3;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -264,6 +376,8 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
+				DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */,
+				DA91AD842E52F4C500220CE1 /* meson.build in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -378,7 +492,26 @@
 			buildActionMask = 2147483647;
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				DA91AD852E52F4C500220CE1 /* lc3.c in Sources */,
+				DA91AD862E52F4C500220CE1 /* bits.c in Sources */,
+				DA91AD872E52F4C500220CE1 /* attdet.c in Sources */,
+				DA91AD882E52F4C500220CE1 /* bwdet.c in Sources */,
+				DA91AD892E52F4C500220CE1 /* plc.c in Sources */,
+				DA91AD8A2E52F4C500220CE1 /* tables.c in Sources */,
+				DA91AD8B2E52F4C500220CE1 /* mdct.c in Sources */,
+				DA91AD8C2E52F4C500220CE1 /* spec.c in Sources */,
+				DA91AD8D2E52F4C500220CE1 /* energy.c in Sources */,
+				DA91AD8E2E52F4C500220CE1 /* tns.c in Sources */,
+				DA91AD8F2E52F4C500220CE1 /* sns.c in Sources */,
+				DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */,
+				DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */,
+				DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */,
+				DA91AD5C2E52F4A900220CE1 /* PcmConverter.m in Sources */,
+				DA91AD5D2E52F4A900220CE1 /* DebugHelper.swift in Sources */,
+				DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */,
+				DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,6 +569,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -455,9 +589,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
@@ -471,14 +606,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = 8P9N7B6QE8;
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix;
+				PRODUCT_BUNDLE_IDENTIFIER = com.helix.hololens;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -495,7 +630,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.hololens.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -513,7 +648,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.hololens.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -529,7 +664,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix.RunnerTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.hololens.RunnerTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Runner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Runner";
@@ -560,6 +695,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -585,10 +721,11 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -617,6 +754,7 @@
 				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
 				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
 				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
 				CLANG_WARN_STRICT_PROTOTYPES = YES;
 				CLANG_WARN_SUSPICIOUS_MOVE = YES;
@@ -636,9 +774,10 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTED_PLATFORMS = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
@@ -654,14 +793,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = 8P9N7B6QE8;
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix;
+				PRODUCT_BUNDLE_IDENTIFIER = com.helix.hololens;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -677,14 +816,14 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = 8P9N7B6QE8;
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.evenrealities.flutterHelix;
+				PRODUCT_BUNDLE_IDENTIFIER = com.helix.hololens;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;

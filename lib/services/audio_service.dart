@@ -25,12 +25,15 @@ abstract class AudioService {
   
   /// Stream of voice activity detection updates
   Stream<bool> get voiceActivityStream;
-  
-  /// Stream of recording duration updates
-  Stream<Duration> get recordingDurationStream;
+
+  /// Stream of recording duration updates (alias for backward compatibility)
+  Stream<Duration> get durationStream;
 
   /// Initialize the audio service with configuration
   Future<void> initialize(AudioConfiguration config);
+
+  /// Get current recording duration
+  Future<Duration?> getRecordingDuration();
 
   /// Request audio permission from the user
   Future<bool> requestPermission();
