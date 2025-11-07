@@ -2,10 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Flutter Helix</string>
+	<string>Hololens</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -13,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>flutter_helix</string>
+	<string>Hololens</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,9 +26,25 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Helix needs Bluetooth access to connect to Even Realities G1 glasses for real-time AI assistance.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Helix needs Bluetooth access to communicate with Even Realities G1 glasses.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Helix needs microphone access to record audio.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Helix needs speech recognition to transcribe conversations for AI analysis.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISceneStoryboardFile</key>
 	<string>Main</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -41,64 +59,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-	
-	<!-- iOS 26 beta compatibility settings -->
-	<key>UISceneStoryboardFile</key>
-	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>arm64</string>
-	</array>
-	
-	<!-- Permissions for Helix app functionality -->
-	<!-- Audio Recording -->
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Helix needs microphone access to transcribe conversations and provide real-time AI analysis on your Even Realities glasses.</string>
-	
-	<!-- Speech Recognition -->
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Helix uses speech recognition to provide real-time transcription and AI-powered conversation insights.</string>
-	
-	<!-- Bluetooth for Even Realities Glasses -->
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Helix needs Bluetooth access to connect to your Even Realities smart glasses and display AI insights on the HUD.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Helix connects to Even Realities smart glasses via Bluetooth to provide real-time conversation analysis and HUD display.</string>
-	
-	<!-- Background Processing -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>background-processing</string>
-		<string>bluetooth-central</string>
-		<string>audio</string>
-	</array>
-	
-	<!-- App Transport Security -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>api.openai.com</key>
-			<dict>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-			<key>api.anthropic.com</key>
-			<dict>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-			</dict>
-		</dict>
-	</dict>
 </dict>
 </plist>

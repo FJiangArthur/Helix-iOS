@@ -1,4 +1,3 @@
-
 .vscode/settings.json
 
 # Miscellaneous
@@ -46,3 +45,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/ios/build/*

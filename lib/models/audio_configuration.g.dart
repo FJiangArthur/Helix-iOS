@@ -68,18 +68,15 @@ const _$AudioFormatEnumMap = {
 _$AudioCapabilitiesImpl _$$AudioCapabilitiesImplFromJson(
   Map<String, dynamic> json,
 ) => _$AudioCapabilitiesImpl(
-  supportedSampleRates:
-      (json['supportedSampleRates'] as List<dynamic>)
-          .map((e) => (e as num).toInt())
-          .toList(),
-  supportedChannels:
-      (json['supportedChannels'] as List<dynamic>)
-          .map((e) => (e as num).toInt())
-          .toList(),
-  supportedFormats:
-      (json['supportedFormats'] as List<dynamic>)
-          .map((e) => $enumDecode(_$AudioFormatEnumMap, e))
-          .toList(),
+  supportedSampleRates: (json['supportedSampleRates'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  supportedChannels: (json['supportedChannels'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
+  supportedFormats: (json['supportedFormats'] as List<dynamic>)
+      .map((e) => $enumDecode(_$AudioFormatEnumMap, e))
+      .toList(),
   supportsNoiseReduction: json['supportsNoiseReduction'] as bool? ?? false,
   supportsEchoCancellation: json['supportsEchoCancellation'] as bool? ?? false,
   supportsAutomaticGainControl:
@@ -88,10 +85,9 @@ _$AudioCapabilitiesImpl _$$AudioCapabilitiesImplFromJson(
       json['supportsVoiceActivityDetection'] as bool? ?? false,
   maxGainLevel: (json['maxGainLevel'] as num?)?.toDouble() ?? 2.0,
   minGainLevel: (json['minGainLevel'] as num?)?.toDouble() ?? 0.0,
-  availableBufferSizes:
-      (json['availableBufferSizes'] as List<dynamic>)
-          .map((e) => (e as num).toInt())
-          .toList(),
+  availableBufferSizes: (json['availableBufferSizes'] as List<dynamic>)
+      .map((e) => (e as num).toInt())
+      .toList(),
 );
 
 Map<String, dynamic> _$$AudioCapabilitiesImplToJson(
@@ -99,8 +95,9 @@ Map<String, dynamic> _$$AudioCapabilitiesImplToJson(
 ) => <String, dynamic>{
   'supportedSampleRates': instance.supportedSampleRates,
   'supportedChannels': instance.supportedChannels,
-  'supportedFormats':
-      instance.supportedFormats.map((e) => _$AudioFormatEnumMap[e]!).toList(),
+  'supportedFormats': instance.supportedFormats
+      .map((e) => _$AudioFormatEnumMap[e]!)
+      .toList(),
   'supportsNoiseReduction': instance.supportsNoiseReduction,
   'supportsEchoCancellation': instance.supportsEchoCancellation,
   'supportsAutomaticGainControl': instance.supportsAutomaticGainControl,
