@@ -1,0 +1,119 @@
+name: macOS Build
+
+on:
+  push:
+    branches: [ "main", "develop", "claude/**" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    name: Build macOS App
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Enable macOS desktop support
+        run: flutter config --enable-macos-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Build macOS app (Debug)
+        run: |
+          flutter build macos --debug
+
+      - name: Build macOS app (Release)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        run: |
+          flutter build macos --release
+
+      # Uncomment when you have macOS signing configured
+      # - name: Import Code Signing Certificates
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   uses: apple-actions/import-codesign-certs@v2
+      #   with:
+      #     p12-file-base64: ${{ secrets.MACOS_P12_BASE64 }}
+      #     p12-password: ${{ secrets.MACOS_P12_PASSWORD }}
+
+      # - name: Build macOS app (Signed)
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     flutter build macos --release
+      #     codesign --force --sign "${{ secrets.MACOS_SIGNING_IDENTITY }}" --options runtime --deep build/macos/Build/Products/Release/flutter_helix.app
+
+      # - name: Create DMG
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     brew install create-dmg
+      #     create-dmg \
+      #       --volname "Helix" \
+      #       --window-pos 200 120 \
+      #       --window-size 800 400 \
+      #       --icon-size 100 \
+      #       --icon "flutter_helix.app" 200 190 \
+      #       --hide-extension "flutter_helix.app" \
+      #       --app-drop-link 600 185 \
+      #       "Helix-Installer.dmg" \
+      #       "build/macos/Build/Products/Release/flutter_helix.app"
+
+      # - name: Notarize macOS app
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     xcrun notarytool submit Helix-Installer.dmg \
+      #       --apple-id "${{ secrets.APPLE_ID }}" \
+      #       --password "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" \
+      #       --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+      #       --wait
+      #     xcrun stapler staple Helix-Installer.dmg
+
+      - name: Upload macOS app artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-app-artifacts
+          path: |
+            build/macos/Build/Products/**/*.app
+          retention-days: 7
+
+      - name: Upload DMG (if created)
+        if: always() && hashFiles('*.dmg') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg-installer
+          path: |
+            *.dmg
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-test-results
+          path: test-results/
+          retention-days: 7
