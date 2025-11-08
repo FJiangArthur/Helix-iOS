@@ -1,0 +1,114 @@
+name: Android Build
+
+on:
+  push:
+    branches: [ "main", "develop", "claude/**" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Build Android App
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Build Android APK (Debug)
+        run: flutter build apk --debug
+
+      - name: Build Android App Bundle (Release - Unsigned)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        run: flutter build appbundle --release
+
+      - name: Build Android APK (Release - Unsigned)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        run: flutter build apk --release
+
+      # Uncomment when you have Play Store signing configured
+      # - name: Decode Keystore
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/release-keystore.jks
+
+      # - name: Create key.properties
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" > android/key.properties
+      #     echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> android/key.properties
+      #     echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> android/key.properties
+      #     echo "storeFile=release-keystore.jks" >> android/key.properties
+
+      # - name: Build Android App Bundle (Signed)
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: flutter build appbundle --release
+
+      # - name: Upload to Play Store
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.evenrealities.flutter_helix
+      #     releaseFiles: build/app/outputs/bundle/release/app-release.aab
+      #     track: internal
+      #     status: draft
+
+      - name: Upload APK artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-artifacts
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+          retention-days: 7
+
+      - name: Upload AAB artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab-artifacts
+          path: |
+            build/app/outputs/bundle/**/*.aab
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
+          path: test-results/
+          retention-days: 7

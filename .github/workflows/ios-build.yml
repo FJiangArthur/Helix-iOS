@@ -1,0 +1,107 @@
+name: iOS Build
+
+on:
+  push:
+    branches: [ "main", "develop", "claude/**" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze code
+        run: flutter analyze
+
+      - name: Check formatting
+        run: dart format --set-exit-if-changed .
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios
+        run: |
+          pod install --repo-update
+
+      - name: Build iOS app (Debug)
+        run: |
+          flutter build ios --debug --no-codesign
+        env:
+          FLUTTER_BUILD_MODE: debug
+
+      - name: Build iOS app (Release - No Codesign)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        run: |
+          flutter build ios --release --no-codesign
+        env:
+          FLUTTER_BUILD_MODE: release
+
+      # Uncomment when you have signing certificates configured
+      # - name: Import Code Signing Certificates
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   uses: apple-actions/import-codesign-certs@v2
+      #   with:
+      #     p12-file-base64: ${{ secrets.IOS_P12_BASE64 }}
+      #     p12-password: ${{ secrets.IOS_P12_PASSWORD }}
+
+      # - name: Install Provisioning Profile
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+      #     echo "${{ secrets.IOS_PROVISION_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      # - name: Build iOS app (Release - Signed)
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   run: |
+      #     flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      # - name: Upload IPA to App Store Connect
+      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      #   uses: apple-actions/upload-testflight-build@v1
+      #   with:
+      #     app-path: build/ios/ipa/*.ipa
+      #     issuer-id: ${{ secrets.APPSTORE_ISSUER_ID }}
+      #     api-key-id: ${{ secrets.APPSTORE_API_KEY_ID }}
+      #     api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-artifacts
+          path: |
+            build/ios/
+            !build/ios/**/*.framework
+            !build/ios/**/*.dSYM
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: test-results/
+          retention-days: 7
