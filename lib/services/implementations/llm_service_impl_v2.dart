@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'dart:math';
 
-import '../llm_service.dart';
 import '../ai_providers/base_provider.dart';
 import '../ai_providers/openai_provider.dart';
 import '../ai_providers/anthropic_provider.dart';
@@ -13,7 +12,7 @@ import '../../models/conversation_model.dart';
 import '../../core/utils/logging_service.dart';
 import '../../core/utils/constants.dart';
 
-class LLMServiceImplV2 implements LLMService {
+class LLMServiceImplV2 {
   static const String _tag = 'LLMServiceImplV2';
 
   final LoggingService _logger;
