@@ -34,27 +34,17 @@ dependencies:
   # Utilities
   crclib: ^3.0.0
 
-  # HTTP Client (for AI providers and Whisper API)
-  http: ^1.2.0
-
-  # Network Connectivity Detection (for transcription mode auto-switching)
-  connectivity_plus: ^6.0.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
+  
   # Linting and Code Quality
   flutter_lints: ^5.0.0
-
+  
   # Code Generation
   build_runner: ^2.4.7
   json_serializable: ^6.7.1
   freezed: ^2.4.7
-
-  # Testing
-  mockito: ^5.4.4
-  build_test: ^2.2.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
