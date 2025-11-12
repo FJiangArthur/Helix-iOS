@@ -15,7 +15,7 @@ Helix is a Flutter-based companion app for Even Realities smart glasses that pro
 - Real-time waveform visualization
 - Cross-platform audio support
 
-### 🧠 **AI-Powered Analysis Engine** ✅ **COMPLETE (Epic 2.2)**
+### 🧠 **AI-Powered Analysis Engine**
 - **Multi-Provider LLM Support**: OpenAI GPT-4 + Anthropic integration
 - **Real-Time Fact Checking**: AI-powered claim detection and verification
 - **Conversation Intelligence**: Action items, sentiment analysis, topic extraction
@@ -36,160 +36,59 @@ Helix is a Flutter-based companion app for Even Realities smart glasses that pro
 
 ## 🚀 Quick Start
 
-### **Prerequisites**
-- **Flutter SDK**: 3.24+ (with Dart 3.5+)
-- **Development IDE**: VS Code with Flutter extension OR Android Studio
-- **Platform Tools**: 
-  - **iOS**: Xcode 15+ (for iOS development)
-  - **Android**: Android SDK 34+ (for Android development)
-  - **macOS**: macOS 12+ (for macOS development)
-- **API Keys**: OpenAI and/or Anthropic (optional but recommended)
+### **Get Running in 2 Minutes**
 
-### **Setup Instructions**
-
-#### 1. **Install Flutter SDK**
 ```bash
-# macOS (using Homebrew)
-brew install flutter
-
-# Or download from https://docs.flutter.dev/get-started/install
-```
-
-#### 2. **Verify Flutter Installation**
-```bash
-flutter doctor
-# Ensure all checkmarks are green, especially for your target platform
-```
-
-#### 3. **Clone and Setup Project**
-```bash
-# Clone the repository
+# Clone and setup
 git clone https://github.com/FJiangArthur/Helix-iOS.git
 cd Helix-iOS
-
-# Install dependencies
 flutter pub get
 
-# Generate code (Freezed models, JSON serialization)
+# Generate code (Freezed models)
 flutter packages pub run build_runner build --delete-conflicting-outputs
+
+# Run the app
+flutter run
 ```
 
-#### 4. **Configure API Keys** (Optional)
-Create `settings.local.json` in the project root:
+### **Configure AI Features** (Optional)
+
+Create `settings.local.json`:
 ```json
 {
-  "openai_api_key": "sk-your-openai-key-here",
-  "anthropic_api_key": "sk-ant-your-anthropic-key-here"
+  "openai_api_key": "sk-your-openai-key",
+  "anthropic_api_key": "sk-ant-your-anthropic-key"
 }
 ```
 
-#### 5. **Platform-Specific Setup**
+> **🔑 New Developer?** See [QUICK_START.md](docs/QUICK_START.md) for complete setup guide.
 
-##### **iOS Development**
-```bash
-# Install CocoaPods
-sudo gem install cocoapods
+## 🏗️ Architecture Overview
 
-# Install iOS dependencies
-cd ios && pod install && cd ..
+### **Epic 2.2: AI Analysis Engine** ✅ **COMPLETE**
 
-# Open iOS simulator or connect device
-open -a Simulator
-
-# Run on iOS
-flutter run -d ios
+```mermaid
+graph TD
+    A[Audio Input] --> B[Real-Time Transcription]
+    B --> C[AI Analysis Engine]
+    C --> D[Fact Checking Service]
+    C --> E[AI Insights Service]
+    C --> F[LLM Service Multi-Provider]
+    F --> G[OpenAI Provider]
+    F --> H[Anthropic Provider]
+    D --> I[HUD Display]
+    E --> I
 ```
 
-##### **Android Development**
-```bash
-# Start Android emulator or connect device
-flutter emulators --launch <emulator_id>
+### **Technology Stack**
+- **Platform**: Flutter 3.24+ (Dart 3.5+)
+- **State Management**: Riverpod + Freezed
+- **Audio**: flutter_sound, audio_session
+- **AI Integration**: OpenAI GPT-4, Anthropic
+- **Hardware**: flutter_bluetooth_serial
+- **DI**: get_it
 
-# Run on Android
-flutter run -d android
-```
-
-##### **macOS Development**
-```bash
-# Enable macOS support
-flutter config --enable-macos-desktop
-
-# Run on macOS
-flutter run -d macos
-```
-
-### **Building the App**
-
-#### **Development Build**
-```bash
-# Run with hot reload
-flutter run
-
-# Run on specific device
-flutter devices                    # List available devices
-flutter run -d <device-id>         # Run on specific device
-```
-
-#### **Release Builds**
-
-##### **iOS Release (requires Xcode)**
-```bash
-# Build iOS release
-flutter build ios --release
-
-# Build and archive for App Store (in Xcode)
-# 1. Open ios/Runner.xcworkspace in Xcode
-# 2. Select "Any iOS Device" as target
-# 3. Product → Archive
-# 4. Upload to App Store Connect
-```
-
-##### **Android Release**
-```bash
-# Build Android APK
-flutter build apk --release
-
-# Build Android App Bundle (for Play Store)
-flutter build appbundle --release
-```
-
-##### **macOS Release**
-```bash
-# Build macOS app
-flutter build macos --release
-```
-
-## 🧪 Testing
-
-### **Run Tests**
-```bash
-# Run all tests
-flutter test
-
-# Run tests with coverage
-flutter test --coverage
-
-# Run specific test file
-flutter test test/unit/services/llm_service_test.dart
-
-# Run integration tests
-flutter test integration_test/
-```
-
-### **Code Quality**
-```bash
-# Static analysis
-flutter analyze
-
-# Format code
-dart format .
-
-# Generate code (after model changes)
-flutter packages pub run build_runner build --delete-conflicting-outputs
-```
-
-## 📁 Project Structure
-
+### **Project Structure**
 ```
 lib/
 ├── core/utils/                 # Constants, logging, exceptions
@@ -202,11 +101,44 @@ lib/
 │   └── llm_service.dart       # Multi-provider LLM interface
 ├── ui/                        # Flutter UI components
 └── main.dart                  # App entry point
+```
 
-test/
-├── unit/                      # Unit tests
-├── integration/               # Integration tests  
-└── widget_test.dart          # Widget tests
+## 🧠 AI Services Showcase
+
+### **Comprehensive Conversation Analysis**
+```dart
+final result = await llmService.analyzeConversation(
+  'We need to meet next Friday to discuss the Q4 budget',
+  type: AnalysisType.comprehensive,
+);
+
+// Get rich insights
+print('Action Items: ${result.actionItems?.length}');
+print('Sentiment: ${result.sentiment?.overallSentiment}');
+print('Confidence: ${result.confidence}');
+```
+
+### **Real-Time Fact Checking**
+```dart
+factChecker.results.listen((fact) {
+  switch (fact.status) {
+    case FactCheckStatus.verified:
+      showCheckmark(fact.claim);
+    case FactCheckStatus.disputed:
+      showWarning(fact.claim, fact.explanation);
+  }
+});
+
+await factChecker.processText('The Earth revolves around the Sun');
+```
+
+### **AI Insights Generation**
+```dart
+insights.insights.listen((insight) {
+  if (insight.category == InsightCategory.actionItem) {
+    addToTaskList(insight.content, insight.metadata['assignee']);
+  }
+});
 ```
 
 ## 📚 Documentation
@@ -217,85 +149,57 @@ test/
 | **[🚀 Quick Start](docs/QUICK_START.md)** | Get up and running in 10 minutes |
 | **[👩‍💻 Developer Guide](docs/DEVELOPER_GUIDE.md)** | Comprehensive development workflows and patterns |
 | **[🔌 AI Services API](docs/AI_SERVICES_API.md)** | Complete API reference for AI services |
+| **[🧪 Testing Strategy](docs/TESTING_STRATEGY.md)** | Testing approaches and best practices |
 
-## 🛠️ Development Workflow
+## 🛠️ Development
 
-### **IDE Setup**
+### **Prerequisites**
+- Flutter SDK 3.24+
+- VS Code or Android Studio
+- OpenAI/Anthropic API keys (optional)
 
-#### **VS Code (Recommended)**
+### **Development Commands**
 ```bash
-# Install Flutter extension
-code --install-extension Dart-Code.flutter
+# Run with hot reload
+flutter run
 
-# Recommended settings in .vscode/settings.json
-{
-  "dart.lineLength": 100,
-  "editor.rulers": [80, 100],
-  "dart.enableSdkFormatter": true
-}
-```
-
-#### **Android Studio**
-1. Install Flutter and Dart plugins
-2. Configure Flutter SDK path
-3. Enable hot reload on save
-
-### **Common Commands**
-```bash
-# Development
-flutter run --debug                    # Run in debug mode
-flutter hot-reload                     # Hot reload changes
-flutter hot-restart                    # Full restart
-
-# Code Generation (after model changes)
-flutter packages pub run build_runner watch --delete-conflicting-outputs
-
-# Testing
-flutter test                          # Run all tests
-flutter test --coverage             # Generate coverage report
-flutter test test/unit/              # Run unit tests only
-
-# Analysis
-flutter analyze                      # Static code analysis
-dart format .                       # Format code
-flutter doctor                      # Check Flutter setup
-```
-
-### **Troubleshooting**
-
-#### **Common Issues**
-
-**"No API key configured"**
-```bash
-# Create settings.local.json with your API keys
-cp settings.local.json.example settings.local.json
-```
-
-**"Build runner fails"**
-```bash
-flutter clean
-flutter pub get
+# Generate code (after model changes)
 flutter packages pub run build_runner build --delete-conflicting-outputs
+
+# Run tests
+flutter test
+
+# Code analysis
+flutter analyze
+
+# Build for production
+flutter build apk --release
 ```
 
-**"iOS build fails"**
+### **Testing**
 ```bash
-cd ios && pod deintegrate && pod install && cd ..
-flutter clean && flutter run -d ios
+# Unit tests
+flutter test test/unit/
+
+# Integration tests  
+flutter test test/integration/
+
+# Widget tests
+flutter test test/widget_test.dart
+
+# Coverage report
+flutter test --coverage
 ```
 
-**"Permission denied for microphone"**
-- **iOS**: Check Info.plist includes NSMicrophoneUsageDescription
-- **Android**: Check AndroidManifest.xml includes RECORD_AUDIO permission
+## 🎯 Current Status (Epic 2.2)
 
-## 🎯 Current Status
-
-### **✅ Completed (Epic 2.2)**
-- Multi-Provider LLM Service (OpenAI + Anthropic)
-- Real-Time Fact Checking pipeline
-- AI Insights generation
-- Automatic provider failover
-- Comprehensive documentation
+### **✅ Completed Features**
+- ✅ **Multi-Provider LLM Service** - OpenAI + Anthropic with failover
+- ✅ **Real-Time Fact Checking** - Claim detection and verification pipeline
+- ✅ **AI Insights Engine** - Conversation intelligence and suggestions
+- ✅ **Automatic Failover** - Health monitoring and provider switching
+- ✅ **Comprehensive Testing** - Unit, integration, and widget tests
+- ✅ **Production Architecture** - Scalable, maintainable codebase
 
 ### **🚀 Next Milestones**
 - **Epic 2.3**: Smart Glasses UI Integration
@@ -304,25 +208,38 @@ flutter clean && flutter run -d ios
 
 ## 🤝 Contributing
 
-### **Development Standards**
-- Follow [Effective Dart](https://dart.dev/guides/language/effective-dart) guidelines
-- Use Riverpod for state management with Freezed data models
-- Write comprehensive unit tests (>= 90% coverage)
-- Add ABOUTME comments to new files
-- Follow existing architecture patterns
-
-### **Pull Request Requirements**
-- [ ] Tests pass (`flutter test`)
-- [ ] Code analysis clean (`flutter analyze`)
-- [ ] Documentation updated
-- [ ] Breaking changes documented
-
 ### **Development Workflow**
 1. **Fork & Clone**: `git clone your-fork-url`
 2. **Create Branch**: `git checkout -b feature/amazing-feature`
 3. **Develop**: Follow patterns in [Developer Guide](docs/DEVELOPER_GUIDE.md)
 4. **Test**: `flutter test` + `flutter analyze`
 5. **Submit PR**: Include tests and documentation
+
+### **Code Standards**
+- Use Effective Dart guidelines
+- Add ABOUTME comments to new files
+- Maintain 90%+ test coverage
+- Follow existing architecture patterns
+
+### **PR Requirements**
+- [ ] Tests pass (`flutter test`)
+- [ ] Code analysis clean (`flutter analyze`)
+- [ ] Documentation updated
+- [ ] Breaking changes documented
+
+## 📊 Performance Metrics
+
+### **Real-Time Requirements**
+- **Audio Latency**: <100ms capture to processing
+- **AI Analysis**: <2 seconds for comprehensive analysis
+- **Memory Usage**: <200MB sustained operation
+- **UI Updates**: 60fps smooth rendering
+
+### **AI Service Performance**
+- **Provider Failover**: <5 second recovery
+- **Fact Checking**: <3 seconds per claim
+- **Insight Generation**: <1 second for basic insights
+- **Caching Hit Rate**: >80% for repeated analysis
 
 ## 🔗 Useful Links
 
