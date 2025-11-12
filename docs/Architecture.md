@@ -1,18 +1,11 @@
-# Helix Architecture Document
+# Helix Architecture Documentation
 
 ## 1. System Overview
 
-Helix is a Flutter-based companion app for Even Realities smart glasses that provides real-time conversation recording, transcription, and AI-powered analysis. The architecture follows a **clean slate, incremental approach** that eliminates complexity while maintaining functionality.
+Helix is a Flutter-based companion app for Even Realities smart glasses that provides real-time conversation analysis and AI-powered insights displayed directly on the glasses HUD. The app processes live audio, performs speech-to-text conversion, and sends conversation data to LLM APIs for fact-checking, summarization, and contextual assistance.
 
-## 2. Core Design Philosophy
+## 2. High-Level Architecture
 
-### 2.1 "Linus Torvalds" Principles
-- **Good Taste**: Simple data structures with clear ownership
-- **No Complex State Management**: Direct service-to-UI communication
-- **Incremental Building**: Each component works before adding the next
-- **Eliminate Special Cases**: Clean, predictable data flow
-
-### 2.2 Clean Architecture
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │ Even Realities  │◄──►│  Flutter App    │◄──►│  Cloud Services │
@@ -21,166 +14,330 @@ Helix is a Flutter-based companion app for Even Realities smart glasses that pro
         │                       │                       │
         │                       │                       │
    ┌────▼────┐            ┌─────▼─────┐           ┌─────▼─────┐
-   │ HUD     │            │ Audio     │           │ OpenAI/   │
-   │ Display │            │ Service   │           │ Anthropic │
+   │ HUD     │            │ AI Engine │           │ OpenAI/   │
+   │ Display │            │ Pipeline  │           │ Anthropic │
    └─────────┘            └───────────┘           └───────────┘
 ```
 
-## 3. Current Implementation (Proven)
+## 3. Technology Stack
 
-### 3.1 Audio Foundation ✅ COMPLETED
+### 3.1 Core Technologies
+- **Platform**: Flutter 3.24+ (Dart 3.5+)
+- **State Management**: Riverpod + Freezed
+- **Dependency Injection**: get_it
+- **Audio Processing**: flutter_sound, audio_session
+- **Speech Recognition**: speech_to_text
+- **AI Integration**: OpenAI GPT, Anthropic APIs
+- **Bluetooth**: flutter_bluetooth_serial (Even Realities glasses)
+
+### 3.2 External APIs
+- **OpenAI API**: GPT-4 for conversation analysis and fact-checking
+- **Anthropic API**: Advanced reasoning capabilities
+- **Whisper API**: Speech-to-text transcription
+
+## 4. Project Structure
+
 ```
 lib/
-├── services/
-│   ├── audio_service.dart          # Clean interface
-│   └── implementations/
-│       └── audio_service_impl.dart # flutter_sound implementation
-├── models/
-│   └── audio_configuration.dart    # Immutable config with Freezed
-├── screens/
-│   ├── recording_screen.dart       # Direct service integration
-│   └── file_management_screen.dart # Simple file operations
-└── core/utils/
-    └── exceptions.dart             # Audio-specific exceptions
+├── core/                           # Core business logic and services
+│   └── utils/                     # Utility classes and extensions
+│       ├── constants.dart         # App-wide constants and configuration
+│       ├── exceptions.dart        # Custom exception definitions
+│       └── logging_service.dart   # Centralized logging system
+├── features/                       # Feature-based organization
+│   ├── conversation/              # Main conversation feature (UI)
+│   ├── analysis/                  # AI analysis results display
+│   ├── settings/                  # App configuration
+│   └── history/                   # Conversation history
+├── models/                        # Data models with Freezed
+│   ├── analysis_result.dart       # AI analysis result models
+│   ├── conversation_model.dart    # Conversation data models
+│   ├── transcription_segment.dart # Speech transcription models
+│   └── glasses_connection_state.dart # Hardware connection models
+├── providers/                     # Riverpod providers
+│   └── app_state_provider.dart   # Global application state
+├── services/                      # Business logic services
+│   ├── ai_providers/             # AI provider implementations
+│   │   ├── base_provider.dart    # Abstract provider interface
+│   │   ├── openai_provider.dart  # OpenAI GPT-4 integration
+│   │   └── anthropic_provider.dart # Anthropic integration
+│   ├── implementations/          # Service implementations
+│   │   ├── llm_service_impl_v2.dart # Enhanced multi-provider LLM service
+│   │   ├── audio_service_impl.dart  # Audio recording implementation
+│   │   └── transcription_service_impl.dart # Speech-to-text implementation
+│   ├── fact_checking_service.dart # Real-time fact verification
+│   ├── ai_insights_service.dart  # Conversation intelligence
+│   ├── llm_service.dart          # LLM service interface
+│   ├── audio_service.dart        # Audio recording interface
+│   └── service_locator.dart      # Dependency injection setup
+├── ui/                           # User interface components
+│   ├── screens/                  # Full-screen views
+│   ├── widgets/                  # Reusable UI components
+│   └── theme/                    # App theming
+└── main.dart                     # Application entry point
 ```
 
-**Working Features:**
-- Real-time audio recording with flutter_sound
-- Live audio level visualization
-- Recording timer with actual elapsed time
-- File management with playback
-- Permission handling
+## 5. Core Components
 
-### 3.2 Future Components (Planned Incremental Addition)
+### 5.1 AI Analysis Engine (Epic 2.2)
 
-**Phase 2: Speech-to-Text (Steps 6-9)**
-- TranscriptionService using flutter speech_to_text
-- Real-time transcription display
-- Basic speaker identification
-- Conversation persistence
+#### **Multi-Provider LLM Service**
+- **Location**: `lib/services/implementations/llm_service_impl_v2.dart`
+- **Features**:
+  - OpenAI GPT-4 and Anthropic provider support
+  - Automatic failover and health monitoring
+  - Performance-based provider selection
+  - Usage analytics and cost estimation
+  - Configurable retry logic with exponential backoff
 
-**Phase 3: Smart Data Management (Steps 10-12)**
-- Conversation sessions and organization
-- Search and filtering capabilities
-- Export functionality
-
-**Phase 4: AI Analysis (Steps 13-15)**
-- LLM service integration (OpenAI/Anthropic)
-- Fact-checking capabilities
-- Conversation insights and summaries
-
-**Phase 5: Smart Glasses (Steps 16-18)**
-- Even Realities Bluetooth integration
-- HUD display rendering
-- Gesture controls
-
-## 4. Data Flow Architecture
-
-### 4.1 Current Simple Data Flow
+#### **AI Providers Architecture**
 ```
-AudioService ──► UI (StatefulWidget)
-     │              │
-     ├─ audioLevelStream ──► Visual Indicator
-     ├─ recordingDurationStream ──► Timer Display  
-     └─ currentRecordingPath ──► File Management
+BaseAIProvider (Abstract)
+├── OpenAIProvider
+│   ├── GPT-4 Turbo integration
+│   ├── Streaming support
+│   ├── Function calling capabilities
+│   └── Cost optimization
+└── AnthropicProvider
+    ├── Advanced reasoning
+    ├── Structured output
+    ├── High-quality analysis
+    └── Streaming responses
 ```
 
-**Key Principles:**
-- **No Central State Manager**: UI directly consumes service streams
-- **Clear Data Ownership**: AudioService owns all audio-related state
-- **Simple Communication**: Streams for real-time data, direct calls for actions
+#### **Real-Time Fact Checking**
+- **Location**: `lib/services/fact_checking_service.dart`
+- **Features**:
+  - AI-powered claim detection in conversation text
+  - Multi-step fact verification pipeline
+  - Confidence scoring (0.0-1.0)
+  - Source attribution and explanations
+  - Priority-based queue management
+  - Rate limiting and throttling
 
-### 4.2 Future Data Flow (Incremental)
+#### **AI Insights Engine**
+- **Location**: `lib/services/ai_insights_service.dart`
+- **Features**:
+  - Real-time conversation intelligence
+  - Action item extraction with deadlines
+  - Sentiment analysis with emotional breakdown
+  - Topic identification and relevance scoring
+  - Contextual suggestions and recommendations
+  - Configurable insight types
+
+### 5.2 Audio Processing Pipeline
+
+#### **Audio Service**
+- **Interface**: `lib/services/audio_service.dart`
+- **Implementation**: `lib/services/implementations/audio_service_impl.dart`
+- **Features**:
+  - Real-time audio capture (16kHz, mono)
+  - Voice activity detection
+  - Audio level monitoring for waveform
+  - Permission management
+  - File saving and playback
+
+#### **Real-Time Transcription**
+- **Location**: `lib/services/real_time_transcription_service.dart`
+- **Features**:
+  - Streaming speech-to-text conversion
+  - Speaker diarization
+  - Confidence scoring
+  - Multi-language support
+  - Integration with OpenAI Whisper API
+
+### 5.3 Hardware Integration
+
+#### **Smart Glasses Service**
+- **Interface**: `lib/services/glasses_service.dart`
+- **Implementation**: `lib/services/implementations/glasses_service_impl.dart`
+- **Features**:
+  - Bluetooth connectivity to Even Realities glasses
+  - Real-time HUD content rendering
+  - Battery monitoring
+  - Display control and positioning
+
+### 5.4 Data Models
+
+#### **Analysis Results**
+```dart
+// Comprehensive AI analysis container
+@freezed
+class AnalysisResult with _$AnalysisResult {
+  // Fact-checking results
+  List<FactCheckResult>? factChecks;
+  
+  // Conversation summary
+  ConversationSummary? summary;
+  
+  // Extracted action items
+  List<ActionItemResult>? actionItems;
+  
+  // Sentiment analysis
+  SentimentAnalysisResult? sentiment;
+  
+  // Processing metadata
+  String provider;
+  double confidence;
+  Duration processingTime;
+}
 ```
-Phase 2: AudioService ──► TranscriptionService ──► UI
-Phase 3: Multiple Services ──► Simple Data Models ──► UI
-Phase 4: Services ──► LLM Analysis ──► Enhanced UI
-Phase 5: All Services ──► Glasses HUD + Mobile UI
+
+#### **Conversation Models**
+- **TranscriptionSegment**: Real-time speech segments
+- **ConversationModel**: Complete conversation data
+- **AudioConfiguration**: Recording settings
+- **GlassesConnectionState**: Hardware connection status
+
+## 6. Data Flow Architecture
+
+### 6.1 Real-Time Processing Flow
+```
+Audio Input → Voice Detection → Speech-to-Text → AI Analysis → Insights Generation → HUD Display
+     ↓              ↓                ↓              ↓              ↓                ↓
+  Raw Audio    Activity Detection   Text/Speaker  Fact-Check    Action Items      Visual
+               & Noise Reduction                  Summary       Sentiment         Feedback
+                                                 Insights      Topics            
 ```
 
-## 5. Technology Stack
-
-### 5.1 Current Stack (Proven Working)
-```yaml
-Framework: Flutter 3.24+
-Language: Dart 3.5+
-Audio: flutter_sound ^9.2.13
-Permissions: permission_handler ^10.2.0
-Data Models: freezed_annotation ^2.4.1, json_annotation ^4.8.1
-State Management: Plain StatefulWidget + Streams
-iOS Target: iOS 15.0+
+### 6.2 AI Analysis Pipeline
+```
+Transcription Stream → Fact Checking Service → Claim Detection → Verification
+                    → AI Insights Service → Conversation Analysis → Insights Generation
+                    → LLM Service → Provider Selection → API Calls → Result Processing
 ```
 
-### 5.2 Future Additions (By Phase)
-**Phase 2: Speech-to-Text**
-- speech_to_text package
-- Basic transcription models
+### 6.3 Service Dependencies
+```
+main.dart
+├── ServiceLocator (get_it)
+├── LLMService (Multi-provider)
+│   ├── OpenAIProvider
+│   └── AnthropicProvider
+├── FactCheckingService
+├── AIInsightsService
+├── AudioService
+├── TranscriptionService
+└── GlassesService
+```
 
-**Phase 3: Data Management**  
-- sqflite for local database
-- path_provider for file handling
+## 7. State Management
 
-**Phase 4: AI Integration**
-- http/dio for API calls
-- OpenAI/Anthropic API clients
+### 7.1 Riverpod Providers
+- **Global State**: Application-wide state management
+- **Feature State**: Feature-specific state isolation
+- **Service Providers**: Singleton service instances
+- **UI State**: Component-level reactive state
 
-**Phase 5: Bluetooth Glasses**
-- flutter_bluetooth_serial
-- Even Realities SDK integration
+### 7.2 Data Flow Patterns
+- **Streams**: Real-time data updates (audio, transcription, insights)
+- **FutureProviders**: Async operations (API calls, file operations)
+- **StateNotifiers**: Complex state management
+- **AutoDispose**: Automatic memory management
 
-## 6. Security & Privacy
+## 8. Performance Architecture
 
-### 6.1 Current Implementation
-- **Local-only storage**: Audio files in device temp directory
-- **Permission-based access**: User controls microphone access
-- **No cloud sync**: All data stays on device
-- **Simple file cleanup**: Users can delete recordings
+### 8.1 Real-Time Requirements
+- **Audio Latency**: <100ms capture to processing
+- **Transcription Latency**: <500ms speech to text
+- **AI Analysis**: <2 seconds for comprehensive analysis
+- **UI Updates**: 60fps smooth rendering
+- **Memory Usage**: <200MB sustained operation
 
-### 6.2 Future Privacy Enhancements
-- **Optional cloud sync** with encryption
-- **Conversation expiration** settings
-- **Speaker anonymization** for shared data
-- **Granular AI analysis** consent
+### 8.2 Optimization Strategies
+- **Provider Failover**: Automatic switching on failures
+- **Caching**: Intelligent result caching (10-minute timeout)
+- **Queue Management**: Priority-based processing
+- **Batch Processing**: Efficient multi-segment analysis
+- **Memory Management**: Circular buffers and automatic cleanup
 
-## 7. Performance Requirements
+## 9. Error Handling & Resilience
 
-### 7.1 Current Benchmarks (Achieved)
-- **Audio Recording**: Real-time 16kHz sampling
-- **UI Updates**: 30fps audio level visualization
-- **Memory Usage**: <50MB for basic audio recording
-- **Battery Impact**: Minimal additional drain
-- **File I/O**: Instant playback of recorded audio
+### 9.1 Provider Health Monitoring
+- **Failure Detection**: Automatic provider health checks
+- **Cooldown Periods**: 5-minute recovery windows
+- **Performance Tracking**: Response time optimization
+- **Graceful Degradation**: Fallback to available providers
 
-### 7.2 Future Performance Targets
-- **STT Latency**: <500ms for real-time transcription
-- **LLM Response**: <3s for analysis results
-- **Glasses HUD**: 60fps for smooth display updates
-- **Overall Memory**: <200MB with all features
+### 9.2 Network Resilience
+- **Retry Logic**: Exponential backoff with jitter
+- **Offline Queue**: Local storage for failed requests
+- **Rate Limiting**: Respect API quotas and limits
+- **Timeout Handling**: Configurable request timeouts
 
-## 8. Deployment Strategy
+## 10. Security & Privacy
 
-### 8.1 Incremental Deployment
-- **Phase-by-phase releases**: Each phase is a deployable app
-- **Feature flags**: Enable/disable features as they're built
-- **TestFlight distribution**: Continuous beta testing
-- **App Store updates**: Regular incremental improvements
+### 10.1 Data Protection
+- **Local Processing**: Audio processing on-device when possible
+- **Encrypted Communication**: HTTPS for all API calls
+- **No Persistent Storage**: Conversations not stored without consent
+- **API Key Security**: Secure credential management
 
-### 8.2 Quality Assurance
-- **Build verification**: Each step must build and run
-- **Function testing**: Manual verification of each feature
-- **Device testing**: Real iOS device validation
-- **User feedback**: Early user testing for each phase
+### 10.2 Privacy Controls
+- **User Consent**: Explicit permission for data processing
+- **Data Minimization**: Only necessary data sent to APIs
+- **Retention Policies**: Configurable data retention
+- **Anonymization**: Speaker identity protection options
 
-## 9. Migration Strategy
+## 11. Testing Strategy
 
-### 9.1 From Previous Architecture
-- ✅ **Eliminated**: AppStateProvider god object
-- ✅ **Eliminated**: Service Locator pattern
-- ✅ **Eliminated**: Complex UI hierarchy
-- ✅ **Simplified**: Direct service-to-UI communication
+### 11.1 Test Architecture
+```
+test/
+├── unit/                    # Unit tests for services and models
+│   └── services/           # Service-specific test suites
+├── integration/            # Integration tests for workflows
+└── widget_test.dart       # UI component tests
+```
 
-### 9.2 Lessons Learned
-- **Complexity is the enemy**: Simple solutions work better
-- **Incremental is safer**: Build working features step-by-step
-- **Direct communication**: Eliminate unnecessary abstractions
-- **Good taste wins**: Clean data structures over complex coordinators
+### 11.2 Testing Approaches
+- **Unit Tests**: Core business logic validation
+- **Integration Tests**: End-to-end workflow testing
+- **Widget Tests**: UI component behavior
+- **Mock Services**: Isolated testing environments
+
+## 12. Deployment & CI/CD
+
+### 12.1 Development Workflow
+- **Feature Branches**: Epic-based development
+- **Linear Integration**: Issue tracking and progress
+- **Pre-commit Hooks**: Code quality enforcement
+- **Automated Testing**: CI pipeline validation
+
+### 12.2 Build Configuration
+- **Flutter Channels**: Stable channel for production
+- **Platform Support**: iOS, Android, macOS, Windows, Linux
+- **Environment Management**: Development, staging, production
+- **Asset Management**: Optimized resource bundling
+
+## 13. Monitoring & Analytics
+
+### 13.1 Performance Monitoring
+- **Response Time Tracking**: AI provider performance
+- **Error Rate Monitoring**: Failure detection and alerting
+- **Usage Analytics**: Feature adoption and usage patterns
+- **Resource Usage**: Memory, CPU, and battery impact
+
+### 13.2 Health Metrics
+- **Service Availability**: Provider uptime monitoring
+- **API Quota Usage**: Cost and limit tracking
+- **User Experience**: Latency and error metrics
+- **System Performance**: Real-time performance dashboards
+
+## 14. Future Architecture Considerations
+
+### 14.1 Scalability
+- **Local AI Models**: On-device processing capabilities
+- **Edge Computing**: Reduced cloud dependencies
+- **Multi-Language Support**: Internationalization
+- **Advanced Analytics**: Enhanced conversation insights
+
+### 14.2 Integration Expansion
+- **Additional LLM Providers**: Gemini, Llama, etc.
+- **Hardware Ecosystem**: Support for multiple AR/VR devices
+- **Enterprise Features**: Team collaboration and analytics
+- **API Ecosystem**: Third-party integrations and webhooks
+
+---
+
+*This architecture documentation reflects the current implementation as of Epic 2.2 completion. For implementation details and development guidelines, see the Developer Guide and API documentation.*
