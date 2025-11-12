@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../controllers/evenai_model_controller.dart';
+import '../models/evenai_model.dart';
 import '../services/evenai.dart';
 import 'package:get/get.dart';
 
@@ -12,20 +12,15 @@ class EvenAIHistoryScreen extends StatefulWidget {
 }
 
 class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
-  late EvenaiModelController controller;
+  // Simple state management without controller
+  final List<EvenaiModel> items = [];
+  int? selectedIndex;
 
   @override
   void initState() {
     super.initState();
-    // Initialize controller if not already initialized
-    try {
-      controller = Get.find<EvenaiModelController>();
-    } catch (e) {
-      // If controller doesn't exist, create it
-      controller = Get.put(EvenaiModelController());
-    }
-
-    print("controller.items--------${controller.items.length}");
+    // TODO: Load history items from storage or service
+    // For now, using empty list
   }
 
   @override
@@ -35,7 +30,7 @@ class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
             style: TextStyle(fontSize: 20)),
     ),
     body: Obx(() {
-      if (controller.items.isEmpty && !EvenAI.isEvenAISyncing.value) {
+      if (items.isEmpty && !EvenAI.isEvenAISyncing.value) {
         return const Center(
           child: Text(
             "Press and hold left TouchBar to engage Even AI.",
@@ -44,27 +39,25 @@ class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
           ),
         );
       } else {
-
           return Padding(
               padding: const EdgeInsets.only(left: 16, right: 16, top: 4),
               child: Column(
                 children: [
                   Expanded(
                     child: ListView.builder(
-                      itemCount: controller.items.length,
+                      itemCount: items.length,
                       itemBuilder: (context, index) {
                       return GestureDetector(
                             onTap: () {
                               setState(() {
-                                if (controller.selectedIndex.value ==
-                                    index) {
-                                  controller.deselectItem();
+                                if (selectedIndex == index) {
+                                  selectedIndex = null;
                                 } else {
-                                  controller.selectItem(index);
+                                  selectedIndex = index;
                                 }
                               });
                             },
-                            child: controller.selectedIndex.value == index
+                            child: selectedIndex == index
                                     ? buildItemDetail(index)
                                     : buildItem(index),
                           );
@@ -80,11 +73,11 @@ class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
 
 
   Widget buildItem(int index) {
-    final item = controller.items[index];
+    final item = items[index];
     return Container(
       alignment: Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF991).withOpacity(0.2),
+        color: const Color(0xFFFEF991).withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(5),
       ),
       margin: const EdgeInsets.only(top: 8, bottom: 8),
@@ -99,11 +92,11 @@ class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
   }
 
   Widget buildItemDetail(int index) {
-    final item = controller.items[index];
+    final item = items[index];
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFFFEF991).withOpacity(0.2),
+        color: const Color(0xFFFEF991).withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(5),
       ),
       margin: const EdgeInsets.only(top: 8, bottom: 8),

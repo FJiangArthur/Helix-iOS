@@ -1,40 +1,38 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../ble_manager.dart';
-import 'proto.dart';
+import 'audio_buffer_manager.dart';
+import 'text_paginator.dart';
+import 'hud_controller.dart';
+import 'ai/ai_coordinator.dart';
+import 'conversation_insights.dart';
 
-/// Even AI service for conversation analysis
+/// Even AI coordinator service for conversation analysis
+/// Coordinates audio buffering, text pagination, HUD display, and AI analysis
 class EvenAI {
   static EvenAI? _instance;
   static EvenAI get get => _instance ??= EvenAI._();
-  
+
   EvenAI._();
-  
+
+  // Delegate services
+  final _audioBuffer = AudioBufferManager.instance;
+  final _textPaginator = TextPaginator.instance;
+  final _hudController = HudController.instance;
+  final _aiCoordinator = AICoordinator.instance;
+  final _conversationInsights = ConversationInsights.instance;  // US 2.3
+
   static bool _isRunning = false;
   static bool get isRunning => _isRunning;
-  
-  bool isReceivingAudio = false;
-  List<int> audioDataBuffer = [];
-  Uint8List? audioData;
-  
-  File? lc3File;
-  File? pcmFile;
-  int durationS = 0;
-  
+
   static int maxRetry = 10;
-  static int _currentLine = 0;
   static Timer? _timer;
-  static List<String> list = [];
   static List<String> sendReplys = [];
-  
+
   Timer? _recordingTimer;
   final int maxRecordingDuration = 30;
-  
-  static bool _isManual = false;
-  
+
   static set isRunning(bool value) {
     _isRunning = value;
     isEvenAIOpen.value = value;
@@ -42,10 +40,12 @@ class EvenAI {
   }
   
   static RxBool isEvenAIOpen = false.obs;
-  static final StreamController<String> _textStreamController = 
-      StreamController<String>.broadcast();
-  
-  static Stream<String> get textStream => _textStreamController.stream;
+
+  /// Text stream from HUD controller
+  Stream<String> get textStream => _hudController.displayTextStream;
+
+  /// Insights stream (US 2.3)
+  Stream<Map<String, dynamic>> get insightsStream => _conversationInsights.insightsStream;
   
   static RxBool isEvenAISyncing = false.obs;
   
@@ -61,12 +61,12 @@ class EvenAI {
   String combinedText = '';
   
   /// Send text to AI stream
-  static void updateText(String text) {
-    _textStreamController.add(text);
+  void updateText(String text) {
+    _hudController.updateDisplay(text);
   }
-  
-  static void updateDynamicText(String newText) {
-    _textStreamController.add(newText);
+
+  void updateDynamicText(String newText) {
+    _hudController.updateDisplay(newText);
   }
   
   /// Start AI processing
@@ -98,10 +98,93 @@ class EvenAI {
   }
   
   void _processTranscribedText(String text) {
-    // Split text into displayable lines for glasses
-    list = EvenAIDataMethod.measureStringList(text);
-    _currentLine = 0;
+    // Paginate text for glasses display
+    _textPaginator.paginateText(text);
     _updateDisplay();
+
+    // US 2.3: Add to conversation buffer for insights
+    if (_aiCoordinator.isEnabled) {
+      _conversationInsights.addConversationText(text);
+    }
+
+    // Process with AI (asynchronously, don't block display)
+    if (_aiCoordinator.isEnabled) {
+      _processWithAI(text);
+    }
+  }
+
+  /// Process text with AI analysis (US 2.2: Enhanced with claim detection)
+  /// Runs asynchronously to avoid blocking HUD updates
+  void _processWithAI(String text) async {
+    try {
+      final results = await _aiCoordinator.analyzeText(text);
+
+      // US 2.2: Handle claim detection results
+      if (results.containsKey('claimDetection')) {
+        final claimDetection = results['claimDetection'] as Map<String, dynamic>;
+        final isClaim = claimDetection['isClaim'] as bool? ?? false;
+        final confidence = claimDetection['confidence'] as double? ?? 0.0;
+
+        // Only display fact-check if it's actually a claim
+        if (!isClaim || confidence < 0.6) {
+          // Not a claim - no need to display fact-check icon
+          return;
+        }
+      }
+
+      // Display fact-check result (only shown if claim detected)
+      if (results.containsKey('factCheck') && !results.containsKey('error')) {
+        final factCheck = results['factCheck'] as Map<String, dynamic>;
+        _displayFactCheckResult(factCheck);
+      }
+
+      // Display sentiment result
+      if (results.containsKey('sentiment') && !results.containsKey('error')) {
+        final sentiment = results['sentiment'] as Map<String, dynamic>;
+        _displaySentimentResult(sentiment);
+      }
+    } catch (e) {
+      print("AI processing error: $e");
+    }
+  }
+
+  /// Display fact-check result on HUD (US 2.2: Enhanced with better icons)
+  void _displayFactCheckResult(Map<String, dynamic> result) {
+    final isTrue = result['isTrue'] as bool?;
+    final confidence = result['confidence'] as double?;
+
+    if (isTrue == null || confidence == null) return;
+
+    // US 2.2: Enhanced display with confidence-based icons
+    String icon;
+    if (confidence > 0.8) {
+      // High confidence: strong indicators
+      icon = isTrue ? '✅' : '❌';
+    } else if (confidence > 0.6) {
+      // Medium confidence: moderate indicators
+      icon = isTrue ? '✓' : '✗';
+    } else {
+      // Low confidence: uncertain indicator
+      icon = '❓';
+    }
+
+    // Prepend icon to current text
+    final currentText = _textPaginator.currentPageText;
+    final withFactCheck = '$icon $currentText';
+    _hudController.updateDisplay(withFactCheck);
+
+    // Log for debugging
+    print("Fact-check: ${isTrue ? 'TRUE' : 'FALSE'} (confidence: ${(confidence * 100).toStringAsFixed(0)}%)");
+  }
+
+  /// Display sentiment result (for future use)
+  void _displaySentimentResult(Map<String, dynamic> result) {
+    final sentiment = result['sentiment'] as String?;
+    final score = result['score'] as double?;
+
+    // Could display sentiment indicator on HUD
+    // For now, just log it
+    print("Sentiment: $sentiment (${score?.toStringAsFixed(2)})");
   }
   
   /// Receiving starting Even AI request from BLE
@@ -120,16 +203,15 @@ class EvenAI {
     _lastStartTime = currentTime;
     
     clear();
-    isReceivingAudio = true;
-    
+    _audioBuffer.startReceiving();
+
     isRunning = true;
-    _currentLine = 0;
-    
+
     await BleManager.invokeMethod("startEvenAI");
-    
-    Proto.pushScreen(0x01);
+
+    await _hudController.showEvenAIScreen();
     updateDynamicText("");
-    
+
     _startRecordingTimer();
   }
   
@@ -140,56 +222,54 @@ class EvenAI {
       return;
     }
     _lastStopTime = currentTime;
-    
+
     isRunning = false;
-    isReceivingAudio = false;
-    
+    _audioBuffer.stopReceiving();
+
     _stopRecordingTimer();
     _timer?.cancel();
     _timer = null;
-    
+
     await BleManager.invokeMethod("stopEvenAI");
-    await Proto.pushScreen(0x00);
-    
+    await _hudController.hideEvenAIScreen();
+
     clear();
   }
   
   /// Recording ended by OS
   void recordOverByOS() async {
     if (!isRunning) return;
-    
+
     _stopRecordingTimer();
-    
-    isReceivingAudio = false;
-    
-    if (audioDataBuffer.isEmpty) {
+
+    _audioBuffer.stopReceiving();
+
+    if (_audioBuffer.isEmpty) {
       print("No audio data received");
       return;
     }
-    
+
     // Process audio data here
-    print("Recording completed with ${audioDataBuffer.length} bytes");
-    
+    print("Recording completed with ${_audioBuffer.bufferSize} bytes");
+
     // Clear buffer after processing
-    audioDataBuffer.clear();
+    _audioBuffer.clear();
   }
   
   /// Navigate to last page by touchpad
   void lastPageByTouchpad() {
     if (!isRunning) return;
-    
-    if (_currentLine > 0) {
-      _currentLine--;
+
+    if (_textPaginator.previousPage()) {
       _updateDisplay();
     }
   }
-  
+
   /// Navigate to next page by touchpad
   void nextPageByTouchpad() {
     if (!isRunning) return;
-    
-    if (_currentLine < list.length - 1) {
-      _currentLine++;
+
+    if (_textPaginator.nextPage()) {
       _updateDisplay();
     }
   }
@@ -207,58 +287,70 @@ class EvenAI {
   }
   
   void _updateDisplay() {
-    if (list.isNotEmpty && _currentLine < list.length) {
-      updateDynamicText(list[_currentLine]);
-    }
+    updateDynamicText(_textPaginator.currentPageText);
   }
-  
-  void clear() {
-    audioDataBuffer.clear();
-    audioData = null;
-    list.clear();
-    sendReplys.clear();
-    _currentLine = 0;
-    durationS = 0;
-  }
-  
-  /// Dispose resources
-  static void dispose() {
-    _textStreamController.close();
-  }
-}
 
-/// AI data processing methods
-class EvenAIDataMethod {
-  /// Split text into lines for display
-  static List<String> measureStringList(String text) {
-    // Split text into manageable chunks for glasses display
-    const maxLineLength = 40; // Approximate characters per line for G1 glasses
-    
-    final words = text.split(' ');
-    final lines = <String>[];
-    var currentLine = '';
-    
-    for (final word in words) {
-      if (currentLine.isEmpty) {
-        currentLine = word;
-      } else if ((currentLine + ' ' + word).length <= maxLineLength) {
-        currentLine += ' ' + word;
-      } else {
-        lines.add(currentLine);
-        currentLine = word;
-      }
-    }
-    
-    if (currentLine.isNotEmpty) {
-      lines.add(currentLine);
-    }
-    
-    return lines;
+  void clear() {
+    _audioBuffer.clear();
+    _textPaginator.clear();
+    _conversationInsights.clear();  // US 2.3
+    sendReplys.clear();
   }
-  
-  /// Convert type and status to new screen format
-  static int transferToNewScreen(int type, int status) {
-    // Convert display parameters to Even Realities format
-    return (type << 4) | (status & 0x0F);
+
+  /// Initialize AI features with API key
+  Future<void> initializeAI(String openAIApiKey) async {
+    try {
+      await _aiCoordinator.initialize(openAIApiKey);
+      print("AI features initialized successfully");
+    } catch (e) {
+      print("Failed to initialize AI: $e");
+    }
+  }
+
+  /// Configure AI features (US 2.2: Added claim detection options)
+  void configureAI({
+    bool? enabled,
+    bool? factCheck,
+    bool? sentiment,
+    bool? claimDetection,
+    double? claimThreshold,
+  }) {
+    _aiCoordinator.configure(
+      enabled: enabled,
+      factCheck: factCheck,
+      sentiment: sentiment,
+      claimDetection: claimDetection,
+      claimThreshold: claimThreshold,
+    );
+  }
+
+  /// Get AI statistics
+  Map<String, dynamic> getAIStats() {
+    return _aiCoordinator.getStats();
+  }
+
+  /// Get conversation insights (US 2.3)
+  Map<String, dynamic> getInsights() {
+    return {
+      'summary': _conversationInsights.summary,
+      'keyPoints': _conversationInsights.keyPoints,
+      'actionItems': _conversationInsights.actionItems,
+      'sentiment': _conversationInsights.sentiment,
+      'lastUpdate': _conversationInsights.lastUpdateTime?.toIso8601String(),
+      'stats': _conversationInsights.getStats(),
+    };
+  }
+
+  /// Manually trigger insights generation (US 2.3)
+  Future<void> generateInsights() async {
+    await _conversationInsights.generateInsights();
+  }
+
+  /// Dispose resources
+  void dispose() {
+    _hudController.dispose();
+    _audioBuffer.dispose();
+    _aiCoordinator.dispose();
+    _conversationInsights.dispose();  // US 2.3
   }
 }

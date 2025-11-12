@@ -1,7 +1,38 @@
 import 'package:flutter/material.dart';
+import '../services/evenai.dart';
 
-class AIAssistantScreen extends StatelessWidget {
+/// US 2.3: AI Assistant screen with live insights
+class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({super.key});
+
+  @override
+  State<AIAssistantScreen> createState() => _AIAssistantScreenState();
+}
+
+class _AIAssistantScreenState extends State<AIAssistantScreen> {
+  final _evenAI = EvenAI.get;
+  Map<String, dynamic>? _currentInsights;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to insights stream
+    _evenAI.insightsStream.listen((insights) {
+      if (mounted) {
+        setState(() {
+          _currentInsights = insights;
+        });
+      }
+    });
+    // Load current insights
+    _loadInsights();
+  }
+
+  void _loadInsights() {
+    setState(() {
+      _currentInsights = _evenAI.getInsights();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -265,6 +296,37 @@ class AIAssistantScreen extends StatelessWidget {
   }
 
   Widget _buildInsightsCard(BuildContext context) {
+    // US 2.3: Use live insights data
+    if (_currentInsights == null || _currentInsights!['summary'] == null || _currentInsights!['summary'].isEmpty) {
+      return Card(
+        elevation: 2,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Icon(Icons.insights, size: 48, color: Colors.grey[400]),
+              const SizedBox(height: 8),
+              Text(
+                'No insights yet',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Start a conversation to see AI-generated insights',
+                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final summary = _currentInsights!['summary'] as String? ?? 'No summary available';
+    final keyPoints = (_currentInsights!['keyPoints'] as List?)?.cast<String>() ?? [];
+    final actionItems = (_currentInsights!['actionItems'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    final sentiment = _currentInsights!['sentiment'] as Map<String, dynamic>?;
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -272,37 +334,94 @@ class AIAssistantScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Summary
             _buildInsightItem(
               Icons.summarize,
               'Summary',
-              'Discussion about Q4 product launch timeline and resource allocation',
+              summary,
               Colors.blue,
             ),
+
+            // Key Points
+            if (keyPoints.isNotEmpty) ...[
+              const Divider(),
+              _buildInsightItem(
+                Icons.topic,
+                'Key Points',
+                keyPoints.join(' • '),
+                Colors.green,
+              ),
+            ],
+
+            // Action Items
+            if (actionItems.isNotEmpty) ...[
+              const Divider(),
+              _buildActionItemsInsight(actionItems),
+            ],
+
+            // Sentiment
+            if (sentiment != null) ...[
+              const Divider(),
+              _buildSentimentInsight(sentiment),
+            ],
+
+            // Refresh button
             const Divider(),
-            _buildInsightItem(
-              Icons.task_alt,
-              'Action Items',
-              '3 tasks identified: Review budget, Schedule follow-up, Prepare deck',
-              Colors.purple,
-            ),
-            const Divider(),
-            _buildInsightItem(
-              Icons.sentiment_satisfied,
-              'Sentiment',
-              'Overall positive tone with some concerns about timeline',
-              Colors.orange,
-            ),
-            const Divider(),
-            _buildInsightItem(
-              Icons.topic,
-              'Key Topics',
-              'Product launch, Budget, Timeline, Team resources',
-              Colors.green,
+            Center(
+              child: TextButton.icon(
+                onPressed: () async {
+                  await _evenAI.generateInsights();
+                  _loadInsights();
+                },
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Refresh Insights'),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildActionItemsInsight(List<Map<String, dynamic>> actionItems) {
+    final itemsText = actionItems.map((item) {
+      final task = item['task'] as String? ?? 'Unknown task';
+      final priority = item['priority'] as String? ?? 'medium';
+      final emoji = priority == 'high' ? '🔴' : priority == 'low' ? '🟢' : '🟡';
+      return '$emoji $task';
+    }).join('\n');
+
+    return _buildInsightItem(
+      Icons.task_alt,
+      'Action Items (${actionItems.length})',
+      itemsText,
+      Colors.purple,
+    );
+  }
+
+  Widget _buildSentimentInsight(Map<String, dynamic> sentiment) {
+    final sentimentType = sentiment['sentiment'] as String? ?? 'neutral';
+    final score = sentiment['score'] as double? ?? 0.0;
+
+    IconData icon;
+    Color color;
+    String description;
+
+    if (sentimentType == 'positive') {
+      icon = Icons.sentiment_satisfied;
+      color = Colors.green;
+      description = 'Positive tone (${(score * 100).toInt()}% confidence)';
+    } else if (sentimentType == 'negative') {
+      icon = Icons.sentiment_dissatisfied;
+      color = Colors.red;
+      description = 'Negative tone (${(score.abs() * 100).toInt()}% confidence)';
+    } else {
+      icon = Icons.sentiment_neutral;
+      color = Colors.orange;
+      description = 'Neutral tone';
+    }
+
+    return _buildInsightItem(icon, 'Sentiment', description, color);
   }
 
   Widget _buildInsightItem(IconData icon, String title, String content, Color color) {
@@ -363,7 +482,7 @@ class AIAssistantScreen extends StatelessWidget {
             ),
             const Divider(),
             _buildProviderTile(
-              'Anthropic Claude',
+              'Anthropic',
               'Detailed conversation understanding',
               Icons.psychology_alt,
               Colors.indigo,
