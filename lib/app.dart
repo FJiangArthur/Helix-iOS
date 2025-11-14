@@ -5,6 +5,7 @@ import 'screens/g1_test_screen.dart';
 import 'screens/even_features_screen.dart';
 import 'screens/ai_assistant_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/simple_ai_test_screen.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -36,7 +37,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const SafeRecordingScreen(),
     const G1TestScreen(),
-    const AIAssistantScreen(),
+    const SimpleAITestScreen(), // Simple working AI test - replaces fake AI screen
     const FeaturesPage(),
     const SettingsScreen(),
   ];
@@ -44,7 +45,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<String> _titles = [
     'Audio Recording',
     'Glasses Connection',
-    'AI Assistant',
+    'AI Test (Real)',
     'Features',
     'Settings',
   ];
