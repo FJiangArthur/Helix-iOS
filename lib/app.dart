@@ -6,6 +6,8 @@ import 'screens/even_features_screen.dart';
 import 'screens/ai_assistant_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/simple_ai_test_screen.dart';
+import 'screens/feature_verification_screen.dart';
+import 'services/analytics_service.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -37,7 +39,8 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = [
     const SafeRecordingScreen(),
     const G1TestScreen(),
-    const SimpleAITestScreen(), // Simple working AI test - replaces fake AI screen
+    const SimpleAITestScreen(), // Simple working AI test
+    const FeatureVerificationScreen(), // Comprehensive test screen
     const FeaturesPage(),
     const SettingsScreen(),
   ];
@@ -46,6 +49,7 @@ class _MainScreenState extends State<MainScreen> {
     'Audio Recording',
     'Glasses Connection',
     'AI Test (Real)',
+    'Verification',
     'Features',
     'Settings',
   ];
@@ -84,6 +88,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.psychology_outlined),
             selectedIcon: Icon(Icons.psychology),
             label: 'AI',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.verified_outlined),
+            selectedIcon: Icon(Icons.verified),
+            label: 'Test',
           ),
           NavigationDestination(
             icon: Icon(Icons.featured_play_list_outlined),
