@@ -3,9 +3,11 @@
 
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 import '../services/audio_service.dart';
 import '../services/implementations/audio_service_impl.dart';
 import '../services/simple_openai_service.dart';
+import '../services/analytics_service.dart';
 import '../models/audio_configuration.dart';
 
 class SimpleAITestScreen extends StatefulWidget {
@@ -18,6 +20,7 @@ class SimpleAITestScreen extends StatefulWidget {
 class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
   late AudioService _audioService;
   SimpleOpenAIService? _openAIService;
+  final AnalyticsService _analytics = AnalyticsService.instance;
 
   bool _isRecording = false;
   bool _isTranscribing = false;
@@ -28,6 +31,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
   String? _transcription;
   String? _analysis;
   String? _lastRecordingPath;
+  String? _currentRecordingId;
 
   Duration _recordingDuration = Duration.zero;
   StreamSubscription<Duration>? _durationSubscription;
@@ -38,6 +42,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
   @override
   void initState() {
     super.initState();
+    _analytics.trackScreenView('simple_ai_test');
     _initializeServices();
   }
 
@@ -101,6 +106,24 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
         await _audioService.stopRecording();
         _lastRecordingPath = _audioService.currentRecordingPath;
 
+        // Track recording stopped
+        if (_currentRecordingId != null && _lastRecordingPath != null) {
+          int? fileSize;
+          try {
+            final file = File(_lastRecordingPath!);
+            fileSize = await file.length();
+          } catch (e) {
+            print('Could not get file size: $e');
+          }
+
+          _analytics.trackRecordingStopped(
+            recordingId: _currentRecordingId!,
+            duration: _recordingDuration,
+            filePath: _lastRecordingPath!,
+            fileSize: fileSize,
+          );
+        }
+
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
@@ -116,6 +139,11 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
         }
       } else {
         // Start recording - clear previous results
+        _currentRecordingId = DateTime.now().millisecondsSinceEpoch.toString();
+
+        // Track recording started
+        _analytics.trackRecordingStarted(recordingId: _currentRecordingId);
+
         setState(() {
           _transcription = null;
           _analysis = null;
@@ -128,6 +156,9 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
         });
       }
     } catch (e) {
+      // Track error
+      _analytics.trackRecordingError(error: e.toString());
+
       setState(() {
         _errorMessage = 'Recording error: $e';
       });
