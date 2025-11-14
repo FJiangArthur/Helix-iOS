@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/evenai.dart';
+import '../services/analytics_service.dart';
 
 /// US 2.3: AI Assistant screen with live insights
 class AIAssistantScreen extends StatefulWidget {
@@ -11,11 +12,15 @@ class AIAssistantScreen extends StatefulWidget {
 
 class _AIAssistantScreenState extends State<AIAssistantScreen> {
   final _evenAI = EvenAI.get;
+  final _analytics = AnalyticsService.instance;
   Map<String, dynamic>? _currentInsights;
 
   @override
   void initState() {
     super.initState();
+    // Track screen view
+    _analytics.trackScreenView('ai_assistant');
+
     // Listen to insights stream
     _evenAI.insightsStream.listen((insights) {
       if (mounted) {
@@ -126,6 +131,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen> {
               color: (persona['color'] as Color).withValues(alpha: 0.1),
               child: InkWell(
                 onTap: () {
+                  // Track persona selection
+                  _analytics.trackPersonaSelected(persona['name'] as String);
+
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text('${persona['name']} persona selected'),
