@@ -1,296 +1,295 @@
-# Helix Epic 1.2: ConversationTab Integration - TODO Tracker
+# Helix Development TODO List
 
-## Current Status
-**Epic**: 1.2 - ConversationTab Integration (ART-10)  
-**Last Updated**: 2025-08-03  
-**Overall Progress**: 0% (Ready to start implementation)
-**Priority**: P0 (Urgent)
+**Last Updated**: 2025-11-15
+**Branch**: `add-tracking-functionality-01B3bn4MvSDnkpMz4BgKhNZf`
 
 ---
 
-## Epic 1.2 Implementation Chunks
+## ✅ Completed (Latest Session)
 
-### ✅ Planning & Architecture (COMPLETE)
-- [x] **Analyze current codebase structure** - Identified key files and integration points
-- [x] **Create comprehensive TDD plan** - 8-chunk implementation with specific prompts
-- [x] **Define success metrics** - Clear definition of done and quality gates
-- [x] **Map integration points** - ConversationTab ↔ AudioService communication
-- [x] **Establish testing strategy** - Widget, integration, and performance testing
+### LLM Integration (llm.art-ai.me)
+- [x] Create AppConfig system for runtime configuration
+- [x] Update OpenAIProvider with custom base URL support
+- [x] Integrate LLMServiceImplV2 with AppConfig
+- [x] Add secure config template (`llm_config.local.json.template`)
+- [x] Configure 8 model tiers (fast, balanced, advanced, reasoning, etc.)
+- [x] Create API validation test (`test_api_integration.dart`)
+- [x] Validate API endpoint - **All tests passed**
+  - Basic completion: 41 tokens ✅
+  - Conversation analysis: 161 tokens ✅
+  - Model selection: 8 tiers accessible ✅
 
-### ⏳ Chunk 1: Test Infrastructure Setup (2 hours) - READY
-**Goal**: Establish comprehensive testing framework for UI-service integration
-**Linear Issue**: Setup for ART-11 and ART-12
+### Azure Whisper Integration
+- [x] Add Whisper transcription endpoint to config
+- [x] Add GPT-Realtime WebSocket endpoint to config
+- [x] Create Whisper test script (`test_whisper_integration.dart`)
+- [x] Update config with direct Azure OpenAI endpoints
 
-#### Tasks:
-- [ ] Create comprehensive widget tests for ConversationTab
-- [ ] Set up integration tests for complete recording workflow  
-- [ ] Enhance test helpers with UI testing utilities
-- [ ] Establish baseline test coverage metrics
+### Audio Service Fixes
+- [x] Fix state management bugs in AudioServiceImpl
+- [x] Add proper cleanup in `initialize()`
+- [x] Add finally blocks to ensure state reset
+- [x] Check actual recorder state before operations
+- [x] Test on physical device - **Recording works**
 
-#### Files to Create/Modify:
-- `test/widget/conversation_tab_test.dart` (create)
-- `test/integration/ui_audio_integration_test.dart` (create)
-- `test/test_helpers.dart` (enhance)
+### Dependencies & Models
+- [x] Add `get_it: ^7.6.4` (dependency injection)
+- [x] Add `dio: ^5.4.0` (HTTP client)
+- [x] Add `riverpod: ^2.4.9` (state management)
+- [x] Create `analysis_result.dart` (AI analysis models)
+- [x] Create `conversation_model.dart` (conversation data)
+- [x] Create `transcription_segment.dart` (transcription data)
+- [x] Create `llm_service.dart` (LLM service interface)
 
-#### Success Criteria:
-- [ ] Widget tests framework established
-- [ ] Integration test infrastructure ready
-- [ ] Test helpers for UI-AudioService mocking
-- [ ] Baseline test coverage measurement
+### Documentation
+- [x] Create `LITELLM_API_INTEGRATION.md` (complete guide)
+- [x] Create `FINAL_INTEGRATION_STATUS.md` (production readiness)
+- [x] Create `CUSTOM_LLM_INTEGRATION_PLAN.md` (implementation plan)
+- [x] Create `TEST_RESULTS_SUMMARY.md` (test results)
+- [x] Create `IMPLEMENTATION_SUMMARY.md` (summary)
+- [x] Create `AZURE_OPENAI_INTEGRATION_PLAN.md` (Azure guide)
 
----
-
-### ⏳ Chunk 2: Recording Button State Management (3 hours) - PENDING
-**Goal**: Ensure recording button accurately reflects AudioService state
-**Linear Issue**: ART-11 (US 1.2.1: Connect UI to AudioService)
-
-#### Tasks:
-- [ ] Fix recording button icon state synchronization
-- [ ] Implement rapid tapping protection
-- [ ] Add loading states during permission requests
-- [ ] Implement graceful error handling with user feedback
-
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (state management)
-- `test/widget/conversation_tab_test.dart` (add tests)
-
-#### Success Criteria:
-- [ ] Recording button shows correct state always
-- [ ] No duplicate recording calls from rapid tapping
-- [ ] Loading states during async operations
-- [ ] Graceful error handling and user feedback
+### Git & Deployment
+- [x] Commit all changes with detailed commit message
+- [x] Resolve merge conflicts with remote branch
+- [x] Push to remote repository
 
 ---
 
-### ⏳ Chunk 3: Real-Time Timer Integration (2 hours) - PENDING
-**Goal**: Connect timer display to AudioService duration stream
-**Linear Issue**: ART-11 (US 1.2.1: Connect UI to AudioService)
+## 🚧 In Progress
 
-#### Tasks:
-- [ ] Connect timer to AudioService duration stream
-- [ ] Implement timer reset when recording stops
-- [ ] Add stream error handling for timer
-- [ ] Implement pause/resume timer functionality
-
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (timer logic)
-- `test/widget/conversation_tab_test.dart` (timer tests)
-
-#### Success Criteria:
-- [ ] Timer shows real elapsed recording time
-- [ ] Timer resets to 00:00 when stopping
-- [ ] Timer handles stream interruptions gracefully
-- [ ] Timer works correctly with pause/resume
+### Whisper Transcription Service
+- [ ] Test Whisper endpoint with actual audio file
+- [ ] Integrate Azure Whisper service into Flutter app
+- [ ] Create `AzureWhisperService` implementation
+- [ ] Connect recording → transcription pipeline
+- [ ] Test end-to-end transcription flow
 
 ---
 
-### ⏳ Chunk 4: Waveform Performance Optimization (4 hours) - PENDING
-**Goal**: Optimize ReactiveWaveform for smooth 30fps real-time updates
-**Linear Issue**: ART-12 (US 1.2.2: Live Waveform Visualization)
+## 📋 Next Priority Tasks
 
-#### Tasks:
-- [ ] Optimize waveform for 30fps rendering target
-- [ ] Handle rapid audio level changes without jank
-- [ ] Implement efficient memory management for history
-- [ ] Fine-tune audio level mapping and visualization
+### Priority 1: Complete Whisper Integration (Est: 2-3 hours)
 
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (ReactiveWaveform)
-- `test/widget/waveform_performance_test.dart` (create)
+**Goal**: Enable audio transcription using Azure Whisper endpoint
 
-#### Success Criteria:
-- [ ] Smooth 30fps waveform animation
-- [ ] No UI jank during audio level updates
-- [ ] Efficient memory usage for audio history
-- [ ] Accurate visual representation of voice input
+1. **Create Azure Whisper Service** (45 min)
+   - [ ] Create `lib/services/transcription/azure_whisper_service.dart`
+   - [ ] Implement multipart/form-data upload
+   - [ ] Add proper error handling
+   - [ ] Support both transcription and translation endpoints
+   - [ ] Add language detection and confidence scoring
 
----
+2. **Integrate with TranscriptionCoordinator** (30 min)
+   - [ ] Update `TranscriptionCoordinator` to use Azure Whisper
+   - [ ] Configure API key from `llm_config.local.json`
+   - [ ] Add mode switching (native vs Azure Whisper)
+   - [ ] Test mode auto-selection based on network
 
-### ⏳ Chunk 5: Stream Subscription Management (2 hours) - PENDING
-**Goal**: Ensure proper lifecycle management of AudioService streams
-**Linear Issue**: ART-11 (US 1.2.1: Connect UI to AudioService)
+3. **Connect Recording Pipeline** (45 min)
+   - [ ] Wire `AudioServiceImpl` → `AzureWhisperService`
+   - [ ] Add audio format conversion if needed
+   - [ ] Implement batch processing (5-second intervals)
+   - [ ] Add progress indicators in UI
 
-#### Tasks:
-- [ ] Implement proper stream subscription setup
-- [ ] Add comprehensive disposal and cleanup
-- [ ] Handle service reinitialization scenarios
-- [ ] Implement robust stream error handling
+4. **Testing & Validation** (30 min)
+   - [ ] Create test audio file (5-10 seconds)
+   - [ ] Test transcription accuracy
+   - [ ] Test error handling (no network, invalid API key)
+   - [ ] Verify on physical device
 
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (subscription lifecycle)
-- `test/widget/conversation_tab_test.dart` (lifecycle tests)
+### Priority 2: AI Analysis Pipeline (Est: 1-2 hours)
 
-#### Success Criteria:
-- [ ] No memory leaks from uncancelled subscriptions
-- [ ] Proper error handling for stream failures
-- [ ] Clean initialization and disposal lifecycle
-- [ ] Robust handling of service state changes
+**Goal**: Enable real-time conversation analysis with LLM
 
----
+1. **Connect Transcription → AI Analysis** (45 min)
+   - [ ] Listen to `transcriptStream` from TranscriptionCoordinator
+   - [ ] Buffer transcript segments for analysis
+   - [ ] Trigger LLM analysis after sufficient text
+   - [ ] Display analysis results in UI
 
-### ⏳ Chunk 6: Permission Flow Integration (2 hours) - PENDING
-**Goal**: Seamlessly integrate permission requests with recording workflow
-**Linear Issue**: ART-11 (US 1.2.1: Connect UI to AudioService)
+2. **Implement Analysis Features** (30 min)
+   - [ ] Quick summary (1-2 sentences)
+   - [ ] Action item extraction
+   - [ ] Key topics identification
+   - [ ] Add confidence indicators
 
-#### Tasks:
-- [ ] Implement seamless permission request flow
-- [ ] Add automatic recording start after permission grant
-- [ ] Implement proper error handling for permission denial
-- [ ] Add settings dialog for permanently denied permissions
+3. **UI Integration** (30 min)
+   - [ ] Show analysis results in ConversationTab
+   - [ ] Add loading states during analysis
+   - [ ] Display token usage and cost estimates
+   - [ ] Add manual "Analyze" button
 
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (permission flow)
-- `test/widget/conversation_tab_test.dart` (permission tests)
+### Priority 3: Model Selection UI (Est: 30-45 min)
 
-#### Success Criteria:
-- [ ] Smooth permission request flow
-- [ ] Automatic recording start after permission grant
-- [ ] Clear error messages for permission failures
-- [ ] Easy path to app settings for denied permissions
+**Goal**: Allow users to choose AI model tier
 
----
+1. **Create Settings Widget** (20 min)
+   - [ ] Create `lib/features/settings/widgets/model_selector.dart`
+   - [ ] Display 8 model tiers with descriptions
+   - [ ] Show rate limits for each model
+   - [ ] Add selection persistence
 
-### ⏳ Chunk 7: End-to-End Integration Testing (3 hours) - PENDING
-**Goal**: Comprehensive testing of complete recording workflow
-**Linear Issue**: ART-11 and ART-12 (Integration validation)
+2. **Integrate Settings** (15 min)
+   - [ ] Add to Settings screen
+   - [ ] Connect to LLMService
+   - [ ] Add "Current Model" indicator in UI
+   - [ ] Test model switching
 
-#### Tasks:
-- [ ] Create comprehensive end-to-end workflow tests
-- [ ] Test multiple recording session scenarios
-- [ ] Validate conversation saving with real audio data
-- [ ] Implement interruption and edge case handling
+### Priority 4: Rate Limit Handling (Est: 20-30 min)
 
-#### Files to Create/Modify:
-- `test/integration/complete_recording_workflow_test.dart` (create)
-- Fix any remaining integration issues discovered
+**Goal**: Graceful handling of API rate limits
 
-#### Success Criteria:
-- [ ] End-to-end recording workflow works perfectly
-- [ ] Multiple recording sessions don't interfere
-- [ ] Real audio files are saved correctly
-- [ ] Graceful handling of interruptions and edge cases
+1. **Implement Fallback Strategy** (15 min)
+   - [ ] Add retry logic with exponential backoff
+   - [ ] Automatic model switching on rate limit
+   - [ ] Fallback chain: gpt-5 → gpt-4.1 → gpt-4.1-mini
+   - [ ] Display rate limit warnings to user
 
----
-
-### ⏳ Chunk 8: Performance and Polish (2 hours) - PENDING
-**Goal**: Final optimization and user experience polish
-**Linear Issue**: ART-11 and ART-12 (Final polish)
-
-#### Tasks:
-- [ ] Optimize UI responsiveness during heavy processing
-- [ ] Implement memory usage optimization
-- [ ] Add battery usage optimization for continuous recording
-- [ ] Ensure all animations are smooth and jank-free
-
-#### Files to Modify:
-- `lib/ui/widgets/conversation_tab.dart` (final optimizations)
-- `test/performance/recording_performance_test.dart` (create)
-
-#### Success Criteria:
-- [ ] Responsive UI during recording
-- [ ] Optimized memory and battery usage
-- [ ] Smooth animations and transitions
-- [ ] Professional user experience
+2. **Add Usage Monitoring** (15 min)
+   - [ ] Track API calls and token usage
+   - [ ] Display usage statistics
+   - [ ] Add cost estimates
+   - [ ] Warn when approaching limits
 
 ---
 
-## Epic 1.2 Success Metrics
+## 🔮 Future Enhancements (Backlog)
 
-### Definition of Done ✅
-- [ ] Record button triggers actual recording 
-- [ ] UI reflects real recording state 
-- [ ] Live waveform shows actual voice input 
-- [ ] Timer displays real recording duration 
-- [ ] Smooth 30fps waveform animation 
-- [ ] No UI jank during recording 
-- [ ] >80% test coverage on UI-AudioService integration 
-- [ ] End-to-end recording workflow works perfectly 
+### GPT-Realtime Integration
+- [ ] Research WebSocket requirements for GPT-Realtime
+- [ ] Create WebSocket client for real-time streaming
+- [ ] Implement streaming transcription + analysis
+- [ ] Test latency and performance
+- [ ] Compare with batch processing approach
 
-### Quality Gates
-1. **All tests pass** - 100% test success rate
-2. **Performance targets met** - 30fps waveform, <100ms button response
-3. **Memory efficiency** - No memory leaks, efficient audio history management
-4. **User experience** - Smooth animations, clear feedback, graceful error handling
+### Performance Optimization
+- [ ] Profile audio recording performance
+- [ ] Optimize buffer sizes for transcription
+- [ ] Implement caching for repeated analyses
+- [ ] Add background processing for long conversations
+- [ ] Reduce memory usage during long sessions
 
-### Integration Points Verified
-- ConversationTab ↔ AudioService communication
-- Real-time audio level visualization
-- Recording state synchronization
-- Permission flow integration
-- Error handling and recovery
-- Stream lifecycle management
+### Smart Glasses Integration
+- [ ] Connect AI insights to glasses HUD
+- [ ] Implement HUD layout for analysis results
+- [ ] Add voice commands for analysis triggers
+- [ ] Test on Even Realities glasses
+- [ ] Optimize for battery life
 
----
+### Advanced AI Features
+- [ ] Speaker diarization (who said what)
+- [ ] Sentiment analysis
+- [ ] Fact-checking integration
+- [ ] Language translation
+- [ ] Conversation context memory
 
-## Implementation Timeline
-
-### Week 1 (Epic 1.2 Kick-off):
-**Target**: Complete Chunks 1-4 (Test setup through Waveform optimization)
-**Expected Duration**: 11 hours total
-
-**Day 1-2**: Chunks 1-2 (Test Infrastructure + Button State)
-**Day 3-4**: Chunk 3 (Timer Integration)
-**Day 5**: Chunk 4 (Waveform Optimization)
-
-### Week 2 (Epic 1.2 Completion):
-**Target**: Complete Chunks 5-8 (Lifecycle through Polish)
-**Expected Duration**: 9 hours total
-
-**Day 1**: Chunks 5-6 (Stream Management + Permissions)
-**Day 2-3**: Chunk 7 (Integration Testing)
-**Day 4**: Chunk 8 (Performance Polish)
-**Day 5**: Epic validation and handoff
+### Testing & Quality
+- [ ] Add unit tests for new services (>80% coverage)
+- [ ] Add integration tests for full pipeline
+- [ ] Add UI tests for critical flows
+- [ ] Performance benchmarking
+- [ ] Load testing for API endpoints
 
 ---
 
-## Resources & References
+## 🐛 Known Issues
 
-### Key Files for Epic 1.2:
-- `lib/ui/widgets/conversation_tab.dart` - **Primary target** for integration
-- `lib/services/implementations/audio_service_impl.dart` - **Working service** to integrate with
-- `test/integration/recording_workflow_test.dart` - **Existing tests** to build upon
+### Critical
+- None currently blocking
 
-### Linear Issues:
-- **ART-10**: Epic 1.2: ConversationTab Integration
-- **ART-11**: US 1.2.1: Connect UI to AudioService
-- **ART-12**: US 1.2.2: Live Waveform Visualization
+### Non-Critical
+- [ ] FactCheckingService has 16 compilation errors (currently disabled)
+- [ ] AIInsightsService has 16 compilation errors (currently disabled)
+- [ ] Audio recording has 4-5 second delay on first start (debug mode only)
+- [ ] iOS build artifacts not properly ignored (build/ folder)
 
-### Code Generation Prompts:
-Ready-to-use prompts for each chunk are available in `plan.md` sections 228-473
-
-### Dependencies:
-- Epic 1.1 (AudioService fixes) - **COMPLETED** ✅
-- Working AudioService implementation - **AVAILABLE** ✅
-- ConversationTab UI structure - **EXISTS** ✅
+### Technical Debt
+- [ ] Remove hardcoded language selection ("en-US")
+- [ ] Add proper logging throughout app
+- [ ] Implement analytics for feature usage
+- [ ] Add telemetry for error tracking
+- [ ] Improve error messages for users
 
 ---
 
-## Current State Assessment
+## 📊 Test Status
 
-### What's Working ✅:
-- AudioService has real functionality for recording, permissions, audio levels
-- ConversationTab UI is visually complete and responsive
-- Basic service subscription infrastructure exists
-- Test framework is established
+### API Tests
+- ✅ LLM Endpoint: **PASSED** (3/3 tests)
+  - Basic completion
+  - Conversation analysis
+  - Model selection
 
-### What Needs Work ❌:
-- UI-Service integration gaps in state management
-- Waveform performance optimization needed
-- Stream subscription lifecycle needs robustness
-- Permission flow user experience needs polish
-- End-to-end workflow testing required
+- ⏳ Whisper Endpoint: **NEEDS AUDIO FILE**
+  - Endpoint configured
+  - Test script created
+  - Waiting for test audio
 
-### Ready to Start ✅:
-Epic 1.2 is ready for immediate implementation. All dependencies are met and the comprehensive plan provides specific, actionable steps for TDD-driven development.
+### Flutter Tests
+- ✅ App compilation: **PASSED** (0 critical errors)
+- ✅ Audio recording: **PASSED** (tested on device)
+- ⏳ Transcription: **NOT TESTED YET**
+- ⏳ AI analysis: **NOT TESTED YET**
+
+### Device Tests
+- ✅ iPhone (00008150-001514CC3C00401C): **PASSED**
+  - App launches
+  - Services initialize
+  - Config loads
+  - Recording works
 
 ---
 
-**Epic 1.2 Status**: ✅ READY FOR IMPLEMENTATION  
-**Next Action**: Execute Chunk 1 (Test Infrastructure Setup)  
-**Estimated Completion**: End of Week 2 (2025-08-17)
+## 🎯 Success Metrics
+
+### Short-term (This Week)
+- [ ] Whisper transcription working end-to-end
+- [ ] AI analysis producing useful insights
+- [ ] <3 second latency from speech to transcription
+- [ ] >80% transcription accuracy on test audio
+
+### Medium-term (This Month)
+- [ ] Model selection UI completed
+- [ ] Rate limit handling robust
+- [ ] Smart glasses integration working
+- [ ] Battery life >2 hours continuous use
+
+### Long-term (This Quarter)
+- [ ] 95%+ uptime for API services
+- [ ] <500ms latency for real-time features
+- [ ] User satisfaction >4.5/5
+- [ ] Launch beta to 10 users
 
 ---
 
-**Last Updated**: 2025-08-03  
-**Next Review**: Daily during implementation  
-**Contact**: Doctor Art for questions or updates
+## 📚 Resources
+
+### Documentation
+- [LiteLLM API Integration Guide](./LITELLM_API_INTEGRATION.md)
+- [Final Integration Status](./FINAL_INTEGRATION_STATUS.md)
+- [Custom LLM Plan](./CUSTOM_LLM_INTEGRATION_PLAN.md)
+- [Azure OpenAI Guide](./AZURE_OPENAI_INTEGRATION_PLAN.md)
+
+### API Endpoints
+- **LLM Endpoint**: https://llm.art-ai.me/v1/chat/completions
+- **Whisper Transcription**: https://isi-oai-gen5-east-us2-sbx.openai.azure.com/openai/deployments/whisper/audio/transcriptions
+- **Whisper Translation**: https://isi-oai-gen5-east-us2-sbx.openai.azure.com/openai/deployments/whisper/audio/translations
+- **GPT-Realtime**: wss://isi-oai-gen5-east-us2-sbx.openai.azure.com/openai/realtime
+
+### Test Scripts
+- `test_api_integration.dart` - LLM API tests
+- `test_whisper_integration.dart` - Whisper transcription tests
+- `test_llm_connection.py` - Python API tests
+
+### Configuration
+- `llm_config.local.json` - Local config (gitignored, contains API keys)
+- `llm_config.local.json.template` - Config template (committed)
+
+---
+
+**Notes**:
+- All API keys stored in `llm_config.local.json` (gitignored)
+- Use exact Azure deployment names (e.g., `gpt-4.1`, not `gpt-4`)
+- Rate limits: 12 req/min (o3-mini) to 2500 req/min (gpt-5)
+- Whisper uses direct Azure endpoint, not LiteLLM proxy
