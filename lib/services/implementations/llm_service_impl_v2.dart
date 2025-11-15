@@ -11,48 +11,61 @@ import '../../models/analysis_result.dart';
 import '../../models/conversation_model.dart';
 import '../../core/utils/logging_service.dart';
 import '../../core/utils/constants.dart';
+import '../../core/config/app_config.dart';
 
 class LLMServiceImplV2 {
   static const String _tag = 'LLMServiceImplV2';
 
   final LoggingService _logger;
-  
+  final AppConfig? _config;
+
   // Providers
   late final OpenAIProvider _openAIProvider;
   late final AnthropicProvider _anthropicProvider;
   final Map<LLMProvider, BaseAIProvider> _providers = {};
-  
+
   // Service state
   bool _isInitialized = false;
   LLMProvider _currentProvider = LLMProvider.openai;
   LLMProvider? _preferredProvider;
-  
+
   // Configuration
   AnalysisConfiguration _analysisConfig = const AnalysisConfiguration();
   final Map<String, CachedResult> _analysisCache = {};
-  
+
   // Failover management
   final Map<LLMProvider, int> _failureCount = {};
   final Map<LLMProvider, DateTime> _lastFailure = {};
   static const int _maxFailures = 3;
   static const Duration _failoverCooldown = Duration(minutes: 5);
-  
+
   // Performance tracking
   final Map<LLMProvider, List<Duration>> _responseTimes = {};
-  
+
   LLMServiceImplV2({
     required LoggingService logger,
-  }) : _logger = logger {
-    _openAIProvider = OpenAIProvider(logger: logger);
+    AppConfig? config,
+  })  : _logger = logger,
+        _config = config {
+    // Create OpenAI provider with custom endpoint if config provided
+    _openAIProvider = OpenAIProvider(
+      logger: logger,
+      baseUrl: config?.llmEndpoint,
+    );
     _anthropicProvider = AnthropicProvider(logger: logger);
-    
+
     _providers[LLMProvider.openai] = _openAIProvider;
     _providers[LLMProvider.anthropic] = _anthropicProvider;
-    
+
     // Initialize tracking
     for (final provider in LLMProvider.values) {
       _failureCount[provider] = 0;
       _responseTimes[provider] = [];
+    }
+
+    // Auto-initialize if config is provided
+    if (config != null) {
+      initialize(openAIKey: config.llmApiKey);
     }
   }
 

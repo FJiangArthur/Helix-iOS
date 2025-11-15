@@ -13,26 +13,29 @@ import '../../core/utils/logging_service.dart';
 
 class OpenAIProvider extends BaseAIProvider {
   static const String _tag = 'OpenAIProvider';
-  
+
   final LoggingService _logger;
   final Dio _dio;
-  
+  final String? _customBaseUrl;
+
   String? _apiKey;
   bool _isInitialized = false;
-  
+
   // Model configuration
   String _model = 'gpt-4-turbo-preview';
-  
+
   // Usage tracking
   int _totalPromptTokens = 0;
   int _totalCompletionTokens = 0;
   double _totalCost = 0.0;
-  
+
   OpenAIProvider({
     required LoggingService logger,
     Dio? dio,
+    String? baseUrl,
   })  : _logger = logger,
-        _dio = dio ?? Dio();
+        _dio = dio ?? Dio(),
+        _customBaseUrl = baseUrl;
   
   @override
   String get name => 'OpenAI';
@@ -43,13 +46,14 @@ class OpenAIProvider extends BaseAIProvider {
   @override
   Future<void> initialize(String apiKey) async {
     try {
-      _logger.log(_tag, 'Initializing OpenAI provider', LogLevel.info);
-      
+      final baseUrl = _customBaseUrl ?? APIConstants.openAIBaseURL;
+      _logger.log(_tag, 'Initializing OpenAI provider with baseUrl: $baseUrl', LogLevel.info);
+
       _apiKey = apiKey;
-      
+
       // Configure Dio client
       _dio.options = BaseOptions(
-        baseUrl: APIConstants.openAIBaseURL,
+        baseUrl: baseUrl,
         connectTimeout: APIConstants.apiTimeout,
         receiveTimeout: APIConstants.apiTimeout,
         headers: {
@@ -505,15 +509,16 @@ Format as JSON array of strings:
     try {
       // Test with a minimal request
       final testDio = Dio();
+      final baseUrl = _customBaseUrl ?? APIConstants.openAIBaseURL;
       final response = await testDio.get(
-        '${APIConstants.openAIBaseURL}/models',
+        '$baseUrl/models',
         options: Options(
           headers: {
             'Authorization': 'Bearer $apiKey',
           },
         ),
       );
-      
+
       return response.statusCode == 200;
     } catch (e) {
       _logger.log(_tag, 'API key validation failed: $e', LogLevel.error);
