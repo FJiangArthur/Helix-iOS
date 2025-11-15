@@ -81,14 +81,25 @@ class AudioServiceImpl implements AudioService {
   Future<void> initialize(AudioConfiguration config) async {
     try {
       _currentConfiguration = config;
+
+      // Force cleanup any previous session to avoid state conflicts
+      try {
+        await _recorder.closeRecorder();
+        await _player.closePlayer();
+      } catch (e) {
+        // Ignore - recorders may not be open yet
+      }
+
       await _recorder.openRecorder();
       await _player.openPlayer();
       await _recorder.setSubscriptionDuration(
         const Duration(milliseconds: 100),
       );
       _isInitialized = true;
+      _isRecording = false; // Ensure flag is correct
     } catch (e) {
       print('Initialization failed: $e');
+      rethrow;
     }
   }
 
@@ -107,9 +118,19 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> startRecording() async {
-    if (!_isInitialized) print('Service not initialized');
-    if (!_hasPermission) print('Microphone permission required');
-    if (_isRecording) return;
+    if (!_isInitialized) throw Exception('Service not initialized');
+    if (!_hasPermission) throw Exception('Microphone permission required');
+
+    // Force stop any existing recording to avoid state conflicts
+    try {
+      if (_recorder.isRecording) {
+        await _recorder.stopRecorder();
+      }
+    } catch (e) {
+      // Ignore - recorder may already be stopped
+    }
+
+    _isRecording = false; // Force reset state
 
     try {
       _currentRecordingPath = await _createRecordingFile();
@@ -126,20 +147,24 @@ class AudioServiceImpl implements AudioService {
     } catch (e) {
       _isRecording = false;
       print('Failed to start recording: $e');
+      rethrow;
     }
   }
 
   @override
   Future<void> stopRecording() async {
-    if (!_isRecording) return;
-
     try {
       _stopMonitoring();
-      await _recorder.stopRecorder();
-      _isRecording = false;
-      _currentAudioLevel = 0.0;
+      // Check actual recorder state, not just our flag
+      if (_recorder.isRecording) {
+        await _recorder.stopRecorder();
+      }
     } catch (e) {
       print('Failed to stop recording: $e');
+    } finally {
+      // Always reset state, even if stop failed
+      _isRecording = false;
+      _currentAudioLevel = 0.0;
     }
   }
 
@@ -213,14 +238,30 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> dispose() async {
-    await stopRecording();
-    await _recorder.closeRecorder();
-    await _player.closePlayer();
-    await _audioStreamController.close();
-    await _audioLevelStreamController.close();
-    await _voiceActivityStreamController.close();
-    await _recordingDurationStreamController.close();
+    try {
+      await stopRecording();
+    } catch (e) {
+      // Ignore - ensure we continue cleanup
+    }
+
+    try {
+      await _recorder.closeRecorder();
+      await _player.closePlayer();
+    } catch (e) {
+      // Ignore - recorders may already be closed
+    }
+
+    try {
+      await _audioStreamController.close();
+      await _audioLevelStreamController.close();
+      await _voiceActivityStreamController.close();
+      await _recordingDurationStreamController.close();
+    } catch (e) {
+      // Ignore - streams may already be closed
+    }
+
     _isInitialized = false;
+    _isRecording = false;
   }
 
   // Additional methods used by other parts of the app
