@@ -186,7 +186,7 @@ jobs:
           fi
 
       - name: Upload coverage to artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: coverage-report
@@ -256,7 +256,7 @@ jobs:
           flutter build ios --release --no-codesign
 
       - name: Archive build artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: ios-build
           path: build/ios/
@@ -320,14 +320,14 @@ jobs:
           flutter build appbundle --release
 
       - name: Archive APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 7
 
       - name: Archive App Bundle
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: android-bundle
           path: build/app/outputs/bundle/release/app-release.aab
@@ -474,7 +474,7 @@ jobs:
           echo "✅ License report generated"
 
       - name: Upload license report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v5
         with:
           name: license-report
           path: deps.json
