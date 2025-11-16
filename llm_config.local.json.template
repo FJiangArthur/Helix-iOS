@@ -1,0 +1,28 @@
+{
+  "llmEndpoint": "https://llm.art-ai.me/v1/chat/completions",
+  "llmApiKey": "PUT-YOUR-API-KEY-HERE",
+  "llmModel": "gpt-4.1-mini",
+  "llmModels": {
+    "fast": "gpt-4.1-mini",
+    "balanced": "gpt-4.1",
+    "advanced": "gpt-5",
+    "reasoning": "o3",
+    "costEffective": "gpt-4.1-nano",
+    "highVolume": "gpt-5",
+    "complexReasoning": "o3",
+    "mathCoding": "o1"
+  },
+  "transcription": {
+    "enabled": false,
+    "note": "Whisper model not available for chat completions endpoint"
+  },
+  "rateLimits": {
+    "gpt-5": 2500,
+    "o1": 1500,
+    "gpt-4o": 300,
+    "gpt-4.1": 150,
+    "o3": 120,
+    "o1-mini": 30,
+    "o3-mini": 12
+  }
+}

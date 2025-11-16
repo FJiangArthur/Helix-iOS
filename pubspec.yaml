@@ -27,15 +27,21 @@ dependencies:
   
   # State Management
   get: ^4.6.6
-  
+  riverpod: ^2.4.9
+  flutter_riverpod: ^2.4.9
+
+  # Dependency Injection
+  get_it: ^7.6.4
+
   # UI Components
   fluttertoast: ^8.2.8
-  
+
   # Utilities
   crclib: ^3.0.0
 
   # HTTP Client (for AI providers and Whisper API)
   http: ^1.2.0
+  dio: ^5.4.0
 
   # Network Connectivity Detection (for transcription mode auto-switching)
   connectivity_plus: ^6.0.1

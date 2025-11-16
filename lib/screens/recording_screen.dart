@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:io';
 
 import '../services/audio_service.dart';
 import '../services/implementations/audio_service_impl.dart';
+import '../services/analytics_service.dart';
 import '../models/audio_configuration.dart';
 import 'file_management_screen.dart';
 
@@ -15,9 +17,13 @@ class RecordingScreen extends StatefulWidget {
 
 class _RecordingScreenState extends State<RecordingScreen> {
   late AudioService _audioService;
+  final AnalyticsService _analytics = AnalyticsService.instance;
+
   bool _isRecording = false;
   bool _isInitialized = false;
   String? _errorMessage;
+  String? _currentRecordingId;
+  DateTime? _recordingStartTime;
   Duration _recordingDuration = Duration.zero;
   double _audioLevel = 0.0;
   StreamSubscription<Duration>? _durationSubscription;
@@ -76,18 +82,45 @@ class _RecordingScreenState extends State<RecordingScreen> {
 
   Future<void> _toggleRecording() async {
     if (!_isInitialized) return;
-    
+
     try {
       if (_isRecording) {
+        // Stop recording
         await _audioService.stopRecording();
+
+        final filePath = _audioService.currentRecordingPath;
+        final duration = _recordingDuration;
+
+        // Get file size if available
+        int? fileSize;
+        if (filePath != null) {
+          try {
+            final file = File(filePath);
+            fileSize = await file.length();
+          } catch (e) {
+            print('Could not get file size: $e');
+          }
+        }
+
+        // Track recording stopped
+        if (_currentRecordingId != null && filePath != null) {
+          _analytics.trackRecordingStopped(
+            recordingId: _currentRecordingId!,
+            duration: duration,
+            filePath: filePath,
+            fileSize: fileSize,
+          );
+        }
+
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
           _audioLevel = 0.0;
+          _currentRecordingId = null;
+          _recordingStartTime = null;
         });
-        
+
         // Show success message with file path
-        final filePath = _audioService.currentRecordingPath;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -97,14 +130,25 @@ class _RecordingScreenState extends State<RecordingScreen> {
           );
         }
       } else {
+        // Start recording
+        _currentRecordingId = DateTime.now().millisecondsSinceEpoch.toString();
+        _recordingStartTime = DateTime.now();
+
+        // Track recording started
+        _analytics.trackRecordingStarted(recordingId: _currentRecordingId);
+
         await _audioService.startRecording();
         setState(() {
           _isRecording = true;
         });
       }
     } catch (e) {
+      // Track recording error
+      _analytics.trackRecordingError(error: e.toString());
+
       setState(() {
         _errorMessage = 'Recording failed: $e';
+        _isRecording = false;
       });
     }
   }

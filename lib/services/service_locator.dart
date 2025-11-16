@@ -3,9 +3,11 @@
 
 import 'package:get_it/get_it.dart';
 
-import 'fact_checking_service.dart';
-import 'ai_insights_service.dart';
+// import 'fact_checking_service.dart';  // Temporarily disabled
+// import 'ai_insights_service.dart';     // Temporarily disabled
 import 'implementations/llm_service_impl_v2.dart';
+import '../core/config/app_config.dart';
+import '../core/utils/logging_service.dart';
 
 class ServiceLocator {
   static final GetIt _getIt = GetIt.instance;
@@ -25,16 +27,33 @@ class ServiceLocator {
 Future<void> setupServiceLocator() async {
   final getIt = GetIt.instance;
 
-  // AI and LLM services
-  getIt.registerLazySingleton<LLMServiceImplV2>(() => LLMServiceImplV2());
+  // Load configuration first
+  print('Loading app configuration...');
+  final config = await AppConfig.load();
+  print('Config loaded: $config');
 
-  // Fact-checking service
-  getIt.registerLazySingleton<FactCheckingService>(() => FactCheckingService(
-    llmService: getIt.get<LLMServiceImplV2>(),
+  // Register config as singleton
+  getIt.registerSingleton<AppConfig>(config);
+
+  // Register logging service
+  getIt.registerLazySingleton<LoggingService>(() => LoggingService.instance);
+
+  // AI and LLM services with config
+  getIt.registerLazySingleton<LLMServiceImplV2>(() => LLMServiceImplV2(
+    logger: getIt.get<LoggingService>(),
+    config: config,
   ));
+
+  // Temporarily disabled - need interface updates
+  // Fact-checking service
+  // getIt.registerLazySingleton<FactCheckingService>(() => FactCheckingService(
+  //   llmService: getIt.get<LLMServiceImplV2>(),
+  // ));
 
   // AI insights service
-  getIt.registerLazySingleton<AIInsightsService>(() => AIInsightsService(
-    llmService: getIt.get<LLMServiceImplV2>(),
-  ));
+  // getIt.registerLazySingleton<AIInsightsService>(() => AIInsightsService(
+  //   llmService: getIt.get<LLMServiceImplV2>(),
+  // ));
+
+  print('Service locator setup complete');
 }
