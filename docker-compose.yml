@@ -1,0 +1,162 @@
+version: '3.8'
+
+services:
+  # Flutter Development Environment
+  flutter-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: helix-flutter-dev
+    hostname: helix-dev
+    volumes:
+      # Mount project directory
+      - .:/workspace:cached
+      # Persist pub cache
+      - pub-cache:/home/developer/.pub-cache
+      # Persist Flutter cache
+      - flutter-cache:/home/developer/.flutter
+      # Mount SSH keys for git operations (optional)
+      - ~/.ssh:/home/developer/.ssh:ro
+      # Mount git config (optional)
+      - ~/.gitconfig:/home/developer/.gitconfig:ro
+    working_dir: /workspace
+    environment:
+      - FLUTTER_PUB_CACHE=/home/developer/.pub-cache
+      - PUB_CACHE=/home/developer/.pub-cache
+      # Pass through AI API keys if set locally
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    ports:
+      # Flutter DevTools
+      - "9100:9100"
+      # Observatory (Dart VM debugger)
+      - "9101:9101"
+      # Hot reload server
+      - "9102:9102"
+    stdin_open: true
+    tty: true
+    networks:
+      - helix-network
+    command: /bin/bash
+    # Enable sound device access for audio testing
+    devices:
+      - /dev/snd:/dev/snd
+    # Linux capabilities for audio
+    cap_add:
+      - SYS_PTRACE
+
+  # Mock API Server (for testing AI integrations)
+  mock-api:
+    image: mockserver/mockserver:latest
+    container_name: helix-mock-api
+    ports:
+      - "1080:1080"
+    environment:
+      - MOCKSERVER_PROPERTY_FILE=/config/mockserver.properties
+      - MOCKSERVER_INITIALIZATION_JSON_PATH=/config/expectations.json
+    volumes:
+      - ./docker/mock-api:/config
+    networks:
+      - helix-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis (for caching AI responses in development)
+  redis:
+    image: redis:7-alpine
+    container_name: helix-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - helix-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # PostgreSQL (for future conversation history storage)
+  postgres:
+    image: postgres:15-alpine
+    container_name: helix-postgres
+    environment:
+      - POSTGRES_DB=helix_dev
+      - POSTGRES_USER=helix
+      - POSTGRES_PASSWORD=helix_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - helix-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U helix -d helix_dev"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Nginx (for proxying and load balancing)
+  nginx:
+    image: nginx:alpine
+    container_name: helix-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      mock-api:
+        condition: service_healthy
+    networks:
+      - helix-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Documentation server (serves project docs)
+  docs:
+    image: squidfunk/mkdocs-material:latest
+    container_name: helix-docs
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/docs
+    working_dir: /docs
+    command: serve --dev-addr 0.0.0.0:8000
+    networks:
+      - helix-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pub-cache:
+    name: helix-pub-cache
+  flutter-cache:
+    name: helix-flutter-cache
+  redis-data:
+    name: helix-redis-data
+  postgres-data:
+    name: helix-postgres-data
+
+networks:
+  helix-network:
+    name: helix-network
+    driver: bridge

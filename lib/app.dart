@@ -7,7 +7,6 @@ import 'screens/ai_assistant_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/simple_ai_test_screen.dart';
 import 'screens/feature_verification_screen.dart';
-import 'services/analytics_service.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -36,16 +35,16 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const SafeRecordingScreen(),
-    const G1TestScreen(),
-    const SimpleAITestScreen(), // Simple working AI test
-    const FeatureVerificationScreen(), // Comprehensive test screen
-    const FeaturesPage(),
-    const SettingsScreen(),
+  final List<Widget> _screens = const <Widget>[
+    SafeRecordingScreen(),
+    G1TestScreen(),
+    SimpleAITestScreen(), // Simple working AI test
+    FeatureVerificationScreen(), // Comprehensive test screen
+    FeaturesPage(),
+    SettingsScreen(),
   ];
 
-  final List<String> _titles = [
+  final List<String> _titles = const <String>[
     'Audio Recording',
     'Glasses Connection',
     'AI Test (Real)',
@@ -68,7 +67,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
+        onDestinationSelected: (int index) {
           setState(() {
             _currentIndex = index;
           });

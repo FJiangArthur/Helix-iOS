@@ -1,0 +1,217 @@
+# iOS Platform Ownership
+
+## Overview
+
+This directory contains all iOS-specific native code and configurations for the Helix project.
+
+## Primary Owners
+
+- **Team**: `@ios-platform`
+- **Platform Leads**: iOS engineers with Swift expertise
+
+## Scope
+
+- iOS native Swift code
+- Xcode project and workspace configuration
+- iOS-specific frameworks and SDKs
+- iOS permissions and entitlements
+- App Store deployment configuration
+
+## Directory Structure
+
+```
+ios/
+├── Runner/                    # Main iOS application code
+│   ├── *.swift               # Swift source files
+│   ├── Info.plist            # App configuration
+│   ├── Assets.xcassets/      # App icons and images
+│   └── Base.lproj/           # Localization files
+├── Runner.xcodeproj/         # Xcode project
+└── Runner.xcworkspace/       # Xcode workspace
+```
+
+## Files and Specific Ownership
+
+### Core Application Files
+- **`AppDelegate.swift`**: `@ios-platform`
+  - App lifecycle management
+  - Flutter engine configuration
+  - Deep linking and notifications
+
+### Bluetooth Management
+- **`BluetoothManager.swift`**: `@ios-platform`, `@bluetooth-team`
+  - BLE peripheral scanning and connection
+  - Even Realities glasses communication
+  - GATT protocol implementation
+
+- **`GattProtocol.swift`**: `@ios-platform`, `@bluetooth-team`
+  - GATT service and characteristic definitions
+  - Protocol buffer communication
+
+### Audio & Speech
+- **`SpeechStreamRecognizer.swift`**: `@ios-platform`, `@audio-team`
+  - iOS Speech Recognition framework
+  - Real-time audio transcription
+  - Audio buffer management
+
+- **`TestRecording.swift`**: `@ios-platform`, `@audio-team`
+  - Audio recording utilities
+  - Test harness for audio features
+
+### Utilities
+- **`ServiceIdentifiers.swift`**: `@ios-platform`, `@bluetooth-team`
+  - BLE service UUIDs
+  - Hardware identification constants
+
+- **`DebugHelper.swift`**: `@ios-platform`
+  - Debug logging utilities
+  - Development tools
+
+### Project Configuration
+- **`Runner.xcodeproj/`**: `@ios-platform`, `@helix-maintainers`
+  - Xcode project settings
+  - Build configurations
+  - Signing and capabilities
+
+- **`Info.plist`**: `@ios-platform`, `@helix-maintainers`
+  - App permissions
+  - Configuration keys
+  - Privacy descriptions
+
+## Review Guidelines
+
+### Required Reviews
+- All Swift code changes: **1 approval** from `@ios-platform`
+- Xcode project changes: **1 approval** from `@ios-platform`
+- Critical files (AppDelegate, project settings): **2 approvals** from `@ios-platform`
+- Cross-platform API changes: **1 approval** from `@flutter-platform`
+
+### Code Quality Standards
+- Follow [Swift API Design Guidelines](https://swift.org/documentation/api-design-guidelines/)
+- Use SwiftLint for code style (if configured)
+- Maintain compatibility with minimum iOS version (check `IPHONEOS_DEPLOYMENT_TARGET`)
+- Handle memory management properly (ARC best practices)
+- Avoid force unwrapping (use optional binding)
+
+### Testing Requirements
+- Unit tests for business logic in Swift
+- Integration tests for Flutter-to-native communication
+- Manual testing on physical iOS devices
+- Test on minimum supported iOS version
+- Verify on different device sizes (iPhone, iPad)
+
+### Build Validation
+- [ ] Project builds without warnings
+- [ ] All build configurations work (Debug, Release, Profile)
+- [ ] Code signing is properly configured
+- [ ] No hardcoded secrets or API keys
+- [ ] Privacy permission descriptions are clear and accurate
+
+## Platform Requirements
+
+### Minimum iOS Version
+- Check `IPHONEOS_DEPLOYMENT_TARGET` in project settings
+- Typically iOS 12.0+ for Flutter compatibility
+
+### Required Frameworks
+- Foundation
+- UIKit
+- CoreBluetooth (for BLE)
+- Speech (for transcription)
+- AVFoundation (for audio)
+
+### Permissions Required
+Must be declared in `Info.plist`:
+- `NSMicrophoneUsageDescription` - Audio recording
+- `NSSpeechRecognitionUsageDescription` - Speech-to-text
+- `NSBluetoothAlwaysUsageDescription` - Bluetooth LE
+- `NSBluetoothPeripheralUsageDescription` - BLE peripheral mode
+
+## Key Metrics
+
+- **Build Time**: < 5 minutes for clean build
+- **App Size**: < 50 MB for release IPA
+- **Memory Usage**: < 200 MB peak memory
+- **Launch Time**: < 2 seconds cold launch
+
+## Dependencies
+
+### CocoaPods (if used)
+Check `Podfile` for dependencies
+
+### Swift Packages (if used)
+Check Xcode project for SPM dependencies
+
+### Flutter Plugins
+Native iOS implementations for Flutter plugins
+
+## Related Documentation
+
+- [iOS Deployment Workflow](/docs/BUILD_DEPLOY_WORKFLOW.md)
+- [Developer Guide](/docs/DEVELOPER_GUIDE.md)
+- [Architecture Documentation](/docs/Architecture.md)
+
+## Development Setup
+
+### Prerequisites
+- macOS with Xcode installed
+- iOS Simulator or physical iOS device
+- CocoaPods (if project uses it)
+- Valid Apple Developer account (for device testing)
+
+### Opening the Project
+```bash
+# Open from Flutter project root
+open ios/Runner.xcworkspace  # If workspace exists
+# OR
+open ios/Runner.xcodeproj    # If no workspace
+```
+
+### Building from Command Line
+```bash
+# From project root
+flutter build ios --debug
+flutter build ios --release
+```
+
+## Common Issues
+
+### Code Signing Errors
+- Ensure valid provisioning profile
+- Check bundle identifier matches
+- Verify team selection in Xcode
+
+### Build Failures
+- Clean build folder: `flutter clean && flutter pub get`
+- Update CocoaPods: `cd ios && pod install`
+- Check Xcode version compatibility
+
+### Bluetooth Issues
+- Verify permissions in Info.plist
+- Check BLE capability is enabled
+- Test on physical device (BLE doesn't work well in simulator)
+
+## Escalation
+
+For urgent iOS platform issues:
+1. Tag `@ios-platform` in PR/issue
+2. Contact iOS platform lead via Slack `#helix-ios`
+3. For Flutter integration issues, loop in `@flutter-platform`
+4. For architectural decisions, escalate to `@helix-maintainers`
+
+## Deployment
+
+### App Store Release Process
+1. Update version and build number
+2. Archive release build in Xcode
+3. Submit to App Store Connect
+4. Complete App Store metadata
+5. Submit for review
+
+**Deployment Owners**: `@ios-platform`, `@helix-maintainers`
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial iOS platform ownership established | Helix Team |

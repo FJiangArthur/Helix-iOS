@@ -1,0 +1,300 @@
+# Health Monitoring Configuration
+# Defines monitoring, alerting, and observability settings
+
+version: "1.0"
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  mode: active # active, passive, hybrid
+
+  # Collection settings
+  collection:
+    interval: 30s
+    timeout: 10s
+    concurrency: 10 # Max concurrent health checks
+    retryPolicy:
+      maxRetries: 3
+      retryDelay: 1s
+      backoffMultiplier: 2
+
+  # Storage settings
+  storage:
+    type: memory # memory, file, database
+    retentionPeriod: 7d
+    maxHistorySize: 1000
+    compactionEnabled: true
+    compactionInterval: 1h
+
+  # Performance settings
+  performance:
+    enableCaching: true
+    cacheTimeout: 5s
+    enableCompression: true
+
+# Service health thresholds
+thresholds:
+  # Response time thresholds (milliseconds)
+  responseTime:
+    healthy: 500
+    degraded: 1000
+    unhealthy: 5000
+
+  # Health score thresholds (0-100)
+  healthScore:
+    healthy: 90
+    degraded: 70
+    unhealthy: 50
+
+  # Availability thresholds (percentage)
+  availability:
+    healthy: 99.5
+    degraded: 95.0
+    unhealthy: 90.0
+
+  # Error rate thresholds (percentage)
+  errorRate:
+    healthy: 1.0
+    degraded: 5.0
+    unhealthy: 10.0
+
+# Alerting configuration
+alerting:
+  enabled: true
+
+  # Alert routing
+  routing:
+    # Route critical alerts immediately
+    - match:
+        severity: critical|emergency
+      delay: 0s
+      channels:
+        - console
+        - analytics
+
+    # Route warnings with delay to reduce noise
+    - match:
+        severity: warning
+      delay: 5m
+      channels:
+        - console
+
+    # Route info alerts with longer delay
+    - match:
+        severity: info
+      delay: 15m
+      channels:
+        - analytics
+
+  # Alert throttling
+  throttling:
+    enabled: true
+    window: 15m
+    maxAlertsPerWindow: 5
+    groupBy:
+      - service_name
+      - alert_type
+
+  # Alert escalation
+  escalation:
+    enabled: true
+    rules:
+      - condition: "unresolved_duration > 30m && severity == 'critical'"
+        action: escalate
+        newSeverity: emergency
+
+      - condition: "failure_count > 5 && severity == 'warning'"
+        action: escalate
+        newSeverity: critical
+
+# Service-specific monitoring
+services:
+  # Audio Service
+  AudioService:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: high
+    dependencies: []
+    customChecks:
+      - name: "permission_check"
+        description: "Verify audio permission is granted"
+        type: custom
+
+  # LLM Service
+  LLMService:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: high
+    dependencies: []
+    customChecks:
+      - name: "api_connectivity"
+        description: "Verify LLM API connectivity"
+        type: custom
+
+  # AI Insights Service
+  AIInsightsService:
+    enabled: true
+    checkInterval: 60s
+    criticalityLevel: medium
+    dependencies:
+      - LLMService
+    customChecks:
+      - name: "insights_generation"
+        description: "Verify insights can be generated"
+        type: custom
+
+  # Transcription Service
+  TranscriptionCoordinator:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: high
+    dependencies:
+      - AudioService
+    customChecks:
+      - name: "transcription_available"
+        description: "Verify transcription is available"
+        type: custom
+
+  # Redis
+  redis:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: medium
+    dependencies: []
+    customChecks:
+      - name: "memory_usage"
+        description: "Check Redis memory usage"
+        type: resource
+        threshold: 80 # percent
+
+  # PostgreSQL
+  postgres:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: high
+    dependencies: []
+    customChecks:
+      - name: "connection_count"
+        description: "Check PostgreSQL connection count"
+        type: resource
+        threshold: 100 # max connections
+
+      - name: "disk_usage"
+        description: "Check database disk usage"
+        type: resource
+        threshold: 85 # percent
+
+  # Nginx
+  nginx:
+    enabled: true
+    checkInterval: 30s
+    criticalityLevel: high
+    dependencies:
+      - mock-api
+    customChecks:
+      - name: "upstream_health"
+        description: "Check upstream server health"
+        type: custom
+
+# Observability integration
+observability:
+  # Metrics export
+  metrics:
+    enabled: true
+    format: prometheus
+    endpoint: /metrics
+    includeLabels:
+      - service_name
+      - version
+      - environment
+      - host
+
+  # Tracing
+  tracing:
+    enabled: true
+    samplingRate: 0.1 # 10% sampling
+    exportFormat: opentelemetry
+
+  # Logging
+  logging:
+    enabled: true
+    level: info
+    format: json
+    includeHealthChecks: true
+    includeMetrics: true
+    includeAlerts: true
+
+# Health check reports
+reporting:
+  enabled: true
+
+  # Report generation
+  generation:
+    interval: 1h
+    formats:
+      - json
+      - html
+    includeCharts: true
+    includeTrends: true
+
+  # Report distribution
+  distribution:
+    enabled: true
+    channels:
+      - file
+      - analytics
+    retention: 30d
+
+# Maintenance windows
+maintenance:
+  enabled: true
+  windows: []
+  # Example:
+  # - name: "Weekly Maintenance"
+  #   schedule: "0 2 * * 0" # Every Sunday at 2 AM
+  #   duration: 2h
+  #   affectedServices:
+  #     - postgres
+  #     - redis
+  #   suppressAlerts: true
+
+# Circuit breaker configuration
+circuitBreaker:
+  enabled: true
+
+  # Circuit breaker settings per service
+  settings:
+    default:
+      failureThreshold: 5 # Number of failures before opening
+      successThreshold: 2 # Number of successes before closing
+      timeout: 60s # Time to wait before half-open
+      halfOpenMaxCalls: 3 # Max calls in half-open state
+
+  # Service-specific overrides
+  overrides:
+    LLMService:
+      failureThreshold: 3
+      timeout: 30s
+
+    TranscriptionCoordinator:
+      failureThreshold: 3
+      timeout: 30s
+
+# Auto-remediation
+autoRemediation:
+  enabled: false # Disabled by default for safety
+
+  rules:
+    - name: "Restart unhealthy service"
+      condition: "health_status == 'unhealthy' && duration > 5m"
+      action: restart
+      maxAttempts: 3
+      cooldown: 10m
+      dryRun: true # Only log, don't actually restart
+
+    - name: "Clear cache on degraded performance"
+      condition: "response_time > 5000 && duration > 3m"
+      action: clearCache
+      maxAttempts: 1
+      cooldown: 15m
+      dryRun: true

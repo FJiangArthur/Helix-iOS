@@ -1,6 +1,8 @@
 // ABOUTME: Simple logging service for application-wide logging
 // ABOUTME: Provides structured logging with different severity levels
 
+// ignore_for_file: avoid_print
+
 enum LogLevel {
   debug,
   info,
@@ -38,7 +40,7 @@ class LoggingService {
   }
 
   void _log(String level, String tag, String message, [Object? data]) {
-    final timestamp = DateTime.now().toIso8601String();
+    final String timestamp = DateTime.now().toIso8601String();
     print('[$timestamp][$level][$tag] $message${data != null ? ' | Data: $data' : ''}');
   }
 }

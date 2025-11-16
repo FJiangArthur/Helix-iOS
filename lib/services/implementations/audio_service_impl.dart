@@ -10,6 +10,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../audio_service.dart';
 import '../../models/audio_configuration.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Simplified AudioService implementation
 class AudioServiceImpl implements AudioService {
@@ -98,7 +99,7 @@ class AudioServiceImpl implements AudioService {
       _isInitialized = true;
       _isRecording = false; // Ensure flag is correct
     } catch (e) {
-      print('Initialization failed: $e');
+      appLogger.i('Initialization failed: $e');
       rethrow;
     }
   }
@@ -146,7 +147,7 @@ class AudioServiceImpl implements AudioService {
       _startSimpleMonitoring();
     } catch (e) {
       _isRecording = false;
-      print('Failed to start recording: $e');
+      appLogger.i('Failed to start recording: $e');
       rethrow;
     }
   }
@@ -160,7 +161,7 @@ class AudioServiceImpl implements AudioService {
         await _recorder.stopRecorder();
       }
     } catch (e) {
-      print('Failed to stop recording: $e');
+      appLogger.i('Failed to stop recording: $e');
     } finally {
       // Always reset state, even if stop failed
       _isRecording = false;

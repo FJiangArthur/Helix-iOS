@@ -1,0 +1,146 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE and Editor
+.vscode
+.idea
+*.iml
+*.ipr
+*.iws
+.metadata
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+
+# iOS
+ios/.symlinks/
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/app.flx
+ios/Flutter/app.zip
+ios/Flutter/flutter_assets/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+ios/Pods/
+ios/.symlinks/
+ios/**/Flutter/ephemeral/
+ios/**/Pods/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcworkspace
+!default.xcworkspace
+xcuserdata
+*.moved-aside
+DerivedData
+*.hmap
+*.ipa
+*.xcuserstate
+**/ios/build/*
+
+# Android
+android/.gradle
+android/captures/
+android/gradle-wrapper.jar
+android/.gradletasknamecache
+android/local.properties
+android/**/build/
+*.jks
+*.keystore
+
+# macOS
+macos/Flutter/ephemeral/
+macos/Flutter/Flutter-Generated.xcconfig
+macos/Pods/
+macos/.symlinks/
+
+# Linux
+linux/flutter/ephemeral/
+
+# Windows
+windows/flutter/ephemeral/
+
+# Web
+web/build/
+
+# Documentation
+docs/_build
+docs/.jekyll-cache
+
+# Test coverage
+coverage/
+.test_coverage.dart
+lcov.info
+
+# Logs
+*.log
+logs/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+settings.local.json
+llm_config.local.json
+*.local.json
+*.local.yaml
+*.secret
+*.secrets
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+docker-compose*.yml
+Dockerfile*
+.devcontainer/
+
+# CI/CD
+.github/workflows/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Node modules (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
+
+# Documentation that doesn't need to be in container
+*.md
+!README.md
+
+# Other
+.metadata
+.devtools/
+.flutter-devtools/
+migrate_working_dir/

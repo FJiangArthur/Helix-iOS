@@ -1,0 +1,208 @@
+# CODEOWNERS for Helix iOS
+#
+# This file defines code ownership for automated review assignment.
+# See OWNERS.md for detailed ownership model and escalation paths.
+#
+# Format: <file-pattern> <owner1> <owner2> ...
+# Use @username for GitHub users, @org/team for teams
+#
+# Rules are evaluated from bottom to top - last matching pattern takes precedence
+
+# =============================================================================
+# DEFAULT OWNERS - These own everything unless a more specific rule applies
+# =============================================================================
+* @helix-maintainers
+
+# =============================================================================
+# DOCUMENTATION & PROJECT FILES
+# =============================================================================
+
+# Root documentation files
+*.md @helix-maintainers @docs-team
+/docs/ @docs-team
+/README.md @helix-maintainers @docs-team
+
+# Configuration files
+/pubspec.yaml @helix-maintainers @flutter-platform
+/analysis_options.yaml @helix-maintainers @flutter-platform
+/settings.local.json.template @helix-maintainers @ai-team
+/llm_config.local.json.template @helix-maintainers @ai-team
+
+# =============================================================================
+# CI/CD & BUILD INFRASTRUCTURE
+# =============================================================================
+
+/.github/ @devops-team
+/.github/workflows/ @devops-team @helix-maintainers
+/.gitignore @helix-maintainers
+
+# =============================================================================
+# PLATFORM-SPECIFIC CODE
+# =============================================================================
+
+# iOS Native (Swift)
+/ios/ @ios-platform
+/ios/Runner/*.swift @ios-platform @bluetooth-team
+/ios/Runner/AppDelegate.swift @ios-platform
+/ios/Runner/BluetoothManager.swift @ios-platform @bluetooth-team
+/ios/Runner/SpeechStreamRecognizer.swift @ios-platform @audio-team
+/ios/Runner.xcodeproj/ @ios-platform
+/ios/Runner.xcworkspace/ @ios-platform
+
+# macOS Native (Swift)
+/macos/ @macos-platform
+/macos/Runner/*.swift @macos-platform
+/macos/Runner.xcodeproj/ @macos-platform
+
+# Android
+/android/ @android-platform
+/android/app/ @android-platform
+/android/gradle/ @android-platform
+
+# Windows
+/windows/ @windows-platform
+
+# Linux
+/linux/ @linux-platform
+
+# Web
+/web/ @web-platform
+
+# =============================================================================
+# FLUTTER/DART CODE - CORE
+# =============================================================================
+
+# Core utilities and configuration
+/lib/core/ @flutter-platform @helix-maintainers
+/lib/core/config/ @flutter-platform @helix-maintainers
+/lib/core/utils/ @flutter-platform
+
+# Main application entry
+/lib/main.dart @flutter-platform @helix-maintainers
+/lib/app.dart @flutter-platform @helix-maintainers
+
+# =============================================================================
+# DATA MODELS
+# =============================================================================
+
+/lib/models/ @flutter-platform @backend-team
+/lib/models/audio_*.dart @audio-team @flutter-platform
+/lib/models/ble_*.dart @bluetooth-team @flutter-platform
+/lib/models/analysis_result.dart @ai-team @flutter-platform
+/lib/models/conversation_model.dart @ai-team @flutter-platform
+/lib/models/transcription_segment.dart @audio-team @ai-team
+
+# =============================================================================
+# SERVICES - AI & MACHINE LEARNING
+# =============================================================================
+
+# AI Providers
+/lib/services/ai/ @ai-team
+/lib/services/ai_providers/ @ai-team
+/lib/services/ai_providers/openai_provider.dart @ai-team @ml-engineers
+/lib/services/ai_providers/anthropic_provider.dart @ai-team @ml-engineers
+/lib/services/ai_providers/base_provider.dart @ai-team @backend-team
+
+# AI Services
+/lib/services/llm_service.dart @ai-team
+/lib/services/enhanced_ai_service.dart @ai-team
+/lib/services/simple_openai_service.dart @ai-team
+/lib/services/fact_checking_service.dart @ai-team @ml-engineers
+/lib/services/ai_insights_service.dart @ai-team @ml-engineers
+/lib/services/conversation_insights.dart @ai-team
+/lib/services/analytics_service.dart @ai-team @data-team
+
+# Service Implementations
+/lib/services/implementations/ @backend-team
+/lib/services/implementations/llm_service_impl_v2.dart @ai-team @backend-team
+/lib/services/implementations/audio_service_impl.dart @audio-team @backend-team
+
+# =============================================================================
+# SERVICES - AUDIO & TRANSCRIPTION
+# =============================================================================
+
+/lib/services/audio_service.dart @audio-team
+/lib/services/audio_buffer_manager.dart @audio-team
+/lib/services/transcription/ @audio-team @ai-team
+/lib/services/transcription/whisper_transcription_service.dart @audio-team @ai-team
+/lib/services/transcription/native_transcription_service.dart @audio-team @ios-platform
+/lib/services/transcription/transcription_coordinator.dart @audio-team @backend-team
+/lib/services/transcription/transcription_models.dart @audio-team
+
+# =============================================================================
+# SERVICES - BLUETOOTH & HARDWARE
+# =============================================================================
+
+/lib/services/ble.dart @bluetooth-team
+/lib/ble_manager.dart @bluetooth-team
+/lib/services/evenai.dart @bluetooth-team @hardware-team
+/lib/services/evenai_proto.dart @bluetooth-team @hardware-team
+/lib/services/proto.dart @bluetooth-team @hardware-team
+/lib/services/hud_controller.dart @bluetooth-team @ui-team
+
+# =============================================================================
+# SERVICES - GENERAL
+# =============================================================================
+
+/lib/services/service_locator.dart @backend-team @helix-maintainers
+/lib/services/text_service.dart @flutter-platform
+/lib/services/text_paginator.dart @flutter-platform @ui-team
+/lib/services/features_services.dart @backend-team
+/lib/services/app.dart @flutter-platform @helix-maintainers
+
+# =============================================================================
+# USER INTERFACE
+# =============================================================================
+
+/lib/screens/ @ui-team @flutter-platform
+/lib/screens/settings_screen.dart @ui-team @backend-team
+/lib/screens/recording_screen.dart @ui-team @audio-team
+/lib/screens/ai_assistant_screen.dart @ui-team @ai-team
+/lib/screens/simple_ai_test_screen.dart @ui-team @ai-team
+/lib/screens/feature_verification_screen.dart @ui-team @qa-team
+/lib/screens/even_ai_history_screen.dart @ui-team @bluetooth-team
+/lib/screens/even_features_screen.dart @ui-team @bluetooth-team
+/lib/screens/g1_test_screen.dart @ui-team @bluetooth-team @hardware-team
+
+# Feature-specific UI
+/lib/screens/features/ @ui-team
+/lib/screens/features/notification/ @ui-team @flutter-platform
+
+# =============================================================================
+# UTILITIES
+# =============================================================================
+
+/lib/utils/ @flutter-platform
+/lib/utils/app_logger.dart @flutter-platform @devops-team
+
+# =============================================================================
+# TESTING
+# =============================================================================
+
+/test/ @qa-team @flutter-platform
+/test/models/ @qa-team @backend-team
+/test/services/ @qa-team @backend-team
+/test/services/ai_coordinator_test.dart @qa-team @ai-team
+/test/services/conversation_insights_test.dart @qa-team @ai-team
+/test/services/audio_buffer_manager_test.dart @qa-team @audio-team
+/test/services/transcription/ @qa-team @audio-team @ai-team
+
+# Root test files
+/test_*.dart @qa-team @ai-team
+
+# =============================================================================
+# SCRIPTS & TOOLING
+# =============================================================================
+
+*.sh @devops-team
+/check_imports.sh @devops-team @flutter-platform
+
+# =============================================================================
+# CRITICAL FILES - REQUIRE MAINTAINER APPROVAL
+# =============================================================================
+
+# These files are critical and require review from maintainers
+/lib/services/service_locator.dart @helix-maintainers @backend-team
+/lib/main.dart @helix-maintainers
+/pubspec.yaml @helix-maintainers
+/.github/workflows/*.yml @helix-maintainers @devops-team
