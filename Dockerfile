@@ -2,7 +2,7 @@
 # Multi-stage Dockerfile for development and building
 
 # Stage 1: Base Flutter SDK
-FROM ubuntu:22.04 AS flutter-base
+FROM ubuntu:24.04 AS flutter-base
 
 # Avoid prompts from apt
 ENV DEBIAN_FRONTEND=noninteractive
@@ -134,7 +134,7 @@ RUN flutter test
 RUN flutter build linux --release
 
 # Stage 4: Production (minimal runtime)
-FROM ubuntu:22.04 AS production
+FROM ubuntu:24.04 AS production
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
