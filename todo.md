@@ -329,7 +329,348 @@ flutter clean && flutter pub get
 
 ---
 
-## 🔮 Future Enhancements (Backlog)
+## 🎯 Competitive Feature Roadmap
+
+**Reference**: See [COMPETITIVE_ROADMAP.md](./COMPETITIVE_ROADMAP.md) for complete competitive analysis
+
+**Current Feature Parity**: 35% (7/20 features)
+**Competitors**: Otter.ai (80%), Gong (85%), Ray-Ban Meta (60%)
+**Goal**: Reach 90% feature parity while leveraging unique smart glasses advantages
+
+---
+
+### Phase 1: Foundation (Q1 2026) - 60% Parity
+
+**Goal**: Achieve parity with basic AI assistants
+**Duration**: 12 weeks
+
+#### Priority 5: Conversation Memory & History (Week 1-2)
+- [ ] Implement SQLite database for conversation storage
+  - Create conversation schema (id, timestamp, participants, transcript, analysis)
+  - Add indexing for fast queries
+- [ ] Build searchable conversation archive
+  - Full-text search across all conversations
+  - Filter by date, speaker, tags
+- [ ] Add conversation tagging system
+  - User-defined tags
+  - Auto-tagging based on content
+- [ ] Implement export functionality
+  - Export to PDF with formatting
+  - Export to plain text
+  - Export to JSON for API integration
+
+**Competitive Benchmark**: Otter.ai has searchable database across all meetings
+
+#### Priority 6: Speaker Diarization (Week 3-4)
+- [ ] Integrate Azure Speaker Recognition API
+  - Set up Azure Cognitive Services account
+  - Implement speaker enrollment
+- [ ] Implement automatic speaker labeling
+  - "Speaker 1", "Speaker 2" detection
+  - Speaker change detection
+- [ ] Add manual speaker name assignment
+  - UI for renaming speakers
+  - Speaker profile management
+- [ ] Create speaker-specific insights
+  - Per-speaker talk time
+  - Per-speaker sentiment
+  - Speaker interaction patterns
+
+**Competitive Benchmark**: Otter.ai auto-detects speakers with 90%+ accuracy
+
+#### Priority 7: Voice Commands (Week 5-6)
+- [ ] Implement "Hey Helix" wake word detection
+  - Integrate Porcupine wake word engine
+  - On-device detection for privacy
+  - Wake word model training
+- [ ] Add voice-activated actions
+  - "Start recording", "Stop recording"
+  - "Summarize conversation"
+  - "Show action items"
+  - "What did we discuss about [topic]?"
+- [ ] Create natural language command processor
+  - Intent classification
+  - Entity extraction
+  - Command execution engine
+- [ ] Optimize for low latency
+  - Background wake word detection
+  - Fast intent processing
+
+**Competitive Benchmark**: Ray-Ban Meta "Hey Meta" + continuous conversation
+
+#### Priority 8: AI Chat/Query Interface (Week 7-8)
+- [ ] Build conversation query service
+  - Query single conversation
+  - Query across all conversations
+  - Context-aware responses
+- [ ] Implement natural language queries
+  - "What did we discuss about pricing?"
+  - "Find all conversations with John"
+  - "When did I last talk about the project?"
+- [ ] Add conversational follow-ups
+  - Multi-turn query support
+  - Context retention across queries
+- [ ] Create query UI in app
+  - Chat interface for queries
+  - Quick query suggestions
+  - Search results display
+
+**Competitive Benchmark**: Otter.ai AI Chat answers from entire meeting database
+
+#### Priority 9: Sentiment Analysis (Week 9-10)
+- [ ] Implement real-time sentiment detection
+  - Positive/negative/neutral classification
+  - Confidence scoring
+- [ ] Add emotion tracking over conversation
+  - Sentiment timeline visualization
+  - Emotion shift detection
+- [ ] Create sentiment alerts
+  - Alert on negative sentiment shifts
+  - Notify on high-emotion moments
+- [ ] Build sentiment trends visualization
+  - Graph sentiment over time
+  - Compare sentiment across conversations
+
+**Competitive Benchmark**: Gong tracks sentiment and flags risky moments
+
+#### Priority 10: Multi-Language Support (Week 11-12)
+- [ ] Add support for top 10 languages
+  - English, Spanish, French, German, Italian
+  - Portuguese, Chinese, Japanese, Korean, Arabic
+- [ ] Implement auto-detect language
+  - Use Whisper language detection
+  - Fallback to manual selection
+- [ ] Add live translation option
+  - Translate transcripts in real-time
+  - Display on HUD
+- [ ] Configure language-specific models
+  - Optimized prompts per language
+  - Language-specific terminology
+
+**Competitive Benchmark**: Ray-Ban Meta live translation, Otter supports 30+ languages
+
+#### Phase 1 Success Metrics
+- ✅ 60% feature parity achieved
+- ✅ Conversation history with search working
+- ✅ Speaker identification >85% accuracy
+- ✅ Voice command activation <500ms latency
+- ✅ Query any past conversation
+- ✅ Multi-language transcription for top 10 languages
+
+---
+
+### Phase 2: Differentiation (Q2 2026) - 75% Parity + Unique Features
+
+**Goal**: Leverage smart glasses advantages
+**Duration**: 12 weeks
+
+#### Advanced Features
+
+**Real-Time Coaching System** (Week 1-3)
+- [ ] Build live conversation analysis engine
+  - Real-time transcript processing
+  - Pattern detection (objections, opportunities)
+- [ ] Create HUD coaching display
+  - Non-intrusive coaching tips
+  - Context-sensitive suggestions
+- [ ] Implement objection detection and handling
+  - Common objection patterns
+  - Suggested responses on HUD
+- [ ] Add talk ratio monitoring
+  - Listening vs speaking percentage
+  - Optimal ratio alerts
+
+**Competitive Benchmark**: Gong real-time coaching for sales calls
+**Unique Helix Angle**: Display coaching on HUD without disrupting flow
+
+**Context-Aware Notifications** (Week 4-5)
+- [ ] Smart HUD alerts
+  - Action items display
+  - Follow-up reminders
+  - Time-based notifications
+- [ ] Implement context detection
+  - Meeting vs casual conversation
+  - Sales call vs medical consultation
+- [ ] Add proactive suggestions
+  - Next best action recommendations
+  - Conversation-type specific tips
+- [ ] Create Do Not Disturb modes
+  - Manual DND toggle
+  - Auto-DND based on context
+
+**Offline Mode** (Week 6-7)
+- [ ] Implement on-device transcription
+  - Core ML Whisper model integration
+  - Model optimization for iOS
+- [ ] Add local LLM for basic analysis
+  - Llama 3 8B on-device
+  - Lightweight analysis capabilities
+- [ ] Build offline-first database with sync
+  - Local storage
+  - Cloud sync when online
+  - Conflict resolution
+
+**Unique Helix Feature**: Privacy-first, works in secure environments
+**Competitive Advantage**: None of the major competitors offer true offline mode
+
+**Smart Summaries** (Week 8-9)
+- [ ] Build adaptive summary engine
+  - 1-sentence, paragraph, detailed levels
+  - User preference learning
+- [ ] Create role-specific summaries
+  - Sales: focus on objections, next steps
+  - Medical: focus on symptoms, treatment
+  - Legal: focus on facts, agreements
+- [ ] Implement key points extraction
+  - Automatic highlight detection
+  - Important moment identification
+- [ ] Add automatic follow-up suggestions
+  - Action items from conversation
+  - Recommended next steps
+
+**Talk Pattern Analytics** (Week 10-11)
+- [ ] Implement speaking time ratio analysis
+  - Per-speaker time tracking
+  - Ratio visualizations
+- [ ] Add question frequency analysis
+  - Question count per speaker
+  - Question types classification
+- [ ] Create filler word detection
+  - "um", "uh", "like" counting
+  - Filler word reduction coaching
+- [ ] Build pace and clarity metrics
+  - Words per minute
+  - Clarity score
+
+**Competitive Benchmark**: Gong's talk pattern intelligence
+
+**Privacy Controls** (Week 12)
+- [ ] Build granular privacy settings
+  - Per-conversation privacy levels
+  - Default privacy mode
+- [ ] Implement PII detection and redaction
+  - NER models for PII
+  - Automatic masking
+- [ ] Add compliance modes
+  - HIPAA mode
+  - GDPR mode
+  - Custom compliance rules
+- [ ] Create audit logging
+  - Track all data access
+  - Compliance reports
+
+#### Phase 2 Success Metrics
+- ✅ Real-time coaching on HUD working
+- ✅ Fully functional offline mode
+- ✅ Privacy-first architecture implemented
+- ✅ Professional-grade analytics
+- ✅ 75%+ feature parity achieved
+
+---
+
+### Phase 3: Enterprise (Q3-Q4 2026) - 90% Parity + Market Leadership
+
+**Goal**: Enterprise-ready with integrations
+**Duration**: 24 weeks
+
+#### Enterprise Features
+
+**CRM Integration Suite** (Month 1-2)
+- [ ] Build Salesforce connector
+  - OAuth 2.0 authentication
+  - Bi-directional sync
+  - Activity logging
+- [ ] Create HubSpot integration
+  - Contact sync
+  - Deal tracking
+  - Email integration
+- [ ] Add Microsoft Dynamics support
+  - Enterprise authentication
+  - Field mapping
+- [ ] Build custom CRM API
+  - Generic REST connector
+  - Custom field mapping UI
+
+**Public API & Webhooks** (Month 2-3)
+- [ ] Design and implement RESTful API
+  - /api/v1/conversations
+  - /api/v1/analyze
+  - /api/v1/insights
+- [ ] Create webhook system
+  - conversation.completed
+  - insight.generated
+  - action_item.created
+- [ ] Write developer documentation
+  - API reference
+  - Integration guides
+  - Code examples
+- [ ] Build SDK for iOS/Android
+  - Native SDKs
+  - Example apps
+
+**Team Collaboration** (Month 3-4)
+- [ ] Implement shared workspace
+  - Multi-user database
+  - Real-time collaboration
+- [ ] Create team insights dashboard
+  - Aggregate analytics
+  - Team performance metrics
+- [ ] Add commenting and annotations
+  - Conversation commenting
+  - Timestamp annotations
+- [ ] Build permission management
+  - Role-based access control
+  - Team member management
+
+**Advanced Analytics Dashboard** (Month 4-5)
+- [ ] Build conversation trends analysis
+  - Time-series visualization
+  - Topic trending
+- [ ] Create team performance metrics
+  - Benchmarking
+  - Performance scoring
+- [ ] Implement topic clustering
+  - Automatic topic detection
+  - Topic trend analysis
+- [ ] Add custom report builder
+  - Drag-and-drop report builder
+  - Export to PDF/CSV
+
+**AI Call Scoring** (Month 5)
+- [ ] Implement automatic call quality scoring
+  - Customizable scorecards
+  - MEDDIC, SPICED, BANT frameworks
+- [ ] Add performance benchmarking
+  - Compare to team average
+  - Industry benchmarks
+- [ ] Create coaching recommendations
+  - AI-powered improvement suggestions
+  - Personalized coaching plans
+
+**Enterprise Admin Console** (Month 6)
+- [ ] Build user management
+  - User provisioning
+  - License management
+- [ ] Add usage analytics
+  - Usage dashboards
+  - Cost tracking
+- [ ] Implement billing and subscriptions
+  - Stripe integration
+  - Invoice generation
+- [ ] Create security and compliance dashboard
+  - Security audit logs
+  - Compliance reports
+
+#### Phase 3 Success Metrics
+- ✅ CRM integrations live (Salesforce, HubSpot, Dynamics)
+- ✅ Public API documented and stable
+- ✅ Team features launched
+- ✅ Enterprise customers onboarded (target: 5+ companies)
+- ✅ 90%+ feature parity achieved
+
+---
+
+## 🔮 Future Enhancements (Beyond Roadmap)
 
 ### GPT-Realtime Integration
 - [ ] Research WebSocket requirements for GPT-Realtime
@@ -345,19 +686,18 @@ flutter clean && flutter pub get
 - [ ] Add background processing for long conversations
 - [ ] Reduce memory usage during long sessions
 
-### Smart Glasses Integration
-- [ ] Connect AI insights to glasses HUD
-- [ ] Implement HUD layout for analysis results
-- [ ] Add voice commands for analysis triggers
-- [ ] Test on Even Realities glasses
-- [ ] Optimize for battery life
+### Smart Glasses Integration Enhancements
+- [ ] Advanced HUD layouts
+- [ ] Gesture-controlled browsing
+- [ ] Auto-hide intelligence
+- [ ] Battery optimization
+- [ ] Multiple glasses support
 
-### Advanced AI Features
-- [ ] Speaker diarization (who said what)
-- [ ] Sentiment analysis
-- [ ] Fact-checking integration
-- [ ] Language translation
-- [ ] Conversation context memory
+### Additional AI Features
+- [ ] Fact-checking with source citations
+- [ ] Conversation context memory (long-term)
+- [ ] Proactive meeting preparation
+- [ ] Smart meeting scheduling
 
 ### Testing & Quality
 - [ ] Add unit tests for new services (>80% coverage)
