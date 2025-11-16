@@ -210,7 +210,20 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> selectInputDevice(String deviceId) async {
-    // Simple stub - not implemented
+    if (!_isInitialized) {
+      throw StateError('AudioService not initialized');
+    }
+
+    // Update configuration with selected device
+    _currentConfiguration = _currentConfiguration.copyWith(
+      selectedDeviceId: deviceId,
+    );
+
+    appLogger.i('Selected audio input device: $deviceId');
+
+    // Note: flutter_sound doesn't directly support device selection on all platforms
+    // This stores the preference for platform-specific implementations
+    // iOS/Android handle device routing automatically in most cases
   }
 
   @override
@@ -219,17 +232,98 @@ class AudioServiceImpl implements AudioService {
     bool enableEchoCancellation = true,
     double gainLevel = 1.0,
   }) async {
-    // Simple stub - not implemented
+    if (!_isInitialized) {
+      throw StateError('AudioService not initialized');
+    }
+
+    // Validate gain level
+    if (gainLevel < 0.0 || gainLevel > 2.0) {
+      throw ArgumentError('Gain level must be between 0.0 and 2.0');
+    }
+
+    // Update configuration
+    _currentConfiguration = _currentConfiguration.copyWith(
+      enableNoiseReduction: enableNoiseReduction,
+      enableEchoCancellation: enableEchoCancellation,
+      enableAutomaticGainControl: gainLevel != 1.0,
+      gainLevel: gainLevel,
+    );
+
+    appLogger.i(
+      'Audio processing configured: NR=$enableNoiseReduction, '
+      'EC=$enableEchoCancellation, Gain=$gainLevel',
+    );
+
+    // Note: flutter_sound has limited support for real-time audio processing
+    // These settings are stored for platform-specific implementations
+    // iOS: Can use AVAudioSession categories and modes
+    // Android: Can use AudioManager and audio effects
   }
 
   @override
   Future<void> setVoiceActivityDetection(bool enabled) async {
-    // Simple stub - not implemented
+    if (!_isInitialized) {
+      throw StateError('AudioService not initialized');
+    }
+
+    // Update configuration
+    _currentConfiguration = _currentConfiguration.copyWith(
+      enableVoiceActivityDetection: enabled,
+    );
+
+    appLogger.i('Voice Activity Detection ${enabled ? "enabled" : "disabled"}');
+
+    // VAD is implemented in the audio level monitoring logic
+    // When enabled, the voiceActivityStream will emit true/false based on
+    // audio level threshold (vadThreshold in configuration)
+    // See _handleAudioLevel method for implementation
   }
 
   @override
   Future<void> setAudioQuality(AudioQuality quality) async {
-    // Simple stub - not implemented
+    if (!_isInitialized) {
+      throw StateError('AudioService not initialized');
+    }
+
+    // Map quality to specific audio settings
+    int sampleRate;
+    int bitRate;
+    int channels;
+
+    switch (quality) {
+      case AudioQuality.low:
+        sampleRate = 8000;
+        bitRate = 32000;
+        channels = 1; // Mono
+        break;
+      case AudioQuality.medium:
+        sampleRate = 16000;
+        bitRate = 64000;
+        channels = 1; // Mono
+        break;
+      case AudioQuality.high:
+        sampleRate = 44100;
+        bitRate = 128000;
+        channels = 2; // Stereo
+        break;
+    }
+
+    // Update configuration
+    _currentConfiguration = _currentConfiguration.copyWith(
+      quality: quality,
+      sampleRate: sampleRate,
+      bitRate: bitRate,
+      channels: channels,
+    );
+
+    appLogger.i(
+      'Audio quality set to $quality: $sampleRate Hz, $bitRate bps, $channels ch',
+    );
+
+    // Note: If currently recording, changes will take effect on next recording
+    if (_isRecording) {
+      appLogger.w('Quality change will take effect on next recording session');
+    }
   }
 
   @override

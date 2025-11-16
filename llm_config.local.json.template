@@ -1,6 +1,7 @@
 {
   "llmEndpoint": "https://llm.art-ai.me/v1/chat/completions",
   "llmApiKey": "PUT-YOUR-API-KEY-HERE",
+  "openAIApiKey": "PUT-YOUR-OPENAI-API-KEY-HERE-FOR-WHISPER",
   "llmModel": "gpt-4.1-mini",
   "llmModels": {
     "fast": "gpt-4.1-mini",
@@ -14,7 +15,7 @@
   },
   "transcription": {
     "enabled": false,
-    "note": "Whisper model not available for chat completions endpoint"
+    "note": "Whisper model not available for chat completions endpoint. Use openAIApiKey for direct OpenAI Whisper API access."
   },
   "rateLimits": {
     "gpt-5": 2500,
