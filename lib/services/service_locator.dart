@@ -7,7 +7,9 @@ import 'package:get_it/get_it.dart';
 // import 'ai_insights_service.dart';     // Temporarily disabled
 import 'implementations/llm_service_impl_v2.dart';
 import '../core/config/app_config.dart';
+import '../core/config/feature_flag_service.dart';
 import '../core/utils/logging_service.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class ServiceLocator {
   static final GetIt _getIt = GetIt.instance;
@@ -27,10 +29,17 @@ class ServiceLocator {
 Future<void> setupServiceLocator() async {
   final getIt = GetIt.instance;
 
+  // Initialize and register feature flag service first
+  appLogger.i('Initializing feature flags...');
+  final featureFlagService = FeatureFlagService.instance;
+  await featureFlagService.initialize();
+  getIt.registerSingleton<FeatureFlagService>(featureFlagService);
+  appLogger.i('Feature flags initialized: ${featureFlagService.getEnabledFlags().length} flags enabled');
+
   // Load configuration first
-  print('Loading app configuration...');
+  appLogger.i('Loading app configuration...');
   final config = await AppConfig.load();
-  print('Config loaded: $config');
+  appLogger.i('Config loaded: $config');
 
   // Register config as singleton
   getIt.registerSingleton<AppConfig>(config);
@@ -55,5 +64,5 @@ Future<void> setupServiceLocator() async {
   //   llmService: getIt.get<LLMServiceImplV2>(),
   // ));
 
-  print('Service locator setup complete');
+  appLogger.i('Service locator setup complete');
 }

@@ -7,6 +7,7 @@ import '../services/implementations/audio_service_impl.dart';
 import '../services/analytics_service.dart';
 import '../models/audio_configuration.dart';
 import 'file_management_screen.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class RecordingScreen extends StatefulWidget {
   const RecordingScreen({super.key});
@@ -98,7 +99,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             final file = File(filePath);
             fileSize = await file.length();
           } catch (e) {
-            print('Could not get file size: $e');
+            appLogger.i('Could not get file size: $e');
           }
         }
 

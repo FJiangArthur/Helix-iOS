@@ -1,0 +1,250 @@
+# Health Check Dashboard Configuration
+# Defines how health checks are aggregated and displayed
+
+version: "1.0"
+
+# Dashboard metadata
+dashboard:
+  name: "Helix Health Dashboard"
+  description: "Centralized health monitoring for all Helix services"
+  refreshInterval: 30s
+  alertThreshold: 2 # Number of failed checks before alerting
+
+# Service groups for organization
+serviceGroups:
+  - name: "Core Services"
+    description: "Essential services for basic functionality"
+    services:
+      - AudioService
+      - TranscriptionCoordinator
+      - LLMService
+    criticalityLevel: high
+
+  - name: "AI & Analytics"
+    description: "AI-powered analysis and insights"
+    services:
+      - AIInsightsService
+      - FactCheckingService
+      - AnalyticsService
+    criticalityLevel: medium
+
+  - name: "Infrastructure"
+    description: "Backend infrastructure services"
+    services:
+      - redis
+      - postgres
+      - nginx
+      - mock-api
+    criticalityLevel: high
+
+  - name: "Supporting Services"
+    description: "Non-critical supporting services"
+    services:
+      - docs
+    criticalityLevel: low
+
+# Health check endpoints
+endpoints:
+  # Flutter App Endpoints
+  - name: "Flutter App Health"
+    url: "http://localhost:9100/health"
+    method: GET
+    timeout: 5s
+    expectedStatus: 200
+    checkInterval: 30s
+    retries: 3
+
+  - name: "Flutter App Liveness"
+    url: "http://localhost:9100/health/live"
+    method: GET
+    timeout: 3s
+    expectedStatus: 200
+    checkInterval: 10s
+    retries: 1
+
+  - name: "Flutter App Readiness"
+    url: "http://localhost:9100/health/ready"
+    method: GET
+    timeout: 5s
+    expectedStatus: 200
+    checkInterval: 30s
+    retries: 3
+
+  # Infrastructure Endpoints
+  - name: "Nginx Health"
+    url: "http://localhost:8080/health"
+    method: GET
+    timeout: 3s
+    expectedStatus: 200
+    checkInterval: 30s
+    retries: 3
+
+  - name: "Mock API Health"
+    url: "http://localhost:1080/health"
+    method: GET
+    timeout: 5s
+    expectedStatus: 200
+    checkInterval: 30s
+    retries: 3
+
+  - name: "Redis Health"
+    type: redis
+    host: localhost
+    port: 6379
+    timeout: 3s
+    checkInterval: 30s
+    command: "PING"
+
+  - name: "PostgreSQL Health"
+    type: postgres
+    host: localhost
+    port: 5432
+    database: helix_dev
+    username: helix
+    timeout: 5s
+    checkInterval: 30s
+
+# Health metrics to track
+metrics:
+  - name: "response_time"
+    description: "Service response time in milliseconds"
+    type: histogram
+    buckets: [10, 50, 100, 500, 1000, 5000]
+
+  - name: "health_score"
+    description: "Overall health score (0-100)"
+    type: gauge
+
+  - name: "service_availability"
+    description: "Service availability percentage"
+    type: gauge
+
+  - name: "failed_checks"
+    description: "Number of failed health checks"
+    type: counter
+
+  - name: "dependency_health"
+    description: "Health status of dependencies"
+    type: gauge
+
+# Alerting rules
+alerts:
+  - name: "Service Down"
+    condition: "health_status == 'unhealthy'"
+    severity: critical
+    duration: 2m
+    message: "Service {{service_name}} is down"
+    channels:
+      - console
+      - analytics
+
+  - name: "Service Degraded"
+    condition: "health_status == 'degraded'"
+    severity: warning
+    duration: 5m
+    message: "Service {{service_name}} is degraded: {{message}}"
+    channels:
+      - console
+
+  - name: "High Response Time"
+    condition: "response_time > 5000"
+    severity: warning
+    duration: 3m
+    message: "Service {{service_name}} response time is {{response_time}}ms"
+    channels:
+      - console
+
+  - name: "Multiple Services Down"
+    condition: "unhealthy_count >= 2"
+    severity: emergency
+    duration: 1m
+    message: "{{unhealthy_count}} services are down"
+    channels:
+      - console
+      - analytics
+
+  - name: "Dependency Failure"
+    condition: "dependency_health < 100"
+    severity: warning
+    duration: 5m
+    message: "Service {{service_name}} has unhealthy dependencies"
+    channels:
+      - console
+
+# Notification channels
+notificationChannels:
+  - name: console
+    type: console
+    enabled: true
+    config:
+      logLevel: info
+
+  - name: analytics
+    type: analytics
+    enabled: true
+    config:
+      trackHealthEvents: true
+      trackMetrics: true
+
+# Dashboard views
+dashboardViews:
+  - name: "Overview"
+    description: "High-level system health overview"
+    widgets:
+      - type: "health-score"
+        title: "Overall Health Score"
+        size: large
+
+      - type: "service-status"
+        title: "Service Status"
+        groupBy: serviceGroup
+        size: large
+
+      - type: "recent-alerts"
+        title: "Recent Alerts"
+        limit: 10
+        size: medium
+
+      - type: "health-trends"
+        title: "Health Trends (24h)"
+        timeRange: 24h
+        size: medium
+
+  - name: "Services"
+    description: "Detailed service health information"
+    widgets:
+      - type: "service-list"
+        title: "All Services"
+        showDetails: true
+        size: full
+
+      - type: "dependency-graph"
+        title: "Service Dependencies"
+        size: full
+
+  - name: "Metrics"
+    description: "Performance and health metrics"
+    widgets:
+      - type: "response-time-chart"
+        title: "Response Times"
+        timeRange: 1h
+        size: large
+
+      - type: "availability-chart"
+        title: "Service Availability"
+        timeRange: 24h
+        size: large
+
+      - type: "metrics-table"
+        title: "Current Metrics"
+        size: medium
+
+# Export configuration
+export:
+  enabled: true
+  formats:
+    - json
+    - prometheus
+  endpoints:
+    - /health/metrics
+    - /health/prometheus

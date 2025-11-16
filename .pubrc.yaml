@@ -1,0 +1,91 @@
+# Dart Pub Package Manager Configuration
+# This file configures the behavior of the Dart pub package manager
+# Documentation: https://dart.dev/tools/pub/pubspec
+
+# Dependency resolution strategy
+# Prefer stable, well-maintained packages with good security records
+dependency-resolution:
+  # Fail if dependencies conflict rather than silently choosing a version
+  strict: true
+
+# Security and audit settings
+security:
+  # Automatically check for security advisories during pub get
+  audit-on-get: true
+  # Fail on high severity vulnerabilities
+  fail-on-severity: high
+  # Warn on moderate vulnerabilities
+  warn-on-severity: medium
+
+# Lockfile enforcement
+lockfile:
+  # Always generate and update pubspec.lock
+  enabled: true
+  # Fail if pubspec.lock is missing or out of sync
+  enforce: true
+  # Verify integrity of downloaded packages
+  verify-integrity: true
+
+# Package source configuration
+sources:
+  # Use official Dart pub repository
+  pub.dev:
+    url: https://pub.dev
+    # Verify package signatures
+    verify-signatures: true
+
+# Version pinning strategy
+versioning:
+  # Prefer exact versions for production dependencies
+  # Use caret (^) constraints for development dependencies
+  # This is documented in pubspec.yaml comments
+
+# Caching configuration
+cache:
+  # Use global pub cache
+  enabled: true
+  # Cache location (system default)
+  # Override with PUB_CACHE environment variable if needed
+
+# Analytics and telemetry
+analytics:
+  # Disable pub analytics (privacy-focused)
+  enabled: false
+
+# Offline mode
+offline:
+  # Allow working with cached packages when offline
+  enabled: true
+  # Fail if required packages are not cached
+  fail-on-missing: true
+
+# Performance
+performance:
+  # Enable parallel downloads
+  parallel-downloads: 5
+  # Enable dependency resolution cache
+  cache-resolution: true
+
+# Git dependencies (if any)
+git:
+  # Verify git dependencies match lockfile exactly
+  verify-commit-hash: true
+  # Fail if git dependencies are not pinned to specific commits
+  require-commit-hash: true
+
+# Development workflow
+development:
+  # Generate detailed dependency tree
+  verbose-tree: false
+  # Show outdated packages warnings
+  check-outdated: true
+
+# CI/CD specific settings
+# These are enforced in GitHub Actions workflows
+ci:
+  # Fail if lockfile changes during pub get
+  lockfile-changes-fail: true
+  # Run security audit on every install
+  audit-required: true
+  # Verify all transitive dependencies
+  verify-transitive: true

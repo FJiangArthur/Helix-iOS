@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'ai/ai_coordinator.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Conversation insights tracker for US 2.3
 /// Accumulates conversation text and generates insights periodically
@@ -93,7 +94,7 @@ class ConversationInsights {
         'timestamp': _lastUpdateTime,
       });
     } catch (e) {
-      print("Error generating insights: $e");
+      appLogger.i("Error generating insights: $e");
     }
   }
 

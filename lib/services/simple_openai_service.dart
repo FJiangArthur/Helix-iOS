@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class SimpleOpenAIService {
   final String apiKey;
@@ -14,7 +15,7 @@ class SimpleOpenAIService {
   /// Returns transcribed text or throws exception on error
   Future<String> transcribeAudio(String audioFilePath) async {
     try {
-      print('[SimpleOpenAI] Starting transcription for: $audioFilePath');
+      appLogger.i('[SimpleOpenAI] Starting transcription for: $audioFilePath');
 
       // Prepare multipart request
       var request = http.MultipartRequest(
@@ -34,21 +35,21 @@ class SimpleOpenAIService {
       request.fields['language'] = 'en'; // Can be changed to auto-detect
 
       // Send request
-      print('[SimpleOpenAI] Sending request to Whisper API...');
+      appLogger.i('[SimpleOpenAI] Sending request to Whisper API...');
       var response = await request.send();
       var responseBody = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
         var jsonResponse = json.decode(responseBody);
         String transcription = jsonResponse['text'] ?? '';
-        print('[SimpleOpenAI] Transcription success: ${transcription.substring(0, transcription.length > 100 ? 100 : transcription.length)}...');
+        appLogger.i('[SimpleOpenAI] Transcription success: ${transcription.substring(0, transcription.length > 100 ? 100 : transcription.length)}...');
         return transcription;
       } else {
-        print('[SimpleOpenAI] Transcription failed: ${response.statusCode} - $responseBody');
+        appLogger.i('[SimpleOpenAI] Transcription failed: ${response.statusCode} - $responseBody');
         throw Exception('Transcription failed: ${response.statusCode} - $responseBody');
       }
     } catch (e) {
-      print('[SimpleOpenAI] Transcription error: $e');
+      appLogger.i('[SimpleOpenAI] Transcription error: $e');
       rethrow;
     }
   }
@@ -57,7 +58,7 @@ class SimpleOpenAIService {
   /// Returns AI analysis or throws exception on error
   Future<String> analyzeText(String text, {String? prompt}) async {
     try {
-      print('[SimpleOpenAI] Starting analysis for text (${text.length} chars)');
+      appLogger.i('[SimpleOpenAI] Starting analysis for text (${text.length} chars)');
 
       final analysisPrompt = prompt ?? '''
 Analyze this conversation and provide:
@@ -96,14 +97,14 @@ $text
       if (response.statusCode == 200) {
         var jsonResponse = json.decode(response.body);
         String analysis = jsonResponse['choices'][0]['message']['content'] ?? '';
-        print('[SimpleOpenAI] Analysis success');
+        appLogger.i('[SimpleOpenAI] Analysis success');
         return analysis;
       } else {
-        print('[SimpleOpenAI] Analysis failed: ${response.statusCode} - ${response.body}');
+        appLogger.i('[SimpleOpenAI] Analysis failed: ${response.statusCode} - ${response.body}');
         throw Exception('Analysis failed: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('[SimpleOpenAI] Analysis error: $e');
+      appLogger.i('[SimpleOpenAI] Analysis error: $e');
       rethrow;
     }
   }
@@ -119,7 +120,7 @@ $text
       );
       return response.statusCode == 200;
     } catch (e) {
-      print('[SimpleOpenAI] API key validation error: $e');
+      appLogger.i('[SimpleOpenAI] API key validation error: $e');
       return false;
     }
   }

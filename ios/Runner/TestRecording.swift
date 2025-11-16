@@ -7,43 +7,47 @@ import AVFoundation
 class TestRecording {
     static func testNativeRecording() {
         let session = AVAudioSession.sharedInstance()
-        
+
         do {
             // Simple recording test without flutter_sound
             try session.setCategory(.playAndRecord, mode: .default)
             try session.setActive(true)
-            
+
             let settings = [
                 AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
                 AVSampleRateKey: 44100,
                 AVNumberOfChannelsKey: 1,
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ] as [String : Any]
-            
+
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("test.m4a")
             let recorder = try AVAudioRecorder(url: url, settings: settings)
-            
+
             if recorder.prepareToRecord() {
-                print("✅ Native recording setup successful")
-                print("📍 Recording to: \(url)")
+                HelixLogger.info("Native recording setup successful", category: .recording, metadata: [
+                    "url": url.path,
+                    "format": "MPEG4AAC",
+                    "sampleRate": "44100",
+                    "channels": "1"
+                ])
                 recorder.record()
-                
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                     recorder.stop()
-                    print("✅ Native recording test completed")
+                    HelixLogger.info("Native recording test completed", category: .recording)
                 }
             } else {
-                print("❌ Failed to prepare recorder")
+                HelixLogger.error("Failed to prepare recorder", category: .recording)
             }
         } catch {
-            print("❌ Native recording test failed: \(error)")
+            HelixLogger.error("Native recording test failed", error: error, category: .recording)
         }
     }
 }
 #else
 class TestRecording {
     static func testNativeRecording() {
-        print("ℹ️ TestRecording.testNativeRecording is a no-op on this platform")
+        HelixLogger.info("TestRecording.testNativeRecording is a no-op on this platform", category: .recording)
     }
 }
 #endif

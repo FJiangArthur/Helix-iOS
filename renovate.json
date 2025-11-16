@@ -1,0 +1,303 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Renovate configuration for Helix iOS - Automated dependency updates with security focus",
+  "extends": [
+    "config:base",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    "group:allNonMajor",
+    "schedule:weekly"
+  ],
+  "timezone": "UTC",
+  "schedule": [
+    "before 10am on Monday"
+  ],
+  "assignees": [
+    "@helix-security-team"
+  ],
+  "reviewers": [
+    "@helix-security-team"
+  ],
+  "labels": [
+    "dependencies",
+    "automated"
+  ],
+  "semanticCommits": "enabled",
+  "commitMessagePrefix": "deps:",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "prCreation": "not-pending",
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 5,
+  "automerge": false,
+  "platformAutomerge": false,
+  "rebaseWhen": "behind-base-branch",
+  "ignoreTests": false,
+  "updateNotScheduled": false,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security",
+      "critical"
+    ],
+    "assignees": [
+      "@helix-security-team"
+    ],
+    "schedule": [
+      "at any time"
+    ],
+    "prCreation": "immediate",
+    "commitMessagePrefix": "security:",
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "Flutter/Dart dependencies - weekly updates",
+      "matchManagers": [
+        "pub"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Flutter/Dart dependencies (non-major)",
+      "schedule": [
+        "before 10am on Monday"
+      ],
+      "labels": [
+        "dependencies",
+        "flutter",
+        "automated"
+      ]
+    },
+    {
+      "description": "Flutter/Dart major version updates - require manual review",
+      "matchManagers": [
+        "pub"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "labels": [
+        "dependencies",
+        "flutter",
+        "major-update",
+        "needs-review"
+      ],
+      "assignees": [
+        "@helix-security-team"
+      ],
+      "commitMessagePrefix": "deps(major):"
+    },
+    {
+      "description": "CocoaPods dependencies - weekly updates",
+      "matchManagers": [
+        "cocoapods"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "CocoaPods dependencies (non-major)",
+      "schedule": [
+        "before 10am on Tuesday"
+      ],
+      "labels": [
+        "dependencies",
+        "ios",
+        "cocoapods",
+        "automated"
+      ]
+    },
+    {
+      "description": "CocoaPods major version updates - require manual review",
+      "matchManagers": [
+        "cocoapods"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "labels": [
+        "dependencies",
+        "ios",
+        "cocoapods",
+        "major-update",
+        "needs-review"
+      ],
+      "assignees": [
+        "@helix-security-team"
+      ],
+      "commitMessagePrefix": "deps(ios-major):"
+    },
+    {
+      "description": "Gradle/Android dependencies - weekly updates",
+      "matchManagers": [
+        "gradle",
+        "gradle-wrapper"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Android dependencies (non-major)",
+      "schedule": [
+        "before 10am on Wednesday"
+      ],
+      "labels": [
+        "dependencies",
+        "android",
+        "automated"
+      ]
+    },
+    {
+      "description": "Android major version updates - require manual review",
+      "matchManagers": [
+        "gradle",
+        "gradle-wrapper"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "labels": [
+        "dependencies",
+        "android",
+        "major-update",
+        "needs-review"
+      ],
+      "assignees": [
+        "@helix-security-team"
+      ],
+      "commitMessagePrefix": "deps(android-major):"
+    },
+    {
+      "description": "Docker base images - security updates",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "labels": [
+        "dependencies",
+        "docker",
+        "automated"
+      ],
+      "schedule": [
+        "before 10am on Thursday"
+      ],
+      "commitMessagePrefix": "deps(docker):"
+    },
+    {
+      "description": "GitHub Actions - monthly updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "schedule": [
+        "before 10am on the first day of the month"
+      ],
+      "labels": [
+        "dependencies",
+        "ci-cd",
+        "automated"
+      ],
+      "commitMessagePrefix": "ci:"
+    },
+    {
+      "description": "Development dependencies - group and update weekly",
+      "matchDepTypes": [
+        "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "Development dependencies",
+      "labels": [
+        "dependencies",
+        "dev-deps",
+        "automated"
+      ]
+    },
+    {
+      "description": "Security packages - high priority",
+      "matchPackagePatterns": [
+        "security",
+        "crypto",
+        "auth",
+        "jwt",
+        "ssl",
+        "tls"
+      ],
+      "labels": [
+        "dependencies",
+        "security",
+        "high-priority"
+      ],
+      "assignees": [
+        "@helix-security-team"
+      ],
+      "prPriority": 10,
+      "commitMessagePrefix": "security:"
+    },
+    {
+      "description": "Pin digest for Docker images",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "pinDigests": true
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "^Dockerfile$",
+        "^docker-compose\\.ya?ml$"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+ARG .*?_VERSION=(?<currentValue>.*)\\s"
+      ]
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": [
+      "before 10am on the 1st day of the month"
+    ],
+    "commitMessageAction": "refresh",
+    "commitMessageTopic": "lockfile",
+    "labels": [
+      "dependencies",
+      "lockfile-maintenance"
+    ]
+  },
+  "postUpdateOptions": [
+    "gomodTidy",
+    "npmDedupe"
+  ],
+  "constraints": {
+    "flutter": ">=3.35.0"
+  },
+  "enabledManagers": [
+    "pub",
+    "cocoapods",
+    "gradle",
+    "gradle-wrapper",
+    "dockerfile",
+    "docker-compose",
+    "github-actions"
+  ],
+  "rangeStrategy": "pin",
+  "separateMinorPatch": false,
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "digest": {
+    "enabled": true
+  },
+  "pin": {
+    "enabled": true
+  },
+  "statusCheckVerify": true,
+  "followTag": "stable"
+}

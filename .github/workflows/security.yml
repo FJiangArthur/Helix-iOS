@@ -1,0 +1,410 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+env:
+  FLUTTER_VERSION: '3.35.0'
+
+jobs:
+  # Job 1: Dependency Vulnerability Scanning
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Dart pub audit
+        id: pub-audit
+        run: |
+          echo "Running dependency vulnerability scan..."
+          dart pub audit --json > pub-audit.json || true
+
+          # Check if vulnerabilities were found
+          if [ -s pub-audit.json ]; then
+            echo "Vulnerabilities found - reviewing..."
+            cat pub-audit.json
+
+            # Count vulnerabilities by severity
+            CRITICAL=$(jq '[.advisories[] | select(.severity == "critical")] | length' pub-audit.json || echo "0")
+            HIGH=$(jq '[.advisories[] | select(.severity == "high")] | length' pub-audit.json || echo "0")
+
+            echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "::error::Found $CRITICAL critical and $HIGH high severity vulnerabilities"
+              exit 1
+            fi
+          fi
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: dependency-audit-results
+          path: pub-audit.json
+          retention-days: 30
+
+  # Job 2: Secret Scanning
+  secret-scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog Secret Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --json
+
+      - name: GitLeaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 3: Static Application Security Testing (SAST)
+  sast-scan:
+    name: SAST Code Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Flutter analyze with security checks
+        run: |
+          echo "Running static analysis with security focus..."
+          flutter analyze --fatal-infos --fatal-warnings | tee analysis-results.txt
+
+      - name: Check for insecure patterns
+        run: |
+          echo "Checking for common security anti-patterns..."
+
+          # Check for hardcoded secrets patterns
+          echo "Checking for hardcoded secrets..."
+          if grep -r "api_key\s*=\s*['\"][^'\"]*['\"]" lib/ --include="*.dart" --exclude-dir=test; then
+            echo "::warning::Potential hardcoded API keys found"
+          fi
+
+          # Check for insecure HTTP usage
+          echo "Checking for insecure HTTP usage..."
+          if grep -r "http://" lib/ --include="*.dart" --exclude-dir=test | grep -v "localhost" | grep -v "127.0.0.1"; then
+            echo "::warning::Insecure HTTP URLs found (use HTTPS)"
+          fi
+
+          # Check for debug mode in production code
+          echo "Checking for debug statements..."
+          if grep -r "debugPrint\|print(" lib/ --include="*.dart" --exclude-dir=test | wc -l | grep -v "^0$"; then
+            echo "::warning::Debug/print statements found in production code"
+          fi
+
+          # Check for TODO/FIXME with security keywords
+          echo "Checking for security-related TODOs..."
+          if grep -r "TODO.*security\|FIXME.*security\|TODO.*auth\|FIXME.*auth" lib/ --include="*.dart" -i; then
+            echo "::warning::Security-related TODOs found"
+          fi
+
+      - name: Upload SAST results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: sast-results
+          path: analysis-results.txt
+          retention-days: 30
+
+  # Job 4: CodeQL Analysis
+  codeql-analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript # Analyze Dart as JavaScript for security patterns
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v2
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+        with:
+          category: "/language:javascript"
+
+  # Job 5: Supply Chain Security
+  supply-chain-scan:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: OSSF Scorecard Analysis
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Scorecard results to GitHub
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: scorecard-results.sarif
+
+      - name: Upload Scorecard results as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: scorecard-results
+          path: scorecard-results.sarif
+          retention-days: 30
+
+  # Job 6: iOS Specific Security Checks
+  ios-security:
+    name: iOS Security Checks
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check iOS security configurations
+        run: |
+          echo "Checking iOS security configurations..."
+
+          # Check Info.plist for security settings
+          if [ -f "ios/Runner/Info.plist" ]; then
+            echo "Checking Info.plist security settings..."
+
+            # Check for App Transport Security
+            if ! grep -q "NSAppTransportSecurity" ios/Runner/Info.plist; then
+              echo "::warning::App Transport Security not configured"
+            fi
+
+            # Check for data protection
+            if ! grep -q "NSFileProtectionComplete" ios/Runner/Info.plist; then
+              echo "::notice::Consider enabling file protection"
+            fi
+          fi
+
+          # Check for Keychain usage
+          echo "Checking for secure storage usage..."
+          if grep -r "UserDefaults\|SharedPreferences" lib/ --include="*.dart" | grep -i "password\|token\|secret\|key"; then
+            echo "::warning::Sensitive data may be stored insecurely - use secure storage"
+          fi
+
+      - name: Check Podfile security
+        run: |
+          if [ -f "ios/Podfile" ]; then
+            echo "Checking Podfile for security issues..."
+
+            # Check for insecure sources
+            if grep -q "source.*http://" ios/Podfile; then
+              echo "::error::Insecure HTTP sources in Podfile"
+              exit 1
+            fi
+          fi
+
+  # Job 7: Android Specific Security Checks
+  android-security:
+    name: Android Security Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check Android security configurations
+        run: |
+          echo "Checking Android security configurations..."
+
+          # Check AndroidManifest.xml
+          if [ -f "android/app/src/main/AndroidManifest.xml" ]; then
+            echo "Checking AndroidManifest.xml security settings..."
+
+            # Check for debuggable flag
+            if grep -q "android:debuggable=\"true\"" android/app/src/main/AndroidManifest.xml; then
+              echo "::error::Debuggable flag set to true in manifest"
+              exit 1
+            fi
+
+            # Check for backup enabled
+            if grep -q "android:allowBackup=\"true\"" android/app/src/main/AndroidManifest.xml; then
+              echo "::warning::Backup is enabled - ensure sensitive data is excluded"
+            fi
+
+            # Check for cleartext traffic
+            if grep -q "android:usesCleartextTraffic=\"true\"" android/app/src/main/AndroidManifest.xml; then
+              echo "::error::Cleartext traffic is allowed"
+              exit 1
+            fi
+          fi
+
+          # Check ProGuard/R8 configuration
+          if [ -f "android/app/proguard-rules.pro" ]; then
+            echo "ProGuard rules found - checking configuration..."
+          else
+            echo "::warning::No ProGuard rules found - consider adding code obfuscation"
+          fi
+
+      - name: Check for hardcoded secrets in Android
+        run: |
+          echo "Checking for hardcoded secrets in Android files..."
+
+          if grep -r "BuildConfig.*SECRET\|BuildConfig.*KEY\|BuildConfig.*PASSWORD" android/ --include="*.java" --include="*.kt"; then
+            echo "::warning::Potential hardcoded secrets in BuildConfig"
+          fi
+
+  # Job 8: License Compliance Check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate license report
+        run: |
+          echo "Generating dependency license report..."
+          flutter pub deps --json > dependencies.json
+
+          # Extract licenses
+          echo "Analyzing licenses..."
+          jq '.packages[] | {name: .name, version: .version}' dependencies.json > licenses.json
+
+      - name: Check for prohibited licenses
+        run: |
+          echo "Checking for prohibited licenses..."
+
+          # List of prohibited licenses (customize as needed)
+          PROHIBITED="GPL|AGPL|SSPL"
+
+          # This is a basic check - consider using a dedicated tool for production
+          if grep -E "$PROHIBITED" licenses.json; then
+            echo "::warning::Potentially prohibited licenses found - review required"
+          fi
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: |
+            dependencies.json
+            licenses.json
+          retention-days: 30
+
+  # Job 9: Security Summary Report
+  security-summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [dependency-scan, secret-scan, sast-scan, ios-security, android-security, license-check]
+    if: always()
+
+    steps:
+      - name: Generate Security Summary
+        run: |
+          echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependency Scan | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secret Scan | ${{ needs.secret-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SAST Scan | ${{ needs.sast-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS Security | ${{ needs.ios-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Android Security | ${{ needs.android-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| License Check | ${{ needs.license-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check if any security scan failed
+        run: |
+          if [[ "${{ needs.dependency-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.secret-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.sast-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.ios-security.result }}" == "failure" ]] || \
+             [[ "${{ needs.android-security.result }}" == "failure" ]]; then
+            echo "::error::One or more security scans failed"
+            exit 1
+          fi

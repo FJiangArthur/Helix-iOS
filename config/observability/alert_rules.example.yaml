@@ -1,0 +1,326 @@
+# Example Alert Rules Configuration
+# Copy this file and customize for your environment
+
+# Alert rules are automatically loaded from ObservabilityConfig
+# This file documents the available alert rules and how to customize them
+
+alertRules:
+  # Performance Alerts
+  - id: audio_latency_warning
+    name: "Audio Latency Warning"
+    description: "Audio recording latency exceeds warning threshold"
+    type: performanceLatency
+    severity: warning
+    condition: "audio_latency_ms > threshold"
+    threshold: 100  # milliseconds
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: audio_latency_critical
+    name: "Audio Latency Critical"
+    description: "Audio recording latency exceeds critical threshold"
+    type: performanceLatency
+    severity: critical
+    condition: "audio_latency_ms > threshold"
+    threshold: 200  # milliseconds
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+      # Add additional channels:
+      # - slack
+      # - email
+      # - pagerduty
+
+  - id: transcription_latency_warning
+    name: "Transcription Latency Warning"
+    description: "Transcription latency exceeds warning threshold"
+    type: performanceLatency
+    severity: warning
+    condition: "transcription_latency_ms > threshold"
+    threshold: 500
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: ai_analysis_latency_warning
+    name: "AI Analysis Latency Warning"
+    description: "AI analysis latency exceeds warning threshold"
+    type: performanceLatency
+    severity: warning
+    condition: "ai_analysis_latency_ms > threshold"
+    threshold: 3000
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # Memory Alerts
+  - id: memory_usage_warning
+    name: "Memory Usage Warning"
+    description: "Application memory usage is high"
+    type: performanceMemory
+    severity: warning
+    condition: "memory_usage_mb > threshold"
+    threshold: 200
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: memory_usage_critical
+    name: "Memory Usage Critical"
+    description: "Application memory usage is critically high"
+    type: performanceMemory
+    severity: critical
+    condition: "memory_usage_mb > threshold"
+    threshold: 400
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # CPU Alerts
+  - id: cpu_usage_warning
+    name: "CPU Usage Warning"
+    description: "CPU usage is elevated"
+    type: performanceCpu
+    severity: warning
+    condition: "cpu_usage_percent > threshold"
+    threshold: 70
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+
+  - id: cpu_usage_critical
+    name: "CPU Usage Critical"
+    description: "CPU usage is critically high"
+    type: performanceCpu
+    severity: critical
+    condition: "cpu_usage_percent > threshold"
+    threshold: 90
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # Error Rate Alerts
+  - id: error_rate_warning
+    name: "Error Rate Warning"
+    description: "Overall error rate is elevated"
+    type: errorRate
+    severity: warning
+    condition: "error_rate_percent > threshold"
+    threshold: 5.0  # 5% error rate
+    evaluationWindow: 15m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: error_rate_critical
+    name: "Error Rate Critical"
+    description: "Overall error rate is critically high"
+    type: errorRate
+    severity: critical
+    condition: "error_rate_percent > threshold"
+    threshold: 10.0  # 10% error rate
+    evaluationWindow: 15m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # BLE-specific Alerts
+  - id: ble_error_rate_warning
+    name: "BLE Error Rate Warning"
+    description: "BLE connection error rate is elevated"
+    type: bleErrorRate
+    severity: warning
+    condition: "ble_error_rate_percent > threshold"
+    threshold: 10.0
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: ble_error_rate_critical
+    name: "BLE Error Rate Critical"
+    description: "BLE connection error rate is critically high"
+    type: bleErrorRate
+    severity: critical
+    condition: "ble_error_rate_percent > threshold"
+    threshold: 25.0
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # API Quota Alerts
+  - id: api_quota_warning
+    name: "API Quota Warning"
+    description: "API quota usage approaching limit"
+    type: apiQuotaWarning
+    severity: warning
+    condition: "api_quota_percent > threshold"
+    threshold: 80.0  # 80% of quota used
+    evaluationWindow: 1h
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: api_quota_critical
+    name: "API Quota Critical"
+    description: "API quota usage critically high"
+    type: apiQuotaWarning
+    severity: critical
+    condition: "api_quota_percent > threshold"
+    threshold: 95.0  # 95% of quota used
+    evaluationWindow: 1h
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # SLO Violation Alerts
+  - id: slo_violation_availability
+    name: "SLO Violation - Availability"
+    description: "Service availability below SLO target"
+    type: sloViolation
+    severity: critical
+    condition: "availability_percent < threshold"
+    threshold: 99.0
+    evaluationWindow: 1h
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  - id: slo_violation_latency
+    name: "SLO Violation - Latency"
+    description: "Service latency exceeds SLO target"
+    type: sloViolation
+    severity: critical
+    condition: "p95_latency_ms > threshold"
+    threshold: 1000
+    evaluationWindow: 1h
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # Storage Alerts
+  - id: storage_warning
+    name: "Storage Warning"
+    description: "Local storage usage is high"
+    type: storageWarning
+    severity: warning
+    condition: "storage_usage_mb > threshold"
+    threshold: 100
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+
+  - id: storage_critical
+    name: "Storage Critical"
+    description: "Local storage usage is critically high"
+    type: storageWarning
+    severity: critical
+    condition: "storage_usage_mb > threshold"
+    threshold: 200
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # Anomaly Alerts
+  - id: usage_anomaly
+    name: "Usage Anomaly Detected"
+    description: "Unusual usage pattern detected"
+    type: unusualUsagePattern
+    severity: warning
+    condition: "anomaly_score > threshold"
+    threshold: 0.8  # 80% confidence
+    evaluationWindow: 5m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+  # Security Alerts
+  - id: permission_denied
+    name: "Permission Denied"
+    description: "Application permissions denied"
+    type: permissionDenied
+    severity: warning
+    condition: "permission_denied == true"
+    threshold: 1
+    evaluationWindow: 1m
+    enabled: true
+    notificationChannels:
+      - console
+      - analytics
+
+# Notification Channel Configuration
+notificationChannels:
+  console:
+    enabled: true
+    minSeverity: info  # info, warning, critical, emergency
+
+  analytics:
+    enabled: true
+    minSeverity: warning
+
+  # Future channels (not implemented yet)
+  # slack:
+  #   enabled: false
+  #   webhookUrl: "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+  #   channel: "#alerts"
+  #   minSeverity: warning
+  #
+  # email:
+  #   enabled: false
+  #   smtp:
+  #     host: "smtp.gmail.com"
+  #     port: 587
+  #     username: "alerts@yourdomain.com"
+  #     password: "${SMTP_PASSWORD}"
+  #   recipients:
+  #     - "oncall@yourdomain.com"
+  #   minSeverity: critical
+  #
+  # pagerduty:
+  #   enabled: false
+  #   integrationKey: "${PAGERDUTY_KEY}"
+  #   minSeverity: critical
+
+# Alert Aggregation
+aggregation:
+  enabled: true
+  window: 5m  # Group alerts within 5 minutes
+  maxAlertsPerWindow: 10  # Prevent alert spam
+
+# Alert Suppression
+suppression:
+  enabled: true
+  maintenanceMode: false
+  maintenanceWindow:
+    start: null
+    end: null
+  silencedAlerts: []

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'transcription_service.dart';
 import 'transcription_models.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// OpenAI Whisper cloud transcription service (US 3.2)
 /// Batches audio and sends to Whisper API for transcription
@@ -102,7 +103,7 @@ class WhisperTranscriptionService implements TranscriptionService {
     }
 
     if (_isTranscribing) {
-      print('Whisper transcription already running');
+      appLogger.i('Whisper transcription already running');
       return;
     }
 

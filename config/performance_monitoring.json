@@ -1,0 +1,399 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "description": "Performance monitoring configuration for Helix iOS app",
+  "lastUpdated": "2025-11-16",
+
+  "monitoring": {
+    "enabled": true,
+    "environment": "production",
+    "samplingRate": {
+      "development": 1.0,
+      "staging": 0.5,
+      "production": 0.1
+    },
+    "collectInterval": {
+      "metrics": 30,
+      "healthCheck": 300,
+      "performanceReport": 3600
+    }
+  },
+
+  "retention": {
+    "metrics": {
+      "detailed": 86400,
+      "aggregated": 604800,
+      "summary": 2592000
+    },
+    "logs": {
+      "debug": 3600,
+      "info": 86400,
+      "warning": 604800,
+      "error": 2592000
+    },
+    "maxHistorySize": {
+      "requests": 1000,
+      "queries": 500,
+      "metrics": 1000,
+      "violations": 200
+    }
+  },
+
+  "thresholds": {
+    "latency": {
+      "api": {
+        "warning": 1000,
+        "critical": 2000,
+        "unit": "ms"
+      },
+      "audio": {
+        "warning": 100,
+        "critical": 200,
+        "unit": "ms"
+      },
+      "transcription": {
+        "warning": 500,
+        "critical": 1000,
+        "unit": "ms"
+      },
+      "aiAnalysis": {
+        "warning": 3000,
+        "critical": 5000,
+        "unit": "ms"
+      },
+      "database": {
+        "warning": 50,
+        "critical": 100,
+        "unit": "ms"
+      }
+    },
+    "memory": {
+      "app": {
+        "warning": 200,
+        "critical": 400,
+        "unit": "MB"
+      },
+      "cache": {
+        "warning": 50,
+        "critical": 100,
+        "unit": "MB"
+      }
+    },
+    "cpu": {
+      "foreground": {
+        "warning": 70,
+        "critical": 90,
+        "unit": "%"
+      },
+      "background": {
+        "warning": 30,
+        "critical": 50,
+        "unit": "%"
+      }
+    },
+    "network": {
+      "requestPayload": {
+        "warning": 1024,
+        "critical": 5120,
+        "unit": "KB"
+      },
+      "responsePayload": {
+        "warning": 2048,
+        "critical": 10240,
+        "unit": "KB"
+      },
+      "bandwidth": {
+        "warning": 10240,
+        "critical": 51200,
+        "unit": "KB/s"
+      }
+    },
+    "storage": {
+      "local": {
+        "warning": 100,
+        "critical": 200,
+        "unit": "MB"
+      },
+      "cache": {
+        "warning": 50,
+        "critical": 100,
+        "unit": "MB"
+      }
+    },
+    "frameRate": {
+      "ui": {
+        "warning": 30,
+        "critical": 20,
+        "unit": "fps"
+      }
+    }
+  },
+
+  "budgets": {
+    "enabled": true,
+    "enforceMode": "warn",
+    "categories": [
+      {
+        "id": "api_response_time",
+        "name": "API Response Time",
+        "category": "latency",
+        "warning": 1000,
+        "critical": 2000,
+        "unit": "ms",
+        "enabled": true
+      },
+      {
+        "id": "audio_latency",
+        "name": "Audio Processing Latency",
+        "category": "latency",
+        "warning": 100,
+        "critical": 200,
+        "unit": "ms",
+        "enabled": true
+      },
+      {
+        "id": "transcription_latency",
+        "name": "Transcription Latency",
+        "category": "latency",
+        "warning": 500,
+        "critical": 1000,
+        "unit": "ms",
+        "enabled": true
+      },
+      {
+        "id": "ai_analysis_latency",
+        "name": "AI Analysis Latency",
+        "category": "latency",
+        "warning": 3000,
+        "critical": 5000,
+        "unit": "ms",
+        "enabled": true
+      },
+      {
+        "id": "db_query_time",
+        "name": "Database Query Time",
+        "category": "latency",
+        "warning": 50,
+        "critical": 100,
+        "unit": "ms",
+        "enabled": true
+      },
+      {
+        "id": "app_memory_usage",
+        "name": "App Memory Usage",
+        "category": "memory",
+        "warning": 200,
+        "critical": 400,
+        "unit": "MB",
+        "enabled": true
+      },
+      {
+        "id": "cpu_usage",
+        "name": "CPU Usage",
+        "category": "cpu",
+        "warning": 70,
+        "critical": 90,
+        "unit": "%",
+        "enabled": true
+      }
+    ]
+  },
+
+  "slo": {
+    "enabled": true,
+    "targets": {
+      "availability": {
+        "audio": 99.9,
+        "transcription": 99.5,
+        "aiAnalysis": 99.0,
+        "ble": 98.0
+      },
+      "latency": {
+        "audio": {
+          "p50": 50,
+          "p95": 100,
+          "p99": 150
+        },
+        "transcription": {
+          "p50": 300,
+          "p95": 500,
+          "p99": 1000
+        },
+        "aiAnalysis": {
+          "p50": 2000,
+          "p95": 3000,
+          "p99": 5000
+        }
+      },
+      "errorBudget": {
+        "daily": 0.5,
+        "monthly": 0.1
+      },
+      "successRate": {
+        "audio": 99.9,
+        "transcription": 99.0,
+        "aiAnalysis": 98.0,
+        "ble": 95.0
+      }
+    }
+  },
+
+  "alerts": {
+    "enabled": true,
+    "channels": ["console", "analytics", "logging"],
+    "severityThresholds": {
+      "info": {
+        "enabled": true,
+        "notifyChannels": ["logging"]
+      },
+      "warning": {
+        "enabled": true,
+        "notifyChannels": ["console", "logging"]
+      },
+      "critical": {
+        "enabled": true,
+        "notifyChannels": ["console", "analytics", "logging"]
+      },
+      "emergency": {
+        "enabled": true,
+        "notifyChannels": ["console", "analytics", "logging"]
+      }
+    },
+    "rules": [
+      {
+        "id": "high_api_latency",
+        "name": "High API Latency",
+        "type": "performanceLatency",
+        "condition": "p95 > threshold",
+        "threshold": 1000,
+        "window": 300,
+        "severity": "warning",
+        "enabled": true
+      },
+      {
+        "id": "critical_memory_usage",
+        "name": "Critical Memory Usage",
+        "type": "performanceMemory",
+        "condition": "current > threshold",
+        "threshold": 400,
+        "window": 60,
+        "severity": "critical",
+        "enabled": true
+      },
+      {
+        "id": "high_error_rate",
+        "name": "High Error Rate",
+        "type": "errorRate",
+        "condition": "rate > threshold",
+        "threshold": 10,
+        "window": 300,
+        "severity": "critical",
+        "enabled": true
+      }
+    ]
+  },
+
+  "anomalyDetection": {
+    "enabled": true,
+    "algorithms": ["statistical", "percentile", "trend"],
+    "sensitivity": "medium",
+    "windows": {
+      "short": 300,
+      "medium": 3600,
+      "long": 86400
+    },
+    "thresholds": {
+      "standardDeviation": 2.0,
+      "percentile": 95.0,
+      "suddenSpike": 2.0,
+      "gradualIncrease": 1.5
+    },
+    "minimumDataPoints": 10,
+    "confidenceThreshold": 0.8
+  },
+
+  "requestTracking": {
+    "enabled": true,
+    "trackHeaders": false,
+    "trackPayloads": false,
+    "endpoints": {
+      "whisper": {
+        "enabled": true,
+        "budgetMs": 1000
+      },
+      "openai": {
+        "enabled": true,
+        "budgetMs": 3000
+      },
+      "anthropic": {
+        "enabled": true,
+        "budgetMs": 3000
+      }
+    }
+  },
+
+  "databaseTracking": {
+    "enabled": true,
+    "trackQueries": true,
+    "trackCache": true,
+    "slowQueryThreshold": 50,
+    "storageTypes": {
+      "sharedPreferences": true,
+      "secureStorage": true,
+      "fileSystem": true,
+      "inMemoryCache": true
+    }
+  },
+
+  "reporting": {
+    "enabled": true,
+    "intervals": {
+      "realtime": 30,
+      "hourly": 3600,
+      "daily": 86400
+    },
+    "formats": ["json", "summary"],
+    "includeMetrics": [
+      "latency",
+      "memory",
+      "cpu",
+      "network",
+      "storage",
+      "errors",
+      "budgets",
+      "slo"
+    ],
+    "exportPath": "./performance_reports"
+  },
+
+  "optimization": {
+    "autoScaling": {
+      "enabled": true,
+      "cpuScaleUp": 80,
+      "cpuScaleDown": 30,
+      "memoryScaleUp": 80,
+      "memoryScaleDown": 30
+    },
+    "recommendations": {
+      "enabled": true,
+      "generateInterval": 3600,
+      "categories": [
+        "memory",
+        "cpu",
+        "latency",
+        "caching"
+      ]
+    }
+  },
+
+  "debugging": {
+    "verboseLogging": false,
+    "traceRequests": false,
+    "profileQueries": false,
+    "captureStackTraces": true,
+    "metricsSnapshot": {
+      "enabled": true,
+      "interval": 600
+    }
+  }
+}

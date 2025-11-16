@@ -1,0 +1,127 @@
+# Transcription Services Ownership
+
+## Overview
+
+This directory contains all speech-to-text transcription services, including native iOS transcription and Whisper API integration.
+
+## Primary Owners
+
+- **Team**: `@audio-team`
+- **Co-Owners**: `@ai-team`
+
+## Scope
+
+- Speech recognition and transcription
+- Audio streaming and buffering for transcription
+- Whisper API integration
+- Native iOS Speech Recognition
+- Transcription coordination and fallback
+
+## Files and Responsibilities
+
+### Transcription Service (`transcription_service.dart`)
+- **Owners**: `@audio-team`
+- **Description**: Abstract interface for transcription implementations
+- **Critical**: Yes - Core service interface
+
+### Native Transcription Service (`native_transcription_service.dart`)
+- **Owners**: `@audio-team`, `@ios-platform`
+- **Description**: iOS Speech Recognition framework integration
+- **Platform**: iOS only
+- **Dependencies**: iOS Speech framework
+
+### Whisper Transcription Service (`whisper_transcription_service.dart`)
+- **Owners**: `@audio-team`, `@ai-team`
+- **Description**: OpenAI Whisper API integration
+- **API Keys Required**: Yes (OpenAI API key)
+- **Network**: Required
+
+### Transcription Coordinator (`transcription_coordinator.dart`)
+- **Owners**: `@audio-team`, `@backend-team`
+- **Description**: Manages fallback between transcription providers
+- **Critical**: Yes - Ensures reliable transcription
+
+### Transcription Models (`transcription_models.dart`)
+- **Owners**: `@audio-team`, `@backend-team`
+- **Description**: Data models for transcription results
+- **Used By**: All transcription services
+
+## Review Guidelines
+
+### Required Reviews
+- Changes to interfaces require **2 approvals** from `@audio-team` and `@backend-team`
+- Platform-specific changes require platform team approval:
+  - iOS: `@ios-platform`
+  - API integrations: `@ai-team`
+- Coordinator changes require `@backend-team` review
+
+### Testing Requirements
+- Unit tests for all transcription implementations
+- Mock audio data for testing
+- Error handling tests (network failures, API errors)
+- Accuracy benchmarks on test audio samples
+- Latency measurements (< 100ms overhead target)
+
+### Performance Considerations
+- **Latency**: Audio-to-text latency should be < 500ms
+- **Accuracy**: Word Error Rate (WER) < 5% for clear speech
+- **Memory**: Bounded buffer sizes to prevent memory leaks
+- **Battery**: Minimize battery drain from continuous transcription
+
+## Key Metrics
+
+- **Transcription Latency**: < 500ms
+- **Word Error Rate**: < 5%
+- **API Success Rate**: > 99%
+- **Test Coverage**: > 85%
+
+## Audio Format Requirements
+
+- **Sample Rate**: 16kHz (standard for speech recognition)
+- **Channels**: Mono
+- **Bit Depth**: 16-bit PCM
+- **Encoding**: WAV or raw PCM
+
+## Dependencies
+
+- `flutter_sound` - Audio recording
+- `speech_to_text` - Native iOS/Android transcription
+- `http` - Whisper API calls
+- `audio_session` - Audio session management
+
+## Platform Considerations
+
+### iOS
+- Requires `NSMicrophoneUsageDescription` in Info.plist
+- Requires `NSSpeechRecognitionUsageDescription` in Info.plist
+- Speech Recognition framework limitations apply
+
+### Android
+- Requires microphone permissions
+- Google Speech Services must be available
+
+## Related Documentation
+
+- [Audio Processing Documentation](/docs/DEVELOPER_GUIDE.md#audio-processing)
+- [API Integration Guide](/docs/AI_SERVICES_API.md)
+- [Testing Strategy](/docs/TESTING_STRATEGY.md)
+
+## Escalation
+
+For urgent issues:
+1. Tag `@audio-team` in PR/issue
+2. Contact audio team lead via Slack `#helix-audio`
+3. For iOS-specific issues, loop in `@ios-platform`
+4. Escalate to `@helix-maintainers` for architectural decisions
+
+## Known Issues
+
+- Whisper API has rate limits (check OpenAI status page)
+- iOS Speech Recognition requires internet for some languages
+- Background transcription may have platform limitations
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial transcription service ownership established | Helix Team |

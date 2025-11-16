@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'transcription_service.dart';
 import 'transcription_models.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Native iOS Speech Recognition transcription service (US 3.1)
 /// Wraps existing SpeechStreamRecognizer.swift
@@ -68,7 +69,7 @@ class NativeTranscriptionService implements TranscriptionService {
   @override
   Future<void> startTranscription({String? languageCode}) async {
     if (_isTranscribing) {
-      print('Native transcription already running');
+      appLogger.i('Native transcription already running');
       return;
     }
 

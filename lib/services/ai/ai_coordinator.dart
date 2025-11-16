@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'base_ai_provider.dart';
 import 'openai_provider.dart';
+import 'package:flutter_helix/core/errors/errors.dart';
 
 /// AI Coordinator manages AI providers and provides unified API
 /// Handles provider selection, failover, and caching
@@ -57,158 +58,244 @@ class AICoordinator {
   }
 
   /// Process text with AI analysis (US 2.2: Enhanced with claim detection)
-  /// Returns a map with factCheck and sentiment results
-  Future<Map<String, dynamic>> analyzeText(String text) async {
+  /// Returns a Result with factCheck and sentiment results
+  Future<Result<Map<String, dynamic>, AIError>> analyzeText(String text) async {
     if (!_isEnabled || _currentProvider == null) {
-      return {'error': 'AI not enabled'};
+      return Result.failure(AIError.notReady(service: 'AI Coordinator'));
     }
 
-    final results = <String, dynamic>{};
+    return ErrorRecovery.tryCatchAsync(
+      () async {
+        final results = <String, dynamic>{};
 
-    try {
-      // US 2.2: Claim detection pipeline
-      if (_factCheckEnabled && _claimDetectionEnabled) {
-        // Check cache for claim detection
-        final claimCacheKey = 'claim:$text';
-        Map<String, dynamic>? claimResult;
+        // US 2.2: Claim detection pipeline
+        if (_factCheckEnabled && _claimDetectionEnabled) {
+          // Check cache for claim detection
+          final claimCacheKey = 'claim:$text';
+          Map<String, dynamic>? claimResult;
 
-        if (_cache.containsKey(claimCacheKey)) {
-          claimResult = _cache[claimCacheKey];
-        } else if (_checkRateLimit()) {
-          claimResult = await _currentProvider!.detectClaim(text);
-          _addToCache(claimCacheKey, claimResult);
-        }
+          if (_cache.containsKey(claimCacheKey)) {
+            claimResult = _cache[claimCacheKey];
+          } else if (_checkRateLimit()) {
+            claimResult = await _currentProvider!.detectClaim(text);
+            _addToCache(claimCacheKey, claimResult);
+          } else {
+            throw ApiError.rateLimitExceeded();
+          }
 
-        // Only fact-check if it's a claim with sufficient confidence
-        if (claimResult != null) {
-          final isClaim = claimResult['isClaim'] as bool? ?? false;
-          final confidence = claimResult['confidence'] as double? ?? 0.0;
-          final extractedClaim = claimResult['extractedClaim'] as String? ?? text;
+          // Only fact-check if it's a claim with sufficient confidence
+          if (claimResult != null) {
+            final isClaim = claimResult['isClaim'] as bool? ?? false;
+            final confidence = claimResult['confidence'] as double? ?? 0.0;
+            final extractedClaim = claimResult['extractedClaim'] as String? ?? text;
 
-          results['claimDetection'] = claimResult;
+            results['claimDetection'] = claimResult;
 
-          if (isClaim && confidence >= _claimConfidenceThreshold) {
-            // Fact-check the extracted claim
-            final factCacheKey = 'fact:$extractedClaim';
-            if (_cache.containsKey(factCacheKey)) {
-              results['factCheck'] = _cache[factCacheKey];
-            } else if (_checkRateLimit()) {
-              final factCheck = await _currentProvider!.factCheck(extractedClaim);
-              results['factCheck'] = factCheck;
-              _addToCache(factCacheKey, factCheck);
+            if (isClaim && confidence >= _claimConfidenceThreshold) {
+              // Fact-check the extracted claim
+              final factCacheKey = 'fact:$extractedClaim';
+              if (_cache.containsKey(factCacheKey)) {
+                results['factCheck'] = _cache[factCacheKey];
+              } else if (_checkRateLimit()) {
+                final factCheck = await _currentProvider!.factCheck(extractedClaim);
+                results['factCheck'] = factCheck;
+                _addToCache(factCacheKey, factCheck);
+              } else {
+                throw ApiError.rateLimitExceeded();
+              }
             }
           }
+        } else if (_factCheckEnabled && !_claimDetectionEnabled) {
+          // Original behavior: fact-check everything
+          final cacheKey = 'fact:$text';
+          if (_cache.containsKey(cacheKey)) {
+            results['factCheck'] = _cache[cacheKey];
+          } else if (_checkRateLimit()) {
+            final factCheck = await _currentProvider!.factCheck(text);
+            results['factCheck'] = factCheck;
+            _addToCache(cacheKey, factCheck);
+          } else {
+            throw ApiError.rateLimitExceeded();
+          }
         }
-      } else if (_factCheckEnabled && !_claimDetectionEnabled) {
-        // Original behavior: fact-check everything
-        final cacheKey = 'fact:$text';
-        if (_cache.containsKey(cacheKey)) {
-          results['factCheck'] = _cache[cacheKey];
-        } else if (_checkRateLimit()) {
-          final factCheck = await _currentProvider!.factCheck(text);
-          results['factCheck'] = factCheck;
-          _addToCache(cacheKey, factCheck);
-        }
-      }
 
-      // Sentiment analysis
-      if (_sentimentEnabled) {
-        final cacheKey = 'sentiment:$text';
-        if (_cache.containsKey(cacheKey)) {
-          results['sentiment'] = _cache[cacheKey];
-        } else if (_checkRateLimit()) {
-          final sentiment = await _currentProvider!.analyzeSentiment(text);
-          results['sentiment'] = sentiment;
-          _addToCache(cacheKey, sentiment);
+        // Sentiment analysis
+        if (_sentimentEnabled) {
+          final cacheKey = 'sentiment:$text';
+          if (_cache.containsKey(cacheKey)) {
+            results['sentiment'] = _cache[cacheKey];
+          } else if (_checkRateLimit()) {
+            final sentiment = await _currentProvider!.analyzeSentiment(text);
+            results['sentiment'] = sentiment;
+            _addToCache(cacheKey, sentiment);
+          } else {
+            throw ApiError.rateLimitExceeded();
+          }
         }
-      }
 
-      return results;
-    } catch (e) {
-      return {'error': e.toString()};
-    }
+        return results;
+      },
+      operationName: 'AICoordinator.analyzeText',
+      context: {'textLength': text.length},
+    ).then((result) {
+      return result.mapError((error) {
+        if (error is ApiError) return error as AIError;
+        return AIError(
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          originalError: error.originalError,
+          stackTrace: error.stackTrace,
+        );
+      });
+    });
   }
 
   /// Perform fact-checking only
-  Future<Map<String, dynamic>> factCheck(String claim) async {
+  Future<Result<Map<String, dynamic>, AIError>> factCheck(String claim) async {
     if (!_isEnabled || _currentProvider == null) {
-      return {'error': 'AI not enabled'};
+      return Result.failure(AIError.notReady(service: 'AI Coordinator'));
     }
 
     final cacheKey = 'fact:$claim';
     if (_cache.containsKey(cacheKey)) {
-      return _cache[cacheKey]!;
+      return Result.success(_cache[cacheKey]!);
     }
 
     if (!_checkRateLimit()) {
-      return {'error': 'Rate limit exceeded'};
+      return Result.failure(
+        AIError(
+          code: 'AI_RATE_LIMIT_EXCEEDED',
+          message: 'Rate limit exceeded',
+          details: 'Too many requests. Please try again later.',
+          isRecoverable: true,
+          recoveryAction: 'Wait a moment and try again',
+        ),
+      );
     }
 
-    try {
-      final result = await _currentProvider!.factCheck(claim);
-      _addToCache(cacheKey, result);
-      return result;
-    } catch (e) {
-      return {'error': e.toString()};
-    }
+    return ErrorRecovery.tryCatchAsync(
+      () async {
+        final result = await _currentProvider!.factCheck(claim);
+        _addToCache(cacheKey, result);
+        return result;
+      },
+      operationName: 'AICoordinator.factCheck',
+      context: {'claimLength': claim.length},
+    ).then((result) => _mapToAIError(result));
   }
 
   /// Analyze sentiment only
-  Future<Map<String, dynamic>> analyzeSentiment(String text) async {
+  Future<Result<Map<String, dynamic>, AIError>> analyzeSentiment(String text) async {
     if (!_isEnabled || _currentProvider == null) {
-      return {'error': 'AI not enabled'};
+      return Result.failure(AIError.notReady(service: 'AI Coordinator'));
     }
 
     final cacheKey = 'sentiment:$text';
     if (_cache.containsKey(cacheKey)) {
-      return _cache[cacheKey]!;
+      return Result.success(_cache[cacheKey]!);
     }
 
     if (!_checkRateLimit()) {
-      return {'error': 'Rate limit exceeded'};
+      return Result.failure(
+        AIError(
+          code: 'AI_RATE_LIMIT_EXCEEDED',
+          message: 'Rate limit exceeded',
+          details: 'Too many requests. Please try again later.',
+          isRecoverable: true,
+          recoveryAction: 'Wait a moment and try again',
+        ),
+      );
     }
 
-    try {
-      final result = await _currentProvider!.analyzeSentiment(text);
-      _addToCache(cacheKey, result);
-      return result;
-    } catch (e) {
-      return {'error': e.toString()};
-    }
+    return ErrorRecovery.tryCatchAsync(
+      () async {
+        final result = await _currentProvider!.analyzeSentiment(text);
+        _addToCache(cacheKey, result);
+        return result;
+      },
+      operationName: 'AICoordinator.analyzeSentiment',
+      context: {'textLength': text.length},
+    ).then((result) => _mapToAIError(result));
   }
 
   /// Extract action items
-  Future<List<Map<String, dynamic>>> extractActionItems(String text) async {
+  Future<Result<List<Map<String, dynamic>>, AIError>> extractActionItems(String text) async {
     if (!_isEnabled || _currentProvider == null) {
-      return [];
+      return Result.failure(AIError.notReady(service: 'AI Coordinator'));
     }
 
     if (!_checkRateLimit()) {
-      return [];
+      return Result.failure(
+        AIError(
+          code: 'AI_RATE_LIMIT_EXCEEDED',
+          message: 'Rate limit exceeded',
+          details: 'Too many requests. Please try again later.',
+          isRecoverable: true,
+          recoveryAction: 'Wait a moment and try again',
+        ),
+      );
     }
 
-    try {
-      return await _currentProvider!.extractActionItems(text);
-    } catch (e) {
-      return [];
-    }
+    return ErrorRecovery.tryCatchAsync(
+      () async => await _currentProvider!.extractActionItems(text),
+      operationName: 'AICoordinator.extractActionItems',
+      context: {'textLength': text.length},
+    ).then((result) => _mapToAIError(result));
   }
 
   /// Generate summary
-  Future<Map<String, dynamic>> summarize(String text) async {
+  Future<Result<Map<String, dynamic>, AIError>> summarize(String text) async {
     if (!_isEnabled || _currentProvider == null) {
-      return {'error': 'AI not enabled'};
+      return Result.failure(AIError.notReady(service: 'AI Coordinator'));
     }
 
     if (!_checkRateLimit()) {
-      return {'error': 'Rate limit exceeded'};
+      return Result.failure(
+        AIError(
+          code: 'AI_RATE_LIMIT_EXCEEDED',
+          message: 'Rate limit exceeded',
+          details: 'Too many requests. Please try again later.',
+          isRecoverable: true,
+          recoveryAction: 'Wait a moment and try again',
+        ),
+      );
     }
 
-    try {
-      return await _currentProvider!.summarize(text);
-    } catch (e) {
-      return {'error': e.toString()};
-    }
+    return ErrorRecovery.tryCatchAsync(
+      () async => await _currentProvider!.summarize(text),
+      operationName: 'AICoordinator.summarize',
+      context: {'textLength': text.length},
+    ).then((result) => _mapToAIError(result));
+  }
+
+  /// Helper to convert AppError to AIError
+  Result<T, AIError> _mapToAIError<T>(Result<T, AppError> result) {
+    return result.mapError((error) {
+      if (error is AIError) return error;
+      if (error is ApiError) {
+        return AIError(
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          originalError: error.originalError,
+          stackTrace: error.stackTrace,
+          context: error.context,
+          isRecoverable: error.isRecoverable,
+          recoveryAction: error.recoveryAction,
+        );
+      }
+      return AIError(
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        originalError: error.originalError,
+        stackTrace: error.stackTrace,
+        context: error.context,
+        isRecoverable: error.isRecoverable,
+        recoveryAction: error.recoveryAction,
+      );
+    });
   }
 
   /// Check rate limit

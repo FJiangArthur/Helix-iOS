@@ -3,6 +3,7 @@ import 'dart:math';
 import 'proto.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class TextService {
   static TextService? _instance;
@@ -68,7 +69,7 @@ class TextService {
   int retryCount = 0;
   Future<bool> doSendText(String text, int type, int status, int pos) async {
    
-    print('${DateTime.now()} doSendText--currentPage---${getCurrentPage()}-----text----$text-----type---$type---status---$status----pos---$pos-');
+    appLogger.i('${DateTime.now()} doSendText--currentPage---${getCurrentPage()}-----text----$text-----type---$type---status---$status----pos---$pos-');
     if (!isRunning) {
       return false;
     }
@@ -170,7 +171,7 @@ class TextService {
   }
 
   Future stopTextSendingByOS() async {
-    print("stopTextSendingByOS---------------");
+    appLogger.i("stopTextSendingByOS---------------");
     isRunning = false;
     clear();
   }

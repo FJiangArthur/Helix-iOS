@@ -9,6 +9,7 @@ import '../services/implementations/audio_service_impl.dart';
 import '../services/simple_openai_service.dart';
 import '../services/analytics_service.dart';
 import '../models/audio_configuration.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class SimpleAITestScreen extends StatefulWidget {
   const SimpleAITestScreen({super.key});
@@ -113,7 +114,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
             final file = File(_lastRecordingPath!);
             fileSize = await file.length();
           } catch (e) {
-            print('Could not get file size: $e');
+            appLogger.i('Could not get file size: $e');
           }
 
           _analytics.trackRecordingStopped(
@@ -174,7 +175,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
     });
 
     try {
-      print('[Test] Starting transcription for: $_lastRecordingPath');
+      appLogger.i('[Test] Starting transcription for: $_lastRecordingPath');
       final transcription = await _openAIService!.transcribeAudio(_lastRecordingPath!);
 
       setState(() {
@@ -201,7 +202,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
     });
 
     try {
-      print('[Test] Starting analysis');
+      appLogger.i('[Test] Starting analysis');
       final analysis = await _openAIService!.analyzeText(_transcription!);
 
       setState(() {

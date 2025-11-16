@@ -18,7 +18,6 @@ class BleManager {
   static BleManager get() {
     if (_instance == null) {
       _instance ??= BleManager._();
-      _instance!._init();
     }
     return _instance!;
   }
@@ -43,8 +42,6 @@ class BleManager {
   // Transaction history (keep last 100 transactions)
   final List<Map<String, dynamic>> _transactionHistory = [];
   static const int _maxHistorySize = 100;
-
-  void _init() {}
 
   /// Get current health metrics
   BleHealthMetrics getHealthMetrics() => _healthMetrics;
@@ -123,7 +120,7 @@ class BleManager {
       });
       connectionStatus = 'Connecting...';
     } catch (e) {
-      print('Error connecting to device: $e');
+      appLogger.i('Error connecting to device: $e');
     }
   }
 
@@ -133,7 +130,7 @@ class BleManager {
       await _channel.invokeMethod('disconnect');
       _onGlassesDisconnected();
     } catch (e) {
-      print('Error disconnecting: $e');
+      appLogger.i('Error disconnecting: $e');
     }
   }
 
@@ -156,12 +153,12 @@ class BleManager {
         _onPairedGlassesFound(Map<String, String>.from(call.arguments));
         break;
       default:
-        print('Unknown method: ${call.method}');
+        appLogger.i('Unknown method: ${call.method}');
     }
   }
 
   void _onGlassesConnected(dynamic arguments) {
-    print("_onGlassesConnected----arguments----$arguments------");
+    appLogger.i("_onGlassesConnected----arguments----$arguments------");
     connectionStatus =
         'Connected: \n${arguments['leftDeviceName']} \n${arguments['rightDeviceName']}';
     isConnected = true;
@@ -227,7 +224,7 @@ class BleManager {
 
     String cmd = "${res.lr}${res.getCmd().toRadixString(16).padLeft(2, '0')}";
     if (res.getCmd() != 0xf1) {
-      print(
+      appLogger.i(
         "${DateTime.now()} BleManager receive cmd: $cmd, len: ${res.data.length}, data = ${res.data.hexString}",
       );
     }
@@ -253,7 +250,7 @@ class BleManager {
           EvenAI.get.recordOverByOS();
           break;
         default:
-          print("Unknown Ble Event: $notifyIndex");
+          appLogger.i("Unknown Ble Event: $notifyIndex");
       }
       return;
     }
@@ -280,14 +277,14 @@ class BleManager {
   static _checkTimeout(String cmd, int timeoutMs, Uint8List data, String lr) {
     _reqTimeout.remove(cmd);
     var cb = _reqListen.remove(cmd);
-    print(
+    appLogger.i(
       '${DateTime.now()} _checkTimeout-----timeoutMs----$timeoutMs-----cb----$cb-----',
     );
     if (cb != null) {
       var res = BleReceive();
       res.isTimeout = true;
       //var showData = data.length > 50 ? data.sublist(0, 50) : data;
-      print("send Timeout $cmd of $timeoutMs");
+      appLogger.i("send Timeout $cmd of $timeoutMs");
       cb.complete(res);
       // Metric recording happens in the completer.future.then() in request()
     }
@@ -331,7 +328,7 @@ class BleManager {
     }
     ret = BleReceive();
     ret.isTimeout = true;
-    print("requestRetry $lr timeout of $timeoutMs");
+    appLogger.i("requestRetry $lr timeout of $timeoutMs");
     return ret;
   }
 
@@ -348,7 +345,7 @@ class BleManager {
       retry: retry ?? 0,
     );
     if (ret.isTimeout) {
-      print("sendBoth L timeout");
+      appLogger.i("sendBoth L timeout");
 
       return false;
     } else if (isSuccess != null) {
@@ -428,13 +425,13 @@ class BleManager {
         var res = BleReceive();
         res.isTimeout = true;
         _reqListen[cmd]?.complete(res);
-        print("already exist key: $cmd");
+        appLogger.i("already exist key: $cmd");
 
         _reqTimeout[cmd]?.cancel();
       }
       _reqListen[cmd] = completer;
     }
-    print("request key: $cmd, ");
+    appLogger.i("request key: $cmd, ");
 
     if (timeoutMs > 0) {
       _reqTimeout[cmd] = Timer(Duration(milliseconds: timeoutMs), () {
@@ -491,7 +488,7 @@ class BleManager {
     String? lr,
     int? timeoutMs,
   }) async {
-    print(
+    appLogger.i(
       "requestList---sendList---${sendList.first}----lr---$lr----timeoutMs----$timeoutMs-",
     );
 
@@ -506,7 +503,7 @@ class BleManager {
         var lastPack = sendList[sendList.length - 1];
         return await sendBoth(lastPack, timeoutMs: timeoutMs ?? 250);
       } else {
-        print("error request lr leg");
+        appLogger.i("error request lr leg");
       }
     }
     return false;

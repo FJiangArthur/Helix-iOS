@@ -1,0 +1,66 @@
+[
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/v1/chat/completions"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "id": "chatcmpl-mock123",
+        "object": "chat.completion",
+        "created": 1234567890,
+        "model": "gpt-4",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "This is a mock response from the AI API. The actual response would contain analysis results."
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 50,
+          "completion_tokens": 30,
+          "total_tokens": 80
+        }
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/v1/audio/transcriptions"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "text": "This is a mock transcription of the audio file."
+      }
+    }
+  },
+  {
+    "httpRequest": {
+      "method": "GET",
+      "path": "/health"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "Content-Type": ["application/json"]
+      },
+      "body": {
+        "status": "ok",
+        "timestamp": "2024-01-01T00:00:00Z"
+      }
+    }
+  }
+]
