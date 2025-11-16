@@ -121,24 +121,30 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         if peripheralPair.0 === peripheral {
             connectedDevices[deviceName]?.0 = peripheral // Left device connected
-            
+
             self.leftPeripheral = peripheral
             self.leftPeripheral?.delegate = self
             self.leftPeripheral?.discoverServices([UARTServiceUUID])
-            
+
             self.leftUUIDStr = peripheral.identifier.uuidString;
-            
-            print("didConnect----self.leftPeripheral---------\(self.leftPeripheral)--self.leftUUIDStr----\(self.leftUUIDStr)----")
+
+            HelixLogger.bluetooth("Left peripheral connected", level: .info, metadata: [
+                "deviceName": deviceName,
+                "uuid": self.leftUUIDStr ?? "unknown"
+            ])
         } else if peripheralPair.1 === peripheral {
             connectedDevices[deviceName]?.1 = peripheral // Right device connected
-            
+
             self.rightPeripheral = peripheral
             self.rightPeripheral?.delegate = self
             self.rightPeripheral?.discoverServices([UARTServiceUUID])
-            
+
             self.rightUUIDStr = peripheral.identifier.uuidString
-            
-            print("didConnect----self.rightPeripheral---------\(self.rightPeripheral)---self.rightUUIDStr----\(self.rightUUIDStr)-----")
+
+            HelixLogger.bluetooth("Right peripheral connected", level: .info, metadata: [
+                "deviceName": deviceName,
+                "uuid": self.rightUUIDStr ?? "unknown"
+            ])
         }
 
         if let leftPeripheral = connectedDevices[deviceName]?.0, let rightPeripheral = connectedDevices[deviceName]?.1 {
@@ -149,35 +155,49 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             ]
             channel.invokeMethod("glassesConnected", arguments: connectedInfo)
 
+            HelixLogger.bluetooth("Both peripherals connected successfully", level: .info, metadata: [
+                "deviceName": deviceName
+            ])
+
             currentConnectingDeviceName = nil
         }
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?){
-        print("\(Date()) didDisconnectPeripheral-----peripheral-----\(peripheral)--")
-        
         if let error = error {
-            print("Disconnect error: \(error.localizedDescription)")
+            HelixLogger.bluetooth("Peripheral disconnected with error", level: .error, metadata: [
+                "peripheralName": peripheral.name ?? "unknown",
+                "error": error.localizedDescription
+            ])
         } else {
-            print("Disconnected without error.")
+            HelixLogger.bluetooth("Peripheral disconnected", level: .info, metadata: [
+                "peripheralName": peripheral.name ?? "unknown"
+            ])
         }
-        
+
         central.connect(peripheral, options: nil)
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        print("peripheral------\(peripheral)-----didDiscoverServices--------")
+        HelixLogger.bluetooth("Discovering services for peripheral", level: .debug, metadata: [
+            "peripheralName": peripheral.name ?? "unknown"
+        ])
+
         guard let services = peripheral.services else { return }
-        
+
         for service in services {
             if service.uuid .isEqual(UARTServiceUUID){
                 peripheral.discoverCharacteristics(nil, for: service)
             }
         }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        print("peripheral------\(peripheral)-----didDiscoverCharacteristicsFor----service----\(service)----")
+        HelixLogger.bluetooth("Discovered characteristics for service", level: .debug, metadata: [
+            "peripheralName": peripheral.name ?? "unknown",
+            "serviceUUID": service.uuid.uuidString
+        ])
+
         guard let characteristics = service.characteristics else { return }
 
         if service.uuid.isEqual(UARTServiceUUID){
@@ -214,24 +234,30 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
-            print("subscribe fail: \(error)")
+            HelixLogger.error("Failed to subscribe to characteristic", error: error, category: .bluetooth)
             return
         }
         if characteristic.isNotifying {
-            print("subscribe success")
+            HelixLogger.bluetooth("Successfully subscribed to characteristic notifications", level: .info, metadata: [
+                "characteristicUUID": characteristic.uuid.uuidString
+            ])
         } else {
-            print("subscribe cancel")
+            HelixLogger.bluetooth("Unsubscribed from characteristic notifications", level: .info, metadata: [
+                "characteristicUUID": characteristic.uuid.uuidString
+            ])
         }
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            print("Bluetooth is powered on.")
+            HelixLogger.bluetooth("Bluetooth is powered on", level: .info)
         case .poweredOff:
-            print("Bluetooth is powered off.")
+            HelixLogger.bluetooth("Bluetooth is powered off", level: .warning)
         default:
-            print("Bluetooth state is unknown or unsupported.")
+            HelixLogger.bluetooth("Bluetooth state is unknown or unsupported", level: .warning, metadata: [
+                "state": "\(central.state.rawValue)"
+            ])
         }
     }
     
@@ -258,26 +284,26 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if let leftWChar = self.leftWChar {
             self.leftPeripheral?.writeValue(writeData, for: leftWChar, type: .withoutResponse)
         } else {
-            print("writeData leftWChar is nil, cannot write data to right peripheral.")
+            HelixLogger.bluetooth("Cannot write data - left characteristic is nil", level: .warning)
         }
 
         if let rightWChar = self.rightWChar {
             self.rightPeripheral?.writeValue(writeData, for: rightWChar, type: .withoutResponse)
         } else {
-            print("writeData rightWChar is nil, cannot write data to right peripheral.")
+            HelixLogger.bluetooth("Cannot write data - right characteristic is nil", level: .warning)
         }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard error == nil else {
-            print("\(Date()) didWriteValueFor----characteristic---\(characteristic)---- \(error!)")
+            HelixLogger.error("Failed to write value for characteristic", error: error!, category: .bluetooth)
             return
         }
     }
-    
+
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor descriptor: CBDescriptor, error: Error?) {
         guard error == nil else {
-            print("\(Date()) didWriteValueFor----------- \(error!)")
+            HelixLogger.error("Failed to write value for descriptor", error: error!, category: .bluetooth)
             return
         }
     }
@@ -289,25 +315,28 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
     
     func getCommandValue(data:Data,cbPeripheral:CBPeripheral? = nil){
-//        guard !data.isEmpty else {
-//            print("Warning: Empty data received from peripheral")
-//            return
-//        }
         let rspCommand = AG_BLE_REQ(rawValue: (data[0]))
         switch rspCommand{
             case .BLE_REQ_TRANSFER_MIC_DATA:
                  let hexString = data.map { String(format: "%02hhx", $0) }.joined()
                  guard data.count > 2 else {
-                     print("Warning: Insufficient data for MIC_DATA, need at least 3 bytes")
+                     HelixLogger.bluetooth("Insufficient data for MIC_DATA, need at least 3 bytes", level: .warning, metadata: [
+                         "dataSize": "\(data.count)"
+                     ])
                      break
                  }
                  let effectiveData = data.subdata(in: 2..<data.count)
                  let pcmConverter = PcmConverter()
                  var pcmData = pcmConverter.decode(effectiveData)
-               
+
                  let inputData = pcmData as Data
                  SpeechStreamRecognizer.shared.appendPCMData(inputData)
-            
+
+                 HelixLogger.bluetooth("Processed MIC_DATA", level: .debug, metadata: [
+                     "dataSize": "\(data.count)",
+                     "pcmDataSize": "\(inputData.count)"
+                 ])
+
                  break
             default:
                 let isLeft = cbPeripheral?.identifier.uuidString == self.leftUUIDStr
@@ -317,11 +346,12 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 dictionary["lr"] = legStr
                 dictionary["data"] = data
 
-                // self.blueInfoSink(dictionary)
                 if let sink = self.blueInfoSink {
                     sink(dictionary)
                 } else {
-                    print("blueInfoSink not ready, dropping data")
+                    HelixLogger.bluetooth("blueInfoSink not ready, dropping data", level: .warning, metadata: [
+                        "side": legStr
+                    ])
                 }
                 break
         }

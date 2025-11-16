@@ -1,0 +1,277 @@
+{
+  "$schema": "Feature Flags Configuration",
+  "version": "1.0.0",
+  "description": "Feature flags for controlling experimental features, A/B testing, and model selection",
+  "environments": {
+    "development": {
+      "enabled": true,
+      "description": "Development environment with all experimental features enabled"
+    },
+    "staging": {
+      "enabled": true,
+      "description": "Staging environment for testing features before production"
+    },
+    "production": {
+      "enabled": true,
+      "description": "Production environment with stable features only"
+    }
+  },
+  "flags": {
+    "modelSelection": {
+      "enabled": true,
+      "description": "Allow users to select different AI models for different tasks",
+      "type": "feature",
+      "metadata": {
+        "category": "ai",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": true
+      },
+      "config": {
+        "allowUserOverride": true,
+        "availableModels": [
+          "gpt-4.1-mini",
+          "gpt-4.1",
+          "gpt-5",
+          "o1",
+          "o1-mini",
+          "o3",
+          "o3-mini"
+        ],
+        "defaultModel": "gpt-4.1-mini"
+      }
+    },
+    "advancedAIAnalysis": {
+      "enabled": false,
+      "description": "Enable advanced AI analysis features including sentiment analysis and topic extraction",
+      "type": "feature",
+      "metadata": {
+        "category": "ai",
+        "requiresRestart": false,
+        "addedDate": "2025-11-16"
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": false
+      },
+      "rolloutPercentage": {
+        "development": 100,
+        "staging": 50,
+        "production": 0
+      }
+    },
+    "enhancedFactChecking": {
+      "enabled": true,
+      "description": "Enhanced fact-checking with multiple sources and confidence scoring",
+      "type": "feature",
+      "metadata": {
+        "category": "ai",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": false
+      },
+      "config": {
+        "minimumConfidenceScore": 0.7,
+        "maxSourcesPerCheck": 3,
+        "enableRealTimeChecking": true
+      }
+    },
+    "whisperTranscription": {
+      "enabled": true,
+      "description": "Use Whisper API for transcription instead of native service",
+      "type": "feature",
+      "metadata": {
+        "category": "transcription",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": true
+      },
+      "config": {
+        "fallbackToNative": true,
+        "autoSwitchOnConnectivity": true
+      }
+    },
+    "conversationInsights": {
+      "enabled": true,
+      "description": "Real-time conversation insights and summaries",
+      "type": "feature",
+      "metadata": {
+        "category": "ai",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": true
+      },
+      "config": {
+        "enableRealTime": true,
+        "summarizationInterval": 300,
+        "keyPointsExtraction": true
+      }
+    },
+    "abTestNewUI": {
+      "enabled": false,
+      "description": "A/B test for new user interface design",
+      "type": "experiment",
+      "metadata": {
+        "category": "ui",
+        "requiresRestart": true,
+        "experimentEndDate": "2026-01-31"
+      },
+      "variants": {
+        "development": false,
+        "staging": false,
+        "production": false
+      },
+      "rolloutPercentage": {
+        "development": 100,
+        "staging": 25,
+        "production": 0
+      },
+      "config": {
+        "variantA": "classic",
+        "variantB": "modern",
+        "trackingEnabled": true
+      }
+    },
+    "abTestModelComparison": {
+      "enabled": false,
+      "description": "A/B test to compare different AI models for quality and performance",
+      "type": "experiment",
+      "metadata": {
+        "category": "ai",
+        "requiresRestart": false,
+        "experimentEndDate": "2026-02-28"
+      },
+      "variants": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "rolloutPercentage": {
+        "development": 100,
+        "staging": 10,
+        "production": 0
+      },
+      "config": {
+        "modelA": "gpt-4.1-mini",
+        "modelB": "gpt-5",
+        "sampleRate": 0.5,
+        "collectMetrics": true
+      }
+    },
+    "offlineMode": {
+      "enabled": false,
+      "description": "Enable offline mode with local processing",
+      "type": "feature",
+      "metadata": {
+        "category": "connectivity",
+        "requiresRestart": true
+      },
+      "variants": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "config": {
+        "cacheTranscriptions": true,
+        "syncOnReconnect": true,
+        "maxOfflineStorage": 100
+      }
+    },
+    "voiceCommands": {
+      "enabled": false,
+      "description": "Voice commands for hands-free control",
+      "type": "feature",
+      "metadata": {
+        "category": "interaction",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "config": {
+        "wakeWord": "Hey Helix",
+        "languages": ["en-US"],
+        "confidenceThreshold": 0.8
+      }
+    },
+    "advancedLogging": {
+      "enabled": true,
+      "description": "Enhanced logging for debugging and monitoring",
+      "type": "debug",
+      "metadata": {
+        "category": "developer",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": false
+      },
+      "config": {
+        "logLevel": "debug",
+        "includeStackTraces": true,
+        "logToFile": true,
+        "maxLogSize": 10485760
+      }
+    },
+    "performanceMonitoring": {
+      "enabled": true,
+      "description": "Performance monitoring and metrics collection",
+      "type": "monitoring",
+      "metadata": {
+        "category": "analytics",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": true,
+        "production": true
+      },
+      "config": {
+        "sampleRate": 1.0,
+        "trackCPU": true,
+        "trackMemory": true,
+        "trackNetwork": true
+      }
+    },
+    "betaFeatures": {
+      "enabled": false,
+      "description": "Umbrella flag for all beta features",
+      "type": "feature",
+      "metadata": {
+        "category": "general",
+        "requiresRestart": false
+      },
+      "variants": {
+        "development": true,
+        "staging": false,
+        "production": false
+      },
+      "config": {
+        "requiresOptIn": true,
+        "showBetaBadge": true
+      }
+    }
+  },
+  "globalConfig": {
+    "defaultEnvironment": "development",
+    "allowEnvironmentOverride": true,
+    "cacheEnabled": true,
+    "cacheDuration": 300
+  }
+}

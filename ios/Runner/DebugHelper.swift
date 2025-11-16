@@ -5,7 +5,7 @@ import Foundation
 import AVFoundation
 
 @objc class DebugHelper: NSObject {
-    
+
     @objc static func setupAudioDebugLogging() {
         // Enable AVAudioSession debugging
         NotificationCenter.default.addObserver(
@@ -14,60 +14,66 @@ import AVFoundation
             name: AVAudioSession.routeChangeNotification,
             object: nil
         )
-        
+
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleInterruption),
             name: AVAudioSession.interruptionNotification,
             object: nil
         )
-        
+
         // Log current audio session state
         let session = AVAudioSession.sharedInstance()
-        print("🎤 Audio Session Category: \(session.category.rawValue)")
-        print("🎤 Audio Session Mode: \(session.mode.rawValue)")
-        print("🎤 Sample Rate: \(session.sampleRate)")
-        print("🎤 Input Available: \(session.isInputAvailable)")
-        print("🎤 Input Channels: \(session.inputNumberOfChannels)")
-        print("🎤 Recording Permission: \(AVAudioSession.sharedInstance().recordPermission.rawValue)")
-        
+        HelixLogger.audio("Audio Session Category: \(session.category.rawValue)", level: .debug, metadata: [
+            "mode": session.mode.rawValue,
+            "sampleRate": "\(session.sampleRate)",
+            "inputAvailable": "\(session.isInputAvailable)",
+            "inputChannels": "\(session.inputNumberOfChannels)"
+        ])
+
         // Check microphone permission
-        switch AVAudioSession.sharedInstance().recordPermission {
+        let permission = AVAudioSession.sharedInstance().recordPermission
+        switch permission {
         case .granted:
-            print("✅ Microphone permission granted")
+            HelixLogger.audio("Microphone permission granted", level: .info)
         case .denied:
-            print("❌ Microphone permission denied")
+            HelixLogger.audio("Microphone permission denied", level: .error)
         case .undetermined:
-            print("⚠️ Microphone permission undetermined")
+            HelixLogger.audio("Microphone permission undetermined", level: .warning)
         @unknown default:
-            print("❓ Unknown microphone permission state")
+            HelixLogger.audio("Unknown microphone permission state", level: .warning)
         }
     }
-    
+
     @objc static func handleRouteChange(_ notification: Notification) {
-        print("🔄 Audio route changed: \(notification)")
+        HelixLogger.audio("Audio route changed", level: .info, metadata: [
+            "notification": "\(notification.name)"
+        ])
     }
-    
+
     @objc static func handleInterruption(_ notification: Notification) {
-        print("⚠️ Audio interruption: \(notification)")
+        HelixLogger.audio("Audio interruption occurred", level: .warning, metadata: [
+            "notification": "\(notification.name)"
+        ])
     }
-    
+
     @objc static func checkAudioSetup() -> Bool {
         do {
             let session = AVAudioSession.sharedInstance()
-            
+
             // Try to set up the audio session for recording
             try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
             try session.setActive(true)
-            
-            print("✅ Audio session setup successful")
-            print("🎤 Input gain: \(session.inputGain)")
-            print("🎤 Input latency: \(session.inputLatency)")
-            print("🎤 Output latency: \(session.outputLatency)")
-            
+
+            HelixLogger.audio("Audio session setup successful", level: .info, metadata: [
+                "inputGain": "\(session.inputGain)",
+                "inputLatency": "\(session.inputLatency)",
+                "outputLatency": "\(session.outputLatency)"
+            ])
+
             return true
         } catch {
-            print("❌ Audio session setup failed: \(error)")
+            HelixLogger.error("Audio session setup failed", error: error, category: .audio)
             return false
         }
     }
@@ -77,19 +83,19 @@ import Foundation
 
 @objc class DebugHelper: NSObject {
     @objc static func setupAudioDebugLogging() {
-        print("ℹ️ DebugHelper.setupAudioDebugLogging is a no-op on this platform")
+        HelixLogger.info("DebugHelper.setupAudioDebugLogging is a no-op on this platform", category: .audio)
     }
-    
+
     @objc static func handleRouteChange(_ notification: Notification) {
-        print("ℹ️ DebugHelper.handleRouteChange is a no-op on this platform")
+        HelixLogger.info("DebugHelper.handleRouteChange is a no-op on this platform", category: .audio)
     }
-    
+
     @objc static func handleInterruption(_ notification: Notification) {
-        print("ℹ️ DebugHelper.handleInterruption is a no-op on this platform")
+        HelixLogger.info("DebugHelper.handleInterruption is a no-op on this platform", category: .audio)
     }
-    
+
     @objc static func checkAudioSetup() -> Bool {
-        print("ℹ️ DebugHelper.checkAudioSetup is a no-op on this platform")
+        HelixLogger.info("DebugHelper.checkAudioSetup is a no-op on this platform", category: .audio)
         return false
     }
 }

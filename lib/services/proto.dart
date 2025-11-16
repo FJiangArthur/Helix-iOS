@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../ble_manager.dart';
 import '../services/evenai_proto.dart';
 import '../utils/utils.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class Proto {
   static String lR() {
@@ -30,7 +31,7 @@ class Proto {
     var end = Utils.getTimestampMs();
     var startMic = (begin + ((end - begin) ~/ 2));
 
-    print("Proto---micOn---startMic---$startMic-------");
+    appLogger.i("Proto---micOn---startMic---$startMic-------");
     return (startMic, (!receive.isTimeout && receive.data[1] == 0xc9));
   }
 
@@ -59,7 +60,7 @@ class Proto {
     );
     _evenaiSeq++;
 
-    print(
+    appLogger.i(
       '${DateTime.now()} proto--sendEvenAIData---text---$text---_evenaiSeq----$_evenaiSeq---newScreen---$newScreen---pos---$pos---current_page_num--$current_page_num---max_page_num--$max_page_num--dataList----$dataList---',
     );
 
@@ -69,11 +70,11 @@ class Proto {
       timeoutMs: timeoutMs ?? 2000,
     );
 
-    print(
+    appLogger.i(
       '${DateTime.now()} sendEvenAIData-----isSuccess-----$isSuccess-------',
     );
     if (!isSuccess) {
-      print("${DateTime.now()} sendEvenAIData failed  L ");
+      appLogger.i("${DateTime.now()} sendEvenAIData failed  L ");
       return false;
     } else {
       isSuccess = await BleManager.requestList(
@@ -83,7 +84,7 @@ class Proto {
       );
 
       if (!isSuccess) {
-        print("${DateTime.now()} sendEvenAIData failed  R ");
+        appLogger.i("${DateTime.now()} sendEvenAIData failed  R ");
         return false;
       }
       return true;
@@ -103,18 +104,18 @@ class Proto {
     ]);
     _beatHeartSeq++;
 
-    print('${DateTime.now()} sendHeartBeat--------data---$data--');
+    appLogger.i('${DateTime.now()} sendHeartBeat--------data---$data--');
     var ret = await BleManager.request(data, lr: "L", timeoutMs: 1500);
 
-    print('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
+    appLogger.i('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
     if (ret.isTimeout) {
-      print('${DateTime.now()} sendHeartBeat----L----time out--');
+      appLogger.i('${DateTime.now()} sendHeartBeat----L----time out--');
       return false;
     } else if (ret.data[0].toInt() == 0x25 &&
         ret.data.length > 5 &&
         ret.data[4].toInt() == 0x04) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--');
+      appLogger.i('${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--');
       if (retR.isTimeout) {
         return false;
       } else if (retR.data[0].toInt() == 0x25 &&
@@ -138,16 +139,16 @@ class Proto {
 
   // tell the glasses to exit function to dashboard
   static Future<bool> exit() async {
-    print("send exit all func");
+    appLogger.i("send exit all func");
     var data = Uint8List.fromList([0x18]);
 
     var retL = await BleManager.request(data, lr: "L", timeoutMs: 1500);
-    print('${DateTime.now()} exit----L----ret---${retL.data}--');
+    appLogger.i('${DateTime.now()} exit----L----ret---${retL.data}--');
     if (retL.isTimeout) {
       return false;
     } else if (retL.data.isNotEmpty && retL.data[1].toInt() == 0xc9) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} exit----R----retR---${retR.data}--');
+      appLogger.i('${DateTime.now()} exit----R----retR---${retR.data}--');
       if (retR.isTimeout) {
         return false;
       } else if (retR.data.isNotEmpty && retR.data[1].toInt() == 0xc9) {
@@ -185,11 +186,11 @@ class Proto {
   }
 
   static Future<void> sendNewAppWhiteListJson(String whitelistJson) async {
-    print("proto -> sendNewAppWhiteListJson: whitelist = $whitelistJson");
+    appLogger.i("proto -> sendNewAppWhiteListJson: whitelist = $whitelistJson");
     final whitelistData = utf8.encode(whitelistJson);
     //  2、转换为接口格式
     final dataList = _getPackList(0x04, whitelistData, count: 180);
-    print(
+    appLogger.i(
       "proto -> sendNewAppWhiteListJson: length = ${dataList.length}, dataList = $dataList",
     );
     for (var i = 0; i < 3; i++) {
@@ -218,7 +219,7 @@ class Proto {
       notifyId,
       utf8.encode(notifyJson),
     );
-    print(
+    appLogger.i(
       "proto -> sendNotify: notifyId = $notifyId, data length = ${dataList.length} , data = $dataList, app = $notifyJson",
     );
     for (var i = 0; i < retry; i++) {

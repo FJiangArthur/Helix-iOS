@@ -1,0 +1,226 @@
+# Android Platform Ownership
+
+## Overview
+
+This directory contains all Android-specific native code and configurations for the Helix project.
+
+## Primary Owners
+
+- **Team**: `@android-platform`
+- **Platform Leads**: Android engineers with Kotlin/Java expertise
+
+## Scope
+
+- Android native code (Kotlin/Java)
+- Gradle build configuration
+- Android manifest and permissions
+- Android-specific frameworks and SDKs
+- Google Play Store deployment configuration
+
+## Directory Structure
+
+```
+android/
+├── app/                       # Main Android application module
+│   ├── src/
+│   │   ├── main/
+│   │   │   ├── kotlin/       # Kotlin source files
+│   │   │   ├── java/         # Java source files (if any)
+│   │   │   ├── res/          # Android resources
+│   │   │   └── AndroidManifest.xml
+│   │   └── debug/            # Debug-specific resources
+│   └── build.gradle          # App module Gradle build file
+├── gradle/                   # Gradle wrapper
+└── build.gradle              # Project-level Gradle build file
+```
+
+## Files and Specific Ownership
+
+### Application Configuration
+- **`app/src/main/AndroidManifest.xml`**: `@android-platform`, `@helix-maintainers`
+  - App permissions
+  - Activities and services
+  - Intent filters
+  - Hardware features
+
+### Build Configuration
+- **`app/build.gradle`**: `@android-platform`
+  - App-level build settings
+  - Dependencies
+  - Build variants and flavors
+  - ProGuard/R8 rules
+
+- **`build.gradle`**: `@android-platform`, `@helix-maintainers`
+  - Project-level build settings
+  - Repository definitions
+  - Gradle plugin versions
+
+- **`gradle.properties`**: `@android-platform`
+  - Gradle JVM settings
+  - Android build flags
+  - Project-wide properties
+
+### Native Code
+- **Kotlin/Java source files**: `@android-platform`, relevant feature teams
+  - Follow feature-based ownership
+  - Bluetooth: `@bluetooth-team`
+  - Audio: `@audio-team`
+
+## Review Guidelines
+
+### Required Reviews
+- All Android code changes: **1 approval** from `@android-platform`
+- Gradle build changes: **1 approval** from `@android-platform`
+- Manifest changes: **1 approval** from `@android-platform`
+- Cross-platform API changes: **1 approval** from `@flutter-platform`
+
+### Code Quality Standards
+- Follow [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html)
+- Use Android Lint for code quality checks
+- Follow Material Design guidelines for UI
+- Maintain compatibility with minimum Android SDK version
+- Use AndroidX libraries (not support libraries)
+
+### Testing Requirements
+- Unit tests for business logic
+- Instrumentation tests for Android-specific features
+- Manual testing on physical Android devices
+- Test on minimum supported Android version
+- Test on different screen sizes and densities
+
+### Build Validation
+- [ ] Project builds without errors or warnings
+- [ ] All build variants work (debug, release, profile)
+- [ ] ProGuard/R8 rules are correct for release builds
+- [ ] No hardcoded secrets or API keys
+- [ ] Permissions are properly documented and requested
+
+## Platform Requirements
+
+### Minimum Android SDK Version
+- Check `minSdkVersion` in `app/build.gradle`
+- Typically API 21 (Android 5.0) or higher for Flutter
+
+### Target Android SDK Version
+- Check `targetSdkVersion` in `app/build.gradle`
+- Should be latest stable Android version
+
+### Required Permissions
+Must be declared in `AndroidManifest.xml`:
+- `android.permission.RECORD_AUDIO` - Microphone access
+- `android.permission.BLUETOOTH` - Bluetooth
+- `android.permission.BLUETOOTH_ADMIN` - Bluetooth management
+- `android.permission.BLUETOOTH_CONNECT` - BLE connection (Android 12+)
+- `android.permission.BLUETOOTH_SCAN` - BLE scanning (Android 12+)
+- `android.permission.INTERNET` - Network access
+
+## Key Metrics
+
+- **Build Time**: < 5 minutes for clean build
+- **APK Size**: < 50 MB for release APK
+- **Memory Usage**: < 200 MB peak memory
+- **Launch Time**: < 2 seconds cold launch
+
+## Dependencies
+
+### Gradle Dependencies
+Check `app/build.gradle` for:
+- AndroidX libraries
+- Kotlin standard library
+- Flutter embedding
+- Third-party libraries
+
+### Flutter Plugins
+Native Android implementations for Flutter plugins
+
+## Related Documentation
+
+- [Android Deployment Workflow](/docs/BUILD_DEPLOY_WORKFLOW.md)
+- [Developer Guide](/docs/DEVELOPER_GUIDE.md)
+- [Architecture Documentation](/docs/Architecture.md)
+
+## Development Setup
+
+### Prerequisites
+- Android Studio installed
+- Android SDK and tools
+- Android device or emulator
+- JDK 11 or higher
+
+### Opening the Project
+```bash
+# Open from Flutter project root
+cd android
+# Then open in Android Studio or use:
+./gradlew build
+```
+
+### Building from Command Line
+```bash
+# From project root
+flutter build apk --debug
+flutter build apk --release
+flutter build appbundle --release  # For Play Store
+```
+
+## Common Issues
+
+### Gradle Build Failures
+- Clean build: `flutter clean && cd android && ./gradlew clean`
+- Invalidate caches in Android Studio
+- Check Gradle and plugin versions are compatible
+- Verify JDK version
+
+### Dependency Conflicts
+- Use `./gradlew app:dependencies` to inspect dependency tree
+- Resolve version conflicts in `build.gradle`
+- Check for transitive dependency issues
+
+### Bluetooth Issues
+- Verify permissions in AndroidManifest.xml
+- Handle runtime permissions for Android 6.0+
+- Check for location permission (required for BLE on some Android versions)
+- Test on physical device (BLE limited in emulator)
+
+### ProGuard/R8 Issues
+- Check `proguard-rules.pro` for keep rules
+- Test release builds thoroughly
+- Add keep rules for reflection-based code
+
+## Escalation
+
+For urgent Android platform issues:
+1. Tag `@android-platform` in PR/issue
+2. Contact Android platform lead via Slack `#helix-android`
+3. For Flutter integration issues, loop in `@flutter-platform`
+4. For architectural decisions, escalate to `@helix-maintainers`
+
+## Deployment
+
+### Google Play Store Release Process
+1. Update version name and code in `build.gradle`
+2. Build release AAB: `flutter build appbundle --release`
+3. Sign with release keystore
+4. Upload to Google Play Console
+5. Complete Play Store listing
+6. Submit for review
+
+**Deployment Owners**: `@android-platform`, `@helix-maintainers`
+
+## Security Considerations
+
+### Key Management
+- Never commit signing keys to repository
+- Use environment variables or secure CI/CD secrets
+- Keep keystores in secure location
+
+### Code Obfuscation
+- Enable ProGuard/R8 for release builds
+- Test obfuscated builds thoroughly
+- Keep mapping files for crash reporting
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial Android platform ownership established | Helix Team |

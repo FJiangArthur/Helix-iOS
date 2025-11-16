@@ -1,0 +1,311 @@
+# UI Screens Ownership
+
+## Overview
+
+This directory contains all user interface screens and UI components for the Helix Flutter application.
+
+## Primary Owners
+
+- **Team**: `@ui-team`
+- **Co-Owners**: `@flutter-platform`
+
+## Scope
+
+- Flutter screen implementations
+- User interface components
+- User experience (UX)
+- Screen navigation and routing
+- UI state management
+- Accessibility features
+
+## Directory Structure
+
+```
+lib/screens/
+├── features/                 # Feature-specific UI screens
+│   ├── bmp_page.dart        # BMP feature UI
+│   ├── text_page.dart       # Text display UI
+│   └── notification/        # Notification feature UI
+├── ai_assistant_screen.dart # AI assistant interface
+├── even_ai_history_screen.dart # Conversation history
+├── even_features_screen.dart   # Feature selection
+├── feature_verification_screen.dart # Testing UI
+├── file_management_screen.dart # File management
+├── g1_test_screen.dart      # G1 glasses testing
+├── recording_screen.dart    # Audio recording UI
+├── settings_screen.dart     # App settings
+└── simple_ai_test_screen.dart # AI testing UI
+```
+
+## Files and Specific Ownership
+
+### Main Application Screens
+
+#### **Settings Screen** (`settings_screen.dart`)
+- **Owners**: `@ui-team`, `@backend-team`
+- **Description**: Application settings and configuration UI
+- **Integrations**: Service configuration, API keys, user preferences
+- **Critical**: Handles sensitive configuration
+
+#### **Recording Screen** (`recording_screen.dart`)
+- **Owners**: `@ui-team`, `@audio-team`
+- **Description**: Audio recording interface with waveform visualization
+- **Features**: Start/stop recording, real-time audio visualization
+- **Performance**: Must maintain 60fps during recording
+
+#### **AI Assistant Screen** (`ai_assistant_screen.dart`)
+- **Owners**: `@ui-team`, `@ai-team`
+- **Description**: Main AI conversation and analysis interface
+- **Features**: Chat interface, AI insights display, fact-checking results
+- **Critical**: Primary user-facing AI feature
+
+#### **Simple AI Test Screen** (`simple_ai_test_screen.dart`)
+- **Owners**: `@ui-team`, `@ai-team`, `@qa-team`
+- **Description**: Testing interface for AI features
+- **Purpose**: Development and QA testing
+
+### Even Realities Glasses UI
+
+#### **G1 Test Screen** (`g1_test_screen.dart`)
+- **Owners**: `@ui-team`, `@bluetooth-team`, `@hardware-team`
+- **Description**: Even Realities G1 glasses testing interface
+- **Features**: BLE connection, HUD control, battery monitoring
+
+#### **Even Features Screen** (`even_features_screen.dart`)
+- **Owners**: `@ui-team`, `@bluetooth-team`
+- **Description**: Even Realities feature selection and control
+- **Features**: Feature toggles, display settings
+
+#### **Even AI History Screen** (`even_ai_history_screen.dart`)
+- **Owners**: `@ui-team`, `@ai-team`
+- **Description**: Conversation history and analysis results
+- **Features**: Historical data display, search, filtering
+
+### Utility Screens
+
+#### **Feature Verification Screen** (`feature_verification_screen.dart`)
+- **Owners**: `@ui-team`, `@qa-team`
+- **Description**: Feature testing and verification interface
+- **Purpose**: QA and integration testing
+
+#### **File Management Screen** (`file_management_screen.dart`)
+- **Owners**: `@ui-team`, `@flutter-platform`
+- **Description**: File browsing and management
+- **Features**: File operations, storage management
+
+### Feature-Specific UI (`features/`)
+
+#### **Notification UI** (`features/notification/`)
+- **Owners**: `@ui-team`, `@flutter-platform`
+- **Description**: Notification display and management
+- **Models**: `notify_model.dart` - Notification data models
+- **Screen**: `notification_page.dart` - Notification UI
+
+## Review Guidelines
+
+### Required Reviews
+- Screen implementations: **1 approval** from `@ui-team`
+- Navigation changes: **1 approval** from `@ui-team` + `@flutter-platform`
+- Settings screen: **2 approvals** from `@ui-team` + `@backend-team`
+- Integration with services: **1 approval** from relevant service team
+
+### UI/UX Standards
+- Follow [Flutter Material Design](https://flutter.dev/docs/development/ui/widgets/material)
+- Maintain consistent design language across screens
+- Implement responsive layouts (mobile, tablet, desktop)
+- Support dark mode and light mode
+- Ensure accessibility (screen readers, font scaling)
+- Follow Flutter best practices for widget composition
+
+### Code Quality Standards
+- Use `const` constructors where possible
+- Extract reusable widgets to separate files
+- Keep build methods concise (< 100 lines)
+- Use meaningful widget names
+- Implement proper key management for lists
+- Follow Effective Dart style guide
+
+### Testing Requirements
+- Widget tests for all screens
+- Golden tests for visual regression
+- Integration tests for user flows
+- Accessibility tests
+- Performance tests for complex screens
+- Test on various screen sizes and orientations
+
+### Performance Considerations
+- **Frame Rate**: Maintain 60fps (16ms per frame)
+- **Build Performance**: Optimize rebuild frequency
+- **Memory**: Avoid memory leaks (dispose controllers)
+- **Animations**: Use efficient animation techniques
+- **Images**: Optimize asset sizes and loading
+
+## Key Metrics
+
+- **Frame Rate**: 60fps consistently
+- **Screen Load Time**: < 500ms
+- **Memory Usage**: < 100 MB per screen
+- **Test Coverage**: > 80% for UI logic
+
+## UI Components Best Practices
+
+### State Management
+- Use appropriate state management (Provider, Riverpod, Bloc)
+- Minimize unnecessary rebuilds
+- Separate UI and business logic
+- Use immutable state when possible
+
+### Navigation
+- Use named routes for clarity
+- Implement proper back button handling
+- Handle deep linking where applicable
+- Manage navigation stack efficiently
+
+### Forms and Input
+- Validate user input
+- Provide clear error messages
+- Implement proper keyboard handling
+- Support autofill where appropriate
+
+### Accessibility
+- Provide semantic labels
+- Support screen readers
+- Ensure sufficient color contrast
+- Support dynamic text sizing
+- Keyboard navigation support
+
+## Dependencies
+
+### Flutter Packages
+- `flutter/material.dart` - Material Design widgets
+- `flutter/cupertino.dart` - iOS-style widgets (if used)
+- State management package (check pubspec.yaml)
+- Navigation package (if using custom navigation)
+
+### Custom Widgets
+- Check `/lib/widgets/` for reusable components
+- Document custom widget usage
+
+## Related Documentation
+
+- [Flutter Best Practices](/docs/FLUTTER_BEST_PRACTICES.md)
+- [Developer Guide](/docs/DEVELOPER_GUIDE.md)
+- [Architecture Documentation](/docs/Architecture.md)
+
+## Design Resources
+
+### Design System
+- Color palette and theme definitions
+- Typography standards
+- Spacing and layout guidelines
+- Icon library and usage
+
+### Design Tools
+- Figma designs (if available)
+- Style guide (if available)
+- UI component library
+
+## Common UI Patterns
+
+### Loading States
+```dart
+if (isLoading) {
+  return Center(child: CircularProgressIndicator());
+}
+```
+
+### Error Handling
+```dart
+if (error != null) {
+  return ErrorWidget(error: error);
+}
+```
+
+### Empty States
+```dart
+if (items.isEmpty) {
+  return EmptyStateWidget(message: 'No items found');
+}
+```
+
+## Testing Approach
+
+### Widget Tests
+```dart
+testWidgets('Screen displays correctly', (tester) async {
+  await tester.pumpWidget(MyScreen());
+  expect(find.text('Title'), findsOneWidget);
+});
+```
+
+### Golden Tests
+```dart
+testWidgets('Screen matches golden', (tester) async {
+  await tester.pumpWidget(MyScreen());
+  await expectLater(
+    find.byType(MyScreen),
+    matchesGoldenFile('goldens/my_screen.png'),
+  );
+});
+```
+
+## Common Issues
+
+### Performance Issues
+- Use `const` constructors
+- Implement `RepaintBoundary` for complex widgets
+- Use `ListView.builder` for long lists
+- Profile with DevTools
+
+### Layout Issues
+- Test on different screen sizes
+- Use responsive design patterns
+- Handle keyboard appearance
+- Test rotation and orientation changes
+
+### State Issues
+- Dispose controllers in `dispose()`
+- Avoid `setState` after dispose
+- Handle async operations carefully
+- Test state management edge cases
+
+## Escalation
+
+For urgent UI issues:
+1. Tag `@ui-team` in PR/issue
+2. Contact UI team lead via Slack `#helix-ui`
+3. For framework issues, loop in `@flutter-platform`
+4. For service integration issues, contact relevant service team
+5. Escalate to `@helix-maintainers` for architectural decisions
+
+## Accessibility Checklist
+
+- [ ] Semantic labels for all interactive elements
+- [ ] Color contrast meets WCAG AA standards
+- [ ] Text scaling support (up to 200%)
+- [ ] Screen reader tested
+- [ ] Keyboard navigation (for desktop)
+- [ ] Focus indicators visible
+- [ ] Error messages are descriptive
+- [ ] Loading states announced to screen readers
+
+## Localization
+
+If app supports multiple languages:
+- Use localization keys, not hardcoded strings
+- Test RTL (right-to-left) languages
+- Ensure UI adapts to longer text
+- Test date/time formatting
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial UI screens ownership established | Helix Team |
+
+## Contact
+
+For UI/UX questions:
+- **Slack**: `#helix-ui`
+- **Design Reviews**: Schedule via `#helix-design`
+- **GitHub Discussions**: UI/UX category

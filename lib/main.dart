@@ -4,6 +4,7 @@ import 'app.dart';
 import 'ble_manager.dart';
 import 'services/analytics_service.dart';
 import 'services/service_locator.dart';
+import 'utils/app_logger.dart';
 
 Future<void> main() async {
   // Initialize Flutter binding
@@ -12,9 +13,9 @@ Future<void> main() async {
   // Initialize services (AI, config, etc.)
   try {
     await setupServiceLocator();
-    print('✅ Services initialized successfully');
+    appLogger.i('✅ Services initialized successfully');
   } catch (e) {
-    print('❌ Service initialization failed: $e');
+    appLogger.e('❌ Service initialization failed', error: e);
     // Continue anyway - app can run without AI features
   }
 
@@ -28,14 +29,14 @@ Future<void> main() async {
 }
 
 void _initializeAnalytics() {
-  final analytics = AnalyticsService.instance;
+  final AnalyticsService analytics = AnalyticsService.instance;
   analytics.initialize();
-  print('[Main] Analytics initialized');
+  appLogger.i('[Main] Analytics initialized');
 }
 
 void _initializeBleManager() {
-  final bleManager = BleManager.get();
+  final BleManager bleManager = BleManager.get();
   bleManager.setMethodCallHandler();
   bleManager.startListening();
-  print('[Main] BLE manager initialized');
+  appLogger.i('[Main] BLE manager initialized');
 }

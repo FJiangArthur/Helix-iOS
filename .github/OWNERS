@@ -1,0 +1,256 @@
+# CI/CD and GitHub Infrastructure Ownership
+
+## Overview
+
+This directory contains GitHub-specific configurations, workflows, and automation for the Helix project.
+
+## Primary Owners
+
+- **Team**: `@devops-team`
+- **Co-Owners**: `@helix-maintainers`
+
+## Scope
+
+- GitHub Actions workflows
+- CI/CD pipeline configuration
+- Automated testing infrastructure
+- Deployment automation
+- GitHub repository settings and configurations
+
+## Directory Structure
+
+```
+.github/
+├── workflows/                # GitHub Actions workflows
+│   └── *.yml                # Workflow definition files
+├── CODEOWNERS               # Code ownership file
+├── OWNERS                   # This file
+└── (other GitHub configs)   # Issue templates, PR templates, etc.
+```
+
+## Files and Specific Ownership
+
+### CODEOWNERS
+- **Owners**: `@helix-maintainers`, `@devops-team`
+- **Description**: Defines code ownership for automated review assignment
+- **Critical**: Yes - Affects PR review process
+- **Review Requirements**: **2 approvals** from maintainers
+
+### Workflows
+All workflow files require:
+- **Primary**: `@devops-team`
+- **Secondary**: `@helix-maintainers`
+- **Critical**: Yes - Affects build and deployment
+
+#### `objective-c-xcode.yml`
+- **Owners**: `@devops-team`, `@ios-platform`
+- **Description**: iOS build and test workflow
+- **Triggers**: Push to main, pull requests
+- **Actions**: Build iOS app, run tests
+
+## Review Guidelines
+
+### Required Reviews
+- Workflow changes: **2 approvals** (`@devops-team` + `@helix-maintainers`)
+- CODEOWNERS changes: **2 approvals** from `@helix-maintainers`
+- New workflows: **2 approvals** + security review
+
+### Code Quality Standards
+- YAML syntax validation
+- Use official GitHub Actions where possible
+- Pin action versions (don't use `@latest`)
+- Minimize secret exposure
+- Document workflow purpose and triggers
+
+### Testing Requirements
+- Test workflows in fork or feature branch first
+- Validate workflow syntax with `actionlint` or similar
+- Test all conditional paths
+- Verify secrets are properly configured
+- Monitor workflow run times and costs
+
+### Security Considerations
+- **Never commit secrets** to workflow files
+- Use GitHub Secrets for sensitive data
+- Minimize secret scope (repository vs. organization)
+- Use `pull_request_target` carefully (security risk)
+- Review third-party actions before use
+- Enable branch protection for main/release branches
+
+## Workflow Best Practices
+
+### Naming Conventions
+- Use descriptive workflow names
+- Name format: `action-platform-purpose.yml`
+- Example: `test-ios-unit.yml`, `deploy-production.yml`
+
+### Trigger Configuration
+```yaml
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggers
+```
+
+### Job Organization
+- Separate jobs for different platforms
+- Use matrix builds for multiple versions
+- Implement caching to speed up builds
+- Set reasonable timeout values
+
+### Artifact Management
+- Upload test results as artifacts
+- Store build outputs for deployment
+- Implement artifact retention policies
+- Clean up old artifacts regularly
+
+## Key Metrics
+
+- **Workflow Success Rate**: > 95%
+- **Average Workflow Duration**: < 15 minutes
+- **Flaky Test Rate**: < 2%
+- **Deployment Frequency**: Track for monitoring
+
+## Common Workflows
+
+### Build and Test
+- Triggered on: Push to main, PRs
+- Steps: Checkout, setup, build, test, report
+- Platforms: iOS, Android, Web, Desktop
+
+### Continuous Integration
+- Run on all PRs
+- Lint, format check, static analysis
+- Unit and integration tests
+- Code coverage reporting
+
+### Continuous Deployment
+- Triggered on: Release tags, manual dispatch
+- Environments: Staging, Production
+- Deploy to: App Store, Play Store, Web hosting
+
+## Secrets Management
+
+### Required Secrets
+Document all secrets needed for workflows:
+- `OPENAI_API_KEY` - For AI feature testing
+- `ANTHROPIC_API_KEY` - For AI feature testing
+- `IOS_SIGNING_CERT` - iOS code signing (if automated)
+- `ANDROID_KEYSTORE` - Android signing (if automated)
+
+### Secret Rotation
+- Review secrets quarterly
+- Update secrets when team members leave
+- Use environment-specific secrets
+
+## Dependencies
+
+### GitHub Actions Used
+List and version pin all actions:
+- `actions/checkout@v3` - Checkout code
+- `actions/setup-java@v3` - Java setup for Android
+- `subosito/flutter-action@v2` - Flutter setup
+- Custom actions (if any)
+
+### External Services
+- Flutter SDK
+- Xcode (via macOS runners)
+- Android SDK
+- npm/yarn (for web builds)
+
+## Related Documentation
+
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Build Deploy Workflow](/docs/BUILD_DEPLOY_WORKFLOW.md)
+- [Developer Guide](/docs/DEVELOPER_GUIDE.md)
+
+## Monitoring and Alerts
+
+### Workflow Monitoring
+- Monitor workflow success rates
+- Track build times and trends
+- Alert on repeated failures
+- Review workflow costs (for private repos)
+
+### Notifications
+- Slack integration for build failures
+- Email notifications for deployment
+- GitHub notifications for workflow errors
+
+## Troubleshooting
+
+### Common Issues
+
+#### Workflow Not Triggering
+- Check trigger conditions (branch names, paths)
+- Verify workflow file is in `.github/workflows/`
+- Check YAML syntax
+- Review GitHub Actions logs
+
+#### Build Failures
+- Check workflow logs for error messages
+- Verify all secrets are configured
+- Check for dependency version conflicts
+- Test locally with same environment
+
+#### Slow Workflows
+- Implement caching (dependencies, build artifacts)
+- Use matrix builds efficiently
+- Parallelize independent jobs
+- Review runner specifications
+
+## Escalation
+
+For urgent CI/CD issues:
+1. Tag `@devops-team` in issue
+2. Contact DevOps lead via Slack `#helix-devops`
+3. For production deployment issues, escalate to `@helix-maintainers`
+4. Create incident report for post-mortem
+
+## Deployment Runbooks
+
+### iOS Deployment
+See: `/docs/BUILD_DEPLOY_WORKFLOW.md#ios-deployment`
+
+### Android Deployment
+See: `/docs/BUILD_DEPLOY_WORKFLOW.md#android-deployment`
+
+### Emergency Rollback
+1. Identify last known good version
+2. Revert to previous release tag
+3. Trigger manual deployment workflow
+4. Monitor deployment health
+
+## Maintenance Schedule
+
+### Weekly
+- Review failed workflow runs
+- Check for action updates
+- Monitor workflow costs
+
+### Monthly
+- Update action versions
+- Review and rotate secrets
+- Optimize slow workflows
+- Clean up old artifacts
+
+### Quarterly
+- Security audit of workflows
+- Review and update CODEOWNERS
+- Performance optimization
+- Documentation updates
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial CI/CD ownership established | Helix Team |
+
+## Contact
+
+For CI/CD questions and issues:
+- **Slack**: `#helix-devops`
+- **Email**: devops@helix-project.example.com
+- **GitHub Discussions**: CI/CD category

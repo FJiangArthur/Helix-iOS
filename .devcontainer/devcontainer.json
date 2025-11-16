@@ -1,0 +1,175 @@
+{
+  "name": "Helix Flutter Development",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "flutter-dev",
+  "workspaceFolder": "/workspace",
+
+  // Configure which ports VS Code should forward
+  "forwardPorts": [9100, 9101, 9102, 8080],
+  "portsAttributes": {
+    "9100": {
+      "label": "Flutter DevTools",
+      "onAutoForward": "notify"
+    },
+    "9101": {
+      "label": "Observatory",
+      "onAutoForward": "silent"
+    },
+    "9102": {
+      "label": "Hot Reload",
+      "onAutoForward": "silent"
+    },
+    "8080": {
+      "label": "Nginx Proxy",
+      "onAutoForward": "notify"
+    }
+  },
+
+  // VS Code settings for this container
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "icon": "terminal-bash"
+          }
+        },
+        // Flutter specific settings
+        "dart.flutterSdkPath": "/opt/flutter",
+        "dart.debugExternalPackageLibraries": true,
+        "dart.debugSdkLibraries": false,
+        "dart.lineLength": 120,
+        "dart.previewLsp": true,
+        "dart.openDevTools": "flutter",
+        "dart.showInspectorNotificationsForWidgetErrors": true,
+        "dart.allowAnalytics": false,
+        "[dart]": {
+          "editor.formatOnSave": true,
+          "editor.formatOnType": true,
+          "editor.rulers": [120],
+          "editor.selectionHighlight": false,
+          "editor.suggest.snippetsPreventQuickSuggestions": false,
+          "editor.suggestSelection": "first",
+          "editor.tabCompletion": "onlySnippets",
+          "editor.wordBasedSuggestions": "off"
+        },
+        // Git settings
+        "git.enableSmartCommit": true,
+        "git.confirmSync": false,
+        "git.autofetch": true,
+        // Editor settings
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.fixAll": "explicit",
+          "source.organizeImports": "explicit"
+        },
+        "files.watcherExclude": {
+          "**/.git/objects/**": true,
+          "**/.git/subtree-cache/**": true,
+          "**/node_modules/*/**": true,
+          "**/.dart_tool/**": true,
+          "**/build/**": true
+        }
+      },
+
+      // Extensions to install
+      "extensions": [
+        // Flutter and Dart
+        "Dart-Code.dart-code",
+        "Dart-Code.flutter",
+
+        // Git and GitHub
+        "eamodio.gitlens",
+        "GitHub.vscode-pull-request-github",
+
+        // Docker
+        "ms-azuretools.vscode-docker",
+
+        // YAML support
+        "redhat.vscode-yaml",
+
+        // JSON support
+        "ZainChen.json",
+
+        // Markdown
+        "yzhang.markdown-all-in-one",
+        "DavidAnson.vscode-markdownlint",
+
+        // Code quality
+        "EditorConfig.EditorConfig",
+        "streetsidesoftware.code-spell-checker",
+
+        // Productivity
+        "formulahendry.auto-rename-tag",
+        "christian-kohler.path-intellisense",
+        "wayou.vscode-todo-highlight",
+        "Gruntfuggly.todo-tree",
+
+        // Theme (optional)
+        "PKief.material-icon-theme"
+      ]
+    }
+  },
+
+  // Use 'onCreateCommand' to run commands when creating the container
+  "onCreateCommand": "flutter pub get",
+
+  // Use 'postCreateCommand' to run commands after the container is created
+  "postCreateCommand": "flutter doctor -v && flutter config --enable-linux-desktop",
+
+  // Use 'postStartCommand' to run commands after the container starts
+  "postStartCommand": "git config --global --add safe.directory /workspace",
+
+  // Comment out to run as root instead
+  "remoteUser": "developer",
+
+  // Features to add to the dev container
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest",
+      "ppa": true
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": true,
+      "installOhMyZsh": true,
+      "upgradePackages": true,
+      "username": "developer",
+      "uid": "1000",
+      "gid": "1000"
+    }
+  },
+
+  // Environment variables
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin",
+    "FLUTTER_HOME": "/opt/flutter",
+    "PUB_CACHE": "/home/developer/.pub-cache"
+  },
+
+  // Mount the host's .ssh and .gitconfig for git operations
+  "mounts": [
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.ssh,target=/home/developer/.ssh,readonly,type=bind,consistency=cached",
+    "source=${localEnv:HOME}${localEnv:USERPROFILE}/.gitconfig,target=/home/developer/.gitconfig,readonly,type=bind,consistency=cached"
+  ],
+
+  // Run arguments for the container
+  "runArgs": [
+    "--name=helix-devcontainer",
+    "--hostname=helix-dev",
+    "--cap-add=SYS_PTRACE",
+    "--security-opt=seccomp=unconfined"
+  ],
+
+  // Increase the timeout for container creation
+  "waitFor": "onCreateCommand",
+  "updateContentCommand": "flutter pub get",
+
+  // Lifecycle scripts
+  "initializeCommand": "echo 'Initializing Helix development container...'",
+  "updateRemoteUserUID": true
+}

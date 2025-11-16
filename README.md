@@ -87,11 +87,17 @@ graph TD
 - **AI Integration**: OpenAI GPT-4, Anthropic
 - **Hardware**: flutter_bluetooth_serial
 - **DI**: get_it
+- **Feature Flags**: Type-safe configuration-based feature toggles
 
 ### **Project Structure**
 ```
 lib/
-├── core/utils/                 # Constants, logging, exceptions
+├── core/
+│   ├── config/                # Configuration and feature flags
+│   │   ├── feature_flag_models.dart    # Type-safe flag models
+│   │   ├── feature_flag_service.dart   # Flag evaluation service
+│   │   └── feature_flag_provider.dart  # Riverpod providers
+│   └── utils/                 # Constants, logging, exceptions
 ├── models/                     # Freezed data models
 ├── services/                   # Business logic services
 │   ├── ai_providers/          # OpenAI, Anthropic integrations
@@ -150,6 +156,8 @@ insights.insights.listen((insight) {
 | **[👩‍💻 Developer Guide](docs/DEVELOPER_GUIDE.md)** | Comprehensive development workflows and patterns |
 | **[🔌 AI Services API](docs/AI_SERVICES_API.md)** | Complete API reference for AI services |
 | **[🧪 Testing Strategy](docs/TESTING_STRATEGY.md)** | Testing approaches and best practices |
+| **[🚩 Feature Flags](docs/dev/FEATURE_FLAGS.md)** | Complete feature flag system documentation |
+| **[⚡ Feature Flags Quick Start](docs/dev/FEATURE_FLAGS_QUICK_START.md)** | Get started with feature flags in 2 minutes |
 
 ## 🛠️ Development
 

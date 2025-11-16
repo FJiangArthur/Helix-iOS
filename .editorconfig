@@ -1,0 +1,83 @@
+# EditorConfig helps maintain consistent coding styles across different editors and IDEs
+# See https://editorconfig.org for more information
+
+# Top-most EditorConfig file
+root = true
+
+# Unix-style newlines with a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Dart files
+[*.dart]
+indent_style = space
+indent_size = 2
+max_line_length = 120
+
+# YAML files
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2
+
+# JSON files
+[*.json]
+indent_style = space
+indent_size = 2
+
+# XML files (Android, iOS configurations)
+[*.xml]
+indent_style = space
+indent_size = 2
+
+# Swift files (iOS)
+[*.swift]
+indent_style = space
+indent_size = 4
+
+# Kotlin files (Android)
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+
+# Gradle files
+[*.gradle]
+indent_style = space
+indent_size = 4
+
+# Groovy files
+[*.groovy]
+indent_style = space
+indent_size = 4
+
+# Ruby files (CocoaPods)
+[*.rb]
+indent_style = space
+indent_size = 2
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Makefile
+[Makefile]
+indent_style = tab
+
+# Package files (don't modify line endings)
+[*.lock]
+insert_final_newline = false
+
+# Generated files (read-only, no modifications)
+[*.{g,freezed,mocks}.dart]
+insert_final_newline = false
+trim_trailing_whitespace = false

@@ -66,7 +66,7 @@ class SpeechStreamRecognizer {
                      throw RecognizerError.notPermittedToRecord
                      }*/
                 } catch {
-                    print("SFSpeechRecognizer------permission error----\(error)")
+                    HelixLogger.error("Speech recognizer permission error", error: error, category: .speech)
                 }
             }
         } else {
@@ -78,42 +78,46 @@ class SpeechStreamRecognizer {
         lastTranscription = nil
         self.lastRecognizedText = ""
         cacheString = ""
-        
+
         let localIdentifier = languageDic[identifier]
-        print("startRecognition----localIdentifier----\(localIdentifier)--identifier---\(identifier)---")
+        HelixLogger.speech("Starting speech recognition", level: .info, metadata: [
+            "language": identifier,
+            "locale": localIdentifier ?? "en-US"
+        ])
+
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localIdentifier ?? "en-US"))  // en-US zh-CN en-US
         guard let recognizer = recognizer else {
-            print("Speech recognizer is not available")
+            HelixLogger.speech("Speech recognizer is not available", level: .error)
             return
         }
-        
+
         guard recognizer.isAvailable else {
-            print("startRecognition recognizer is not available")
+            HelixLogger.speech("Speech recognizer is currently unavailable", level: .warning)
             return
         }
-        
+
         let audioSession = AVAudioSession.sharedInstance()
         do {
             //try audioSession.setCategory(.record)
             try audioSession.setCategory(.playback, options: .mixWithOthers)
             try audioSession.setActive(true)
         } catch {
-            print("Error setting up audio session: \(error)")
+            HelixLogger.error("Error setting up audio session for speech recognition", error: error, category: .speech)
             return
         }
-        
+
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else {
-            print("Failed to create recognition request")
+            HelixLogger.speech("Failed to create recognition request", level: .error)
             return
         }
         recognitionRequest.shouldReportPartialResults = true //true
         recognitionRequest.requiresOnDeviceRecognition = true
-        
+
         recognitionTask = recognizer.recognitionTask(with: recognitionRequest) { [weak self] (result, error) in
             guard let self = self else { return }
             if let error = error {
-                print("SpeechRecognizer Recognition error: \(error)")
+                HelixLogger.error("Speech recognition error", error: error, category: .speech)
             } else if let result = result {
                     
                 let currentTranscription = result.bestTranscription
@@ -135,36 +139,41 @@ class SpeechStreamRecognizer {
     }
     
     func stopRecognition() {
-
-        print("stopRecognition-----self.lastRecognizedText-------\(self.lastRecognizedText)------cacheString----------\(cacheString)---")
         self.lastRecognizedText += cacheString
+
+        HelixLogger.speech("Stopping speech recognition", level: .info, metadata: [
+            "textLength": "\(self.lastRecognizedText.count)"
+        ])
 
         DispatchQueue.main.async {
             BluetoothManager.shared.blueSpeechSink?(["script": self.lastRecognizedText])
         }
-        
+
         recognitionTask?.cancel()
         do {
             try AVAudioSession.sharedInstance().setActive(false)
         } catch {
-            print("Error stop audio session: \(error)")
+            HelixLogger.error("Error stopping audio session", error: error, category: .speech)
             return
         }
         recognitionRequest = nil
         recognitionTask = nil
         recognizer = nil
     }
-    
+
     func appendPCMData(_ pcmData: Data) {
-        print("appendPCMData-------pcmData------\(pcmData.count)--")
+        HelixLogger.speech("Appending PCM data to recognition request", level: .debug, metadata: [
+            "dataSize": "\(pcmData.count)"
+        ])
+
         guard let recognitionRequest = recognitionRequest else {
-            print("Recognition request is not available")
+            HelixLogger.speech("Recognition request is not available", level: .warning)
             return
         }
 
         let audioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: false)!
         guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: AVAudioFrameCount(pcmData.count) / audioFormat.streamDescription.pointee.mBytesPerFrame) else {
-            print("Failed to create audio buffer")
+            HelixLogger.speech("Failed to create audio buffer", level: .error)
             return
         }
         audioBuffer.frameLength = audioBuffer.frameCapacity
@@ -175,7 +184,7 @@ class SpeechStreamRecognizer {
                 audioBufferPointer?.initialize(from: audioDataPointer, count: pcmData.count / MemoryLayout<Int16>.size)
                 recognitionRequest.append(audioBuffer)
             } else {
-                print("Failed to get pointer to audio data")
+                HelixLogger.speech("Failed to get pointer to audio data", level: .error)
             }
         }
     }

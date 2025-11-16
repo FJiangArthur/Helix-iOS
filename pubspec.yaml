@@ -46,8 +46,15 @@ dependencies:
   # Network Connectivity Detection (for transcription mode auto-switching)
   connectivity_plus: ^6.0.1
 
+  # Local Storage (for model lifecycle persistence)
+  shared_preferences: ^2.2.2
+
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+
+  # Integration Testing
+  integration_test:
     sdk: flutter
 
   # Linting and Code Quality
@@ -61,6 +68,7 @@ dev_dependencies:
   # Testing
   mockito: ^5.4.4
   build_test: ^2.2.2
+  path: ^1.8.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

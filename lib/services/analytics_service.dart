@@ -2,6 +2,7 @@
 // ABOUTME: Provides detailed logging and metrics for debugging and monitoring
 
 import 'dart:convert';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Event types for analytics tracking
 enum AnalyticsEvent {
@@ -80,7 +81,7 @@ class AnalyticsService {
   /// Initialize analytics session
   void initialize({String? userId}) {
     _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-    print('[Analytics] Session started: $_sessionId');
+    appLogger.i('[Analytics] Session started: $_sessionId');
 
     track(AnalyticsEvent.screenViewed, properties: {
       'screen': 'app_launch',
@@ -335,13 +336,13 @@ class AnalyticsService {
   /// Clear all events
   void clearEvents() {
     _eventLog.clear();
-    print('[Analytics] Event log cleared');
+    appLogger.i('[Analytics] Event log cleared');
   }
 
   /// Enable/disable analytics
   void setEnabled(bool enabled) {
     _isEnabled = enabled;
-    print('[Analytics] Analytics ${enabled ? 'enabled' : 'disabled'}');
+    appLogger.i('[Analytics] Analytics ${enabled ? 'enabled' : 'disabled'}');
   }
 
   /// Print event to console
@@ -349,6 +350,6 @@ class AnalyticsService {
     final props = event.properties.entries
         .map((e) => '${e.key}=${e.value}')
         .join(', ');
-    print('[Analytics] ${event.event.name}${props.isNotEmpty ? ' | $props' : ''}');
+    appLogger.i('[Analytics] ${event.event.name}${props.isNotEmpty ? ' | $props' : ''}');
   }
 }

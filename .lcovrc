@@ -1,0 +1,20 @@
+# LCOV Configuration
+# Configuration file for code coverage reporting
+
+# Exclude patterns - these files will not be included in coverage reports
+
+# Exclude generated files
+genhtml_branch_coverage = 1
+lcov_branch_coverage = 1
+
+# Function coverage
+genhtml_function_coverage = 1
+lcov_function_coverage = 1
+
+# Output options
+genhtml_charset = UTF-8
+genhtml_hi_limit = 90
+genhtml_med_limit = 75
+genhtml_sort = 1
+genhtml_legend = 1
+genhtml_num_spaces = 2
