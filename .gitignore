@@ -46,3 +46,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /ios/build/*
+settings.local.json
+llm_config.local.json
