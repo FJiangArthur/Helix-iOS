@@ -1,0 +1,153 @@
+# Pre-commit hooks configuration for Flutter/Dart project
+# Install pre-commit: https://pre-commit.com/
+# Run: pre-commit install
+
+repos:
+  # Dart/Flutter formatting
+  - repo: https://github.com/dart-lang/dart_pre_commit
+    rev: v1.0.0
+    hooks:
+      - id: format
+        name: Format Dart files
+        description: Format Dart files using dart format
+        entry: dart format
+        language: system
+        files: \.dart$
+        pass_filenames: true
+
+      - id: analyze
+        name: Analyze Dart code
+        description: Run dart analyze on the project
+        entry: bash -c 'flutter analyze --fatal-infos --fatal-warnings'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+
+  # Custom Flutter/Dart hooks
+  - repo: local
+    hooks:
+      - id: dart-format-check
+        name: Check Dart formatting
+        description: Verify code is properly formatted
+        entry: bash -c './scripts/format.sh --check'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+
+      - id: flutter-test
+        name: Run Flutter tests
+        description: Run flutter test before commit
+        entry: bash -c 'flutter test'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+        stages: [commit]
+
+      - id: flutter-pub-get
+        name: Flutter pub get
+        description: Ensure dependencies are up to date
+        entry: bash -c 'flutter pub get'
+        language: system
+        files: ^pubspec\.(yaml|lock)$
+        pass_filenames: false
+
+      - id: check-imports
+        name: Check imports
+        description: Run custom import validation script
+        entry: bash -c './check_imports.sh'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+
+      - id: no-print-statements
+        name: Check for print statements
+        description: Prevent print statements in production code (use logger instead)
+        entry: bash -c 'if grep -r "print(" lib/ --include="*.dart" --exclude-dir="generated"; then echo "Error: Found print() statements. Use logger instead."; exit 1; fi'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+
+      - id: check-todos
+        name: Check for unresolved TODOs
+        description: Warn about TODO comments
+        entry: bash -c 'grep -rn "TODO\|FIXME\|XXX" lib/ --include="*.dart" || true'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+        verbose: true
+
+      - id: security-check
+        name: Security pre-commit checks
+        description: Run lightweight security checks before commit
+        entry: bash -c './scripts/pre-commit-security.sh'
+        language: system
+        files: \.dart$
+        pass_filenames: false
+        stages: [commit]
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+        files: \.(dart|yaml|yml|json|md)$
+
+      - id: end-of-file-fixer
+        name: Fix end of files
+        files: \.(dart|yaml|yml|json|md)$
+
+      - id: check-yaml
+        name: Check YAML syntax
+        files: \.(yaml|yml)$
+
+      - id: check-json
+        name: Check JSON syntax
+        files: \.json$
+
+      - id: check-added-large-files
+        name: Check for large files
+        args: ['--maxkb=1000']
+
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+
+      - id: check-case-conflict
+        name: Check for case conflicts
+
+      - id: mixed-line-ending
+        name: Check line endings
+        args: ['--fix=lf']
+
+      - id: detect-private-key
+        name: Detect private keys
+
+  # Security scanning
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.63.2
+    hooks:
+      - id: trufflehog
+        name: TruffleHog secret scanner
+        description: Scan for secrets in code
+        entry: trufflehog filesystem
+        language: system
+        pass_filenames: false
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.38.0
+    hooks:
+      - id: markdownlint
+        name: Lint Markdown files
+        args: ['--fix']
+        files: \.md$
+
+# Configuration
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [commit]
+
+# Fail fast: stop on first failure
+fail_fast: false
+
+# Minimum pre-commit version
+minimum_pre_commit_version: '3.0.0'

@@ -1,0 +1,42 @@
+{
+  "sentiment": {
+    "score": 0.85,
+    "label": "positive",
+    "confidence": 0.92,
+    "breakdown": {
+      "joy": 0.45,
+      "trust": 0.40,
+      "neutral": 0.15
+    }
+  },
+  "factCheck": {
+    "claims": [
+      {
+        "text": "The Earth is round",
+        "confidence": 0.98,
+        "verdict": "supported",
+        "sources": [
+          "NASA",
+          "Scientific consensus"
+        ]
+      }
+    ],
+    "hasFactualIssues": false
+  },
+  "claims": [
+    {
+      "text": "Studies show that regular exercise improves health",
+      "confidence": 0.95,
+      "type": "factual",
+      "claimType": "scientific"
+    }
+  ],
+  "summary": "Positive conversation with factually accurate statements about health and science.",
+  "keywords": [
+    "health",
+    "exercise",
+    "science",
+    "facts"
+  ],
+  "timestamp": "2024-01-15T10:30:15Z"
+}

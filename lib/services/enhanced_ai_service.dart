@@ -4,6 +4,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'analytics_service.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
+import 'package:flutter_helix/core/errors/errors.dart';
 
 /// AI analysis result
 class AIAnalysisResult {
@@ -113,66 +115,97 @@ class EnhancedAIService {
   EnhancedAIService({required this.apiKey});
 
   /// Transcribe audio using Whisper API
-  Future<String> transcribeAudio(String audioFilePath) async {
+  Future<Result<String, TranscriptionServiceError>> transcribeAudio(String audioFilePath) async {
     final recordingId = DateTime.now().millisecondsSinceEpoch.toString();
     final startTime = DateTime.now();
 
-    try {
-      _analytics.trackTranscriptionStarted(
-        recordingId: recordingId,
-        mode: 'whisper',
-      );
+    _analytics.trackTranscriptionStarted(
+      recordingId: recordingId,
+      mode: 'whisper',
+    );
 
-      print('[EnhancedAI] Starting Whisper transcription: $audioFilePath');
+    appLogger.i('[EnhancedAI] Starting Whisper transcription: $audioFilePath');
 
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('https://api.openai.com/v1/audio/transcriptions'),
-      );
+    return ErrorRecovery.tryCatchAsync(
+      () async {
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse('https://api.openai.com/v1/audio/transcriptions'),
+        );
 
-      request.headers['Authorization'] = 'Bearer $apiKey';
-      request.files.add(
-        await http.MultipartFile.fromPath('file', audioFilePath),
-      );
-      request.fields['model'] = 'whisper-1';
-      request.fields['language'] = 'en';
+        request.headers['Authorization'] = 'Bearer $apiKey';
+        request.files.add(
+          await http.MultipartFile.fromPath('file', audioFilePath),
+        );
+        request.fields['model'] = 'whisper-1';
+        request.fields['language'] = 'en';
 
-      var response = await request.send();
-      var responseBody = await response.stream.bytesToString();
+        var response = await request.send();
+        var responseBody = await response.stream.bytesToString();
 
-      if (response.statusCode == 200) {
-        var jsonResponse = json.decode(responseBody);
-        String transcription = jsonResponse['text'] ?? '';
+        if (response.statusCode == 200) {
+          var jsonResponse = json.decode(responseBody);
+          String transcription = jsonResponse['text'] ?? '';
 
-        final processingTime = DateTime.now().difference(startTime);
+          final processingTime = DateTime.now().difference(startTime);
 
-        _analytics.trackTranscriptionCompleted(
+          _analytics.trackTranscriptionCompleted(
+            recordingId: recordingId,
+            mode: 'whisper',
+            processingTime: processingTime,
+            textLength: transcription.length,
+            text: transcription,
+          );
+
+          appLogger.i('[EnhancedAI] Transcription completed (${processingTime.inSeconds}s): ${transcription.substring(0, transcription.length > 50 ? 50 : transcription.length)}...');
+
+          return transcription;
+        } else {
+          _analytics.trackAPIError(
+            api: 'whisper',
+            statusCode: response.statusCode,
+            error: responseBody,
+          );
+
+          if (response.statusCode == 401) {
+            throw AuthError.invalidApiKey(service: 'Whisper');
+          } else if (response.statusCode == 429) {
+            throw ApiError.rateLimitExceeded();
+          } else if (response.statusCode >= 500) {
+            throw ApiError.serviceUnavailable(service: 'Whisper');
+          } else {
+            throw ApiError(
+              code: 'WHISPER_API_ERROR',
+              message: 'Transcription failed',
+              details: responseBody,
+              statusCode: response.statusCode,
+              responseBody: responseBody,
+            );
+          }
+        }
+      },
+      operationName: 'EnhancedAI.transcribeAudio',
+      context: {'audioFilePath': audioFilePath, 'recordingId': recordingId},
+    ).then((result) {
+      result.onFailure((error) {
+        _analytics.trackTranscriptionError(
           recordingId: recordingId,
           mode: 'whisper',
-          processingTime: processingTime,
-          textLength: transcription.length,
-          text: transcription,
+          error: error.toString(),
         );
+      });
 
-        print('[EnhancedAI] Transcription completed (${processingTime.inSeconds}s): ${transcription.substring(0, transcription.length > 50 ? 50 : transcription.length)}...');
-
-        return transcription;
-      } else {
-        _analytics.trackAPIError(
-          api: 'whisper',
-          statusCode: response.statusCode,
-          error: responseBody,
+      return result.mapError((error) {
+        if (error is TranscriptionServiceError) return error;
+        return TranscriptionServiceError(
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          originalError: error.originalError,
+          stackTrace: error.stackTrace,
         );
-        throw Exception('Transcription failed: ${response.statusCode} - $responseBody');
-      }
-    } catch (e) {
-      _analytics.trackTranscriptionError(
-        recordingId: recordingId,
-        mode: 'whisper',
-        error: e.toString(),
-      );
-      rethrow;
-    }
+      });
+    });
   }
 
   /// Comprehensive analysis of conversation text
@@ -186,7 +219,7 @@ class EnhancedAIService {
         analysisType: 'comprehensive',
       );
 
-      print('[EnhancedAI] Starting comprehensive analysis...');
+      appLogger.i('[EnhancedAI] Starting comprehensive analysis...');
 
       // Build comprehensive prompt
       final prompt = '''
@@ -338,7 +371,7 @@ Return ONLY valid JSON in this exact format:
             );
           }
 
-          print('[EnhancedAI] Analysis completed (${processingTime.inSeconds}s)');
+          appLogger.i('[EnhancedAI] Analysis completed (${processingTime.inSeconds}s)');
 
           return AIAnalysisResult(
             summary: analysisData['summary'],
@@ -352,8 +385,8 @@ Return ONLY valid JSON in this exact format:
             success: true,
           );
         } catch (e) {
-          print('[EnhancedAI] JSON parsing error: $e');
-          print('[EnhancedAI] Response text: $analysisText');
+          appLogger.i('[EnhancedAI] JSON parsing error: $e');
+          appLogger.i('[EnhancedAI] Response text: $analysisText');
 
           // Return partial result with raw text
           final processingTime = DateTime.now().difference(startTime);
@@ -444,7 +477,7 @@ Text: "$text"
         throw Exception('Sentiment analysis failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('[EnhancedAI] Sentiment analysis error: $e');
+      appLogger.i('[EnhancedAI] Sentiment analysis error: $e');
       return SentimentResult(sentiment: 'neutral', score: 0.0);
     }
   }

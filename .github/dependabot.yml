@@ -1,0 +1,119 @@
+# Dependabot configuration for automated dependency updates
+# This helps keep dependencies secure and up-to-date
+
+version: 2
+updates:
+  # Pub/Dart dependencies
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "helix-security-team"
+    labels:
+      - "dependencies"
+      - "security"
+      - "automated"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    # Group minor and patch updates together
+    groups:
+      flutter-dependencies:
+        patterns:
+          - "flutter*"
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "helix-security-team"
+    labels:
+      - "ci-cd"
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker images
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "helix-security-team"
+    labels:
+      - "docker"
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+
+  # Gradle (Android)
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "helix-security-team"
+    labels:
+      - "android"
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "deps(android)"
+      include: "scope"
+    # Group Android dependencies
+    groups:
+      android-dependencies:
+        patterns:
+          - "com.android*"
+          - "androidx*"
+
+# Dependabot will automatically:
+# 1. Check for dependency updates on the specified schedule
+# 2. Create pull requests for security updates immediately
+# 3. Group related updates together
+# 4. Add appropriate labels and reviewers
+# 5. Follow semantic versioning best practices
+
+# Security update priority:
+# - Security updates are created immediately regardless of schedule
+# - Critical vulnerabilities trigger PR creation right away
+# - Regular updates follow the weekly schedule
+
+# Pull request handling:
+# - Review PRs promptly to keep dependencies current
+# - Run full CI/CD pipeline on all dependabot PRs
+# - Merge after successful tests and security scans
+# - Monitor for breaking changes in major version updates

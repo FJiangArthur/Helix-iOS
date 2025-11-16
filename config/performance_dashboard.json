@@ -1,0 +1,399 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "description": "Performance monitoring dashboard configuration",
+  "lastUpdated": "2025-11-16",
+
+  "dashboard": {
+    "title": "Helix iOS Performance Dashboard",
+    "description": "Real-time performance monitoring and analytics",
+    "refreshInterval": 30,
+    "theme": "auto",
+    "layout": "grid"
+  },
+
+  "panels": [
+    {
+      "id": "overview",
+      "title": "Performance Overview",
+      "type": "metrics_summary",
+      "position": { "row": 0, "col": 0, "width": 12, "height": 4 },
+      "metrics": [
+        {
+          "name": "System Health",
+          "type": "gauge",
+          "source": "performanceMonitor.health",
+          "thresholds": [
+            { "value": 0, "color": "red", "label": "Critical" },
+            { "value": 50, "color": "yellow", "label": "Warning" },
+            { "value": 80, "color": "green", "label": "Good" }
+          ]
+        },
+        {
+          "name": "Active Requests",
+          "type": "counter",
+          "source": "requestTracker.activeCount"
+        },
+        {
+          "name": "Budget Violations (24h)",
+          "type": "counter",
+          "source": "budgets.violations24h",
+          "alert": true
+        },
+        {
+          "name": "SLO Compliance",
+          "type": "percentage",
+          "source": "sloMonitor.complianceRate"
+        }
+      ]
+    },
+
+    {
+      "id": "latency_panel",
+      "title": "Latency Metrics",
+      "type": "timeseries",
+      "position": { "row": 4, "col": 0, "width": 6, "height": 6 },
+      "timeWindow": 3600,
+      "series": [
+        {
+          "name": "API Response Time (P95)",
+          "source": "requestTracker.p95ResponseTime",
+          "color": "#4285F4",
+          "unit": "ms",
+          "budget": 1000
+        },
+        {
+          "name": "Audio Latency (P95)",
+          "source": "performanceMonitor.audioLatencyP95",
+          "color": "#EA4335",
+          "unit": "ms",
+          "budget": 100
+        },
+        {
+          "name": "Transcription Latency (P95)",
+          "source": "performanceMonitor.transcriptionLatencyP95",
+          "color": "#FBBC04",
+          "unit": "ms",
+          "budget": 500
+        },
+        {
+          "name": "AI Analysis Latency (P95)",
+          "source": "performanceMonitor.aiAnalysisLatencyP95",
+          "color": "#34A853",
+          "unit": "ms",
+          "budget": 3000
+        }
+      ],
+      "visualization": {
+        "type": "line",
+        "smoothing": true,
+        "showBudgetLines": true,
+        "showThresholds": true
+      }
+    },
+
+    {
+      "id": "resource_usage",
+      "title": "Resource Usage",
+      "type": "timeseries",
+      "position": { "row": 4, "col": 6, "width": 6, "height": 6 },
+      "timeWindow": 3600,
+      "series": [
+        {
+          "name": "Memory Usage",
+          "source": "performanceMonitor.memoryUsageMB",
+          "color": "#9C27B0",
+          "unit": "MB",
+          "budget": 200
+        },
+        {
+          "name": "CPU Usage",
+          "source": "performanceMonitor.cpuUsagePercent",
+          "color": "#FF5722",
+          "unit": "%",
+          "budget": 70
+        }
+      ],
+      "visualization": {
+        "type": "area",
+        "smoothing": true,
+        "showBudgetLines": true
+      }
+    },
+
+    {
+      "id": "api_endpoints",
+      "title": "API Endpoint Performance",
+      "type": "table",
+      "position": { "row": 10, "col": 0, "width": 6, "height": 6 },
+      "source": "requestTracker.endpointMetrics",
+      "columns": [
+        { "name": "Endpoint", "field": "endpoint", "width": 40 },
+        { "name": "Requests", "field": "totalRequests", "width": 15 },
+        { "name": "Success Rate", "field": "successRate", "width": 15, "format": "percentage" },
+        { "name": "P95 Latency", "field": "p95ResponseTime", "width": 15, "format": "ms" },
+        { "name": "Avg Size", "field": "averageResponseSize", "width": 15, "format": "bytes" }
+      ],
+      "sorting": {
+        "field": "p95ResponseTime",
+        "order": "desc"
+      },
+      "limit": 10
+    },
+
+    {
+      "id": "database_performance",
+      "title": "Database Query Performance",
+      "type": "table",
+      "position": { "row": 10, "col": 6, "width": 6, "height": 6 },
+      "source": "databaseMonitor.storageMetrics",
+      "columns": [
+        { "name": "Storage Type", "field": "storageType", "width": 30 },
+        { "name": "Queries", "field": "totalQueries", "width": 15 },
+        { "name": "Success Rate", "field": "successRate", "width": 15, "format": "percentage" },
+        { "name": "P95 Time", "field": "p95QueryTime", "width": 15, "format": "ms" },
+        { "name": "R/W Ratio", "field": "readWriteRatio", "width": 15, "format": "ratio" }
+      ],
+      "sorting": {
+        "field": "p95QueryTime",
+        "order": "desc"
+      }
+    },
+
+    {
+      "id": "error_rates",
+      "title": "Error Rates",
+      "type": "timeseries",
+      "position": { "row": 16, "col": 0, "width": 6, "height": 5 },
+      "timeWindow": 3600,
+      "series": [
+        {
+          "name": "API Errors",
+          "source": "requestTracker.errorRate",
+          "color": "#EA4335",
+          "unit": "%",
+          "threshold": 5
+        },
+        {
+          "name": "Database Errors",
+          "source": "databaseMonitor.errorRate",
+          "color": "#FBBC04",
+          "unit": "%",
+          "threshold": 2
+        }
+      ],
+      "visualization": {
+        "type": "line",
+        "showThresholds": true,
+        "alertOnThresholdViolation": true
+      }
+    },
+
+    {
+      "id": "cache_performance",
+      "title": "Cache Performance",
+      "type": "metrics",
+      "position": { "row": 16, "col": 6, "width": 6, "height": 5 },
+      "metrics": [
+        {
+          "name": "Cache Hit Rate",
+          "source": "databaseMonitor.cacheHitRate",
+          "type": "percentage",
+          "target": 80,
+          "color": "#34A853"
+        },
+        {
+          "name": "Cache Miss Rate",
+          "source": "databaseMonitor.cacheMissRate",
+          "type": "percentage",
+          "threshold": 30,
+          "color": "#EA4335"
+        },
+        {
+          "name": "Cache Evictions",
+          "source": "databaseMonitor.cacheEvictions",
+          "type": "counter",
+          "color": "#FBBC04"
+        }
+      ]
+    },
+
+    {
+      "id": "budget_compliance",
+      "title": "Performance Budget Compliance",
+      "type": "progress_bars",
+      "position": { "row": 21, "col": 0, "width": 12, "height": 5 },
+      "source": "budgets.compliance",
+      "budgets": [
+        {
+          "id": "api_response_time",
+          "label": "API Response Time",
+          "showCurrent": true,
+          "showThresholds": true
+        },
+        {
+          "id": "audio_latency",
+          "label": "Audio Latency",
+          "showCurrent": true,
+          "showThresholds": true
+        },
+        {
+          "id": "transcription_latency",
+          "label": "Transcription Latency",
+          "showCurrent": true,
+          "showThresholds": true
+        },
+        {
+          "id": "app_memory_usage",
+          "label": "Memory Usage",
+          "showCurrent": true,
+          "showThresholds": true
+        },
+        {
+          "id": "cpu_usage",
+          "label": "CPU Usage",
+          "showCurrent": true,
+          "showThresholds": true
+        }
+      ],
+      "visualization": {
+        "showPercentage": true,
+        "colorCoding": {
+          "good": "#34A853",
+          "warning": "#FBBC04",
+          "critical": "#EA4335"
+        }
+      }
+    },
+
+    {
+      "id": "slo_compliance",
+      "title": "SLO Compliance Status",
+      "type": "slo_grid",
+      "position": { "row": 26, "col": 0, "width": 12, "height": 5 },
+      "source": "sloMonitor.sloStatus",
+      "slos": [
+        {
+          "name": "Audio Recording Availability",
+          "target": 99.9,
+          "current": "sloMonitor.audioAvailability"
+        },
+        {
+          "name": "Transcription Availability",
+          "target": 99.5,
+          "current": "sloMonitor.transcriptionAvailability"
+        },
+        {
+          "name": "AI Analysis Availability",
+          "target": 99.0,
+          "current": "sloMonitor.aiAvailability"
+        },
+        {
+          "name": "Audio Latency P95",
+          "target": 100,
+          "current": "sloMonitor.audioLatencyP95",
+          "unit": "ms"
+        },
+        {
+          "name": "Transcription Latency P95",
+          "target": 500,
+          "current": "sloMonitor.transcriptionLatencyP95",
+          "unit": "ms"
+        },
+        {
+          "name": "Error Budget Remaining",
+          "target": 100,
+          "current": "sloMonitor.errorBudgetRemaining",
+          "unit": "%"
+        }
+      ],
+      "visualization": {
+        "showTarget": true,
+        "showDelta": true,
+        "highlightViolations": true
+      }
+    },
+
+    {
+      "id": "alerts_recent",
+      "title": "Recent Alerts",
+      "type": "alert_list",
+      "position": { "row": 31, "col": 0, "width": 6, "height": 6 },
+      "source": "alertManager.recentAlerts",
+      "timeWindow": 3600,
+      "severityFilter": ["warning", "critical", "emergency"],
+      "limit": 20,
+      "columns": [
+        { "name": "Time", "field": "timestamp", "width": 20, "format": "datetime" },
+        { "name": "Severity", "field": "severity", "width": 15 },
+        { "name": "Type", "field": "type", "width": 25 },
+        { "name": "Message", "field": "message", "width": 40 }
+      ]
+    },
+
+    {
+      "id": "violations_recent",
+      "title": "Recent Budget Violations",
+      "type": "violation_list",
+      "position": { "row": 31, "col": 6, "width": 6, "height": 6 },
+      "source": "budgets.recentViolations",
+      "timeWindow": 3600,
+      "limit": 20,
+      "columns": [
+        { "name": "Time", "field": "timestamp", "width": 20, "format": "datetime" },
+        { "name": "Budget", "field": "budgetName", "width": 30 },
+        { "name": "Value", "field": "value", "width": 20, "format": "value_with_unit" },
+        { "name": "Severity", "field": "severity", "width": 20 }
+      ]
+    },
+
+    {
+      "id": "recommendations",
+      "title": "Performance Recommendations",
+      "type": "recommendation_list",
+      "position": { "row": 37, "col": 0, "width": 12, "height": 6 },
+      "source": "performanceMonitor.recommendations",
+      "limit": 10,
+      "severityFilter": ["warning", "critical"],
+      "columns": [
+        { "name": "Resource", "field": "resource", "width": 15 },
+        { "name": "Action", "field": "action", "width": 15 },
+        { "name": "Reason", "field": "reason", "width": 30 },
+        { "name": "Suggestion", "field": "suggestion", "width": 40 }
+      ]
+    }
+  ],
+
+  "filters": {
+    "timeRanges": [
+      { "label": "Last 5 minutes", "value": 300 },
+      { "label": "Last 15 minutes", "value": 900 },
+      { "label": "Last hour", "value": 3600 },
+      { "label": "Last 6 hours", "value": 21600 },
+      { "label": "Last 24 hours", "value": 86400 },
+      { "label": "Last 7 days", "value": 604800 }
+    ],
+    "defaultTimeRange": 3600,
+    "autoRefresh": true,
+    "refreshOptions": [10, 30, 60, 300]
+  },
+
+  "export": {
+    "enabled": true,
+    "formats": ["json", "csv", "pdf"],
+    "includeCharts": true,
+    "includeData": true
+  },
+
+  "alerts": {
+    "enabled": true,
+    "showNotifications": true,
+    "playSound": false,
+    "severityColors": {
+      "info": "#2196F3",
+      "warning": "#FBBC04",
+      "critical": "#EA4335",
+      "emergency": "#C62828"
+    }
+  }
+}

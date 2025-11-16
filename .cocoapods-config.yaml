@@ -1,0 +1,132 @@
+# CocoaPods Configuration for Helix iOS
+# This file defines policies and best practices for iOS/macOS dependency management
+
+# Project Configuration
+project:
+  name: Helix iOS
+  min_ios_version: '15.0'
+  min_macos_version: '12.0'
+
+# Dependency Management Policies
+policies:
+  # Lockfile enforcement
+  lockfile:
+    required: true
+    commit: true
+    description: "Podfile.lock must be committed to ensure reproducible builds"
+
+  # Version pinning strategy
+  versioning:
+    strategy: "pessimistic"  # Use ~> for dependencies
+    exact_versions: []  # List any pods that require exact versions
+    description: |
+      Use pessimistic versioning (~>) for most dependencies.
+      This allows patch updates but prevents breaking changes.
+      Example: '~> 1.2.3' allows versions >= 1.2.3 and < 1.3.0
+
+  # Security
+  security:
+    audit_on_install: true
+    block_git_sources: false  # Set to true to enforce pod repo sources only
+    require_https: true
+    warn_on_prerelease: true
+    description: "Security policies for CocoaPods dependencies"
+
+  # Source repositories
+  sources:
+    - "https://cdn.cocoapods.org/"  # Official CocoaPods CDN (faster)
+    # - "https://github.com/CocoaPods/Specs.git"  # Legacy master repo (slower)
+
+  # Build settings
+  build:
+    # Disable stats collection for faster builds
+    disable_stats: true
+    # Use frameworks for better compatibility
+    use_frameworks: true
+    # Deterministic UUIDs for better cache hits
+    deterministic_uuids: true
+
+# Best Practices
+best_practices:
+  # Always run 'pod install' after:
+  - "Changing Podfile"
+  - "Switching branches"
+  - "Pulling changes that modify Podfile or Podfile.lock"
+
+  # Use 'pod update' sparingly:
+  - "Only update specific pods: 'pod update <PodName>'"
+  - "Avoid 'pod update' without arguments (updates everything)"
+  - "Test thoroughly after updates"
+
+  # Dependency resolution:
+  - "If conflicts occur, use 'pod repo update' first"
+  - "Check for compatibility issues in pod documentation"
+  - "Consider version constraints in Podfile"
+
+# Maintenance Schedule
+maintenance:
+  security_audit: "weekly"
+  dependency_updates: "monthly"
+  major_version_updates: "quarterly"
+
+# Git Hooks Integration
+git_hooks:
+  pre_commit:
+    - check: "Podfile.lock is committed"
+    - check: "Podfile.lock is in sync with Podfile"
+  pre_push:
+    - check: "No uncommitted Podfile.lock changes"
+
+# CI/CD Integration
+ci_cd:
+  cache_pods: true
+  cache_key: "Podfile.lock checksum"
+  verify_lockfile: true
+  fail_on_warning: false
+  fail_on_error: true
+
+# Flutter Plugin Dependencies
+flutter_integration:
+  # Flutter plugins may have their own iOS dependencies
+  # These are managed automatically by Flutter
+  auto_generated: true
+  location: "ios/.symlinks/plugins"
+  description: |
+    Flutter plugins define their iOS dependencies in their own podspecs.
+    These are automatically integrated when running 'flutter pub get'.
+    Do not manually edit these dependencies.
+
+# Troubleshooting
+troubleshooting:
+  common_issues:
+    - issue: "Pod install fails"
+      solutions:
+        - "Run 'pod repo update'"
+        - "Clear CocoaPods cache: 'pod cache clean --all'"
+        - "Delete Pods folder and Podfile.lock, then run 'pod install'"
+
+    - issue: "Build fails after pod update"
+      solutions:
+        - "Clean build folder in Xcode (Cmd+Shift+K)"
+        - "Delete derived data"
+        - "Check for breaking changes in updated pods"
+
+    - issue: "Podfile.lock conflicts in git"
+      solutions:
+        - "Accept incoming changes"
+        - "Run 'pod install' to regenerate lock"
+        - "Commit the regenerated Podfile.lock"
+
+# Documentation
+documentation:
+  podfile: "ios/Podfile"
+  lockfile: "ios/Podfile.lock"
+  specs: "https://cocoapods.org"
+  guides: "https://guides.cocoapods.org"
+
+# Version Tracking
+# This section is automatically updated
+version_history:
+  last_updated: "auto"
+  flutter_version: "3.35.0"
+  cocoapods_version: "check with: pod --version"

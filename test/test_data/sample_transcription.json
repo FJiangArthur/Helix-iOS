@@ -1,0 +1,31 @@
+{
+  "segments": [
+    {
+      "text": "Hello, how are you today?",
+      "confidence": 0.95,
+      "timestamp": "2024-01-15T10:30:00Z",
+      "isFinal": true,
+      "language": "en-US"
+    },
+    {
+      "text": "I'm doing great, thanks for asking.",
+      "confidence": 0.92,
+      "timestamp": "2024-01-15T10:30:05Z",
+      "isFinal": true,
+      "language": "en-US"
+    },
+    {
+      "text": "What brings you here today?",
+      "confidence": 0.89,
+      "timestamp": "2024-01-15T10:30:10Z",
+      "isFinal": true,
+      "language": "en-US"
+    }
+  ],
+  "metadata": {
+    "totalDuration": 15000,
+    "averageConfidence": 0.92,
+    "language": "en-US",
+    "mode": "native"
+  }
+}

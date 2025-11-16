@@ -4,7 +4,6 @@
 import 'dart:async';
 import '../models/analysis_result.dart';
 import '../models/conversation_model.dart';
-import '../models/transcription_segment.dart';
 
 /// Abstract interface for LLM services
 abstract class LLMService {

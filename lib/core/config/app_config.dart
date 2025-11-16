@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../utils/app_logger.dart';
+
 /// Application configuration loaded from llm_config.local.json
 /// Falls back to environment variables if file not found
 class AppConfig {
@@ -24,14 +26,14 @@ class AppConfig {
   static Future<AppConfig> load() async {
     try {
       // Try to load from local file first
-      final file = File('llm_config.local.json');
+      final File file = File('llm_config.local.json');
       if (await file.exists()) {
-        final contents = await file.readAsString();
-        final json = jsonDecode(contents);
+        final String contents = await file.readAsString();
+        final dynamic json = jsonDecode(contents);
         return _fromJson(json);
       }
     } catch (e) {
-      print('Failed to load llm_config.local.json: $e');
+      appLogger.w('Failed to load llm_config.local.json', error: e);
     }
 
     // Fallback to environment variables

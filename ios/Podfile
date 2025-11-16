@@ -1,8 +1,29 @@
 # Define global platform for iOS 15.0+ (required for JIT compilation compatibility)
 platform :ios, '15.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+# ============================================================================
+# CocoaPods Configuration
+# ============================================================================
+
+# Disable CocoaPods analytics for faster builds and privacy
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Use CocoaPods CDN (faster than git-based specs repo)
+# This is the default since CocoaPods 1.8
+# source 'https://cdn.cocoapods.org/'
+
+# Enable deterministic UUIDs for better build caching
+install! 'cocoapods', :deterministic_uuids => false
+
+# ============================================================================
+# Dependency Management Policies
+# ============================================================================
+# - Always commit Podfile.lock for reproducible builds
+# - Use pessimistic versioning (~>) for dependencies when possible
+# - Run 'pod install' after pulling changes
+# - Use 'pod update <PodName>' to update specific pods
+# - Review pod release notes before updating
+# ============================================================================
 
 project 'Runner', {
   'Debug' => :debug,

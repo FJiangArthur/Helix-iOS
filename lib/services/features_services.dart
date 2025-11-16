@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import '../ble_manager.dart';
 import '../services/proto.dart';
 import '../utils/utils.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 class FeaturesServices {
   // Simplified BMP update without controller
@@ -16,7 +17,7 @@ class FeaturesServices {
     Uint8List bmpData = await Utils.loadBmpImage(imageUrl);
     int initialSeq = 0;
     bool isSuccess = await Proto.sendHeartBeat();
-    print(
+    appLogger.i(
       "${DateTime.now()} testBMP -------startSendBeatHeart----isSuccess---$isSuccess------",
     );
     BleManager.get().startSendBeatHeart();
@@ -30,20 +31,20 @@ class FeaturesServices {
     bool successR = results[1];
 
     if (successL) {
-      print("${DateTime.now()} left ble success");
+      appLogger.i("${DateTime.now()} left ble success");
     } else {
-      print("${DateTime.now()} left ble fail");
+      appLogger.i("${DateTime.now()} left ble fail");
     }
 
     if (successR) {
-      print("${DateTime.now()} right ble success");
+      appLogger.i("${DateTime.now()} right ble success");
     } else {
-      print("${DateTime.now()} right ble fail");
+      appLogger.i("${DateTime.now()} right ble fail");
     }
   }
 
   Future<void> exitBmp() async {
     bool isSuccess = await Proto.exit();
-    print("exitBmp----isSuccess---$isSuccess--");
+    appLogger.i("exitBmp----isSuccess---$isSuccess--");
   }
 }

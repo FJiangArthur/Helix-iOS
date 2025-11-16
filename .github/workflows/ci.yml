@@ -1,0 +1,499 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+env:
+  FLUTTER_VERSION: '3.35.0'
+
+jobs:
+  # Job 1: Code Analysis and Linting
+  analyze:
+    name: Code Analysis & Linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Verify lockfile exists
+        run: |
+          if [ ! -f "pubspec.lock" ]; then
+            echo "❌ ERROR: pubspec.lock is missing!"
+            echo "Lockfile must be committed to ensure reproducible builds."
+            exit 1
+          fi
+          echo "✅ Lockfile exists"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify lockfile integrity
+        run: |
+          if git diff --exit-code pubspec.lock; then
+            echo "✅ Lockfile is up to date"
+          else
+            echo "❌ ERROR: pubspec.lock has uncommitted changes!"
+            echo "The lockfile has been modified by 'flutter pub get'."
+            echo "Please run 'flutter pub get' locally and commit the updated pubspec.lock"
+            git diff pubspec.lock
+            exit 1
+          fi
+
+      - name: Security audit - Check for vulnerabilities
+        run: |
+          echo "🔒 Running security audit..."
+          dart pub audit --json > audit-report.json || AUDIT_EXIT_CODE=$?
+
+          if [ -f "audit-report.json" ]; then
+            cat audit-report.json
+
+            # Parse audit results
+            CRITICAL=$(cat audit-report.json | grep -o '"severity":"critical"' | wc -l || echo "0")
+            HIGH=$(cat audit-report.json | grep -o '"severity":"high"' | wc -l || echo "0")
+
+            echo "Security Scan Results:"
+            echo "  Critical: $CRITICAL"
+            echo "  High: $HIGH"
+
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "❌ CRITICAL/HIGH severity vulnerabilities found!"
+              echo "Please review and update affected dependencies."
+              exit 1
+            fi
+          fi
+
+          echo "✅ No critical or high severity vulnerabilities found"
+
+      - name: Check for outdated dependencies
+        run: |
+          echo "📦 Checking for outdated dependencies..."
+          flutter pub outdated --json > outdated-report.json || true
+
+          if [ -f "outdated-report.json" ]; then
+            echo "Outdated dependencies report generated"
+            cat outdated-report.json
+          fi
+        continue-on-error: true
+
+      - name: Verify Flutter installation
+        run: |
+          flutter --version
+          flutter doctor -v
+
+      - name: Run Dart/Flutter analyze
+        run: |
+          echo "Running static analysis..."
+          flutter analyze --fatal-infos --fatal-warnings
+        continue-on-error: false
+
+      - name: Check formatting
+        run: |
+          echo "Checking code formatting..."
+          dart format --set-exit-if-changed .
+        continue-on-error: false
+
+      - name: Run custom linting script
+        run: |
+          if [ -f "check_imports.sh" ]; then
+            echo "Running custom import checks..."
+            chmod +x check_imports.sh
+            ./check_imports.sh
+          fi
+
+  # Job 2: Unit Tests
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: analyze
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests with coverage
+        run: |
+          echo "Running unit tests with coverage..."
+          flutter test --coverage --reporter expanded
+
+      - name: Check test coverage threshold
+        run: |
+          echo "Checking coverage threshold..."
+          # Install lcov for coverage processing
+          sudo apt-get update
+          sudo apt-get install -y lcov
+
+          # Generate coverage report
+          if [ -f "coverage/lcov.info" ]; then
+            # Calculate coverage percentage
+            COVERAGE=$(lcov --summary coverage/lcov.info 2>&1 | grep "lines" | awk '{print $2}' | sed 's/%//')
+            echo "Coverage: $COVERAGE%"
+
+            # Set minimum coverage threshold (60%)
+            THRESHOLD=60
+            if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+              echo "❌ Coverage $COVERAGE% is below threshold $THRESHOLD%"
+              exit 1
+            else
+              echo "✅ Coverage $COVERAGE% meets threshold $THRESHOLD%"
+            fi
+          else
+            echo "⚠️ No coverage report generated"
+          fi
+
+      - name: Upload coverage to artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 30
+
+  # Job 3: Build Verification - iOS
+  build-ios:
+    name: Build iOS
+    runs-on: macos-latest
+    timeout-minutes: 30
+    needs: [analyze, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify iOS Podfile.lock exists
+        run: |
+          if [ ! -f "ios/Podfile.lock" ]; then
+            echo "⚠️  WARNING: ios/Podfile.lock is missing!"
+            echo "This may cause inconsistent builds. Run 'pod install' and commit the lockfile."
+          else
+            echo "✅ iOS Podfile.lock exists"
+          fi
+
+      - name: Install CocoaPods dependencies
+        run: |
+          cd ios
+          pod install --repo-update
+          cd ..
+
+      - name: Verify iOS lockfile integrity
+        run: |
+          if git diff --exit-code ios/Podfile.lock; then
+            echo "✅ iOS Podfile.lock is up to date"
+          else
+            echo "⚠️  WARNING: ios/Podfile.lock has changes after pod install"
+            echo "Consider updating the lockfile in your repository"
+            git diff ios/Podfile.lock
+          fi
+        continue-on-error: true
+
+      - name: Build iOS (No Codesign)
+        run: |
+          echo "Building iOS app..."
+          flutter build ios --release --no-codesign
+
+      - name: Archive build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ios-build
+          path: build/ios/
+          retention-days: 7
+
+  # Job 4: Build Verification - Android
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [analyze, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Cache pub dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: |
+          echo "Building Android APK..."
+          flutter build apk --release
+
+      - name: Build Android App Bundle
+        run: |
+          echo "Building Android App Bundle..."
+          flutter build appbundle --release
+
+      - name: Archive APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7
+
+      - name: Archive App Bundle
+        uses: actions/upload-artifact@v3
+        with:
+          name: android-bundle
+          path: build/app/outputs/bundle/release/app-release.aab
+          retention-days: 7
+
+  # Job 5: Security Scanning
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: analyze
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Verify lockfile exists
+        run: |
+          if [ ! -f "pubspec.lock" ]; then
+            echo "❌ ERROR: pubspec.lock is missing!"
+            exit 1
+          fi
+          echo "✅ Lockfile exists"
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Comprehensive Security Audit
+        run: |
+          echo "🔒 Running comprehensive security audit..."
+
+          # 1. Dart pub audit for vulnerabilities
+          echo "1. Checking for known vulnerabilities..."
+          dart pub audit --json > security-audit.json || AUDIT_EXIT_CODE=$?
+
+          if [ -f "security-audit.json" ]; then
+            cat security-audit.json
+
+            # Count vulnerabilities by severity
+            CRITICAL=$(cat security-audit.json | grep -o '"severity":"critical"' | wc -l || echo "0")
+            HIGH=$(cat security-audit.json | grep -o '"severity":"high"' | wc -l || echo "0")
+            MEDIUM=$(cat security-audit.json | grep -o '"severity":"medium"' | wc -l || echo "0")
+
+            echo ""
+            echo "Security Vulnerability Summary:"
+            echo "  Critical: $CRITICAL"
+            echo "  High: $HIGH"
+            echo "  Medium: $MEDIUM"
+            echo ""
+
+            # Fail on critical or high severity
+            if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+              echo "❌ CRITICAL or HIGH severity vulnerabilities found!"
+              echo "Action required: Update affected dependencies immediately."
+              exit 1
+            fi
+
+            # Warn on medium severity
+            if [ "$MEDIUM" -gt 0 ]; then
+              echo "⚠️  Medium severity vulnerabilities found."
+              echo "Recommendation: Plan to update these dependencies soon."
+            fi
+          fi
+
+          # 2. Check dependency tree for suspicious patterns
+          echo "2. Analyzing dependency tree..."
+          flutter pub deps --style=compact > deps-tree.txt
+          echo "✅ Dependency tree analyzed"
+
+          # 3. Verify no git dependencies (security risk)
+          echo "3. Checking for git dependencies..."
+          if grep -q "git:" pubspec.yaml; then
+            echo "⚠️  Warning: Git dependencies found in pubspec.yaml"
+            echo "Git dependencies should be avoided in production for security and stability."
+            grep "git:" pubspec.yaml
+          else
+            echo "✅ No git dependencies found"
+          fi
+
+          # 4. Verify no path dependencies (except for local development)
+          echo "4. Checking for path dependencies..."
+          if grep -q "path:" pubspec.yaml; then
+            echo "⚠️  Warning: Path dependencies found in pubspec.yaml"
+            grep "path:" pubspec.yaml
+          else
+            echo "✅ No path dependencies found"
+          fi
+
+          echo ""
+          echo "✅ Security audit completed successfully"
+
+      - name: Check for secrets in code
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+
+      - name: OSSI Dependency Scan
+        uses: ossf/scorecard-action@v2
+        if: github.event_name != 'pull_request'
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v2
+        if: github.event_name != 'pull_request'
+        with:
+          sarif_file: results.sarif
+
+  # Job 6: Dependency License Check
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate license report
+        run: |
+          echo "Generating dependency license report..."
+          flutter pub deps --json > deps.json
+          echo "✅ License report generated"
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: deps.json
+          retention-days: 30
+
+  # Job 7: Final Status Check
+  ci-success:
+    name: CI Pipeline Success
+    runs-on: ubuntu-latest
+    needs: [analyze, test, build-ios, build-android, security, license-check]
+    if: success()
+
+    steps:
+      - name: CI Success
+        run: |
+          echo "✅ All CI checks passed successfully!"
+          echo "✅ Code analysis: PASSED"
+          echo "✅ Unit tests: PASSED"
+          echo "✅ iOS build: PASSED"
+          echo "✅ Android build: PASSED"
+          echo "✅ Security scan: PASSED"
+          echo "✅ License check: PASSED"

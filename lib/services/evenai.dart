@@ -7,6 +7,7 @@ import 'text_paginator.dart';
 import 'hud_controller.dart';
 import 'ai/ai_coordinator.dart';
 import 'conversation_insights.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Even AI coordinator service for conversation analysis
 /// Coordinates audio buffering, text pagination, HUD display, and AI analysis
@@ -93,7 +94,7 @@ class EvenAI {
         _processTranscribedText(txt);
       }
     }, onError: (error) {
-      print("Error in speech recognition event: $error");
+      appLogger.i("Error in speech recognition event: $error");
     });
   }
   
@@ -144,7 +145,7 @@ class EvenAI {
         _displaySentimentResult(sentiment);
       }
     } catch (e) {
-      print("AI processing error: $e");
+      appLogger.i("AI processing error: $e");
     }
   }
 
@@ -174,7 +175,7 @@ class EvenAI {
     _hudController.updateDisplay(withFactCheck);
 
     // Log for debugging
-    print("Fact-check: ${isTrue ? 'TRUE' : 'FALSE'} (confidence: ${(confidence * 100).toStringAsFixed(0)}%)");
+    appLogger.i("Fact-check: ${isTrue ? 'TRUE' : 'FALSE'} (confidence: ${(confidence * 100).toStringAsFixed(0)}%)");
   }
 
   /// Display sentiment result (for future use)
@@ -184,7 +185,7 @@ class EvenAI {
 
     // Could display sentiment indicator on HUD
     // For now, just log it
-    print("Sentiment: $sentiment (${score?.toStringAsFixed(2)})");
+    appLogger.i("Sentiment: $sentiment (${score?.toStringAsFixed(2)})");
   }
   
   /// Receiving starting Even AI request from BLE
@@ -245,12 +246,12 @@ class EvenAI {
     _audioBuffer.stopReceiving();
 
     if (_audioBuffer.isEmpty) {
-      print("No audio data received");
+      appLogger.i("No audio data received");
       return;
     }
 
     // Process audio data here
-    print("Recording completed with ${_audioBuffer.bufferSize} bytes");
+    appLogger.i("Recording completed with ${_audioBuffer.bufferSize} bytes");
 
     // Clear buffer after processing
     _audioBuffer.clear();
@@ -301,9 +302,9 @@ class EvenAI {
   Future<void> initializeAI(String openAIApiKey) async {
     try {
       await _aiCoordinator.initialize(openAIApiKey);
-      print("AI features initialized successfully");
+      appLogger.i("AI features initialized successfully");
     } catch (e) {
-      print("Failed to initialize AI: $e");
+      appLogger.i("Failed to initialize AI: $e");
     }
   }
 

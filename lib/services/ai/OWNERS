@@ -1,0 +1,85 @@
+# AI Services Ownership
+
+## Overview
+
+This directory contains the core AI and machine learning service implementations for the Helix project.
+
+## Primary Owners
+
+- **Team**: `@ai-team`
+- **Backup Team**: `@ml-engineers`
+
+## Scope
+
+- AI provider integrations (OpenAI, Anthropic)
+- LLM service coordination
+- AI analysis algorithms
+- Prompt engineering and optimization
+
+## Files and Responsibilities
+
+### Base AI Provider (`base_ai_provider.dart`)
+- **Owners**: `@ai-team`, `@backend-team`
+- **Description**: Abstract base class for all AI providers
+- **Critical**: Yes - Changes affect all AI integrations
+
+### OpenAI Provider (`openai_provider.dart`)
+- **Owners**: `@ai-team`, `@ml-engineers`
+- **Description**: OpenAI GPT-4 integration
+- **API Keys Required**: Yes
+- **Dependencies**: OpenAI API
+
+### AI Coordinator (`ai_coordinator.dart`)
+- **Owners**: `@ai-team`, `@backend-team`
+- **Description**: Coordinates AI service calls and provider failover
+- **Critical**: Yes - Central orchestration logic
+
+## Review Guidelines
+
+### Required Reviews
+- All changes require at least **1 approval** from `@ai-team`
+- API changes require **2 approvals** from `@ai-team` and `@backend-team`
+- Changes to base classes require `@helix-maintainers` review
+
+### Testing Requirements
+- Unit tests for all provider implementations
+- Integration tests with mocked API responses
+- Error handling and failover scenarios
+- Performance benchmarks for latency-critical paths
+
+### Security Considerations
+- API keys must never be committed
+- All API calls must use secure HTTPS
+- Rate limiting must be respected
+- User data privacy must be maintained
+
+## Key Metrics
+
+- **Response Time**: < 2 seconds for standard analysis
+- **Success Rate**: > 99% (with failover)
+- **Test Coverage**: > 90%
+
+## Dependencies
+
+- `dart:convert` - JSON serialization
+- `http` package - API requests
+- Service locator pattern - Dependency injection
+
+## Related Documentation
+
+- [AI Services API Documentation](/docs/AI_SERVICES_API.md)
+- [Architecture Documentation](/docs/Architecture.md)
+- [Testing Strategy](/docs/TESTING_STRATEGY.md)
+
+## Escalation
+
+For urgent issues or architectural questions:
+1. Tag `@ai-team` in PR/issue
+2. Contact AI team lead via Slack `#helix-ai-team`
+3. Escalate to `@helix-maintainers` if needed
+
+## Changelog
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2025-11-16 | Initial AI service ownership established | Helix Team |

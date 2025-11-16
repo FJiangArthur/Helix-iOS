@@ -48,3 +48,23 @@ app.*.map.json
 /ios/build/*
 settings.local.json
 llm_config.local.json
+
+# Docker related
+.env
+.env.local
+docker-compose.override.yml
+*.backup.sql
+backup_*.sql
+
+# Container volumes (if accidentally created locally)
+postgres-data/
+redis-data/
+
+# Test coverage
+coverage/
+*.lcov
+test/**/*.tmp
+test/test_data/temp_*
+
+# Integration test screenshots
+integration_test/screenshots/
