@@ -22,7 +22,7 @@ dependencies:
   permission_handler: ^10.2.0
   
   # Data Models and Serialization
-  freezed_annotation: ^2.4.1
+  freezed_annotation: ^3.1.0
   json_annotation: ^4.8.1
   
   # State Management
@@ -40,7 +40,7 @@ dependencies:
   crclib: ^3.0.0
 
   # HTTP Client (for AI providers and Whisper API)
-  http: ^1.2.0
+  http: ^1.6.0
   dio: ^5.4.0
 
   # Network Connectivity Detection (for transcription mode auto-switching)
@@ -61,13 +61,13 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 
   # Code Generation
-  build_runner: ^2.4.7
-  json_serializable: ^6.7.1
-  freezed: ^2.4.7
+  build_runner: ^2.10.3
+  json_serializable: ^6.11.1
+  freezed: ^3.2.3
 
   # Testing
-  mockito: ^5.4.4
-  build_test: ^2.2.2
+  mockito: ^5.5.1
+  build_test: ^3.5.3
   path: ^1.8.3
 
 # For information on the generic Dart part of this file, see the
