@@ -243,7 +243,7 @@ class LLMServiceImplV2 {
     }
 
     try {
-      final conversationText = conversation.segments.map((s) => s.text).join(' ');
+      final conversationText = conversation.messages.map((m) => m.content).join(' ');
       final provider = await _selectBestProvider();
       
       _logger.log(_tag, 'Generating summary with ${provider.name}', LogLevel.info);
@@ -416,9 +416,8 @@ class LLMServiceImplV2 {
         lastException = e is LLMException ? e : LLMException(
           'Analysis failed: $e',
           LLMErrorType.unknown,
-          originalError: e,
         );
-        
+
         _recordFailure(provider);
         _logger.log(_tag, 'Provider ${provider.name} failed, trying next', LogLevel.warning);
       }
@@ -460,13 +459,13 @@ class LLMServiceImplV2 {
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 5)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.85,
-          summary: summary,
-          actionItems: actionItems,
+          summary: summary.summary,
+          actionItems: actionItems.map((item) => item.description).toList(),
           sentiment: sentiment,
           factChecks: factChecks,
         );
@@ -484,42 +483,42 @@ class LLMServiceImplV2 {
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 3)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.8,
           factChecks: factChecks,
         );
         
       case AnalysisType.summary:
         final summary = await providerImpl.generateSummary(text: conversationText);
-        
+
         return AnalysisResult(
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 2)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.9,
-          summary: summary,
+          summary: summary.summary,
         );
         
       case AnalysisType.actionItems:
         final actionItems = await providerImpl.extractActionItems(text: conversationText);
-        
+
         return AnalysisResult(
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 2)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.8,
-          actionItems: actionItems,
+          actionItems: actionItems.map((item) => item.description).toList(),
         );
         
       case AnalysisType.sentiment:
@@ -529,33 +528,28 @@ class LLMServiceImplV2 {
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 1)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.85,
           sentiment: sentiment,
         );
         
-      case AnalysisType.topics:
-        // For now, use basic keyword extraction from summary
+      case AnalysisType.quick:
+        // Quick analysis: just generate summary
         final summary = await providerImpl.generateSummary(text: conversationText);
-        
+
         return AnalysisResult(
           id: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
           conversationId: context['conversationId'] ?? 'unknown',
           type: type,
+          timestamp: DateTime.now(),
           status: AnalysisStatus.completed,
           startTime: DateTime.now().subtract(const Duration(seconds: 2)),
           completionTime: DateTime.now(),
-          provider: provider.name,
           confidence: 0.7,
-          summary: summary,
-          topics: summary.topics.map((topic) => TopicResult(
-            name: topic,
-            relevance: 0.8,
-            keywords: [topic],
-          )).toList(),
+          summary: summary.summary,
         );
     }
   }

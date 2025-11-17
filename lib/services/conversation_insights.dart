@@ -66,22 +66,31 @@ class ConversationInsights {
     try {
       // Generate summary
       final summaryResult = await _aiCoordinator.summarize(fullText);
-      if (!summaryResult.containsKey('error')) {
-        _currentSummary = summaryResult['summary'] as String? ?? '';
-        _keyPoints = (summaryResult['keyPoints'] as List?)?.cast<String>() ?? [];
-      }
+      summaryResult.fold(
+        (data) {
+          _currentSummary = data['summary'] as String? ?? '';
+          _keyPoints = (data['keyPoints'] as List?)?.cast<String>() ?? [];
+        },
+        (error) => appLogger.i('Summarization failed: ${error.message}'),
+      );
 
       // Extract action items
       final actionItemsResult = await _aiCoordinator.extractActionItems(fullText);
-      if (actionItemsResult.isNotEmpty) {
-        _actionItems = actionItemsResult;
-      }
+      actionItemsResult.fold(
+        (data) {
+          if (data.isNotEmpty) {
+            _actionItems = data;
+          }
+        },
+        (error) => appLogger.i('Action items extraction failed: ${error.message}'),
+      );
 
       // Analyze sentiment
       final sentimentResult = await _aiCoordinator.analyzeSentiment(fullText);
-      if (!sentimentResult.containsKey('error')) {
-        _lastSentiment = sentimentResult;
-      }
+      sentimentResult.fold(
+        (data) => _lastSentiment = data,
+        (error) => appLogger.i('Sentiment analysis failed: ${error.message}'),
+      );
 
       _lastUpdateTime = DateTime.now();
 

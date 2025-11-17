@@ -280,7 +280,8 @@ class ErrorFormatter {
     }
 
     if (exception is ArgumentError) {
-      return 'Invalid argument: ${exception.message}';
+      final argError = exception as ArgumentError;
+      return 'Invalid argument: ${argError.message ?? argError.toString()}';
     }
 
     return message;

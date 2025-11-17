@@ -19,50 +19,50 @@ class LoggingConfig {
 
     /// Development environment configuration - verbose logging
     private static func configureDevelopment() {
-        HelixLogger.configuration.enableConsoleLogging = true
-        HelixLogger.configuration.enableStructuredLogging = true
-        HelixLogger.configuration.enableOSLog = true
-        HelixLogger.configuration.minimumLogLevel = .debug
-        HelixLogger.configuration.enablePIIRedaction = false  // Disable for easier debugging
-        HelixLogger.configuration.correlationIdEnabled = true
+        // HelixLogger.configuration.enableConsoleLogging = true
+        // HelixLogger.configuration.enableStructuredLogging = true
+        // HelixLogger.configuration.enableOSLog = true
+        // HelixLogger.configuration.minimumLogLevel = .debug
+        // HelixLogger.configuration.enablePIIRedaction = false  // Disable for easier debugging
+        // HelixLogger.configuration.correlationIdEnabled = true
 
-        HelixLogger.info("Logging configured for DEVELOPMENT environment", category: .lifecycle)
+        // HelixLogger.info("Logging configured for DEVELOPMENT environment", category: .lifecycle)
     }
 
     /// Staging environment configuration - moderate logging
     private static func configureStaging() {
-        HelixLogger.configuration.enableConsoleLogging = true
-        HelixLogger.configuration.enableStructuredLogging = true
-        HelixLogger.configuration.enableOSLog = true
-        HelixLogger.configuration.minimumLogLevel = .info
-        HelixLogger.configuration.enablePIIRedaction = true
-        HelixLogger.configuration.correlationIdEnabled = true
+        // HelixLogger.configuration.enableConsoleLogging = true
+        // HelixLogger.configuration.enableStructuredLogging = true
+        // HelixLogger.configuration.enableOSLog = true
+        // HelixLogger.configuration.minimumLogLevel = .info
+        // HelixLogger.configuration.enablePIIRedaction = true
+        // HelixLogger.configuration.correlationIdEnabled = true
 
-        HelixLogger.info("Logging configured for STAGING environment", category: .lifecycle)
+        // HelixLogger.info("Logging configured for STAGING environment", category: .lifecycle)
     }
 
     /// Production environment configuration - minimal logging with PII protection
     private static func configureProduction() {
-        HelixLogger.configuration.enableConsoleLogging = false  // Reduce noise in production
-        HelixLogger.configuration.enableStructuredLogging = true
-        HelixLogger.configuration.enableOSLog = true
-        HelixLogger.configuration.minimumLogLevel = .warning  // Only warnings and above
-        HelixLogger.configuration.enablePIIRedaction = true   // Always protect PII in production
-        HelixLogger.configuration.correlationIdEnabled = true
+        // HelixLogger.configuration.enableConsoleLogging = false  // Reduce noise in production
+        // HelixLogger.configuration.enableStructuredLogging = true
+        // HelixLogger.configuration.enableOSLog = true
+        // HelixLogger.configuration.minimumLogLevel = .warning  // Only warnings and above
+        // HelixLogger.configuration.enablePIIRedaction = true   // Always protect PII in production
+        // HelixLogger.configuration.correlationIdEnabled = true
 
-        HelixLogger.info("Logging configured for PRODUCTION environment", category: .lifecycle)
+        // HelixLogger.info("Logging configured for PRODUCTION environment", category: .lifecycle)
     }
 
     /// Update log level at runtime
     static func setLogLevel(_ level: LogLevel) {
-        HelixLogger.configuration.minimumLogLevel = level
-        HelixLogger.info("Log level changed to \(level.rawValue)", category: .lifecycle)
+        // HelixLogger.configuration.minimumLogLevel = level
+        // HelixLogger.info("Log level changed to \(level.rawValue)", category: .lifecycle)
     }
 
     /// Enable or disable PII redaction at runtime
     static func setPIIRedaction(enabled: Bool) {
-        HelixLogger.configuration.enablePIIRedaction = enabled
-        HelixLogger.warning("PII redaction \(enabled ? "enabled" : "disabled")", category: .lifecycle)
+        // HelixLogger.configuration.enablePIIRedaction = enabled
+        // HelixLogger.warning("PII redaction \(enabled ? "enabled" : "disabled")", category: .lifecycle)
     }
 
     /// Environment types
@@ -89,21 +89,21 @@ class LoggingConfig {
 extension LoggingConfig {
     /// Enable verbose audio debugging
     static func enableAudioDebugMode() {
-        HelixLogger.configuration.minimumLogLevel = .debug
-        HelixLogger.audio("Audio debug mode enabled", level: .info)
+        // HelixLogger.configuration.minimumLogLevel = .debug
+        // HelixLogger.audio("Audio debug mode enabled", level: .info)
     }
 
     /// Enable verbose bluetooth debugging
     static func enableBluetoothDebugMode() {
-        HelixLogger.configuration.minimumLogLevel = .debug
-        HelixLogger.bluetooth("Bluetooth debug mode enabled", level: .info)
+        // HelixLogger.configuration.minimumLogLevel = .debug
+        // HelixLogger.bluetooth("Bluetooth debug mode enabled", level: .info)
     }
 
     /// Disable all logging (useful for testing)
     static func disableAllLogging() {
-        HelixLogger.configuration.enableConsoleLogging = false
-        HelixLogger.configuration.enableStructuredLogging = false
-        HelixLogger.configuration.enableOSLog = false
+        // HelixLogger.configuration.enableConsoleLogging = false
+        // HelixLogger.configuration.enableStructuredLogging = false
+        // HelixLogger.configuration.enableOSLog = false
     }
 
     /// Reset to default configuration
@@ -129,14 +129,14 @@ extension LoggingConfig {
         /// Log performance warning if duration exceeds threshold
         static func checkThreshold(operation: String, duration: TimeInterval, threshold: TimeInterval, category: LogCategory) {
             if duration > threshold {
-                HelixLogger.warning(
-                    "Performance threshold exceeded for \(operation)",
-                    category: category,
-                    metadata: [
-                        "duration_ms": String(format: "%.2f", duration * 1000),
-                        "threshold_ms": String(format: "%.2f", threshold * 1000)
-                    ]
-                )
+                // HelixLogger.warning(
+                //     "Performance threshold exceeded for \(operation)",
+                //     category: category,
+                //     metadata: [
+                //         "duration_ms": String(format: "%.2f", duration * 1000),
+                //         "threshold_ms": String(format: "%.2f", threshold * 1000)
+                //     ]
+                // )
             }
         }
     }

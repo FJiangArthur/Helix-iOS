@@ -118,32 +118,37 @@ class EvenAI {
   /// Runs asynchronously to avoid blocking HUD updates
   void _processWithAI(String text) async {
     try {
-      final results = await _aiCoordinator.analyzeText(text);
+      final result = await _aiCoordinator.analyzeText(text);
 
-      // US 2.2: Handle claim detection results
-      if (results.containsKey('claimDetection')) {
-        final claimDetection = results['claimDetection'] as Map<String, dynamic>;
-        final isClaim = claimDetection['isClaim'] as bool? ?? false;
-        final confidence = claimDetection['confidence'] as double? ?? 0.0;
+      result.fold(
+        (results) {
+          // US 2.2: Handle claim detection results
+          if (results.containsKey('claimDetection')) {
+            final claimDetection = results['claimDetection'] as Map<String, dynamic>;
+            final isClaim = claimDetection['isClaim'] as bool? ?? false;
+            final confidence = claimDetection['confidence'] as double? ?? 0.0;
 
-        // Only display fact-check if it's actually a claim
-        if (!isClaim || confidence < 0.6) {
-          // Not a claim - no need to display fact-check icon
-          return;
-        }
-      }
+            // Only display fact-check if it's actually a claim
+            if (!isClaim || confidence < 0.6) {
+              // Not a claim - no need to display fact-check icon
+              return;
+            }
+          }
 
-      // Display fact-check result (only shown if claim detected)
-      if (results.containsKey('factCheck') && !results.containsKey('error')) {
-        final factCheck = results['factCheck'] as Map<String, dynamic>;
-        _displayFactCheckResult(factCheck);
-      }
+          // Display fact-check result (only shown if claim detected)
+          if (results.containsKey('factCheck')) {
+            final factCheck = results['factCheck'] as Map<String, dynamic>;
+            _displayFactCheckResult(factCheck);
+          }
 
-      // Display sentiment result
-      if (results.containsKey('sentiment') && !results.containsKey('error')) {
-        final sentiment = results['sentiment'] as Map<String, dynamic>;
-        _displaySentimentResult(sentiment);
-      }
+          // Display sentiment result
+          if (results.containsKey('sentiment')) {
+            final sentiment = results['sentiment'] as Map<String, dynamic>;
+            _displaySentimentResult(sentiment);
+          }
+        },
+        (error) => appLogger.i("AI analysis failed: ${error.message}"),
+      );
     } catch (e) {
       appLogger.i("AI processing error: $e");
     }
