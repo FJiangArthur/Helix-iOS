@@ -13,7 +13,7 @@ class ModelVersion with _$ModelVersion {
     /// Unique version identifier (semantic versioning: major.minor.patch)
     required String version,
 
-    /// Model identifier (e.g., 'gpt-4-turbo', 'claude-3-opus')
+    /// Model identifier (e.g., 'gpt-4-turbo', 'gpt-4.1-mini')
     required String modelId,
 
     /// Provider name (OpenAI, Anthropic, etc.)
