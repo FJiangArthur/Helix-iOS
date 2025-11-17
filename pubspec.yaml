@@ -34,7 +34,7 @@ dependencies:
   get_it: ^7.6.4
 
   # UI Components
-  fluttertoast: ^8.2.8
+  fluttertoast: ^9.0.0
 
   # Utilities
   crclib: ^3.0.0
