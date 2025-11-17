@@ -362,8 +362,8 @@ extension HelixLogger {
         line: Int = #line
     ) {
         let metadata = [
-            "operation": operation,
-            "duration_ms": String(format: "%.2f", duration * 1000)
+//            "operation,
+//            "String(format: "%.2f", duration * 1000)
         ]
         info("Performance: \(operation)", category: category, metadata: metadata, file: file, function: function, line: line)
     }

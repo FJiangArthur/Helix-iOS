@@ -207,12 +207,23 @@ class _FeatureVerificationScreenState extends State<FeatureVerificationScreen> {
         'Transcribing audio with Whisper API...',
       );
 
-      _transcription = await _aiService!.transcribeAudio(_lastRecordingPath!);
-
-      _updateFeatureStatus(
-        'whisper_transcription',
-        TestStatus.passed,
-        'Transcribed: ${_transcription!.substring(0, _transcription!.length > 100 ? 100 : _transcription!.length)}...',
+      final result = await _aiService!.transcribeAudio(_lastRecordingPath!);
+      result.fold(
+        (text) {
+          _transcription = text;
+          _updateFeatureStatus(
+            'whisper_transcription',
+            TestStatus.passed,
+            'Transcribed: ${text.substring(0, text.length > 100 ? 100 : text.length)}...',
+          );
+        },
+        (error) {
+          _updateFeatureStatus(
+            'whisper_transcription',
+            TestStatus.failed,
+            'Transcription failed: ${error.message}',
+          );
+        },
       );
     } catch (e) {
       _updateFeatureStatus(

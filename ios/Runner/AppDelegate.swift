@@ -17,32 +17,32 @@ import Speech
 
         // Generate a correlation ID for this app session
         let sessionId = HelixLogger.generateCorrelationId()
-        HelixLogger.info("App starting", category: .lifecycle, metadata: [
-            "sessionId": sessionId,
-            "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
-        ])
+        // HelixLogger.info("App starting", category: .lifecycle, metadata: [
+//            "sessionId,
+//            "Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+//        ])
 
         // Log current audio session state (Flutter's audio_session will configure it)
         let session = AVAudioSession.sharedInstance()
-        HelixLogger.audio("Initial Audio Session Category: \(session.category.rawValue)", level: .debug)
+        // HelixLogger.audio("Initial Audio Session Category: \(session.category.rawValue)", level: .debug)
 
         // Add observer to detect category changes for debugging
         NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification,
                                              object: nil,
                                              queue: .main) { _ in
-          HelixLogger.audio("Audio route changed - Category: \(session.category.rawValue)", level: .info)
+        // HelixLogger.audio("Audio route changed - Category: \(session.category.rawValue)", level: .info)
         }
 
         // Request microphone permission early
         AVAudioSession.sharedInstance().requestRecordPermission { granted in
-          HelixLogger.audio("Microphone permission request result: \(granted)", level: granted ? .info : .warning)
+        // HelixLogger.audio("Microphone permission request result: \(granted)", level: granted ? .info : .warning)
         }
 
         // Log audio session state AFTER configuration
-        HelixLogger.audio("Audio session configured", level: .debug, metadata: [
-            "category": session.category.rawValue,
-            "recordPermission": "\(session.recordPermission.rawValue)"
-        ])
+        // HelixLogger.audio("Audio session configured", level: .debug, metadata: [
+//            "session.category.rawValue,
+//            ""\(session.recordPermission.rawValue)"
+//        ])
 
         GeneratedPluginRegistrant.register(with: self)
         
@@ -93,12 +93,12 @@ import Speech
         // Basic audio session setup - flutter_sound and audio_session will handle the rest
         do {
           try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-          HelixLogger.audio("Basic audio session category set to playAndRecord", level: .info)
+        // HelixLogger.audio("Basic audio session category set to playAndRecord", level: .info)
         } catch {
-          HelixLogger.error("Failed to set basic audio category", error: error, category: .audio)
+        // HelixLogger.error("Failed to set basic audio category", error: error, category: .audio)
         }
 
-        HelixLogger.info("App finished launching", category: .lifecycle)
+        // HelixLogger.info("App finished launching", category: .lifecycle)
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 }
