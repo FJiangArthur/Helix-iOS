@@ -37,6 +37,8 @@
 		DA91AD8E2E52F4C500220CE1 /* tns.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD812E52F4C500220CE1 /* tns.c */; };
 		DA91AD8F2E52F4C500220CE1 /* sns.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD7B2E52F4C500220CE1 /* sns.c */; };
 		DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6F2E52F4C500220CE1 /* ltpf.c */; };
+		BBCCDD112233445566778899 /* HelixLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC112233445566778899 /* HelixLogger.swift */; };
+		BBCCDD223344556677889900 /* LoggingConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCC223344556677889900 /* LoggingConfig.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,6 +87,8 @@
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9F6A72620AAA82AB3EEF18C8 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		AAA07B27B9E95382CFD69B01 /* Pods-RunnerTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.debug.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.debug.xcconfig"; sourceTree = "<group>"; };
+		AABBCC112233445566778899 /* HelixLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelixLogger.swift; sourceTree = "<group>"; };
+		AABBCC223344556677889900 /* LoggingConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoggingConfig.swift; sourceTree = "<group>"; };
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
 		DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHelper.swift; sourceTree = "<group>"; };
 		DA91AD502E52F4A900220CE1 /* GattProtocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GattProtocal.swift; sourceTree = "<group>"; };
@@ -204,6 +208,8 @@
 			children = (
 				DA91AD822E52F4C500220CE1 /* lc3 */,
 				DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */,
+				AABBCC112233445566778899 /* HelixLogger.swift */,
+				AABBCC223344556677889900 /* LoggingConfig.swift */,
 				DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */,
 				DA91AD502E52F4A900220CE1 /* GattProtocal.swift */,
 				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
@@ -506,6 +512,8 @@
 				DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */,
+				BBCCDD112233445566778899 /* HelixLogger.swift in Sources */,
+				BBCCDD223344556677889900 /* LoggingConfig.swift in Sources */,
 				DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */,
 				DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */,
 				DA91AD5C2E52F4A900220CE1 /* PcmConverter.m in Sources */,
