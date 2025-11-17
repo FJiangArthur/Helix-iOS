@@ -44,7 +44,7 @@ dependencies:
   dio: ^5.4.0
 
   # Network Connectivity Detection (for transcription mode auto-switching)
-  connectivity_plus: ^6.0.1
+  connectivity_plus: ^7.0.0
 
   # Local Storage (for model lifecycle persistence)
   shared_preferences: ^2.2.2
