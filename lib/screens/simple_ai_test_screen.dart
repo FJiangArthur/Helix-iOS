@@ -9,6 +9,8 @@ import '../services/implementations/audio_service_impl.dart';
 import '../services/simple_openai_service.dart';
 import '../services/analytics_service.dart';
 import '../models/audio_configuration.dart';
+import '../core/config/app_config.dart';
+import 'package:get_it/get_it.dart';
 import 'package:flutter_helix/utils/app_logger.dart';
 
 class SimpleAITestScreen extends StatefulWidget {
@@ -37,9 +39,6 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
   Duration _recordingDuration = Duration.zero;
   StreamSubscription<Duration>? _durationSubscription;
 
-  // TODO: Replace with actual API key from settings
-  static const String _openAIApiKey = 'YOUR_OPENAI_API_KEY_HERE';
-
   @override
   void initState() {
     super.initState();
@@ -62,19 +61,28 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
         return;
       }
 
-      // Initialize OpenAI service
-      if (_openAIApiKey != 'YOUR_OPENAI_API_KEY_HERE') {
-        _openAIService = SimpleOpenAIService(apiKey: _openAIApiKey);
+      // Initialize OpenAI service from AppConfig
+      try {
+        final appConfig = GetIt.instance.get<AppConfig>();
+        final apiKey = appConfig.openAIApiKey;
 
-        // Validate API key
-        final isValid = await _openAIService!.validateApiKey();
-        if (!isValid) {
-          setState(() {
-            _errorMessage = 'Invalid OpenAI API key';
-            _openAIService = null;
-          });
-          return;
+        if (apiKey != null && apiKey.isNotEmpty && !apiKey.contains('PUT-YOUR')) {
+          _openAIService = SimpleOpenAIService(apiKey: apiKey);
+
+          // Validate API key
+          final isValid = await _openAIService!.validateApiKey();
+          if (!isValid) {
+            setState(() {
+              _errorMessage = 'Invalid OpenAI API key';
+              _openAIService = null;
+            });
+            return;
+          }
+        } else {
+          appLogger.i('OpenAI API key not configured in llm_config.local.json');
         }
+      } catch (e) {
+        appLogger.w('Could not load AppConfig, OpenAI service disabled', error: e);
       }
 
       // Subscribe to recording duration
@@ -135,7 +143,7 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
           await _transcribeRecording();
         } else if (_openAIService == null) {
           setState(() {
-            _errorMessage = 'OpenAI API key not configured. Please add your API key to the code.';
+            _errorMessage = 'OpenAI API key not configured. Please add "openAIApiKey" to llm_config.local.json';
           });
         }
       } else {
@@ -432,8 +440,13 @@ class _SimpleAITestScreenState extends State<SimpleAITestScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Please add your OpenAI API key in lib/screens/simple_ai_test_screen.dart line 24',
+                        'To enable Whisper transcription, add "openAIApiKey": "sk-..." to llm_config.local.json',
                         style: TextStyle(color: Colors.orange.shade900),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Copy llm_config.local.json.template to llm_config.local.json and add your keys',
+                        style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
                       ),
                     ],
                   ),
