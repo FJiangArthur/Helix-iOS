@@ -12,6 +12,7 @@ class AppConfig {
   final Map<String, String> models;
   final String? whisperEndpoint;
   final String? whisperModel;
+  final String? openAIApiKey; // For direct OpenAI API calls (Whisper, etc.)
 
   AppConfig({
     required this.llmEndpoint,
@@ -20,6 +21,7 @@ class AppConfig {
     required this.models,
     this.whisperEndpoint,
     this.whisperModel,
+    this.openAIApiKey,
   });
 
   /// Load configuration from file or environment variables
@@ -71,6 +73,7 @@ class AppConfig {
       models: Map<String, String>.from(json['llmModels'] as Map),
       whisperEndpoint: json['transcription']?['whisperEndpoint'] as String?,
       whisperModel: json['transcription']?['whisperModel'] as String?,
+      openAIApiKey: json['openAIApiKey'] as String?,
     );
   }
 

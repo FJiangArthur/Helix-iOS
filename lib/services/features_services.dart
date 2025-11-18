@@ -5,12 +5,81 @@ import '../utils/utils.dart';
 import 'package:flutter_helix/utils/app_logger.dart';
 
 class FeaturesServices {
-  // Simplified BMP update without controller
+  // BMP command code for glasses protocol (0x4C is commonly used for image data)
+  static const int _bmpCmdCode = 0x4C;
+  static const int _bmpPacketSize = 180; // Bytes per packet (adjust based on BLE MTU)
+
+  // Send BMP image data to glasses via BLE
   Future<bool> updateBmp(String lr, Uint8List bmpData, {int seq = 0}) async {
-    // TODO: Implement actual BMP update logic
-    // For now, returning success
-    // This would normally send the BMP data to glasses via BLE protocol
-    return true;
+    try {
+      appLogger.i(
+        'Sending BMP to $lr: ${bmpData.length} bytes, seq=$seq',
+      );
+
+      // Split BMP data into packets for BLE transmission
+      final List<Uint8List> dataList = _getBmpPackList(
+        _bmpCmdCode,
+        bmpData,
+        seq: seq,
+      );
+
+      appLogger.i(
+        'BMP split into ${dataList.length} packets for transmission',
+      );
+
+      // Send all packets to the specified lens (L/R)
+      final bool isSuccess = await BleManager.requestList(
+        dataList,
+        lr: lr,
+        timeoutMs: 300, // 300ms timeout per packet
+      );
+
+      if (isSuccess) {
+        appLogger.i('BMP update successful for $lr');
+      } else {
+        appLogger.w('BMP update failed for $lr');
+      }
+
+      return isSuccess;
+    } catch (e) {
+      appLogger.e('BMP update error for $lr', error: e);
+      return false;
+    }
+  }
+
+  // Split BMP data into BLE-compatible packets
+  List<Uint8List> _getBmpPackList(
+    int cmd,
+    Uint8List data, {
+    int seq = 0,
+  }) {
+    final List<Uint8List> send = [];
+    final int realCount = _bmpPacketSize - 4; // Reserve 4 bytes for header
+
+    int maxSeq = data.length ~/ realCount;
+    if (data.length % realCount > 0) {
+      maxSeq++;
+    }
+
+    for (var packetSeq = 0; packetSeq < maxSeq; packetSeq++) {
+      var start = packetSeq * realCount;
+      var end = start + realCount;
+      if (end > data.length) {
+        end = data.length;
+      }
+
+      var itemData = data.sublist(start, end);
+
+      // Protocol: [CMD, SEQ, MAX_SEQ, PACKET_SEQ, ...DATA]
+      var pack = Utils.addPrefixToUint8List(
+        [cmd, seq, maxSeq, packetSeq],
+        itemData,
+      );
+
+      send.add(pack);
+    }
+
+    return send;
   }
 
   Future<void> sendBmp(String imageUrl) async {
