@@ -103,9 +103,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         if let leftPeripheral = pairedDevices["Pair_\(channelNumber)"]?.0, let rightPeripheral = pairedDevices["Pair_\(channelNumber)"]?.1 {
             let deviceInfo: [String: String] = [
-//                "leftPeripheral.name ?? "",
-//                "rightPeripheral.name ?? "",
-//                "channelNumber
+                "leftDeviceName": leftPeripheral.name ?? "",
+                "rightDeviceName": rightPeripheral.name ?? "",
+                "channelNumber": channelNumber
             ]
             channel.invokeMethod("foundPairedGlasses", arguments: deviceInfo)
         }
@@ -149,9 +149,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         if let leftPeripheral = connectedDevices[deviceName]?.0, let rightPeripheral = connectedDevices[deviceName]?.1 {
             let connectedInfo: [String: String] = [
-//                "leftPeripheral.name ?? "",
-//                "rightPeripheral.name ?? "",
-//                ""connected"
+                "leftDeviceName": leftPeripheral.name ?? "",
+                "rightDeviceName": rightPeripheral.name ?? "",
+                "status": "connected"
             ]
             channel.invokeMethod("glassesConnected", arguments: connectedInfo)
 
