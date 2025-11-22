@@ -27,8 +27,8 @@ dependencies:
   
   # State Management
   get: ^4.6.6
-  riverpod: ^2.4.9
-  flutter_riverpod: ^2.4.9
+  riverpod: ^3.0.3
+  flutter_riverpod: ^3.0.3
 
   # Dependency Injection
   get_it: ^7.6.4
