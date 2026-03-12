@@ -1,49 +1,45 @@
 import 'dart:typed_data';
 import '../ble_manager.dart';
+import '../controllers/bmp_update_manager.dart';
 import '../services/proto.dart';
 import '../utils/utils.dart';
+import '../utils/app_logger.dart';
 
 class FeaturesServices {
-  // Simplified BMP update without controller
   Future<bool> updateBmp(String lr, Uint8List bmpData, {int seq = 0}) async {
-    // TODO: Implement actual BMP update logic
-    // For now, returning success
-    // This would normally send the BMP data to glasses via BLE protocol
-    return true;
+    return await BmpUpdateManager.updateBmp(lr, bmpData);
   }
 
   Future<void> sendBmp(String imageUrl) async {
     Uint8List bmpData = await Utils.loadBmpImage(imageUrl);
-    int initialSeq = 0;
-    bool isSuccess = await Proto.sendHeartBeat();
-    print(
-      "${DateTime.now()} testBMP -------startSendBeatHeart----isSuccess---$isSuccess------",
-    );
-    BleManager.get().startSendBeatHeart();
-
-    final results = await Future.wait([
-      updateBmp("L", bmpData, seq: initialSeq),
-      updateBmp("R", bmpData, seq: initialSeq),
-    ]);
-
-    bool successL = results[0];
-    bool successR = results[1];
-
-    if (successL) {
-      print("${DateTime.now()} left ble success");
-    } else {
-      print("${DateTime.now()} left ble fail");
+    if (bmpData.isEmpty) {
+      appLogger.e('Failed to load BMP image: $imageUrl');
+      return;
     }
 
-    if (successR) {
-      print("${DateTime.now()} right ble success");
+    bool isSuccess = await Proto.sendHeartBeat();
+    appLogger.d('testBMP startSendBeatHeart isSuccess=$isSuccess');
+    BleManager.get().startSendBeatHeart();
+
+    // Send to left first, then right (sequential per Even Demo protocol)
+    bool successL = await updateBmp("L", bmpData);
+    if (successL) {
+      appLogger.d('left BMP success');
     } else {
-      print("${DateTime.now()} right ble fail");
+      appLogger.e('left BMP fail');
+      return;
+    }
+
+    bool successR = await updateBmp("R", bmpData);
+    if (successR) {
+      appLogger.d('right BMP success');
+    } else {
+      appLogger.e('right BMP fail');
     }
   }
 
   Future<void> exitBmp() async {
     bool isSuccess = await Proto.exit();
-    print("exitBmp----isSuccess---$isSuccess--");
+    appLogger.d('exitBmp isSuccess=$isSuccess');
   }
 }

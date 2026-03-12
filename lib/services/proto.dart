@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import '../ble_manager.dart';
 import '../services/evenai_proto.dart';
+import '../services/glasses_protocol.dart';
+import '../utils/app_logger.dart';
 import '../utils/utils.dart';
 
 class Proto {
@@ -12,7 +14,7 @@ class Proto {
     //if (BleManager.isConnectedR()) return "R";
     return "L";
   }
-  
+
   static Future<bool> pushScreen(int screenId) async {
     return await BleManager.sendBoth(
       Uint8List.fromList([0xf4, screenId]),
@@ -30,7 +32,7 @@ class Proto {
     var end = Utils.getTimestampMs();
     var startMic = (begin + ((end - begin) ~/ 2));
 
-    print("Proto---micOn---startMic---$startMic-------");
+    appLogger.d("Proto---micOn---startMic---$startMic-------");
     return (startMic, (!receive.isTimeout && receive.data[1] == 0xc9));
   }
 
@@ -59,7 +61,7 @@ class Proto {
     );
     _evenaiSeq++;
 
-    print(
+    appLogger.d(
       '${DateTime.now()} proto--sendEvenAIData---text---$text---_evenaiSeq----$_evenaiSeq---newScreen---$newScreen---pos---$pos---current_page_num--$current_page_num---max_page_num--$max_page_num--dataList----$dataList---',
     );
 
@@ -69,11 +71,11 @@ class Proto {
       timeoutMs: timeoutMs ?? 2000,
     );
 
-    print(
+    appLogger.d(
       '${DateTime.now()} sendEvenAIData-----isSuccess-----$isSuccess-------',
     );
     if (!isSuccess) {
-      print("${DateTime.now()} sendEvenAIData failed  L ");
+      appLogger.d("${DateTime.now()} sendEvenAIData failed  L ");
       return false;
     } else {
       isSuccess = await BleManager.requestList(
@@ -83,7 +85,7 @@ class Proto {
       );
 
       if (!isSuccess) {
-        print("${DateTime.now()} sendEvenAIData failed  R ");
+        appLogger.d("${DateTime.now()} sendEvenAIData failed  R ");
         return false;
       }
       return true;
@@ -97,24 +99,26 @@ class Proto {
       0x25,
       length & 0xff,
       (length >> 8) & 0xff,
-      _beatHeartSeq % 0xff,
+      _beatHeartSeq & 0xff,
       0x04,
-      _beatHeartSeq % 0xff, //0xff,
+      _beatHeartSeq & 0xff,
     ]);
     _beatHeartSeq++;
 
-    print('${DateTime.now()} sendHeartBeat--------data---$data--');
+    appLogger.d('${DateTime.now()} sendHeartBeat--------data---$data--');
     var ret = await BleManager.request(data, lr: "L", timeoutMs: 1500);
 
-    print('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
+    appLogger.d('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
     if (ret.isTimeout) {
-      print('${DateTime.now()} sendHeartBeat----L----time out--');
+      appLogger.d('${DateTime.now()} sendHeartBeat----L----time out--');
       return false;
     } else if (ret.data[0].toInt() == 0x25 &&
         ret.data.length > 5 &&
         ret.data[4].toInt() == 0x04) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--');
+      appLogger.d(
+        '${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--',
+      );
       if (retR.isTimeout) {
         return false;
       } else if (retR.data[0].toInt() == 0x25 &&
@@ -138,16 +142,16 @@ class Proto {
 
   // tell the glasses to exit function to dashboard
   static Future<bool> exit() async {
-    print("send exit all func");
+    appLogger.d("send exit all func");
     var data = Uint8List.fromList([0x18]);
 
     var retL = await BleManager.request(data, lr: "L", timeoutMs: 1500);
-    print('${DateTime.now()} exit----L----ret---${retL.data}--');
+    appLogger.d('${DateTime.now()} exit----L----ret---${retL.data}--');
     if (retL.isTimeout) {
       return false;
     } else if (retL.data.isNotEmpty && retL.data[1].toInt() == 0xc9) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} exit----R----retR---${retR.data}--');
+      appLogger.d('${DateTime.now()} exit----R----retR---${retR.data}--');
       if (retR.isTimeout) {
         return false;
       } else if (retR.data.isNotEmpty && retR.data[1].toInt() == 0xc9) {
@@ -185,11 +189,11 @@ class Proto {
   }
 
   static Future<void> sendNewAppWhiteListJson(String whitelistJson) async {
-    print("proto -> sendNewAppWhiteListJson: whitelist = $whitelistJson");
+    appLogger.d("proto -> sendNewAppWhiteListJson: whitelist = $whitelistJson");
     final whitelistData = utf8.encode(whitelistJson);
     //  2、转换为接口格式
     final dataList = _getPackList(0x04, whitelistData, count: 180);
-    print(
+    appLogger.d(
       "proto -> sendNewAppWhiteListJson: length = ${dataList.length}, dataList = $dataList",
     );
     for (var i = 0; i < 3; i++) {
@@ -207,19 +211,14 @@ class Proto {
   /// 发送通知
   ///
   /// - app [Map] 通知消息数据
-  static Future<void> sendNotify(
-    Map appData,
-    int notifyId, {
-    int retry = 6,
-  }) async {
-    final notifyJson = jsonEncode({"ncs_notification": appData});
-    final dataList = _getNotifyPackList(
-      0x4B,
-      notifyId,
-      utf8.encode(notifyJson),
+  static Future<void> sendNotify(Map appData, {int retry = 6}) async {
+    final normalizedPayload = GlassesNotificationPayload.normalize(appData);
+    final notifyJson = jsonEncode({"ncs_notification": normalizedPayload});
+    final dataList = GlassesNotificationPackets.fromPayload(
+      Uint8List.fromList(utf8.encode(notifyJson)),
     );
-    print(
-      "proto -> sendNotify: notifyId = $notifyId, data length = ${dataList.length} , data = $dataList, app = $notifyJson",
+    appLogger.d(
+      "proto -> sendNotify: data length = ${dataList.length}, data = $dataList, app = $notifyJson",
     );
     for (var i = 0; i < retry; i++) {
       final isSuccess = await BleManager.requestList(
@@ -231,33 +230,5 @@ class Proto {
         return;
       }
     }
-  }
-
-  static List<Uint8List> _getNotifyPackList(
-    int cmd,
-    int msgId,
-    Uint8List data,
-  ) {
-    List<Uint8List> send = [];
-    int maxSeq = data.length ~/ 176;
-    if (data.length % 176 > 0) {
-      maxSeq++;
-    }
-    for (var seq = 0; seq < maxSeq; seq++) {
-      var start = seq * 176;
-      var end = start + 176;
-      if (end > data.length) {
-        end = data.length;
-      }
-      var itemData = data.sublist(start, end);
-      var pack = Utils.addPrefixToUint8List([
-        cmd,
-        msgId,
-        maxSeq,
-        seq,
-      ], itemData);
-      send.add(pack);
-    }
-    return send;
   }
 }

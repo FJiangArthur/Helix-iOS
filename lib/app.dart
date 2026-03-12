@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-import 'screens/recording_screen.dart';
+import 'screens/home_screen.dart';
 import 'screens/g1_test_screen.dart';
-import 'screens/even_features_screen.dart';
-import 'screens/ai_assistant_screen.dart';
+import 'screens/conversation_history_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/recording_screen.dart';
 import 'screens/settings_screen.dart';
+import 'theme/helix_theme.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -12,89 +15,161 @@ class HelixApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Hololens',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
-      home: const MainScreen(),
+      title: 'Even Companion',
+      theme: HelixTheme.darkTheme,
+      home: const AppEntry(),
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class AppEntry extends StatefulWidget {
+  const AppEntry({super.key});
+
+  @override
+  State<AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<AppEntry> {
+  bool? _showOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkFirstLaunch();
+  }
+
+  Future<void> _checkFirstLaunch() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seen = prefs.getBool('onboarding_complete') ?? false;
+    setState(() => _showOnboarding = !seen);
+  }
+
+  Future<void> _completeOnboarding() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_complete', true);
+    setState(() => _showOnboarding = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showOnboarding == null) {
+      return const Scaffold(
+        backgroundColor: Color(0xFF0A0E21),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF00D4FF)),
+        ),
+      );
+    }
+
+    if (_showOnboarding!) {
+      return OnboardingScreen(onComplete: _completeOnboarding);
+    }
+
+    return const MainScreen();
   }
 }
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
+  /// Switch to a specific tab by index (used by child widgets)
+  static void switchToTab(int index) {
+    _MainScreenState._instance?._switchTab(index);
+  }
+
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
+  static _MainScreenState? _instance;
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const SafeRecordingScreen(),
+    const HomeScreen(),
     const G1TestScreen(),
-    const AIAssistantScreen(),
-    const FeaturesPage(),
+    const ConversationHistoryScreen(),
+    const SafeRecordingScreen(),
     const SettingsScreen(),
   ];
 
   final List<String> _titles = [
-    'Audio Recording',
-    'Glasses Connection',
-    'AI Assistant',
-    'Features',
+    'Home',
+    'Glasses',
+    'History',
+    'Record',
     'Settings',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _instance = this;
+  }
+
+  @override
+  void dispose() {
+    if (_instance == this) _instance = null;
+    super.dispose();
+  }
+
+  void _switchTab(int index) {
+    if (index >= 0 && index < _screens.length) {
+      setState(() => _currentIndex = index);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_titles[_currentIndex]),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+        backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.mic_none),
-            selectedIcon: Icon(Icons.mic),
-            label: 'Recording',
+      body: IndexedStack(index: _currentIndex, children: _screens),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.visibility_outlined),
-            selectedIcon: Icon(Icons.visibility),
-            label: 'Glasses',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.psychology_outlined),
-            selectedIcon: Icon(Icons.psychology),
-            label: 'AI',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.featured_play_list_outlined),
-            selectedIcon: Icon(Icons.featured_play_list),
-            label: 'Features',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.visibility_outlined),
+              selectedIcon: Icon(Icons.visibility),
+              label: 'Glasses',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.history),
+              selectedIcon: Icon(Icons.history),
+              label: 'History',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.mic_none_rounded),
+              selectedIcon: Icon(Icons.mic_rounded),
+              label: 'Record',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings),
+              label: 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

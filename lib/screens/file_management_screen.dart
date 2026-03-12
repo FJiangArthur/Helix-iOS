@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path_provider/path_provider.dart';
 
 class FileManagementScreen extends StatefulWidget {
   const FileManagementScreen({super.key});
@@ -36,20 +37,31 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
 
   Future<void> _loadAudioFiles() async {
     try {
-      final directory = Directory.systemTemp;
-      final files = directory
+      final rootDirectory = await getApplicationDocumentsDirectory();
+      final recordingsDirectory = Directory('${rootDirectory.path}/recordings');
+      if (!await recordingsDirectory.exists()) {
+        setState(() {
+          _audioFiles = [];
+        });
+        return;
+      }
+
+      final files = recordingsDirectory
           .listSync()
-          .where((file) => 
-              file is File && 
-              file.path.contains('helix_') && 
-              file.path.endsWith('.wav'))
+          .where(
+            (file) =>
+                file is File &&
+                file.path.contains('helix_') &&
+                file.path.endsWith('.wav'),
+          )
           .cast<File>()
           .toList();
-      
+
       // Sort by modification time (newest first)
-      files.sort((a, b) => 
-          b.statSync().modified.compareTo(a.statSync().modified));
-      
+      files.sort(
+        (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+      );
+
       setState(() {
         _audioFiles = files;
       });
@@ -73,7 +85,7 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
         if (_isPlaying) {
           await _player.stopPlayer();
         }
-        
+
         // Start new playback
         await _player.startPlayer(
           fromURI: filePath,
@@ -84,7 +96,7 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
             });
           },
         );
-        
+
         setState(() {
           _isPlaying = true;
           _currentlyPlayingPath = filePath;
@@ -93,9 +105,9 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
     } catch (e) {
       debugPrint('Failed to play audio: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to play audio: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to play audio: $e')));
       }
     }
   }
@@ -119,7 +131,7 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-    
+
     if (difference.inDays == 0) {
       return 'Today ${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
     } else if (difference.inDays == 1) {
@@ -154,26 +166,16 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.folder_open,
-                    size: 64,
-                    color: Colors.grey,
-                  ),
+                  Icon(Icons.folder_open, size: 64, color: Colors.grey),
                   SizedBox(height: 16),
                   Text(
                     'No recordings found',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
                   ),
                   SizedBox(height: 8),
                   Text(
                     'Start recording to see your files here',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
                   ),
                 ],
               ),
@@ -205,7 +207,7 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
                     ),
                   ),
                 ],
-                
+
                 // File list
                 Expanded(
                   child: ListView.builder(
@@ -214,8 +216,9 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
                     itemBuilder: (context, index) {
                       final file = _audioFiles[index];
                       final stat = file.statSync();
-                      final isCurrentlyPlaying = _currentlyPlayingPath == file.path;
-                      
+                      final isCurrentlyPlaying =
+                          _currentlyPlayingPath == file.path;
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: ListTile(
@@ -223,17 +226,17 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: isCurrentlyPlaying 
-                                  ? Colors.green.shade100 
+                              color: isCurrentlyPlaying
+                                  ? Colors.green.shade100
                                   : Colors.blue.shade100,
                               borderRadius: BorderRadius.circular(24),
                             ),
                             child: Icon(
-                              isCurrentlyPlaying && _isPlaying 
-                                  ? Icons.pause 
+                              isCurrentlyPlaying && _isPlaying
+                                  ? Icons.pause
                                   : Icons.play_arrow,
-                              color: isCurrentlyPlaying 
-                                  ? Colors.green.shade700 
+                              color: isCurrentlyPlaying
+                                  ? Colors.green.shade700
                                   : Colors.blue.shade700,
                               size: 24,
                             ),
@@ -293,21 +296,21 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
       if (_currentlyPlayingPath == file.path && _isPlaying) {
         await _stopPlayback();
       }
-      
+
       await file.delete();
       await _loadAudioFiles(); // Refresh the list
-      
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('File deleted')));
       }
     } catch (e) {
       debugPrint('Failed to delete file: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete file: $e')));
       }
     }
   }

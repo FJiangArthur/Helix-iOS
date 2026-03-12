@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/evenai_model.dart';
 import '../services/evenai.dart';
+import '../services/conversation_engine.dart';
 import 'package:get/get.dart';
 
 /// AI conversation history screen matching Even official implementation
@@ -19,8 +20,23 @@ class _EvenAIHistoryScreenState extends State<EvenAIHistoryScreen> {
   @override
   void initState() {
     super.initState();
-    // TODO: Load history items from storage or service
-    // For now, using empty list
+    _loadHistory();
+  }
+
+  void _loadHistory() {
+    final turns = ConversationEngine.instance.history;
+    final loadedItems = <EvenaiModel>[];
+    for (final turn in turns) {
+      loadedItems.add(EvenaiModel(
+        title: turn.role == 'user' ? 'You' : 'AI',
+        content: turn.content,
+        createdTime: turn.timestamp,
+      ));
+    }
+    setState(() {
+      items.clear();
+      items.addAll(loadedItems);
+    });
   }
 
   @override

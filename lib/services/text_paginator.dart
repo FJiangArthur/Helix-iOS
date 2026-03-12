@@ -1,11 +1,16 @@
+import 'package:flutter/painting.dart';
+
 /// Manages text pagination for display on glasses
+/// Uses TextPainter-based measurement matching Even Demo App protocol
 class TextPaginator {
   TextPaginator._();
 
   static TextPaginator? _instance;
   static TextPaginator get instance => _instance ??= TextPaginator._();
 
-  static const int maxLineLength = 40; // G1 glasses max characters per line
+  static const double maxLineWidth = 488.0;
+  static const double fontSize = 21.0;
+  static const int linesPerPage = 5;
 
   List<String> _pages = [];
   int _currentPage = 0;
@@ -29,6 +34,9 @@ class TextPaginator {
 
   /// Check if there is a previous page
   bool get hasPreviousPage => _currentPage > 0;
+
+  /// Check if current page is the last page
+  bool get isLastPage => _pages.isEmpty || _currentPage >= _pages.length - 1;
 
   /// Split text into pages for glasses display
   /// Returns the number of pages created
@@ -74,29 +82,61 @@ class TextPaginator {
     _currentPage = 0;
   }
 
-  /// Split text into manageable chunks for glasses display
-  List<String> _splitIntoPages(String text) {
-    if (text.isEmpty) {
-      return [];
-    }
+  /// Measure text width using TextPainter (matches Even Demo App)
+  double _measureTextWidth(String text) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: const TextStyle(fontSize: fontSize),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    );
+    textPainter.layout();
+    return textPainter.width;
+  }
+
+  /// Split text into lines based on pixel-accurate measurement
+  List<String> _splitIntoLines(String text) {
+    if (text.isEmpty) return [];
 
     final words = text.split(' ');
-    final pages = <String>[];
+    final lines = <String>[];
     var currentLine = '';
 
     for (final word in words) {
       if (currentLine.isEmpty) {
         currentLine = word;
-      } else if ((currentLine + ' ' + word).length <= maxLineLength) {
-        currentLine += ' ' + word;
       } else {
-        pages.add(currentLine);
-        currentLine = word;
+        final testLine = '$currentLine $word';
+        if (_measureTextWidth(testLine) <= maxLineWidth) {
+          currentLine = testLine;
+        } else {
+          lines.add(currentLine);
+          currentLine = word;
+        }
       }
     }
 
     if (currentLine.isNotEmpty) {
-      pages.add(currentLine);
+      lines.add(currentLine);
+    }
+
+    return lines;
+  }
+
+  /// Split text into pages using TextPainter measurement
+  /// Groups every [linesPerPage] lines into a page
+  List<String> _splitIntoPages(String text) {
+    if (text.isEmpty) return [];
+
+    final lines = _splitIntoLines(text);
+    final pages = <String>[];
+
+    for (var i = 0; i < lines.length; i += linesPerPage) {
+      final end = (i + linesPerPage > lines.length) ? lines.length : i + linesPerPage;
+      final pageLines = lines.sublist(i, end);
+      pages.add(pageLines.join('\n'));
     }
 
     return pages;

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:math';
+import '../utils/app_logger.dart';
+import 'glasses_protocol.dart';
+import 'handoff_memory.dart';
+import 'hud_controller.dart';
 import 'proto.dart';
 import 'text_paginator.dart';
-import 'hud_controller.dart';
 
 class TextService {
   static TextService? _instance;
@@ -13,127 +16,127 @@ class TextService {
   static Timer? _timer;
   static List<String> list = [];
   static List<String> sendReplys = [];
+  final HudController _hudController = HudController.instance;
 
-  TextService._(); 
+  TextService._();
 
-  Future startSendText(String text) async {
+  /// Text transfer uses the dedicated text-display state instead of the AI result view.
+  int _screenCodeForPage() => HudDisplayState.textPage();
+
+  Future startSendText(String text, {String source = 'unknown'}) async {
+    final content = text.trim();
+    if (content.isEmpty) return;
+
+    await stopTextSendingByOS();
+    HandoffMemory.instance.startTransfer(content, source: source);
     isRunning = true;
+    await _hudController.beginTextTransfer(source: 'TextService.startSendText');
 
     _currentLine = 0;
-    // Use TextPaginator to split text into pages
     final paginator = TextPaginator.instance;
-    paginator.paginateText(text);
+    paginator.paginateText(content);
     list = List.generate(paginator.pageCount, (i) {
       paginator.goToPage(i);
       return paginator.currentPageText;
     });
     paginator.clear();
-   
-    if (list.length < 4) {
-      String startScreenWords =
-          list.sublist(0, min(3, list.length)).map((str) => '$str\n').join();
-      String headString = '\n\n';
-      startScreenWords = headString + startScreenWords;
 
-      await doSendText(startScreenWords, 0x01, 0x70, 0);
+    if (list.length <= 1) {
+      final singlePage = list.isNotEmpty ? list[0] : '';
+      final isSuccess = await doSendText(singlePage, _screenCodeForPage(), 0);
+      clear();
+      if (isSuccess) {
+        HandoffMemory.instance.markDelivered(note: 'Single-page handoff complete');
+        await _hudController.resetToIdle(
+          source: 'TextService.startSendText.singlePage',
+        );
+      } else {
+        HandoffMemory.instance.markFailed(note: 'Single-page handoff failed');
+        await _hudController.resetToIdle(
+          source: 'TextService.startSendText.singlePage.failure',
+        );
+      }
       return;
     }
 
-    if (list.length == 4) {
-      String startScreenWords =
-          list.sublist(0, 4).map((str) => '$str\n').join();
-      String headString = '\n';
-      startScreenWords = headString + startScreenWords;
-      await doSendText(startScreenWords, 0x01, 0x70, 0);
-      return;
-    }
-
-    if (list.length == 5) {
-      String startScreenWords =
-          list.sublist(0, 5).map((str) => '$str\n').join();
-      await doSendText(startScreenWords, 0x01, 0x70, 0);
-      return;
-    }
-
-    String startScreenWords = list.sublist(0, 5).map((str) => '$str\n').join();
-    bool isSuccess = await doSendText(startScreenWords, 0x01, 0x70, 0);
-    if (isSuccess) {
+    String startScreenWords = list[0];
+    bool isSuccess = await doSendText(
+      startScreenWords,
+      _screenCodeForPage(),
+      0,
+    );
+    if (isSuccess && list.length > 1) {
       _currentLine = 0;
       await updateReplyToOSByTimer();
-    } else {
-      clear(); 
+    } else if (!isSuccess) {
+      clear();
+      HandoffMemory.instance.markFailed(note: 'The first HUD page was rejected');
+      await _hudController.resetToIdle(
+        source: 'TextService.startSendText.failure',
+      );
     }
   }
 
-  int retryCount = 0;
-  Future<bool> doSendText(String text, int type, int status, int pos) async {
-   
-    print('${DateTime.now()} doSendText--currentPage---${getCurrentPage()}-----text----$text-----type---$type---status---$status----pos---$pos-');
+  Future<bool> doSendText(String text, int screenCode, int pos) async {
     if (!isRunning) {
       return false;
     }
 
-    bool isSuccess = await Proto.sendEvenAIData(text,
-        newScreen: HudController.transferToNewScreen(type, status),
+    for (var attempt = 0; attempt < maxRetry; attempt++) {
+      bool isSuccess = await Proto.sendEvenAIData(
+        text,
+        newScreen: screenCode,
         pos: pos,
         current_page_num: getCurrentPage(),
-        max_page_num: getTotalPages()); // todo pos
-    if (!isSuccess) {
-      if (retryCount < maxRetry) {
-        retryCount++;
-        await doSendText(text, type, status, pos);
-      } else {
-        retryCount = 0;
-        return false;
+        max_page_num: getTotalPages(),
+      );
+      if (isSuccess) {
+        return true;
       }
     }
-    retryCount = 0;
-    return true;
+    return false;
   }
 
   Future updateReplyToOSByTimer() async {
     if (!isRunning) return;
-    int interval = 8; // The paging interval can be customized
-   
+    int interval = 8;
+
     _timer?.cancel();
     _timer = Timer.periodic(Duration(seconds: interval), (timer) async {
+      _currentLine = min(_currentLine + 1, list.length - 1);
 
-      _currentLine = min(_currentLine + 5, list.length - 1);
-      sendReplys = list.sublist(_currentLine);
-
-      if (_currentLine > list.length - 1) {
+      if (_currentLine >= list.length) {
         _timer?.cancel();
         _timer = null;
-
         clear();
-      } else {
-        if (sendReplys.length < 4) {
-          var mergedStr = sendReplys
-              .sublist(0, sendReplys.length)
-              .map((str) => '$str\n')
-              .join();
+        return;
+      }
 
-          if (_currentLine >= list.length - 5) {
-            await doSendText(mergedStr, 0x01, 0x70, 0);
-            _timer?.cancel();
-            _timer = null;
-          } else {
-            await doSendText(mergedStr, 0x01, 0x70, 0);
-          }
-        } else {
-          var mergedStr = sendReplys
-              .sublist(0, min(5, sendReplys.length))
-              .map((str) => '$str\n')
-              .join();
+      final isSuccess = await doSendText(
+        list[_currentLine],
+        _screenCodeForPage(),
+        0,
+      );
 
-          if (_currentLine >= list.length - 5) {
-            await doSendText(mergedStr, 0x01, 0x70, 0);
-            _timer?.cancel();
-            _timer = null;
-          } else {
-            await doSendText(mergedStr, 0x01, 0x70, 0);
-          }
-        }
+      if (!isSuccess) {
+        _timer?.cancel();
+        _timer = null;
+        clear();
+        HandoffMemory.instance.markFailed(note: 'A later HUD page failed');
+        await _hudController.resetToIdle(
+          source: 'TextService.updateReplyToOSByTimer.failure',
+        );
+        return;
+      }
+
+      if (_currentLine >= list.length - 1) {
+        _timer?.cancel();
+        _timer = null;
+        clear();
+        HandoffMemory.instance.markDelivered(note: 'Multi-page handoff complete');
+        await _hudController.resetToIdle(
+          source: 'TextService.updateReplyToOSByTimer.complete',
+        );
       }
     });
   }
@@ -170,9 +173,15 @@ class TextService {
   }
 
   Future stopTextSendingByOS() async {
-    print("stopTextSendingByOS---------------");
+    appLogger.d("stopTextSendingByOS---------------");
+    if (isRunning) {
+      HandoffMemory.instance.markFailed(note: 'Transfer interrupted');
+    }
     isRunning = false;
     clear();
+    await _hudController.resetToIdle(
+      source: 'TextService.stopTextSendingByOS',
+    );
   }
 
   void clear() {
@@ -182,6 +191,5 @@ class TextService {
     _timer = null;
     list = [];
     sendReplys = [];
-    retryCount = 0;
   }
 }

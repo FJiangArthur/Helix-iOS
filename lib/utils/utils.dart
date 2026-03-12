@@ -1,5 +1,6 @@
 
 import 'package:flutter/services.dart';
+import 'app_logger.dart';
 
 
 class Utils {
@@ -35,7 +36,7 @@ class Utils {
       final ByteData data = await rootBundle.load(imageUrl);
       return data.buffer.asUint8List();
     } catch (e) {
-      print("Error loading BMP file: $e");
+      appLogger.e("Error loading BMP file: $e");
       return Uint8List(0);
     }
   }

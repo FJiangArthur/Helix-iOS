@@ -12,28 +12,7 @@ import Speech
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        // Enable basic audio debugging
-        print("🎤 App starting - checking audio permissions")
-        
-        // Log current audio session state (Flutter's audio_session will configure it)
-        let session = AVAudioSession.sharedInstance()
-        print("🎤 Initial Audio Session Category: \(session.category.rawValue)")
-        
-        // Add observer to detect category changes for debugging
-        NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, 
-                                             object: nil, 
-                                             queue: .main) { _ in
-          print("🔄 Audio route changed - Category: \(session.category.rawValue)")
-        }
-        
-        // Request microphone permission early
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in
-          print("🎤 Microphone permission request result: \(granted)")
-        }
-        
-        // Log audio session state AFTER configuration
-        print("🎤 Audio Session Category: \(session.category.rawValue)")
-        print("🎤 Recording Permission: \(session.recordPermission.rawValue)")
+        // Audio session and microphone permissions are deferred until user starts recording
         
         GeneratedPluginRegistrant.register(with: self)
         
@@ -42,7 +21,7 @@ import Speech
         let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
         
         // Initialize BluetoothManager with the Flutter channel (like EvenDemoApp)
-        let bluetoothManager = BluetoothManager(channel: channel)
+        let bluetoothManager = BluetoothManager.configure(channel: channel)
         
         // Set method call handler to delegate to real BluetoothManager
         channel.setMethodCallHandler { (call, result) in
@@ -57,7 +36,7 @@ import Speech
                 } else {
                     result(FlutterError(code: "InvalidArguments", message: "Invalid arguments", details: nil))
                 }
-            case "disconnectFromGlasses":
+            case "disconnect", "disconnectFromGlasses":
                 bluetoothManager.disconnectFromGlasses(result: result)
             case "send":
                 if let params = call.arguments as? [String: Any] {
@@ -65,7 +44,16 @@ import Speech
                 }
                 result(nil)
             case "startEvenAI":
-                SpeechStreamRecognizer.shared.startRecognition(identifier: "EN")
+                let lang: String
+                let source: String
+                if let args = call.arguments as? [String: Any], let identifier = args["language"] as? String {
+                    lang = identifier
+                    source = args["source"] as? String ?? "glasses"
+                } else {
+                    lang = "EN"
+                    source = "glasses"
+                }
+                SpeechStreamRecognizer.shared.startRecognition(identifier: lang, source: source)
                 result("Started Even AI speech recognition")
             case "stopEvenAI":
                 SpeechStreamRecognizer.shared.stopRecognition()
@@ -81,13 +69,7 @@ import Speech
         let speechEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: controller.binaryMessenger)
         speechEvent.setStreamHandler(self)
         
-        // Basic audio session setup - flutter_sound and audio_session will handle the rest
-        do {
-          try AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
-          print("✅ Basic audio session category set to playAndRecord")
-        } catch {
-          print("⚠️ Failed to set basic audio category: \(error)")
-        }
+        // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }

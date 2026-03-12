@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Hololens</string>
+	<string>Even Companion</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Hololens</string>
+	<string>Even Companion</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -24,16 +24,23 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Helix needs Bluetooth access to connect to Even Realities G1 glasses for real-time AI assistance.</string>
+	<string>Even Companion needs Bluetooth access to connect to Even Realities G1 glasses for real-time AI assistance.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Helix needs Bluetooth access to communicate with Even Realities G1 glasses.</string>
+	<string>Even Companion needs Bluetooth access to communicate with Even Realities G1 glasses.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Helix needs microphone access to record audio.</string>
+	<string>Even Companion needs microphone access to record audio.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Helix needs speech recognition to transcribe conversations for AI analysis.</string>
+	<string>Even Companion needs speech recognition to transcribe conversations for AI analysis.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+		<string>bluetooth-central</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

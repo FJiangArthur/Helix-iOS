@@ -5,7 +5,7 @@ class BleReceive {
   Uint8List data = Uint8List(0);
   String type = "";
   bool isTimeout = false;
- 
+
   int getCmd() {
     return data[0].toInt();
   }
@@ -32,4 +32,12 @@ enum BleEvent {
   glassesConnectSuccess, // 17、Bluetooth binding successful
   evenaiStart, // 23 Notify the phone to start Even AI
   evenaiRecordOver, // 24 Even AI recording ends
+}
+
+enum BleConnectionState {
+  disconnected,
+  scanning,
+  connecting,
+  connected,
+  reconnecting,
 }

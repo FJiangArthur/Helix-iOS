@@ -10,6 +10,10 @@ void main() {
       paginator.clear();
     });
 
+    // Generate a long text string that will definitely span multiple pages
+    // (needs > 5 lines at 488px width with 21pt font)
+    final longText = List.generate(20, (i) => 'Word${i}longtext testing pagination across multiple lines').join(' ');
+
     test('splits short text into single page', () {
       final text = 'Hello world';
       final pageCount = paginator.paginateText(text);
@@ -20,19 +24,14 @@ void main() {
     });
 
     test('splits long text into multiple pages', () {
-      // Create text longer than 40 characters
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      final pageCount = paginator.paginateText(text);
+      final pageCount = paginator.paginateText(longText);
 
       expect(pageCount, greaterThan(1));
       expect(paginator.currentPage, 0);
     });
 
     test('navigates to next page', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      paginator.paginateText(text);
+      paginator.paginateText(longText);
 
       final initialPage = paginator.currentPage;
       final success = paginator.nextPage();
@@ -51,9 +50,7 @@ void main() {
     });
 
     test('navigates to previous page', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      paginator.paginateText(text);
+      paginator.paginateText(longText);
       paginator.nextPage(); // Go to page 1
 
       final success = paginator.previousPage();
@@ -71,9 +68,7 @@ void main() {
     });
 
     test('goToPage sets current page correctly', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages and even more text to create several pages';
-      paginator.paginateText(text);
+      paginator.paginateText(longText);
 
       final success = paginator.goToPage(1);
       expect(success, true);
@@ -88,25 +83,22 @@ void main() {
       expect(paginator.goToPage(999), false);
     });
 
-    test('respects max line length', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      paginator.paginateText(text);
+    test('respects lines per page limit', () {
+      paginator.paginateText(longText);
 
-      // Check that each page is within max length
+      // Check that each page has at most linesPerPage lines
       for (int i = 0; i < paginator.pageCount; i++) {
         paginator.goToPage(i);
+        final lineCount = paginator.currentPageText.split('\n').length;
         expect(
-          paginator.currentPageText.length,
-          lessThanOrEqualTo(TextPaginator.maxLineLength),
+          lineCount,
+          lessThanOrEqualTo(TextPaginator.linesPerPage),
         );
       }
     });
 
     test('clear resets state', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      paginator.paginateText(text);
+      paginator.paginateText(longText);
       paginator.nextPage();
 
       paginator.clear();
@@ -124,9 +116,7 @@ void main() {
     });
 
     test('hasNextPage and hasPreviousPage work correctly', () {
-      final text =
-          'This is a very long sentence that should be split into multiple pages';
-      paginator.paginateText(text);
+      paginator.paginateText(longText);
 
       expect(paginator.hasPreviousPage, false);
       expect(paginator.hasNextPage, paginator.pageCount > 1);
@@ -135,6 +125,17 @@ void main() {
         paginator.nextPage();
         expect(paginator.hasPreviousPage, true);
       }
+    });
+
+    test('isLastPage returns correct value', () {
+      paginator.paginateText(longText);
+      expect(paginator.isLastPage, false);
+
+      // Navigate to last page
+      while (paginator.hasNextPage) {
+        paginator.nextPage();
+      }
+      expect(paginator.isLastPage, true);
     });
   });
 }

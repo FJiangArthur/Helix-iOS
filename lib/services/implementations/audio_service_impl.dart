@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../audio_service.dart';
@@ -29,6 +30,7 @@ class AudioServiceImpl implements AudioService {
   // State
   AudioConfiguration _currentConfiguration = const AudioConfiguration();
   String? _currentRecordingPath;
+  String? _pendingRecordingPath;
   bool _isInitialized = false;
   bool _hasPermission = false;
   bool _isRecording = false;
@@ -64,7 +66,6 @@ class AudioServiceImpl implements AudioService {
   @override
   Stream<bool> get voiceActivityStream => _voiceActivityStreamController.stream;
 
-  @override
   Stream<Duration> get recordingDurationStream =>
       _recordingDurationStreamController.stream;
 
@@ -107,12 +108,20 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<void> startRecording() async {
-    if (!_isInitialized) print('Service not initialized');
-    if (!_hasPermission) print('Microphone permission required');
+    if (!_isInitialized) {
+      print('Service not initialized');
+      return;
+    }
+    if (!_hasPermission) {
+      print('Microphone permission required');
+      return;
+    }
     if (_isRecording) return;
 
     try {
-      _currentRecordingPath = await _createRecordingFile();
+      _currentRecordingPath =
+          _pendingRecordingPath ?? await _createRecordingFile();
+      _pendingRecordingPath = null;
 
       await _recorder.startRecorder(
         toFile: _currentRecordingPath,
@@ -155,12 +164,9 @@ class AudioServiceImpl implements AudioService {
 
   @override
   Future<String> startConversationRecording(String conversationId) async {
-    // Create conversation-specific file path
-    final directory = Directory.systemTemp;
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    _currentRecordingPath =
-        '${directory.path}/helix_conversation_${conversationId}_$timestamp.wav';
-
+    _pendingRecordingPath = await _createRecordingFile(
+      prefix: 'helix_conversation_$conversationId',
+    );
     await startRecording();
     return _currentRecordingPath!;
   }
@@ -238,10 +244,16 @@ class AudioServiceImpl implements AudioService {
 
   // Simple helper methods
 
-  Future<String> _createRecordingFile() async {
-    final directory = Directory.systemTemp;
+  Future<String> _createRecordingFile({
+    String prefix = 'helix_recording',
+  }) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final recordingsDirectory = Directory('${directory.path}/recordings');
+    if (!await recordingsDirectory.exists()) {
+      await recordingsDirectory.create(recursive: true);
+    }
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    return '${directory.path}/helix_recording_$timestamp.wav';
+    return '${recordingsDirectory.path}/${prefix}_$timestamp.wav';
   }
 
   void _startSimpleMonitoring() {

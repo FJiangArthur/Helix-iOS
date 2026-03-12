@@ -9,12 +9,21 @@ import Speech
 
 class SpeechStreamRecognizer {
     static let shared = SpeechStreamRecognizer()
-    
+
+    private enum InputSource {
+        case glassesPcm
+        case microphone
+    }
+
     private var recognizer: SFSpeechRecognizer?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    private var lastRecognizedText: String = "" // latest accepeted recognized text
-    // private var previousRecognizedText: String = ""
+    private let audioEngine = AVAudioEngine()
+    private var lastRecognizedText = ""
+    private var lastEmittedText = ""
+    private var didEmitFinalResult = false
+    private var activeInputSource: InputSource = .glassesPcm
+
     let languageDic = [
         "CN": "zh-CN",
         "EN": "en-US",
@@ -31,18 +40,13 @@ class SpeechStreamRecognizer {
         "FI": "fi-FI",
         "IT": "it-IT"
     ]
-    
-    let dateFormatter = DateFormatter()
-    
-    private var lastTranscription: SFTranscription? // cache to make contrast between near results
-    private var cacheString = "" // cache stream recognized formattedString
-    
+
     enum RecognizerError: Error {
         case nilRecognizer
         case notAuthorizedToRecognize
         case notPermittedToRecord
         case recognizerIsUnavailable
-        
+
         var message: String {
             switch self {
             case .nilRecognizer: return "Can't initialize speech recognizer"
@@ -52,131 +56,218 @@ class SpeechStreamRecognizer {
             }
         }
     }
-    
+
     private init() {
-        dateFormatter.dateFormat = "HH:mm:ss.SSS"
+        requestPermissionsIfNeeded()
+    }
+
+    private func requestPermissionsIfNeeded() {
         if #available(iOS 13.0, *) {
             Task {
-                do {
-                    guard await SFSpeechRecognizer.hasAuthorizationToRecognize() else {
-                        throw RecognizerError.notAuthorizedToRecognize
-                    }
-                    /*
-                     guard await AVAudioSession.sharedInstance().hasPermissionToRecord() else {
-                     throw RecognizerError.notPermittedToRecord
-                     }*/
-                } catch {
-                    print("SFSpeechRecognizer------permission error----\(error)")
-                }
+                _ = await SFSpeechRecognizer.hasAuthorizationToRecognize()
+                _ = await AVAudioSession.sharedInstance().hasPermissionToRecord()
             }
-        } else {
-            // Fallback on earlier versions
         }
     }
-    
-    func startRecognition(identifier: String) {
-        lastTranscription = nil
-        self.lastRecognizedText = ""
-        cacheString = ""
-        
-        let localIdentifier = languageDic[identifier]
-        print("startRecognition----localIdentifier----\(localIdentifier)--identifier---\(identifier)---")
-        recognizer = SFSpeechRecognizer(locale: Locale(identifier: localIdentifier ?? "en-US"))  // en-US zh-CN en-US
+
+    func startRecognition(identifier: String, source: String = "glasses") {
+        stopRecognition(emitFinal: false)
+
+        lastRecognizedText = ""
+        lastEmittedText = ""
+        didEmitFinalResult = false
+        activeInputSource = source.lowercased() == "microphone"
+            ? .microphone
+            : .glassesPcm
+
+        let localeIdentifier = languageDic[identifier] ?? "en-US"
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
+
         guard let recognizer = recognizer else {
-            print("Speech recognizer is not available")
+            emitError(RecognizerError.nilRecognizer.message)
             return
         }
-        
+
         guard recognizer.isAvailable else {
-            print("startRecognition recognizer is not available")
+            emitError(RecognizerError.recognizerIsUnavailable.message)
             return
         }
-        
+
         let audioSession = AVAudioSession.sharedInstance()
         do {
-            //try audioSession.setCategory(.record)
-            try audioSession.setCategory(.playback, options: .mixWithOthers)
-            try audioSession.setActive(true)
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+            )
+            try audioSession.setPreferredSampleRate(16000)
+            try audioSession.setPreferredIOBufferDuration(0.02)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("Error setting up audio session: \(error)")
+            emitError("Error setting up audio session: \(error.localizedDescription)")
             return
         }
-        
+
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else {
-            print("Failed to create recognition request")
+            emitError("Failed to create recognition request")
             return
         }
-        recognitionRequest.shouldReportPartialResults = true //true
-        recognitionRequest.requiresOnDeviceRecognition = true
-        
-        recognitionTask = recognizer.recognitionTask(with: recognitionRequest) { [weak self] (result, error) in
+
+        recognitionRequest.shouldReportPartialResults = true
+        recognitionRequest.requiresOnDeviceRecognition = false
+
+        recognitionTask = recognizer.recognitionTask(with: recognitionRequest) {
+            [weak self] result, error in
             guard let self = self else { return }
-            if let error = error {
-                print("SpeechRecognizer Recognition error: \(error)")
-            } else if let result = result {
-                    
-                let currentTranscription = result.bestTranscription
-                if lastTranscription == nil {
-                    cacheString = currentTranscription.formattedString
-                } else {
-                    
-                    if (currentTranscription.segments.count < lastTranscription?.segments.count ?? 1 || currentTranscription.segments.count == 1) {
-                        self.lastRecognizedText += cacheString
-                        cacheString = ""
-                    } else {
-                        cacheString = currentTranscription.formattedString
-                    }
+
+            if let result = result {
+                let text = result.bestTranscription.formattedString
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    self.lastRecognizedText = text
+                    self.emitTranscript(text, isFinal: result.isFinal)
                 }
-                
-                lastTranscription = result.bestTranscription
+
+                if result.isFinal {
+                    self.cleanupRecognition(deactivateSession: true)
+                }
+            }
+
+            if let error = error {
+                self.emitError("Speech recognition failed: \(error.localizedDescription)")
+                self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                self.cleanupRecognition(deactivateSession: true)
             }
         }
+
+        if activeInputSource == .microphone {
+            startMicrophoneCapture()
+        }
     }
-    
+
     func stopRecognition() {
-
-        print("stopRecognition-----self.lastRecognizedText-------\(self.lastRecognizedText)------cacheString----------\(cacheString)---")
-        self.lastRecognizedText += cacheString
-
-        DispatchQueue.main.async {
-            BluetoothManager.shared.blueSpeechSink?(["script": self.lastRecognizedText])
-        }
-        
-        recognitionTask?.cancel()
-        do {
-            try AVAudioSession.sharedInstance().setActive(false)
-        } catch {
-            print("Error stop audio session: \(error)")
-            return
-        }
-        recognitionRequest = nil
-        recognitionTask = nil
-        recognizer = nil
+        stopRecognition(emitFinal: true)
     }
-    
+
     func appendPCMData(_ pcmData: Data) {
-        print("appendPCMData-------pcmData------\(pcmData.count)--")
+        guard activeInputSource == .glassesPcm else { return }
         guard let recognitionRequest = recognitionRequest else {
             print("Recognition request is not available")
             return
         }
 
-        let audioFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: false)!
-        guard let audioBuffer = AVAudioPCMBuffer(pcmFormat: audioFormat, frameCapacity: AVAudioFrameCount(pcmData.count) / audioFormat.streamDescription.pointee.mBytesPerFrame) else {
+        let audioFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: 16000,
+            channels: 1,
+            interleaved: false
+        )!
+
+        let bytesPerFrame = audioFormat.streamDescription.pointee.mBytesPerFrame
+        let frameCapacity = AVAudioFrameCount(pcmData.count) / bytesPerFrame
+        guard let audioBuffer = AVAudioPCMBuffer(
+            pcmFormat: audioFormat,
+            frameCapacity: frameCapacity
+        ) else {
             print("Failed to create audio buffer")
             return
         }
+
         audioBuffer.frameLength = audioBuffer.frameCapacity
 
-        pcmData.withUnsafeBytes { (bufferPointer: UnsafeRawBufferPointer) in
+        pcmData.withUnsafeBytes { bufferPointer in
             if let audioDataPointer = bufferPointer.baseAddress?.assumingMemoryBound(to: Int16.self) {
-                let audioBufferPointer = audioBuffer.int16ChannelData?.pointee
-                audioBufferPointer?.initialize(from: audioDataPointer, count: pcmData.count / MemoryLayout<Int16>.size)
+                audioBuffer.int16ChannelData?.pointee.initialize(
+                    from: audioDataPointer,
+                    count: pcmData.count / MemoryLayout<Int16>.size
+                )
                 recognitionRequest.append(audioBuffer)
             } else {
                 print("Failed to get pointer to audio data")
             }
+        }
+    }
+
+    private func startMicrophoneCapture() {
+        let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+
+        inputNode.removeTap(onBus: 0)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) {
+            [weak self] buffer, _ in
+            self?.recognitionRequest?.append(buffer)
+        }
+
+        audioEngine.prepare()
+
+        do {
+            try audioEngine.start()
+        } catch {
+            emitError("Failed to start microphone capture: \(error.localizedDescription)")
+            cleanupRecognition(deactivateSession: true)
+        }
+    }
+
+    private func stopRecognition(emitFinal: Bool) {
+        if emitFinal {
+            emitTranscript(lastRecognizedText, isFinal: true)
+        }
+
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+        cleanupRecognition(deactivateSession: true)
+    }
+
+    private func emitTranscript(_ text: String, isFinal: Bool) {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty && !isFinal { return }
+        if didEmitFinalResult && isFinal { return }
+        if !isFinal && normalized == lastEmittedText { return }
+
+        if isFinal {
+            didEmitFinalResult = true
+            lastEmittedText = ""
+        } else {
+            lastEmittedText = normalized
+        }
+
+        DispatchQueue.main.async {
+            BluetoothManager.shared.blueSpeechSink?([
+                "script": normalized,
+                "isFinal": isFinal
+            ])
+        }
+    }
+
+    private func emitError(_ message: String) {
+        DispatchQueue.main.async {
+            BluetoothManager.shared.blueSpeechSink?([
+                "script": self.lastRecognizedText,
+                "isFinal": true,
+                "error": message
+            ])
+        }
+    }
+
+    private func cleanupRecognition(deactivateSession: Bool) {
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        audioEngine.inputNode.removeTap(onBus: 0)
+
+        recognitionRequest = nil
+        recognitionTask = nil
+        recognizer = nil
+
+        guard deactivateSession else { return }
+        do {
+            try AVAudioSession.sharedInstance().setActive(
+                false,
+                options: .notifyOthersOnDeactivation
+            )
+        } catch {
+            print("Error stop audio session: \(error.localizedDescription)")
         }
     }
 }
@@ -200,5 +291,3 @@ extension AVAudioSession {
         }
     }
 }
-
-
