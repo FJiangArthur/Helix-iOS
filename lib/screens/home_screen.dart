@@ -333,8 +333,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         child: Column(
           children: [
             _buildOverviewCard(),
@@ -344,8 +345,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
             const SizedBox(height: 12),
             Expanded(child: _buildHomeBody()),
-            const SizedBox(height: 12),
-            _buildComposerCard(),
           ],
         ),
       ),
@@ -354,136 +353,264 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildOverviewCard() {
     final modeColor = _modeColor(_currentMode);
+    final profile = _assistantProfile;
 
     return GlassCard(
       padding: const EdgeInsets.all(18),
-      opacity: 0.14,
+      opacity: 0.16,
+      borderColor: modeColor.withValues(alpha: 0.2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildStatusBar(),
           const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  modeColor.withValues(alpha: 0.14),
-                  Colors.white.withValues(alpha: 0.02),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: modeColor.withValues(alpha: 0.18)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: modeColor.withValues(alpha: 0.16),
-                        border: Border.all(
-                          color: modeColor.withValues(alpha: 0.26),
-                        ),
-                      ),
-                      child: Icon(
-                        _modeIcon(_currentMode),
-                        color: modeColor,
-                        size: 24,
+                    Text(
+                      _isChinese ? '控制台' : 'CONTROL DECK',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.62),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.4,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'AI COCKPIT',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.62),
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _getModeDescription(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 4),
+                    Text(
+                      _isChinese ? '对话中心' : 'Conversation Hub',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: Text(
-                        _modeName(_currentMode).toUpperCase(),
-                        style: TextStyle(
-                          color: modeColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.1,
-                        ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _getOverviewSummary(profile),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.68),
+                        fontSize: 13,
+                        height: 1.45,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  _getModeHint(),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.62),
-                    fontSize: 13,
-                    height: 1.45,
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: _openAssistantSetupSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: modeColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: modeColor.withValues(alpha: 0.22),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.tune_rounded, size: 18, color: modeColor),
+                      const SizedBox(height: 6),
+                      Text(
+                        _isChinese ? '调整' : 'Tune',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
-          AssistantProfileStrip(
-            profiles: SettingsManager.instance.assistantProfiles,
-            selectedProfileId: _assistantProfileId,
-            onSelected: _selectAssistantProfile,
-            isChinese: _isChinese,
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildOverviewMetaChip(
+                icon: Icons.badge_outlined,
+                label: _isChinese ? '档案' : 'Profile',
+                value: profile.name,
+                accent: HelixTheme.purple,
+              ),
+              _buildOverviewMetaChip(
+                icon: Icons.bolt_rounded,
+                label: _isChinese ? '预设' : 'Preset',
+                value: _selectedPreset.label(_isChinese),
+                accent: HelixTheme.cyan,
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           _buildModeSelector(),
-          const SizedBox(height: 12),
-          AssistantPresetStrip(
-            selected: _selectedPreset,
-            onSelected: (preset) {
-              setState(() => _selectedPreset = preset);
-              SettingsManager.instance.update(
-                (settings) =>
-                    settings.defaultQuickAskPreset = _presetIdFor(preset),
-              );
-            },
-            isChinese: _isChinese,
+        ],
+      ),
+    );
+  }
+
+  String _getOverviewSummary(AssistantProfile profile) {
+    if (_isChinese) {
+      return '${profile.name} 档案和 ${_selectedPreset.label(true)} 预设已启用。主页只保留主对话流程，其他设置收进调整面板。';
+    }
+
+    return '${profile.name} is active with the ${_selectedPreset.label(false)} preset. The front page now keeps the live conversation flow upfront and moves setup into one tune panel.';
+  }
+
+  Widget _buildOverviewMetaChip({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color accent,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: accent.withValues(alpha: 0.9)),
+          const SizedBox(width: 8),
+          Text(
+            '$label: $value',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
+    );
+  }
+
+  void _openAssistantSetupSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: GlassCard(
+                  opacity: 0.18,
+                  borderColor: _modeColor(_currentMode).withValues(alpha: 0.24),
+                  padding: const EdgeInsets.all(18),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 42,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _isChinese ? '助手调优' : 'Assistant Setup',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _isChinese
+                                        ? '在这里调整档案和默认回答预设。'
+                                        : 'Adjust the active profile and default quick-ask preset here.',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.62,
+                                      ),
+                                      fontSize: 13,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            GestureDetector(
+                              onTap: () => Navigator.of(sheetContext).pop(),
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white.withValues(alpha: 0.04),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 18,
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        AssistantProfileStrip(
+                          profiles: SettingsManager.instance.assistantProfiles,
+                          selectedProfileId: _assistantProfileId,
+                          onSelected: (profile) {
+                            _selectAssistantProfile(profile);
+                            setSheetState(() {});
+                          },
+                          isChinese: _isChinese,
+                        ),
+                        const SizedBox(height: 14),
+                        AssistantPresetStrip(
+                          selected: _selectedPreset,
+                          onSelected: (preset) {
+                            _selectPreset(preset);
+                            setSheetState(() {});
+                          },
+                          isChinese: _isChinese,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -559,8 +686,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildSetupBanner() {
     return GestureDetector(
       onTap: () {
-        // Navigate to Settings tab (index 3)
-        MainScreen.switchToTab(3);
+        MainScreen.switchToTab(4);
       },
       child: GlassCard(
         opacity: 0.08,
@@ -628,75 +754,64 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: Row(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: ConversationMode.values.map((mode) {
           final isSelected = mode == _currentMode;
           final label = _modeName(mode);
           final icon = _modeIcon(mode);
           final modeColor = _modeColor(mode);
 
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => _setMode(mode),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
+          return GestureDetector(
+            onTap: () => _setMode(mode),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? modeColor.withValues(alpha: 0.15)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
                   color: isSelected
-                      ? modeColor.withValues(alpha: 0.15)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
+                      ? modeColor.withValues(alpha: 0.3)
+                      : Colors.white.withValues(alpha: 0.06),
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: modeColor.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
                     color: isSelected
-                        ? modeColor.withValues(alpha: 0.3)
-                        : Colors.transparent,
-                    width: 1,
+                        ? modeColor
+                        : Colors.white.withValues(alpha: 0.45),
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: modeColor.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isSelected
-                            ? modeColor.withValues(alpha: 0.2)
-                            : Colors.white.withValues(alpha: 0.05),
-                      ),
-                      child: Icon(
-                        icon,
-                        size: 16,
-                        color: isSelected
-                            ? modeColor
-                            : Colors.white.withValues(alpha: 0.4),
-                      ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: isSelected
+                          ? Colors.white
+                          : Colors.white.withValues(alpha: 0.66),
+                      fontSize: 12,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: isSelected
-                            ? modeColor
-                            : Colors.white.withValues(alpha: 0.4),
-                        fontSize: 11,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           );
@@ -708,15 +823,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildHomeBody() {
     return SingleChildScrollView(
       controller: _scrollController,
+      padding: const EdgeInsets.only(bottom: 12),
       child: FadeTransition(
         opacity: _modeSwitchAnimation,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (_transcription.isNotEmpty || _isRecording) ...[
-              _buildContextRibbon(),
-              const SizedBox(height: 12),
-            ],
             _buildConversationArea(),
             const SizedBox(height: 12),
             _buildAssistantTray(),
@@ -729,13 +841,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildAssistantCard() {
     final modeColor = _modeColor(_currentMode);
 
-    return GlassCard(
-      opacity: 0.1,
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            modeColor.withValues(alpha: 0.14),
+            Colors.white.withValues(alpha: 0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: modeColor.withValues(alpha: 0.18)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 48,
@@ -757,7 +882,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isChinese ? '准备开始' : 'Ready to Start',
+                      _isChinese
+                          ? '把问题、回复和语音放在同一个主面板'
+                          : 'Keep the prompt, answer, and voice controls in one place',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -766,11 +893,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _getModeDescription(),
+                      _getModeHint(),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.65),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                        height: 1.45,
                       ),
                     ),
                   ],
@@ -779,15 +906,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            _getModeHint(),
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.56),
-              fontSize: 14,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 16),
           _buildSuggestionChips(),
         ],
       ),
@@ -795,6 +913,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildConversationArea() {
+    final modeColor = _modeColor(_currentMode);
     final insights = AssistantInsightSnapshot.fromConversation(
       transcription: _transcription,
       aiResponse: _aiResponse,
@@ -807,8 +926,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final hasProviderError = _providerError != null;
 
     return GlassCard(
-      opacity: 0.12,
-      borderColor: HelixTheme.cyan.withValues(alpha: 0.16),
+      opacity: 0.14,
+      borderColor: modeColor.withValues(alpha: 0.2),
       padding: const EdgeInsets.all(18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -816,8 +935,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Row(
             children: [
               _buildSectionLabel(
-                _isChinese ? '主画布' : 'LIVE CANVAS',
-                Icons.auto_awesome,
+                _isChinese ? '对话中心' : 'CONVERSATION HUB',
+                Icons.forum_outlined,
               ),
               const Spacer(),
               Container(
@@ -844,56 +963,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+          Text(
+            hasLiveConversation
+                ? (_isChinese
+                      ? '实时转写、AI 回复和输入都集中在这里，主流程不会再被埋到页面下方。'
+                      : 'Transcript, answer, and input now stay in one place so the main conversation flow never drops behind secondary cards.')
+                : (_isChinese
+                      ? '开始聆听或直接输入一个问题，回答会在这里展开。'
+                      : 'Start listening or type a question. The full answer expands here.'),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.64),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          if (_transcription.isNotEmpty || _isRecording) ...[
+            const SizedBox(height: 12),
+            _buildContextRibbon(),
+          ],
+          const SizedBox(height: 12),
           if (!hasLiveConversation)
             _buildAssistantCard()
           else ...[
             if (hasProviderError)
               _buildProviderErrorCard()
             else ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.03),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.08),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (_status == EngineStatus.thinking)
-                      _buildThinkingIndicator(),
-                    if (_status == EngineStatus.thinking && _aiResponse.isEmpty)
-                      _buildThinkingCard()
-                    else
-                      Text(
-                        _aiResponse.isNotEmpty
-                            ? _aiResponse
-                            : (_isRecording
-                                  ? (_isChinese
-                                        ? '正在监听并等待内容...'
-                                        : 'Listening and waiting for content...')
-                                  : (_isChinese
-                                        ? '输入问题以开始。'
-                                        : 'Ask a question to start.')),
-                        style: TextStyle(
-                          color: Colors.white.withValues(
-                            alpha: _aiResponse.isNotEmpty ? 0.95 : 0.64,
-                          ),
-                          fontSize: _aiResponse.isNotEmpty ? 16 : 15,
-                          height: 1.65,
-                        ),
-                      ),
-                    if (_status == EngineStatus.responding) ...[
-                      const SizedBox(height: 10),
-                      _buildStreamingCursor(),
-                    ],
-                  ],
-                ),
-              ),
+              _buildConversationResponsePanel(),
               const SizedBox(height: 12),
               AssistantResponseActions(
                 isChinese: _isChinese,
@@ -928,6 +1024,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             AssistantInsightsCard(snapshot: insights, isChinese: _isChinese),
             const SizedBox(height: 10),
             _buildInsightMemoryActions(insights),
+          ],
+          const SizedBox(height: 14),
+          _buildComposerCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationResponsePanel() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_status == EngineStatus.thinking) _buildThinkingIndicator(),
+          if (_status == EngineStatus.thinking && _aiResponse.isEmpty)
+            _buildThinkingCard()
+          else
+            Text(
+              _aiResponse.isNotEmpty
+                  ? _aiResponse
+                  : (_isRecording
+                        ? (_isChinese
+                              ? '正在监听并等待内容...'
+                              : 'Listening and waiting for content...')
+                        : (_isChinese
+                              ? '输入问题以开始。'
+                              : 'Ask a question to start.')),
+              style: TextStyle(
+                color: Colors.white.withValues(
+                  alpha: _aiResponse.isNotEmpty ? 0.95 : 0.64,
+                ),
+                fontSize: _aiResponse.isNotEmpty ? 16 : 15,
+                height: 1.65,
+              ),
+            ),
+          if (_status == EngineStatus.responding) ...[
+            const SizedBox(height: 10),
+            _buildStreamingCursor(),
           ],
         ],
       ),
@@ -979,7 +1120,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (errorState.actionLabel != null) ...[
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: () => MainScreen.switchToTab(3),
+              onTap: () => MainScreen.switchToTab(4),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -1010,6 +1151,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final accentColor = isLiveTranscript
         ? const Color(0xFFFF6B6B)
         : HelixTheme.cyan;
+    final ribbonText = _transcription.isNotEmpty
+        ? _transcription
+        : (_isChinese
+              ? '正在捕捉你的语音内容...'
+              : 'Listening for your live transcript...');
 
     return GlassCard(
       opacity: 0.08,
@@ -1041,7 +1187,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _transcription,
+                  ribbonText,
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1063,41 +1209,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _aiResponse.isNotEmpty &&
         (_status == EngineStatus.listening || _status == EngineStatus.idle);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionLabel(
-          _isChinese ? '助手工具托盘' : 'ASSISTANT TRAY',
-          Icons.dashboard_customize_outlined,
-        ),
-        const SizedBox(height: 8),
-        if (!(_proactiveSuggestion != null ||
-            _coachingPrompt != null ||
-            _summaryText != null ||
-            _smartFollowUps.isNotEmpty ||
-            hasCompletedAnswer ||
-            _engine.history.isNotEmpty))
-          _buildProactiveTip(),
-        if (_hasPinnedMemory) _buildPinnedMemoryCard(),
-        if (_coachingPrompt != null) _buildCoachingCard(),
-        if (_assistantProfile.showFollowUps &&
-            _smartFollowUps.isNotEmpty &&
-            hasCompletedAnswer)
-          _buildSmartFollowUpChips(),
-        if (_assistantProfile.showFollowUps &&
-            SettingsManager.instance.autoShowFollowUps &&
-            _smartFollowUps.isEmpty &&
-            hasCompletedAnswer)
-          _buildFollowUpSuggestions(),
-        if (_proactiveSuggestion != null) _buildProactiveSuggestionCard(),
-        if (_summaryText != null) _buildSummaryCard(),
-        if (_assistantProfile.showSummaryTool &&
-            SettingsManager.instance.autoShowSummary &&
-            _engine.history.length >= 2 &&
-            hasCompletedAnswer)
-          _buildSummaryButton(),
-        if (_engine.history.isNotEmpty && !_isRecording) _buildHistorySection(),
-      ],
+    return GlassCard(
+      opacity: 0.08,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel(
+            _isChinese ? '后续与记忆' : 'NEXT STEPS',
+            Icons.dashboard_customize_outlined,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _isChinese
+                ? '追问建议、摘要、记忆和历史都放在这里，避免干扰主页主对话。'
+                : 'Follow-ups, summaries, memory, and recent history stay here so the main conversation panel remains clear.',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.56),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (!(_proactiveSuggestion != null ||
+              _coachingPrompt != null ||
+              _summaryText != null ||
+              _smartFollowUps.isNotEmpty ||
+              hasCompletedAnswer ||
+              _engine.history.isNotEmpty))
+            _buildProactiveTip(),
+          if (_hasPinnedMemory) _buildPinnedMemoryCard(),
+          if (_coachingPrompt != null) _buildCoachingCard(),
+          if (_assistantProfile.showFollowUps &&
+              _smartFollowUps.isNotEmpty &&
+              hasCompletedAnswer)
+            _buildSmartFollowUpChips(),
+          if (_assistantProfile.showFollowUps &&
+              SettingsManager.instance.autoShowFollowUps &&
+              _smartFollowUps.isEmpty &&
+              hasCompletedAnswer)
+            _buildFollowUpSuggestions(),
+          if (_proactiveSuggestion != null) _buildProactiveSuggestionCard(),
+          if (_summaryText != null) _buildSummaryCard(),
+          if (_assistantProfile.showSummaryTool &&
+              SettingsManager.instance.autoShowSummary &&
+              _engine.history.length >= 2 &&
+              hasCompletedAnswer)
+            _buildSummaryButton(),
+          if (_engine.history.isNotEmpty && !_isRecording)
+            _buildHistorySection(),
+        ],
+      ),
     );
   }
 
@@ -1242,49 +1404,49 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildSuggestionChips() {
-    final suggestions = _getSuggestions();
-    return GlassCard(
-      opacity: 0.08,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionLabel('QUICK START', Icons.bolt),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: suggestions.map((s) {
-              return GestureDetector(
-                onTap: () {
-                  _askController.text = s;
-                  _submitQuestion();
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: HelixTheme.cyan.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: HelixTheme.cyan.withValues(alpha: 0.15),
-                    ),
-                  ),
-                  child: Text(
-                    s,
-                    style: TextStyle(
-                      color: HelixTheme.cyan.withValues(alpha: 0.7),
-                      fontSize: 13,
-                    ),
+    final suggestions = _getSuggestions().take(4).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionLabel(
+          _isChinese ? '快速开始' : 'QUICK START',
+          Icons.bolt_rounded,
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: suggestions.map((s) {
+            return GestureDetector(
+              onTap: () {
+                _askController.text = s;
+                _submitQuestion();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: HelixTheme.cyan.withValues(alpha: 0.16),
                   ),
                 ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
+                child: Text(
+                  s,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
@@ -2001,31 +2163,98 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildComposerCard() {
-    return GlassCard(
-      opacity: 0.14,
-      padding: const EdgeInsets.all(14),
+    final accentColor = _isRecording
+        ? const Color(0xFFFF6B6B)
+        : _modeColor(_currentMode);
+    final statusLabel = _isRecording
+        ? (_isChinese ? '监听中' : 'Listening')
+        : (_isChinese ? '待命' : 'Standby');
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accentColor.withValues(alpha: 0.14),
+            Colors.white.withValues(alpha: 0.02),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accentColor.withValues(alpha: 0.18)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _isChinese ? '输入与控制' : 'Input Dock',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.78),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _isChinese ? '提问或开始聆听' : 'Ask or Start Listening',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _isRecording
+                          ? (_isChinese
+                                ? '实时转写会留在上面的对话面板里，停止后自动整理。'
+                                : 'The live transcript stays in the conversation panel above and finalizes when you stop.')
+                          : (_isChinese
+                                ? '当前预设：${_selectedPreset.label(true)}。可以直接输入问题，或切换到语音模式。'
+                                : '${_selectedPreset.label(false)} is ready. Type a question or switch straight into voice mode.'),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.62),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const Spacer(),
-              Text(
-                _isRecording
-                    ? (_isChinese ? '监听中' : 'Listening')
-                    : (_isChinese ? '待命' : 'Standby'),
-                style: TextStyle(
-                  color: _getStatusColor(),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: accentColor.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: accentColor,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -2390,6 +2619,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  void _selectPreset(AssistantQuickAskPreset preset) {
+    setState(() => _selectedPreset = preset);
+    SettingsManager.instance.update(
+      (settings) => settings.defaultQuickAskPreset = _presetIdFor(preset),
+    );
+  }
+
   AssistantQuickAskPreset _presetFromId(String id) {
     for (final preset in AssistantQuickAskPreset.values) {
       if (_presetIdFor(preset) == id) {
@@ -2580,27 +2816,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return HelixTheme.purple;
       case ConversationMode.passive:
         return const Color(0xFF00FF88);
-    }
-  }
-
-  String _getModeDescription() {
-    if (_isChinese) {
-      switch (_currentMode) {
-        case ConversationMode.general:
-          return '对话助手';
-        case ConversationMode.interview:
-          return '面试教练';
-        case ConversationMode.passive:
-          return '被动聆听';
-      }
-    }
-    switch (_currentMode) {
-      case ConversationMode.general:
-        return 'Conversation Assistant';
-      case ConversationMode.interview:
-        return 'Interview Coach';
-      case ConversationMode.passive:
-        return 'Passive Listener';
     }
   }
 

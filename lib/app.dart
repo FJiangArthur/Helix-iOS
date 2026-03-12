@@ -95,7 +95,7 @@ class _MainScreenState extends State<MainScreen> {
   ];
 
   final List<String> _titles = [
-    'Home',
+    'Assistant',
     'Glasses',
     'History',
     'Record',
@@ -122,12 +122,16 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showAppBar = _currentIndex != 0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              title: Text(_titles[_currentIndex]),
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            )
+          : null,
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -144,9 +148,9 @@ class _MainScreenState extends State<MainScreen> {
           },
           destinations: const [
             NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Home',
+              icon: Icon(Icons.chat_bubble_outline_rounded),
+              selectedIcon: Icon(Icons.chat_bubble_rounded),
+              label: 'Assistant',
             ),
             NavigationDestination(
               icon: Icon(Icons.visibility_outlined),
