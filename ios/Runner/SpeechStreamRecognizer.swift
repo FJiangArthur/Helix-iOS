@@ -23,6 +23,7 @@ class SpeechStreamRecognizer {
     private var lastEmittedText = ""
     private var didEmitFinalResult = false
     private var activeInputSource: InputSource = .glassesPcm
+    private var pendingStartCompletion: ((Result<Void, Error>) -> Void)?
 
     let languageDic = [
         "CN": "zh-CN",
@@ -41,7 +42,7 @@ class SpeechStreamRecognizer {
         "IT": "it-IT"
     ]
 
-    enum RecognizerError: Error {
+    enum RecognizerError: Error, LocalizedError {
         case nilRecognizer
         case notAuthorizedToRecognize
         case notPermittedToRecord
@@ -55,23 +56,40 @@ class SpeechStreamRecognizer {
             case .recognizerIsUnavailable: return "Recognizer is unavailable"
             }
         }
+
+        var errorDescription: String? { message }
     }
 
-    private init() {
-        requestPermissionsIfNeeded()
-    }
+    private init() {}
 
-    private func requestPermissionsIfNeeded() {
-        if #available(iOS 13.0, *) {
-            Task {
-                _ = await SFSpeechRecognizer.hasAuthorizationToRecognize()
-                _ = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+    func startRecognition(
+        identifier: String,
+        source: String = "glasses",
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        stopRecognition(emitFinal: false)
+        pendingStartCompletion = completion
+
+        Task { @MainActor in
+            let speechAuthorized = await SFSpeechRecognizer.hasAuthorizationToRecognize()
+            guard speechAuthorized else {
+                self.failToStart(RecognizerError.notAuthorizedToRecognize)
+                return
             }
+
+            if source.lowercased() == "microphone" {
+                let micAuthorized = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+                guard micAuthorized else {
+                    self.failToStart(RecognizerError.notPermittedToRecord)
+                    return
+                }
+            }
+
+            self.beginRecognition(identifier: identifier, source: source)
         }
     }
 
-    func startRecognition(identifier: String, source: String = "glasses") {
-        stopRecognition(emitFinal: false)
+    private func beginRecognition(identifier: String, source: String) {
 
         lastRecognizedText = ""
         lastEmittedText = ""
@@ -84,12 +102,12 @@ class SpeechStreamRecognizer {
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
 
         guard let recognizer = recognizer else {
-            emitError(RecognizerError.nilRecognizer.message)
+            failToStart(RecognizerError.nilRecognizer)
             return
         }
 
         guard recognizer.isAvailable else {
-            emitError(RecognizerError.recognizerIsUnavailable.message)
+            failToStart(RecognizerError.recognizerIsUnavailable)
             return
         }
 
@@ -104,13 +122,16 @@ class SpeechStreamRecognizer {
             try audioSession.setPreferredIOBufferDuration(0.02)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            emitError("Error setting up audio session: \(error.localizedDescription)")
+            failToStart(error, messageOverride: "Error setting up audio session: \(error.localizedDescription)")
             return
         }
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
         guard let recognitionRequest = recognitionRequest else {
-            emitError("Failed to create recognition request")
+            failToStart(
+                RecognizerError.nilRecognizer,
+                messageOverride: "Failed to create recognition request"
+            )
             return
         }
 
@@ -135,6 +156,7 @@ class SpeechStreamRecognizer {
             }
 
             if let error = error {
+                self.completePendingStart(.failure(error))
                 self.emitError("Speech recognition failed: \(error.localizedDescription)")
                 self.emitTranscript(self.lastRecognizedText, isFinal: true)
                 self.cleanupRecognition(deactivateSession: true)
@@ -142,7 +164,17 @@ class SpeechStreamRecognizer {
         }
 
         if activeInputSource == .microphone {
-            startMicrophoneCapture()
+            do {
+                try startMicrophoneCapture()
+                completePendingStart(.success(()))
+            } catch {
+                failToStart(
+                    error,
+                    messageOverride: "Failed to start microphone capture: \(error.localizedDescription)"
+                )
+            }
+        } else {
+            completePendingStart(.success(()))
         }
     }
 
@@ -189,7 +221,7 @@ class SpeechStreamRecognizer {
         }
     }
 
-    private func startMicrophoneCapture() {
+    private func startMicrophoneCapture() throws {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
 
@@ -200,13 +232,7 @@ class SpeechStreamRecognizer {
         }
 
         audioEngine.prepare()
-
-        do {
-            try audioEngine.start()
-        } catch {
-            emitError("Failed to start microphone capture: \(error.localizedDescription)")
-            cleanupRecognition(deactivateSession: true)
-        }
+        try audioEngine.start()
     }
 
     private func stopRecognition(emitFinal: Bool) {
@@ -248,6 +274,30 @@ class SpeechStreamRecognizer {
                 "error": message
             ])
         }
+    }
+
+    private func failToStart(
+        _ error: Error,
+        messageOverride: String? = nil
+    ) {
+        emitError(messageOverride ?? errorMessage(for: error))
+        cleanupRecognition(deactivateSession: true)
+        completePendingStart(.failure(error))
+    }
+
+    private func completePendingStart(_ result: Result<Void, Error>) {
+        guard let completion = pendingStartCompletion else { return }
+        pendingStartCompletion = nil
+        DispatchQueue.main.async {
+            completion(result)
+        }
+    }
+
+    private func errorMessage(for error: Error) -> String {
+        if let recognizerError = error as? RecognizerError {
+            return recognizerError.message
+        }
+        return error.localizedDescription
     }
 
     private func cleanupRecognition(deactivateSession: Bool) {

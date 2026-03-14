@@ -97,7 +97,7 @@ class TextPaginator {
   }
 
   /// Split text into lines based on pixel-accurate measurement
-  List<String> _splitIntoLines(String text) {
+  List<String> splitIntoLines(String text) {
     if (text.isEmpty) return [];
 
     final words = text.split(' ');
@@ -130,11 +130,13 @@ class TextPaginator {
   List<String> _splitIntoPages(String text) {
     if (text.isEmpty) return [];
 
-    final lines = _splitIntoLines(text);
+    final lines = splitIntoLines(text);
     final pages = <String>[];
 
     for (var i = 0; i < lines.length; i += linesPerPage) {
-      final end = (i + linesPerPage > lines.length) ? lines.length : i + linesPerPage;
+      final end = (i + linesPerPage > lines.length)
+          ? lines.length
+          : i + linesPerPage;
       final pageLines = lines.sublist(i, end);
       pages.add(pageLines.join('\n'));
     }

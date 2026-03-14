@@ -53,8 +53,23 @@ import Speech
                     lang = "EN"
                     source = "glasses"
                 }
-                SpeechStreamRecognizer.shared.startRecognition(identifier: lang, source: source)
-                result("Started Even AI speech recognition")
+                SpeechStreamRecognizer.shared.startRecognition(
+                    identifier: lang,
+                    source: source
+                ) { startResult in
+                    switch startResult {
+                    case .success:
+                        result("Started Even AI speech recognition")
+                    case .failure(let error):
+                        result(
+                            FlutterError(
+                                code: "SpeechStartFailed",
+                                message: error.localizedDescription,
+                                details: nil
+                            )
+                        )
+                    }
+                }
             case "stopEvenAI":
                 SpeechStreamRecognizer.shared.stopRecognition()
                 result("Stopped Even AI speech recognition")

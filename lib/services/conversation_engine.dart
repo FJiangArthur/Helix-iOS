@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/assistant_profile.dart';
 import '../utils/app_logger.dart';
+import 'glasses_answer_presenter.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
 import 'provider_error_state.dart';
@@ -34,10 +35,15 @@ class ConversationEngine {
   // State
   ConversationMode _mode = ConversationMode.general;
   bool _isActive = false;
+  TranscriptSource _transcriptSource = TranscriptSource.phone;
   String _currentTranscription = '';
+  String _partialTranscription = '';
+  final List<String> _finalizedSegments = [];
   final List<ConversationTurn> _history = [];
-  Timer? _questionDetectionTimer;
-  String _pendingQuestion = '';
+  Timer? _analysisTimer;
+  int _analysisToken = 0;
+  String _lastHandledQuestionKey = '';
+  QuestionAnalysisResult? _latestQuestionAnalysis;
 
   // Silence detection state
   Timer? _silenceTimer;
@@ -50,10 +56,14 @@ class ConversationEngine {
 
   // Streams
   final _transcriptionController = StreamController<String>.broadcast();
+  final _transcriptSnapshotController =
+      StreamController<TranscriptSnapshot>.broadcast();
   final _aiResponseController = StreamController<String>.broadcast();
   final _modeController = StreamController<ConversationMode>.broadcast();
   final _questionDetectedController =
       StreamController<DetectedQuestion>.broadcast();
+  final _questionAnalysisController =
+      StreamController<QuestionAnalysisResult>.broadcast();
   final _statusController = StreamController<EngineStatus>.broadcast();
   final _proactiveSuggestionController =
       StreamController<ProactiveSuggestion>.broadcast();
@@ -64,10 +74,14 @@ class ConversationEngine {
   ProviderErrorState? _lastProviderError;
 
   Stream<String> get transcriptionStream => _transcriptionController.stream;
+  Stream<TranscriptSnapshot> get transcriptSnapshotStream =>
+      _transcriptSnapshotController.stream;
   Stream<String> get aiResponseStream => _aiResponseController.stream;
   Stream<ConversationMode> get modeStream => _modeController.stream;
   Stream<DetectedQuestion> get questionDetectedStream =>
       _questionDetectedController.stream;
+  Stream<QuestionAnalysisResult> get questionAnalysisStream =>
+      _questionAnalysisController.stream;
   Stream<EngineStatus> get statusStream => _statusController.stream;
   Stream<ProactiveSuggestion> get proactiveSuggestionStream =>
       _proactiveSuggestionController.stream;
@@ -80,17 +94,33 @@ class ConversationEngine {
   ConversationMode get mode => _mode;
   bool get isActive => _isActive;
   String get currentTranscription => _currentTranscription;
+  TranscriptSnapshot get currentTranscriptSnapshot => TranscriptSnapshot(
+    source: _transcriptSource,
+    partialText: _partialTranscription,
+    finalizedSegments: List.unmodifiable(_finalizedSegments),
+    fullTranscript: _currentTranscription,
+  );
   List<ConversationTurn> get history => List.unmodifiable(_history);
   ProviderErrorState? get lastProviderError => _lastProviderError;
+  QuestionAnalysisResult? get latestQuestionAnalysis => _latestQuestionAnalysis;
 
   /// Start the conversation engine
-  void start({ConversationMode? mode}) {
+  void start({
+    ConversationMode? mode,
+    TranscriptSource source = TranscriptSource.phone,
+  }) {
     _isActive = true;
+    _transcriptSource = source;
     _silenceSuggestionSent = false;
-    _pendingQuestion = '';
+    _analysisToken = 0;
+    _lastHandledQuestionKey = '';
+    _latestQuestionAnalysis = null;
     _currentTranscription = '';
+    _partialTranscription = '';
+    _finalizedSegments.clear();
     _clearProviderError();
     if (mode != null) setMode(mode);
+    _emitTranscriptSnapshot();
     _statusController.add(EngineStatus.listening);
     appLogger.i('ConversationEngine started in ${_mode.name} mode');
   }
@@ -98,9 +128,9 @@ class ConversationEngine {
   /// Stop the engine
   void stop() {
     _isActive = false;
-    _questionDetectionTimer?.cancel();
+    _analysisToken++;
+    _analysisTimer?.cancel();
     _silenceTimer?.cancel();
-    _pendingQuestion = '';
     _clearProviderError();
     _statusController.add(EngineStatus.idle);
     appLogger.i('ConversationEngine stopped');
@@ -117,56 +147,45 @@ class ConversationEngine {
   void onTranscriptionUpdate(String text) {
     if (!_isActive) return;
 
-    _currentTranscription = text;
-    _transcriptionController.add(text);
+    _partialTranscription = text.trim();
+    _emitTranscriptSnapshot();
     _silenceSuggestionSent = false;
 
     // Reset silence timer on each transcription update
     _resetSilenceTimer();
 
-    // Debounce question detection — wait 1.5s after last update
+    // Analyze a stable transcript window after 1.5s of silence.
     if (autoDetectQuestions) {
-      _questionDetectionTimer?.cancel();
-      _questionDetectionTimer = Timer(
-        const Duration(milliseconds: 1500),
-        () => _analyzeForQuestions(text),
-      );
+      _scheduleTranscriptAnalysis();
     }
 
     // Check for behavioral interview questions (STAR coaching)
-    if (_mode == ConversationMode.interview) {
-      _checkForBehavioralQuestion(text);
+    if (_mode == ConversationMode.interview &&
+        _partialTranscription.isNotEmpty) {
+      _checkForBehavioralQuestion(_partialTranscription);
     }
   }
 
   /// Called when transcription is finalized (recording stops)
   void onTranscriptionFinalized(String text) {
     if (!_isActive) return;
-    if (text.trim().isEmpty) return;
+    final normalized = text.trim();
+    if (normalized.isEmpty) return;
 
-    _currentTranscription = text;
-    _transcriptionController.add(text);
-
-    // Save to history
-    _history.add(
-      ConversationTurn(
-        role: 'user',
-        content: text,
-        timestamp: DateTime.now(),
-        mode: _mode.name,
-        assistantProfileId: _activeAssistantProfile().id,
-      ),
-    );
-    _persistHistory();
-
-    // Immediately check for questions in finalized text
-    if (autoDetectQuestions) {
-      _analyzeForQuestions(text);
+    if (_finalizedSegments.isEmpty || _finalizedSegments.last != normalized) {
+      _finalizedSegments.add(normalized);
     }
+    _partialTranscription = '';
+    _emitTranscriptSnapshot();
 
     // Check for behavioral questions in interview mode
     if (_mode == ConversationMode.interview) {
-      _checkForBehavioralQuestion(text);
+      _checkForBehavioralQuestion(normalized);
+    }
+
+    // Analyze finalized text immediately.
+    if (autoDetectQuestions) {
+      _scheduleTranscriptAnalysis(immediate: true);
     }
   }
 
@@ -501,6 +520,265 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
     }
   }
 
+  void _emitTranscriptSnapshot() {
+    _currentTranscription = _composeFullTranscript();
+    final snapshot = TranscriptSnapshot(
+      source: _transcriptSource,
+      partialText: _partialTranscription,
+      finalizedSegments: List.unmodifiable(_finalizedSegments),
+      fullTranscript: _currentTranscription,
+    );
+    _transcriptionController.add(snapshot.fullTranscript);
+    _transcriptSnapshotController.add(snapshot);
+  }
+
+  String _composeFullTranscript() {
+    final parts = <String>[
+      ..._finalizedSegments.where((segment) => segment.trim().isNotEmpty),
+    ];
+    if (_partialTranscription.trim().isNotEmpty) {
+      parts.add(_partialTranscription.trim());
+    }
+    return parts.join('\n');
+  }
+
+  void _scheduleTranscriptAnalysis({bool immediate = false}) {
+    if (!autoDetectQuestions) return;
+
+    final token = ++_analysisToken;
+    _analysisTimer?.cancel();
+    if (immediate) {
+      _analyzeRecentTranscriptWindow(token);
+      return;
+    }
+
+    _analysisTimer = Timer(
+      const Duration(milliseconds: 1500),
+      () => _analyzeRecentTranscriptWindow(token),
+    );
+  }
+
+  String _buildRecentTranscriptWindow() {
+    final segments = _finalizedSegments.length > 3
+        ? _finalizedSegments.sublist(_finalizedSegments.length - 3)
+        : _finalizedSegments;
+    final parts = <String>[...segments];
+    if (_partialTranscription.trim().isNotEmpty) {
+      parts.add(_partialTranscription.trim());
+    }
+
+    final window = parts.join('\n');
+    if (window.length <= 800) {
+      return window;
+    }
+    return window.substring(window.length - 800);
+  }
+
+  Future<void> _analyzeRecentTranscriptWindow(int token) async {
+    if (!_isActive || token != _analysisToken) return;
+
+    final window = _buildRecentTranscriptWindow();
+    if (window.trim().isEmpty) return;
+
+    final llmService = _getLlmService();
+    if (llmService == null) {
+      if (_lastProviderError?.kind != ProviderErrorKind.missingConfiguration) {
+        final errorState = ProviderErrorState.missingConfiguration();
+        _publishProviderError(errorState);
+        _aiResponseController.add(errorState.userFacingMessage);
+      }
+      return;
+    }
+
+    try {
+      final response = await llmService.getResponse(
+        systemPrompt: _getListeningAnalysisSystemPrompt(),
+        messages: [
+          ChatMessage(
+            role: 'user',
+            content: _buildListeningAnalysisPrompt(window),
+          ),
+        ],
+      );
+      if (!_isActive || token != _analysisToken) return;
+
+      final analysis = _parseQuestionAnalysis(response);
+      if (analysis == null || !analysis.shouldRespond) {
+        return;
+      }
+
+      final questionKey = _normalizeQuestion(analysis.question);
+      if (questionKey.isEmpty || questionKey == _lastHandledQuestionKey) {
+        return;
+      }
+
+      _lastHandledQuestionKey = questionKey;
+      _latestQuestionAnalysis = analysis;
+      _clearProviderError();
+      _questionAnalysisController.add(analysis);
+      _questionDetectedController.add(
+        DetectedQuestion(
+          question: analysis.question,
+          fullContext: window,
+          timestamp: analysis.timestamp,
+        ),
+      );
+      _aiResponseController.add(analysis.answerForPhone);
+
+      _history.add(
+        ConversationTurn(
+          role: 'user',
+          content: analysis.question,
+          timestamp: analysis.timestamp,
+          mode: _mode.name,
+          assistantProfileId: _activeAssistantProfile().id,
+        ),
+      );
+      _history.add(
+        ConversationTurn(
+          role: 'assistant',
+          content: analysis.answerForPhone,
+          timestamp: analysis.timestamp,
+          mode: _mode.name,
+          assistantProfileId: _activeAssistantProfile().id,
+        ),
+      );
+      _persistHistory();
+
+      _generateFollowUpChips(analysis.answerForPhone);
+
+      if (autoAnswerQuestions && BleManager.isBothConnected()) {
+        await GlassesAnswerPresenter.instance.present(
+          analysis.answerForGlasses,
+          source: 'ConversationEngine._analyzeRecentTranscriptWindow',
+        );
+      }
+    } catch (error) {
+      appLogger.e('Failed to analyze transcript window', error: error);
+      final errorState = ProviderErrorState.fromException(error);
+      _publishProviderError(errorState);
+      _aiResponseController.add(errorState.userFacingMessage);
+    }
+  }
+
+  String _buildListeningAnalysisPrompt(String window) {
+    final isChinese = _language == 'zh';
+    final historyContext = _buildRecentQaContext();
+    if (isChinese) {
+      return '''分析下面这段最近对话，判断是否出现了一个值得立即帮助用户回答的问题。
+
+要求：
+- 如果没有明确问题，返回 shouldRespond=false，并把 question、answerForPhone、answerForGlasses 设为空字符串。
+- 如果有问题，question 提炼成一句话。
+- answerForPhone 用 1-3 句自然语言，适合在手机上看。
+- answerForGlasses 必须极度精简，优先控制在眼镜一屏内，不要 markdown，不要项目符号。
+
+最近问答历史：
+$historyContext
+
+最近对话窗口：
+$window''';
+    }
+
+    return '''Analyze this recent conversation window and decide whether there is a clear question worth answering right now.
+
+Rules:
+- If there is no clear question, return shouldRespond=false and leave question, answerForPhone, and answerForGlasses empty.
+- If there is a question, extract it as one sentence.
+- answerForPhone should be 1-3 natural sentences for the phone UI.
+- answerForGlasses must be aggressively compressed for a tiny HUD and should target a single screen first. No markdown and no bullets.
+
+Recent Q/A memory:
+$historyContext
+
+Recent conversation window:
+$window''';
+  }
+
+  String _buildRecentQaContext() {
+    if (_history.isEmpty) {
+      return _language == 'zh' ? '无' : 'None';
+    }
+
+    final recentTurns = _history.length > 6
+        ? _history.sublist(_history.length - 6)
+        : _history;
+    return recentTurns
+        .map((turn) => '${turn.role}: ${turn.content}')
+        .join('\n');
+  }
+
+  String _getListeningAnalysisSystemPrompt() {
+    final isChinese = _language == 'zh';
+    final profileInstruction = _activeAssistantProfile().promptDirective(
+      isChinese: isChinese,
+    );
+    if (isChinese) {
+      return '''你是一个实时对话分析助手。你负责阅读最近对话窗口，判断是否需要帮助用户回答问题。
+
+只输出 JSON，不要 markdown，不要额外解释。
+JSON 格式必须是：
+{"shouldRespond": true/false, "question": "...", "answerForPhone": "...", "answerForGlasses": "..."}
+
+$profileInstruction''';
+    }
+
+    return '''You are a live conversation analysis assistant. Read the latest conversation window and decide whether the user needs help answering a question right now.
+
+Output JSON only. No markdown and no extra commentary.
+The JSON shape must be:
+{"shouldRespond": true/false, "question": "...", "answerForPhone": "...", "answerForGlasses": "..."}
+
+$profileInstruction''';
+  }
+
+  QuestionAnalysisResult? _parseQuestionAnalysis(String response) {
+    try {
+      final cleaned = _stripMarkdownCodeFence(response);
+      final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
+      final shouldRespond = decoded['shouldRespond'] == true;
+      final question = (decoded['question'] as String? ?? '').trim();
+      final answerForPhone = (decoded['answerForPhone'] as String? ?? '')
+          .trim();
+      final answerForGlasses = (decoded['answerForGlasses'] as String? ?? '')
+          .trim();
+      if (shouldRespond && question.isEmpty) {
+        return null;
+      }
+
+      return QuestionAnalysisResult(
+        shouldRespond: shouldRespond,
+        question: question,
+        answerForPhone: answerForPhone,
+        answerForGlasses: answerForGlasses.isNotEmpty
+            ? answerForGlasses
+            : answerForPhone,
+        timestamp: DateTime.now(),
+      );
+    } catch (error) {
+      appLogger.d('Could not parse question analysis: $error');
+      return null;
+    }
+  }
+
+  String _normalizeQuestion(String value) {
+    final lowered = value.toLowerCase().trim();
+    if (lowered.isEmpty) return '';
+    return lowered
+        .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  String _stripMarkdownCodeFence(String value) {
+    var cleaned = value.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replaceAll(RegExp(r'^```\w*\n?'), '');
+      cleaned = cleaned.replaceAll(RegExp(r'\n?```$'), '');
+    }
+    return cleaned.trim();
+  }
+
   // ---------------------------------------------------------------------------
   // Core response generation
   // ---------------------------------------------------------------------------
@@ -576,108 +854,6 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       _statusController.add(
         _isActive ? EngineStatus.listening : EngineStatus.idle,
       );
-    }
-  }
-
-  /// Analyze text for questions
-  void _analyzeForQuestions(String text) {
-    if (!_isActive || text.trim().isEmpty) return;
-
-    // Simple heuristic: check for question marks and question words
-    final hasQuestionMark = text.contains('?') || text.contains('？');
-    final isChinese = _language == 'zh';
-    final questionWords = isChinese
-        ? [
-            '什么',
-            '怎么',
-            '为什么',
-            '什么时候',
-            '哪里',
-            '谁',
-            '哪个',
-            '能不能',
-            '可以',
-            '会不会',
-            '是不是',
-            '有没有',
-            '请问',
-            '请解释',
-            '请描述',
-            '告诉我',
-            '如何',
-            '吗',
-            '呢',
-            '吧',
-          ]
-        : [
-            'what',
-            'how',
-            'why',
-            'when',
-            'where',
-            'who',
-            'which',
-            'can',
-            'could',
-            'would',
-            'should',
-            'is',
-            'are',
-            'do',
-            'does',
-            'tell me',
-            'explain',
-            'describe',
-          ];
-
-    // Split sentences - support both English and Chinese punctuation
-    final sentenceSplitter = isChinese
-        ? RegExp(r'[.!?。！？]+')
-        : RegExp(r'[.!?]+');
-    final sentences = text
-        .split(sentenceSplitter)
-        .where((s) => s.trim().isNotEmpty)
-        .toList();
-
-    String? detectedQuestion;
-
-    // Check the last sentence for question patterns
-    if (sentences.isNotEmpty) {
-      final lastSentence = sentences.last.trim();
-      final lowerLast = lastSentence.toLowerCase();
-
-      if (hasQuestionMark ||
-          (isChinese
-              ? questionWords.any((w) => lowerLast.contains(w))
-              : (questionWords.any((w) => lowerLast.startsWith(w)) ||
-                    questionWords.any((w) => lowerLast.startsWith('$w '))))) {
-        detectedQuestion = lastSentence;
-      }
-    }
-
-    // Also check full text for question marks
-    if (detectedQuestion == null && hasQuestionMark) {
-      final questionSentences = sentences
-          .where((s) => s.contains('?') || s.contains('？'))
-          .toList();
-      if (questionSentences.isNotEmpty) {
-        detectedQuestion = questionSentences.last.trim();
-      }
-    }
-
-    if (detectedQuestion != null && detectedQuestion != _pendingQuestion) {
-      _pendingQuestion = detectedQuestion;
-      final detected = DetectedQuestion(
-        question: detectedQuestion,
-        fullContext: text,
-        timestamp: DateTime.now(),
-      );
-      _questionDetectedController.add(detected);
-
-      if (autoAnswerQuestions) {
-        // Auto-answer mode: immediately generate response
-        askQuestion(detectedQuestion);
-      }
     }
   }
 
@@ -894,7 +1070,11 @@ STYLE RULES:
   void clearHistory() {
     _history.clear();
     _currentTranscription = '';
-    _pendingQuestion = '';
+    _partialTranscription = '';
+    _finalizedSegments.clear();
+    _lastHandledQuestionKey = '';
+    _latestQuestionAnalysis = null;
+    _emitTranscriptSnapshot();
     _persistHistory();
   }
 
@@ -914,12 +1094,14 @@ STYLE RULES:
 
   /// Dispose resources
   void dispose() {
-    _questionDetectionTimer?.cancel();
+    _analysisTimer?.cancel();
     _silenceTimer?.cancel();
     _transcriptionController.close();
+    _transcriptSnapshotController.close();
     _aiResponseController.close();
     _modeController.close();
     _questionDetectedController.close();
+    _questionAnalysisController.close();
     _statusController.close();
     _proactiveSuggestionController.close();
     _coachingController.close();
@@ -931,11 +1113,43 @@ STYLE RULES:
 /// Conversation modes
 enum ConversationMode { general, interview, passive }
 
+enum TranscriptSource { phone, glasses }
+
 /// Engine status
 enum EngineStatus { idle, listening, thinking, responding, error }
 
 /// Types of proactive suggestions
 enum SuggestionType { topicChange, followUp, insight }
+
+class TranscriptSnapshot {
+  const TranscriptSnapshot({
+    required this.source,
+    required this.partialText,
+    required this.finalizedSegments,
+    required this.fullTranscript,
+  });
+
+  final TranscriptSource source;
+  final String partialText;
+  final List<String> finalizedSegments;
+  final String fullTranscript;
+}
+
+class QuestionAnalysisResult {
+  const QuestionAnalysisResult({
+    required this.shouldRespond,
+    required this.question,
+    required this.answerForPhone,
+    required this.answerForGlasses,
+    required this.timestamp,
+  });
+
+  final bool shouldRespond;
+  final String question;
+  final String answerForPhone;
+  final String answerForGlasses;
+  final DateTime timestamp;
+}
 
 /// A proactive suggestion emitted when silence is detected
 class ProactiveSuggestion {
