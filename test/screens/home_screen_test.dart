@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_helix/ble_manager.dart';
 import 'package:flutter_helix/screens/home_screen.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
@@ -11,11 +13,21 @@ import 'package:flutter_helix/services/settings_manager.dart';
 import 'package:flutter_helix/theme/helix_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+class _FakeStreamResponse {
+  const _FakeStreamResponse(this.chunks);
+
+  final List<String> chunks;
+}
+
 class _FakeJsonProvider implements LlmProvider {
-  _FakeJsonProvider(List<String> responses)
-    : _responses = Queue<String>.from(responses);
+  _FakeJsonProvider({
+    List<String> responses = const [],
+    List<_FakeStreamResponse> streamResponses = const [],
+  }) : _responses = Queue<String>.from(responses),
+       _streamResponses = Queue<_FakeStreamResponse>.from(streamResponses);
 
   final Queue<String> _responses;
+  final Queue<_FakeStreamResponse> _streamResponses;
 
   @override
   List<String> get availableModels => const ['fake-model'];
@@ -36,6 +48,9 @@ class _FakeJsonProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async {
+    if (_responses.isEmpty) {
+      return '{"shouldRespond": false, "question": "", "questionExcerpt": ""}';
+    }
     return _responses.removeFirst();
   }
 
@@ -46,7 +61,12 @@ class _FakeJsonProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async* {
-    yield 'stubbed stream response';
+    final script = _streamResponses.isEmpty
+        ? const _FakeStreamResponse(['stubbed stream response'])
+        : _streamResponses.removeFirst();
+    for (final chunk in script.chunks) {
+      yield chunk;
+    }
   }
 
   @override
@@ -70,7 +90,9 @@ void main() {
   const secureStorageChannel = MethodChannel(
     'plugins.it_nomads.com/flutter_secure_storage',
   );
+  const bluetoothChannel = MethodChannel('method.bluetooth');
   final secureStorageValues = <String, String>{};
+  final bluetoothMethodCalls = <MethodCall>[];
 
   Future<Object?> secureStorageHandler(MethodCall call) async {
     final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
@@ -105,6 +127,18 @@ void main() {
   setUpAll(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(bluetoothChannel, (call) async {
+          bluetoothMethodCalls.add(call);
+          switch (call.method) {
+            case 'startEvenAI':
+              return 'started';
+            case 'stopEvenAI':
+              return 'stopped';
+            default:
+              return null;
+          }
+        });
     SharedPreferences.setMockInitialValues({});
     await SettingsManager.instance.initialize();
     LlmService.instance.initializeDefaults();
@@ -113,16 +147,23 @@ void main() {
   tearDownAll(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(secureStorageChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(bluetoothChannel, null);
   });
 
   setUp(() {
     secureStorageValues.clear();
+    bluetoothMethodCalls.clear();
+    ConversationEngine.resetTestHooks();
     ConversationEngine.instance.clearHistory();
     ConversationEngine.instance.stop();
+    BleManager.get().isConnected = false;
     SettingsManager.instance.activeProviderId = 'openai';
     SettingsManager.instance.assistantProfileId = 'general';
     SettingsManager.instance.defaultQuickAskPreset = 'concise';
     SettingsManager.instance.language = 'en';
+    SettingsManager.instance.autoDetectQuestions = true;
+    SettingsManager.instance.autoAnswerQuestions = true;
     SettingsManager.instance.autoShowFollowUps = true;
     SettingsManager.instance.autoShowSummary = true;
   });
@@ -189,10 +230,15 @@ void main() {
     (tester) async {
       final llm = LlmService.instance;
       llm.registerProvider(
-        _FakeJsonProvider([
-          '{"shouldRespond": true, "question": "Can you explain the plan?", "answerForPhone": "Here is the concise answer.", "answerForGlasses": "Concise HUD answer."}',
-          '["Tell me more"]',
-        ]),
+        _FakeJsonProvider(
+          responses: [
+            '{"shouldRespond": true, "question": "Can you explain the plan?", "questionExcerpt": "Can you explain the plan?"}',
+            '["Tell me more"]',
+          ],
+          streamResponses: const [
+            _FakeStreamResponse(['Here is ', 'the concise answer.']),
+          ],
+        ),
       );
       llm.setActiveProvider('fake');
       ConversationEngine.setLlmServiceGetter(() => llm);
@@ -221,10 +267,35 @@ void main() {
     },
   );
 
+  testWidgets(
+    'home screen mic starts a phone listening session even when glasses are connected',
+    (tester) async {
+      BleManager.get().isConnected = true;
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: HomeScreen())),
+      );
+      await tester.pump();
+
+      await tester.tap(find.bySemanticsLabel('Start recording'));
+      await tester.pump();
+
+      final startCall = bluetoothMethodCalls.lastWhere(
+        (call) => call.method == 'startEvenAI',
+      );
+      final arguments = Map<String, dynamic>.from(startCall.arguments as Map);
+
+      expect(arguments['source'], 'microphone');
+      expect(find.text('PHONE INPUT'), findsOneWidget);
+      expect(find.text('G1 OUTPUT ONLY'), findsOneWidget);
+    },
+  );
+
   testWidgets('home screen localizes live transcription labels in Japanese', (
     tester,
   ) async {
     SettingsManager.instance.language = 'ja';
+    SettingsManager.instance.autoDetectQuestions = false;
 
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: HomeScreen())),

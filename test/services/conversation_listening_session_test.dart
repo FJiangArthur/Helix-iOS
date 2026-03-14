@@ -109,6 +109,35 @@ void main() {
       },
     );
 
+    test(
+      'stop waits for the latest utterance after an earlier segment finalized',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        await session.startSession(source: TranscriptSource.phone);
+        speechEvents.add({'script': 'First sentence', 'isFinal': true});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        speechEvents.add({'script': 'Second sentence', 'isFinal': false});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+
+        await session.stopSession();
+
+        expect(engine.currentTranscriptSnapshot.partialText, '');
+        expect(engine.currentTranscriptSnapshot.finalizedSegments, [
+          'First sentence',
+          'Second sentence',
+        ]);
+
+        await speechEvents.close();
+      },
+    );
+
     test('start failures publish an error and stop the engine', () async {
       final speechEvents = StreamController<dynamic>.broadcast();
       final session = ConversationListeningSession.test(

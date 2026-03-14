@@ -5,6 +5,7 @@
 //  Created by edy on 2024/4/16.
 //
 import AVFoundation
+import Flutter
 import Speech
 
 class SpeechStreamRecognizer {
@@ -24,6 +25,11 @@ class SpeechStreamRecognizer {
     private var didEmitFinalResult = false
     private var activeInputSource: InputSource = .glassesPcm
     private var pendingStartCompletion: ((Result<Void, Error>) -> Void)?
+    private var speechEventSink: FlutterEventSink?
+    private var pendingSpeechEvents: [[String: Any]] = []
+    private var shouldBufferSpeechEvents = false
+    private var didLogFirstPartialEmission = false
+    private var didLogFinalEmission = false
 
     let languageDic = [
         "CN": "zh-CN",
@@ -62,16 +68,38 @@ class SpeechStreamRecognizer {
 
     private init() {}
 
+    func attachEventSink(_ sink: @escaping FlutterEventSink) {
+        DispatchQueue.main.async {
+            self.speechEventSink = sink
+            self.shouldBufferSpeechEvents = true
+            self.log("Speech event sink attached")
+            self.flushBufferedSpeechEvents()
+        }
+    }
+
+    func detachEventSink() {
+        DispatchQueue.main.async {
+            self.log("Speech event sink detached")
+            self.speechEventSink = nil
+            self.shouldBufferSpeechEvents = false
+            self.pendingSpeechEvents.removeAll()
+        }
+    }
+
     func startRecognition(
         identifier: String,
         source: String = "glasses",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        log("Starting recognition language=\(identifier) source=\(source)")
         stopRecognition(emitFinal: false)
         pendingStartCompletion = completion
+        pendingSpeechEvents.removeAll()
+        shouldBufferSpeechEvents = true
 
         Task { @MainActor in
             let speechAuthorized = await SFSpeechRecognizer.hasAuthorizationToRecognize()
+            self.log("Speech permission granted=\(speechAuthorized)")
             guard speechAuthorized else {
                 self.failToStart(RecognizerError.notAuthorizedToRecognize)
                 return
@@ -79,6 +107,7 @@ class SpeechStreamRecognizer {
 
             if source.lowercased() == "microphone" {
                 let micAuthorized = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+                self.log("Microphone permission granted=\(micAuthorized)")
                 guard micAuthorized else {
                     self.failToStart(RecognizerError.notPermittedToRecord)
                     return
@@ -94,18 +123,22 @@ class SpeechStreamRecognizer {
         lastRecognizedText = ""
         lastEmittedText = ""
         didEmitFinalResult = false
+        didLogFirstPartialEmission = false
+        didLogFinalEmission = false
         activeInputSource = source.lowercased() == "microphone"
             ? .microphone
             : .glassesPcm
 
         let localeIdentifier = languageDic[identifier] ?? "en-US"
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
+        log("Recognizer locale=\(localeIdentifier)")
 
         guard let recognizer = recognizer else {
             failToStart(RecognizerError.nilRecognizer)
             return
         }
 
+        log("Recognizer available=\(recognizer.isAvailable)")
         guard recognizer.isAvailable else {
             failToStart(RecognizerError.recognizerIsUnavailable)
             return
@@ -121,6 +154,7 @@ class SpeechStreamRecognizer {
             try audioSession.setPreferredSampleRate(16000)
             try audioSession.setPreferredIOBufferDuration(0.02)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            log("Audio session configured source=\(source)")
         } catch {
             failToStart(error, messageOverride: "Error setting up audio session: \(error.localizedDescription)")
             return
@@ -166,6 +200,7 @@ class SpeechStreamRecognizer {
         if activeInputSource == .microphone {
             do {
                 try startMicrophoneCapture()
+                log("Microphone capture started")
                 completePendingStart(.success(()))
             } catch {
                 failToStart(
@@ -236,6 +271,7 @@ class SpeechStreamRecognizer {
     }
 
     private func stopRecognition(emitFinal: Bool) {
+        log("Stopping recognition emitFinal=\(emitFinal)")
         if emitFinal {
             emitTranscript(lastRecognizedText, isFinal: true)
         }
@@ -254,26 +290,31 @@ class SpeechStreamRecognizer {
         if isFinal {
             didEmitFinalResult = true
             lastEmittedText = ""
+            if !didLogFinalEmission {
+                didLogFinalEmission = true
+                log("Final transcript emitted chars=\(normalized.count)")
+            }
         } else {
             lastEmittedText = normalized
+            if !didLogFirstPartialEmission {
+                didLogFirstPartialEmission = true
+                log("First partial transcript emitted chars=\(normalized.count)")
+            }
         }
 
-        DispatchQueue.main.async {
-            BluetoothManager.shared.blueSpeechSink?([
-                "script": normalized,
-                "isFinal": isFinal
-            ])
-        }
+        emitSpeechEvent([
+            "script": normalized,
+            "isFinal": isFinal
+        ])
     }
 
     private func emitError(_ message: String) {
-        DispatchQueue.main.async {
-            BluetoothManager.shared.blueSpeechSink?([
-                "script": self.lastRecognizedText,
-                "isFinal": true,
-                "error": message
-            ])
-        }
+        log("Speech error emitted: \(message)")
+        emitSpeechEvent([
+            "script": lastRecognizedText,
+            "isFinal": true,
+            "error": message
+        ])
     }
 
     private func failToStart(
@@ -300,6 +341,34 @@ class SpeechStreamRecognizer {
         return error.localizedDescription
     }
 
+    private func emitSpeechEvent(_ payload: [String: Any]) {
+        DispatchQueue.main.async {
+            if let sink = self.speechEventSink {
+                sink(payload)
+                return
+            }
+
+            guard self.shouldBufferSpeechEvents else {
+                self.log("Dropping speech event without active sink: \(payload)")
+                return
+            }
+
+            self.pendingSpeechEvents.append(payload)
+        }
+    }
+
+    private func flushBufferedSpeechEvents() {
+        guard let sink = speechEventSink else { return }
+        guard !pendingSpeechEvents.isEmpty else { return }
+
+        let bufferedEvents = pendingSpeechEvents
+        pendingSpeechEvents.removeAll()
+        log("Flushing buffered speech events count=\(bufferedEvents.count)")
+        for event in bufferedEvents {
+            sink(event)
+        }
+    }
+
     private func cleanupRecognition(deactivateSession: Bool) {
         if audioEngine.isRunning {
             audioEngine.stop()
@@ -317,8 +386,13 @@ class SpeechStreamRecognizer {
                 options: .notifyOthersOnDeactivation
             )
         } catch {
-            print("Error stop audio session: \(error.localizedDescription)")
+            log("Error stopping audio session: \(error.localizedDescription)")
         }
+        log("Recognition cleanup finished deactivateSession=\(deactivateSession)")
+    }
+
+    private func log(_ message: String) {
+        NSLog("[SpeechStreamRecognizer] %@", message)
     }
 }
 

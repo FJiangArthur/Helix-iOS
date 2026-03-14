@@ -96,12 +96,17 @@ extension AppDelegate : FlutterStreamHandler {
         if (arguments as? String == "eventBleReceive") {
             BluetoothManager.shared.blueInfoSink = events
         } else if (arguments as? String == "eventSpeechRecognize") {
-            BluetoothManager.shared.blueSpeechSink = events
+            speechEventSink = events
+            SpeechStreamRecognizer.shared.attachEventSink(events)
         }
         return nil
     }
     
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        if (arguments as? String == "eventSpeechRecognize") {
+            speechEventSink = nil
+            SpeechStreamRecognizer.shared.detachEventSink()
+        }
         return nil
     }
 }

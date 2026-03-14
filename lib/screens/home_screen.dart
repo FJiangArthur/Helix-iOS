@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../models/assistant_profile.dart';
 import '../services/conversation_listening_session.dart';
 import '../services/conversation_engine.dart';
-import '../services/evenai.dart';
 import '../services/glasses_answer_presenter.dart';
 import '../services/llm/llm_service.dart';
 import '../services/provider_error_state.dart';
@@ -45,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _assistantProfileId = 'general';
   bool _isOverviewExpanded = false;
 
-  QuestionAnalysisResult? _latestQuestionAnalysis;
+  QuestionDetectionResult? _latestQuestionDetection;
   GlassesAnswerDeliveryState _glassesDeliveryState =
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
@@ -112,9 +111,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() => _aiResponse = text);
         _scrollToBottom();
       }),
-      _engine.questionAnalysisStream.listen((analysis) {
+      _engine.questionDetectionStream.listen((detection) {
         if (!mounted) return;
-        setState(() => _latestQuestionAnalysis = analysis);
+        setState(() => _latestQuestionDetection = detection);
         _scrollToBottom();
       }),
       _engine.providerErrorStream.listen((error) {
@@ -190,23 +189,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {
       _aiResponse = '';
       _transcription = '';
-      _latestQuestionAnalysis = null;
+      _latestQuestionDetection = null;
       _providerError = null;
       _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
       _listeningError = null;
       _isOverviewExpanded = false;
     });
 
-    final glassesConnected = BleManager.isBothConnected();
-
     try {
-      if (glassesConnected) {
-        await EvenAI.get.toStartEvenAIByOS();
-      } else {
-        await ConversationListeningSession.instance.startSession(
-          source: TranscriptSource.phone,
-        );
-      }
+      await ConversationListeningSession.instance.startSession(
+        source: TranscriptSource.phone,
+      );
 
       if (!mounted) return;
       setState(() {
@@ -222,11 +215,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _stopRecording() async {
-    if (_transcriptSource == TranscriptSource.glasses) {
-      await EvenAI.get.stopEvenAIByOS();
-    } else {
-      await ConversationListeningSession.instance.stopSession();
-    }
+    await ConversationListeningSession.instance.stopSession();
 
     setState(() => _isRecording = false);
   }
@@ -919,7 +908,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _isRecording ||
         _transcription.isNotEmpty ||
         _aiResponse.isNotEmpty ||
-        _latestQuestionAnalysis != null ||
+        _latestQuestionDetection != null ||
         (_listeningError?.isNotEmpty ?? false);
     final hasProviderError = _providerError != null;
 
@@ -977,7 +966,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
             if ((_listeningError?.isNotEmpty ?? false)) ...[
               _buildListeningErrorCard(),
-              if (_latestQuestionAnalysis != null ||
+              if (_latestQuestionDetection != null ||
                   _aiResponse.trim().isNotEmpty ||
                   hasProviderError ||
                   _glassesDeliveryState.status !=
@@ -986,19 +975,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
             if (hasProviderError) ...[
               _buildProviderErrorCard(),
-              if (_latestQuestionAnalysis != null ||
+              if (_latestQuestionDetection != null ||
                   _aiResponse.trim().isNotEmpty ||
                   _glassesDeliveryState.status !=
                       GlassesAnswerDeliveryStatus.idle)
                 const SizedBox(height: 10),
             ],
-            if (_latestQuestionAnalysis != null) ...[
+            if (_latestQuestionDetection != null) ...[
               _buildDetectedQuestionCard(),
               const SizedBox(height: 10),
             ],
             if (_aiResponse.trim().isNotEmpty ||
                 _status == EngineStatus.thinking ||
-                _latestQuestionAnalysis != null) ...[
+                _latestQuestionDetection != null) ...[
               _buildPhoneAnswerCard(),
             ],
             if (_glassesDeliveryState.status !=
@@ -1013,7 +1002,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDetectedQuestionCard() {
-    final analysis = _latestQuestionAnalysis!;
+    final detection = _latestQuestionDetection!;
     return GlassCard(
       opacity: 0.07,
       borderColor: HelixTheme.cyan.withValues(alpha: 0.22),
@@ -1032,7 +1021,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 8),
           Text(
-            analysis.question,
+            detection.question,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -1159,21 +1148,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ? _aiResponse.trim()
         : (_status == EngineStatus.thinking
               ? _tr(
-                  en: 'Analyzing the latest conversation and extracting the question.',
-                  zh: '正在分析刚才的对话并提取问题。',
-                  ja: '直前の会話を解析して質問を抽出しています。',
-                  ko: '방금 대화를 분석해 질문을 추출하고 있습니다.',
-                  es: 'Se está analizando la conversación reciente para extraer la pregunta.',
-                  ru: 'Анализируем последний фрагмент разговора и извлекаем вопрос.',
+                  en: _latestQuestionDetection == null
+                      ? 'Analyzing the latest conversation and extracting the question.'
+                      : 'Generating an answer for the detected question.',
+                  zh: _latestQuestionDetection == null
+                      ? '正在分析刚才的对话并提取问题。'
+                      : '正在为检测到的问题生成答案。',
+                  ja: _latestQuestionDetection == null
+                      ? '直前の会話を解析して質問を抽出しています。'
+                      : '検出した質問への回答を生成しています。',
+                  ko: _latestQuestionDetection == null
+                      ? '방금 대화를 분석해 질문을 추출하고 있습니다.'
+                      : '감지된 질문에 대한 답변을 생성하고 있습니다.',
+                  es: _latestQuestionDetection == null
+                      ? 'Se está analizando la conversación reciente para extraer la pregunta.'
+                      : 'Se está generando una respuesta para la pregunta detectada.',
+                  ru: _latestQuestionDetection == null
+                      ? 'Анализируем последний фрагмент разговора и извлекаем вопрос.'
+                      : 'Генерируем ответ на обнаруженный вопрос.',
                 )
-              : _tr(
-                  en: 'Active transcription is live. Once a question is detected, the phone answer will appear here first.',
-                  zh: '实时转写正在进行。检测到问题后，答案会先出现在这里。',
-                  ja: 'ライブ文字起こし中です。質問が検出されると、回答はまずここに表示されます。',
-                  ko: '실시간 전사가 진행 중입니다. 질문이 감지되면 답변이 먼저 여기에 표시됩니다.',
-                  es: 'La transcripción activa está en curso. Cuando se detecte una pregunta, la respuesta aparecerá primero aquí.',
-                  ru: 'Активная расшифровка уже идет. Как только будет обнаружен вопрос, ответ сначала появится здесь.',
-                ));
+              : (_latestQuestionDetection != null &&
+                        !SettingsManager.instance.autoAnswerQuestions
+                    ? _tr(
+                        en: 'A question was detected. Auto-answer is off, so no reply is being generated yet.',
+                        zh: '已经检测到问题，但自动回答已关闭，因此暂时不会生成回复。',
+                        ja: '質問は検出されましたが、自動回答がオフのため、まだ返答は生成されません。',
+                        ko: '질문은 감지되었지만 자동 응답이 꺼져 있어 아직 답변을 생성하지 않습니다.',
+                        es: 'Se detectó una pregunta, pero la respuesta automática está desactivada, así que todavía no se genera una respuesta.',
+                        ru: 'Вопрос обнаружен, но автоответ выключен, поэтому ответ пока не генерируется.',
+                      )
+                    : _tr(
+                        en: 'Active transcription is live. Once a question is detected, the phone answer will appear here first.',
+                        zh: '实时转写正在进行。检测到问题后，答案会先出现在这里。',
+                        ja: 'ライブ文字起こし中です。質問が検出されると、回答はまずここに表示されます。',
+                        ko: '실시간 전사가 진행 중입니다. 질문이 감지되면 답변이 먼저 여기에 표시됩니다.',
+                        es: 'La transcripción activa está en curso. Cuando se detecte una pregunta, la respuesta aparecerá primero aquí.',
+                        ru: 'Активная расшифровка уже идет. Как только будет обнаружен вопрос, ответ сначала появится здесь.',
+                      )));
 
     return GlassCard(
       opacity: 0.07,
@@ -1216,6 +1227,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildContextRibbon() {
     final isLiveTranscript = _isRecording;
+    final glassesConnected = BleManager.isBothConnected();
     final accentColor = isLiveTranscript
         ? const Color(0xFFFF6B6B)
         : HelixTheme.cyan;
@@ -1235,16 +1247,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ko: '휴대폰 입력',
             es: 'ENTRADA DEL TELÉFONO',
             ru: 'ВВОД С ТЕЛЕФОНА',
-          );
-    final ribbonText = _transcription.isNotEmpty
-        ? _transcription
-        : _tr(
-            en: 'Active transcription is engaged. Speak and the transcript will appear here immediately.',
-            zh: '正在主动转写。你说话后，文字会直接显示在这里。',
-            ja: 'ライブ文字起こし中です。話し始めると、ここにすぐ文字が表示されます。',
-            ko: '실시간 전사가 활성화되었습니다. 말하면 내용이 바로 여기에 표시됩니다.',
-            es: 'La transcripción activa está activada. Habla y el texto aparecerá aquí de inmediato.',
-            ru: 'Активная расшифровка включена. Говорите, и текст сразу появится здесь.',
           );
 
     return GlassCard(
@@ -1283,12 +1285,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 const SizedBox(height: 6),
                 Text(
                   _tr(
-                    en: 'Live speech streams to the phone first, then GPT filters for questions.',
-                    zh: '实时语音优先显示在手机上，再由 GPT 过滤问题。',
-                    ja: 'ライブ音声はまずスマホに表示され、その後 GPT が質問を抽出します。',
-                    ko: '실시간 음성은 먼저 휴대폰으로 전달되고, 그다음 GPT가 질문을 골라냅니다.',
-                    es: 'La voz en vivo se muestra primero en el teléfono y luego GPT filtra las preguntas.',
-                    ru: 'Живая речь сначала поступает на телефон, а затем GPT отфильтровывает вопросы.',
+                    en: glassesConnected
+                        ? 'Live speech stays on the phone. G1 only shows generated answers after a question is detected.'
+                        : 'Live speech streams to the phone first, then GPT filters for questions.',
+                    zh: glassesConnected
+                        ? '实时语音只显示在手机上。检测到问题后，G1 只显示生成的答案。'
+                        : '实时语音优先显示在手机上，再由 GPT 过滤问题。',
+                    ja: glassesConnected
+                        ? 'ライブ音声はスマホのみに表示されます。質問が検出されると、G1 には生成された回答だけが表示されます。'
+                        : 'ライブ音声はまずスマホに表示され、その後 GPT が質問を抽出します。',
+                    ko: glassesConnected
+                        ? '실시간 음성은 휴대폰에만 표시됩니다. 질문이 감지되면 G1에는 생성된 답변만 표시됩니다.'
+                        : '실시간 음성은 먼저 휴대폰으로 전달되고, 그다음 GPT가 질문을 골라냅니다.',
+                    es: glassesConnected
+                        ? 'La voz en vivo se queda en el teléfono. El G1 solo muestra respuestas generadas cuando se detecta una pregunta.'
+                        : 'La voz en vivo se muestra primero en el teléfono y luego GPT filtra las preguntas.',
+                    ru: glassesConnected
+                        ? 'Живая речь остается только на телефоне. G1 показывает только сгенерированные ответы после обнаружения вопроса.'
+                        : 'Живая речь сначала поступает на телефон, а затем GPT отфильтровывает вопросы.',
                   ),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.58),
@@ -1297,41 +1311,117 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accentColor.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    sourceLabel,
-                    style: TextStyle(
-                      color: accentColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.8,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accentColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        sourceLabel,
+                        style: TextStyle(
+                          color: accentColor,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
                     ),
-                  ),
+                    if (glassesConnected)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: HelixTheme.cyan.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          _tr(
+                            en: 'G1 OUTPUT ONLY',
+                            zh: 'G1 仅输出答案',
+                            ja: 'G1 は回答のみ表示',
+                            ko: 'G1 출력 전용',
+                            es: 'G1 SOLO SALIDA',
+                            ru: 'G1 ТОЛЬКО ДЛЯ ОТВЕТА',
+                          ),
+                          style: TextStyle(
+                            color: HelixTheme.cyan,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  ribbonText,
-                  maxLines: 12,
-                  overflow: TextOverflow.fade,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.86),
-                    fontSize: 14,
-                    height: 1.4,
-                  ),
-                ),
+                _buildTranscriptText(),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTranscriptText() {
+    final transcript = _transcription.isNotEmpty
+        ? _transcription
+        : _tr(
+            en: 'Active transcription is engaged. Speak and the transcript will appear here immediately.',
+            zh: '正在主动转写。你说话后，文字会直接显示在这里。',
+            ja: 'ライブ文字起こし中です。話し始めると、ここにすぐ文字が表示されます。',
+            ko: '실시간 전사가 활성化되었습니다. 말하면 내용이 바로 여기에 표시됩니다.',
+            es: 'La transcripción activa está activada. Habla y el texto aparecerá aquí de inmediato.',
+            ru: 'Активная расшифровка включена. Говорите, и текст сразу появится здесь.',
+          );
+    final excerpt = _latestQuestionDetection?.questionExcerpt ?? '';
+
+    return Text.rich(
+      _buildHighlightedTranscriptSpan(transcript, excerpt),
+      maxLines: 12,
+      overflow: TextOverflow.fade,
+    );
+  }
+
+  TextSpan _buildHighlightedTranscriptSpan(String transcript, String excerpt) {
+    final baseStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.86),
+      fontSize: 14,
+      height: 1.4,
+    );
+    final highlightStyle = baseStyle.copyWith(
+      color: Colors.white,
+      fontWeight: FontWeight.w700,
+      backgroundColor: HelixTheme.cyan.withValues(alpha: 0.22),
+    );
+
+    if (excerpt.isEmpty) {
+      return TextSpan(text: transcript, style: baseStyle);
+    }
+
+    final start = transcript.indexOf(excerpt);
+    if (start < 0) {
+      return TextSpan(text: transcript, style: baseStyle);
+    }
+
+    final end = start + excerpt.length;
+    return TextSpan(
+      style: baseStyle,
+      children: [
+        if (start > 0) TextSpan(text: transcript.substring(0, start)),
+        TextSpan(text: transcript.substring(start, end), style: highlightStyle),
+        if (end < transcript.length) TextSpan(text: transcript.substring(end)),
+      ],
     );
   }
 

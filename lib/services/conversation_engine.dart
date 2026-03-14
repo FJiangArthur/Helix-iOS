@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/assistant_profile.dart';
 import '../utils/app_logger.dart';
-import 'glasses_answer_presenter.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
 import 'provider_error_state.dart';
@@ -42,12 +41,15 @@ class ConversationEngine {
   final List<ConversationTurn> _history = [];
   Timer? _analysisTimer;
   int _analysisToken = 0;
+  int _responseToken = 0;
   String _lastHandledQuestionKey = '';
-  QuestionAnalysisResult? _latestQuestionAnalysis;
+  QuestionDetectionResult? _latestQuestionDetection;
 
   // Silence detection state
   Timer? _silenceTimer;
   static const Duration _silenceThreshold = Duration(seconds: 5);
+  static const Duration _responseFlushInterval = Duration(milliseconds: 75);
+  static const int _responseFlushThreshold = 14;
   bool _silenceSuggestionSent = false;
 
   // Configuration
@@ -62,8 +64,8 @@ class ConversationEngine {
   final _modeController = StreamController<ConversationMode>.broadcast();
   final _questionDetectedController =
       StreamController<DetectedQuestion>.broadcast();
-  final _questionAnalysisController =
-      StreamController<QuestionAnalysisResult>.broadcast();
+  final _questionDetectionController =
+      StreamController<QuestionDetectionResult>.broadcast();
   final _statusController = StreamController<EngineStatus>.broadcast();
   final _proactiveSuggestionController =
       StreamController<ProactiveSuggestion>.broadcast();
@@ -80,8 +82,8 @@ class ConversationEngine {
   Stream<ConversationMode> get modeStream => _modeController.stream;
   Stream<DetectedQuestion> get questionDetectedStream =>
       _questionDetectedController.stream;
-  Stream<QuestionAnalysisResult> get questionAnalysisStream =>
-      _questionAnalysisController.stream;
+  Stream<QuestionDetectionResult> get questionDetectionStream =>
+      _questionDetectionController.stream;
   Stream<EngineStatus> get statusStream => _statusController.stream;
   Stream<ProactiveSuggestion> get proactiveSuggestionStream =>
       _proactiveSuggestionController.stream;
@@ -102,19 +104,21 @@ class ConversationEngine {
   );
   List<ConversationTurn> get history => List.unmodifiable(_history);
   ProviderErrorState? get lastProviderError => _lastProviderError;
-  QuestionAnalysisResult? get latestQuestionAnalysis => _latestQuestionAnalysis;
+  QuestionDetectionResult? get latestQuestionDetection =>
+      _latestQuestionDetection;
 
   /// Start the conversation engine
   void start({
     ConversationMode? mode,
     TranscriptSource source = TranscriptSource.phone,
   }) {
+    _cancelInFlightResponse();
     _isActive = true;
     _transcriptSource = source;
     _silenceSuggestionSent = false;
     _analysisToken = 0;
     _lastHandledQuestionKey = '';
-    _latestQuestionAnalysis = null;
+    _latestQuestionDetection = null;
     _currentTranscription = '';
     _partialTranscription = '';
     _finalizedSegments.clear();
@@ -127,6 +131,7 @@ class ConversationEngine {
 
   /// Stop the engine
   void stop() {
+    _cancelInFlightResponse();
     _isActive = false;
     _analysisToken++;
     _analysisTimer?.cancel();
@@ -211,8 +216,10 @@ class ConversationEngine {
     );
     _persistHistory();
 
+    _aiResponseController.add('');
+    final responseToken = _beginResponseCycle();
     _statusController.add(EngineStatus.thinking);
-    await _generateResponse(question);
+    await _generateResponse(question, responseToken: responseToken);
   }
 
   // ---------------------------------------------------------------------------
@@ -602,55 +609,46 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       );
       if (!_isActive || token != _analysisToken) return;
 
-      final analysis = _parseQuestionAnalysis(response);
-      if (analysis == null || !analysis.shouldRespond) {
+      final detection = _parseQuestionDetection(response, window);
+      if (detection == null) {
         return;
       }
 
-      final questionKey = _normalizeQuestion(analysis.question);
+      final questionKey = _normalizeQuestion(detection.question);
       if (questionKey.isEmpty || questionKey == _lastHandledQuestionKey) {
         return;
       }
 
       _lastHandledQuestionKey = questionKey;
-      _latestQuestionAnalysis = analysis;
+      _latestQuestionDetection = detection;
       _clearProviderError();
-      _questionAnalysisController.add(analysis);
+      _questionDetectionController.add(detection);
       _questionDetectedController.add(
         DetectedQuestion(
-          question: analysis.question,
+          question: detection.question,
           fullContext: window,
-          timestamp: analysis.timestamp,
+          timestamp: detection.timestamp,
         ),
       );
-      _aiResponseController.add(analysis.answerForPhone);
 
       _history.add(
         ConversationTurn(
           role: 'user',
-          content: analysis.question,
-          timestamp: analysis.timestamp,
-          mode: _mode.name,
-          assistantProfileId: _activeAssistantProfile().id,
-        ),
-      );
-      _history.add(
-        ConversationTurn(
-          role: 'assistant',
-          content: analysis.answerForPhone,
-          timestamp: analysis.timestamp,
+          content: detection.question,
+          timestamp: detection.timestamp,
           mode: _mode.name,
           assistantProfileId: _activeAssistantProfile().id,
         ),
       );
       _persistHistory();
 
-      _generateFollowUpChips(analysis.answerForPhone);
-
-      if (autoAnswerQuestions && BleManager.isBothConnected()) {
-        await GlassesAnswerPresenter.instance.present(
-          analysis.answerForGlasses,
-          source: 'ConversationEngine._analyzeRecentTranscriptWindow',
+      _aiResponseController.add('');
+      if (autoAnswerQuestions) {
+        final responseToken = _beginResponseCycle();
+        _statusController.add(EngineStatus.thinking);
+        await _generateResponse(
+          detection.question,
+          responseToken: responseToken,
         );
       }
     } catch (error) {
@@ -668,10 +666,9 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       return '''分析下面这段最近对话，判断是否出现了一个值得立即帮助用户回答的问题。
 
 要求：
-- 如果没有明确问题，返回 shouldRespond=false，并把 question、answerForPhone、answerForGlasses 设为空字符串。
+- 如果没有明确问题，返回 shouldRespond=false，并把 question 和 questionExcerpt 设为空字符串。
 - 如果有问题，question 提炼成一句话。
-- answerForPhone 用 1-3 句自然语言，适合在手机上看。
-- answerForGlasses 必须极度精简，优先控制在眼镜一屏内，不要 markdown，不要项目符号。
+- questionExcerpt 必须尽量直接复制最近对话窗口里对应问题的原文片段；如果做不到就返回空字符串。
 
 最近问答历史：
 $historyContext
@@ -683,10 +680,9 @@ $window''';
     return '''Analyze this recent conversation window and decide whether there is a clear question worth answering right now.
 
 Rules:
-- If there is no clear question, return shouldRespond=false and leave question, answerForPhone, and answerForGlasses empty.
+- If there is no clear question, return shouldRespond=false and leave question and questionExcerpt empty.
 - If there is a question, extract it as one sentence.
-- answerForPhone should be 1-3 natural sentences for the phone UI.
-- answerForGlasses must be aggressively compressed for a tiny HUD and should target a single screen first. No markdown and no bullets.
+- questionExcerpt should be a verbatim excerpt from the recent conversation window when possible. If you cannot quote it exactly, return an empty string.
 
 Recent Q/A memory:
 $historyContext
@@ -718,7 +714,7 @@ $window''';
 
 只输出 JSON，不要 markdown，不要额外解释。
 JSON 格式必须是：
-{"shouldRespond": true/false, "question": "...", "answerForPhone": "...", "answerForGlasses": "..."}
+{"shouldRespond": true/false, "question": "...", "questionExcerpt": "..."}
 
 $profileInstruction''';
     }
@@ -727,38 +723,66 @@ $profileInstruction''';
 
 Output JSON only. No markdown and no extra commentary.
 The JSON shape must be:
-{"shouldRespond": true/false, "question": "...", "answerForPhone": "...", "answerForGlasses": "..."}
+{"shouldRespond": true/false, "question": "...", "questionExcerpt": "..."}
 
 $profileInstruction''';
   }
 
-  QuestionAnalysisResult? _parseQuestionAnalysis(String response) {
+  QuestionDetectionResult? _parseQuestionDetection(
+    String response,
+    String window,
+  ) {
     try {
       final cleaned = _stripMarkdownCodeFence(response);
       final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
       final shouldRespond = decoded['shouldRespond'] == true;
-      final question = (decoded['question'] as String? ?? '').trim();
-      final answerForPhone = (decoded['answerForPhone'] as String? ?? '')
-          .trim();
-      final answerForGlasses = (decoded['answerForGlasses'] as String? ?? '')
-          .trim();
-      if (shouldRespond && question.isEmpty) {
+      if (!shouldRespond) {
         return null;
       }
 
-      return QuestionAnalysisResult(
-        shouldRespond: shouldRespond,
+      final question = (decoded['question'] as String? ?? '').trim();
+      if (question.isEmpty) {
+        return null;
+      }
+
+      return QuestionDetectionResult(
         question: question,
-        answerForPhone: answerForPhone,
-        answerForGlasses: answerForGlasses.isNotEmpty
-            ? answerForGlasses
-            : answerForPhone,
+        questionExcerpt: _resolveQuestionExcerpt(
+          window,
+          (decoded['questionExcerpt'] as String? ?? '').trim(),
+          question,
+        ),
         timestamp: DateTime.now(),
       );
     } catch (error) {
-      appLogger.d('Could not parse question analysis: $error');
+      appLogger.d('Could not parse question detection: $error');
       return null;
     }
+  }
+
+  String _resolveQuestionExcerpt(
+    String window,
+    String excerptCandidate,
+    String question,
+  ) {
+    for (final candidate in [excerptCandidate, question]) {
+      final excerpt = candidate.trim();
+      if (excerpt.isEmpty) continue;
+
+      final exactIndex = window.indexOf(excerpt);
+      if (exactIndex >= 0) {
+        return window.substring(exactIndex, exactIndex + excerpt.length);
+      }
+
+      final lowercaseWindow = window.toLowerCase();
+      final lowercaseExcerpt = excerpt.toLowerCase();
+      final fuzzyIndex = lowercaseWindow.indexOf(lowercaseExcerpt);
+      if (fuzzyIndex >= 0) {
+        return window.substring(fuzzyIndex, fuzzyIndex + excerpt.length);
+      }
+    }
+
+    return '';
   }
 
   String _normalizeQuestion(String value) {
@@ -784,49 +808,96 @@ $profileInstruction''';
   // ---------------------------------------------------------------------------
 
   /// Generate AI response and stream to glasses
-  Future<void> _generateResponse(String question) async {
+  Future<void> _generateResponse(
+    String question, {
+    required int responseToken,
+  }) async {
+    Timer? flushTimer;
     try {
+      if (!_isResponseCurrent(responseToken)) return;
       _statusController.add(EngineStatus.responding);
       _clearProviderError();
 
       // Import LlmService dynamically to avoid circular dependency
       final llmService = _getLlmService();
       if (llmService == null) {
+        if (!_isResponseCurrent(responseToken)) return;
         final errorState = ProviderErrorState.missingConfiguration();
         _publishProviderError(errorState);
         _aiResponseController.add(errorState.userFacingMessage);
-        _statusController.add(
-          _isActive ? EngineStatus.listening : EngineStatus.idle,
-        );
+        if (_isResponseCurrent(responseToken)) {
+          _statusController.add(
+            _isActive ? EngineStatus.listening : EngineStatus.idle,
+          );
+        }
         return;
       }
 
       final systemPrompt = _getSystemPrompt();
       final messages = _buildContextMessages(question);
 
-      final buffer = StringBuffer();
-      final glassesConnected = BleManager.isBothConnected();
+      var responseText = '';
+      var pendingDelta = '';
+      Future<void> flushChain = Future<void>.value();
+      final glassesConnected = _glassesConnectionChecker();
+
+      Future<void> flushPendingDelta() {
+        flushTimer?.cancel();
+        flushTimer = null;
+        flushChain = flushChain.then((_) async {
+          if (pendingDelta.isEmpty) return;
+          if (!_isResponseCurrent(responseToken)) {
+            pendingDelta = '';
+            return;
+          }
+
+          pendingDelta = '';
+          _aiResponseController.add(responseText);
+
+          if (glassesConnected) {
+            await _streamToGlasses(responseText, isStreaming: true);
+          }
+        });
+        return flushChain;
+      }
+
+      void scheduleFlush() {
+        if (flushTimer != null) return;
+        flushTimer = Timer(_responseFlushInterval, () {
+          unawaited(flushPendingDelta());
+        });
+      }
 
       await for (final chunk in llmService.streamResponse(
         systemPrompt: systemPrompt,
         messages: messages,
         temperature: SettingsManager.instance.temperature,
       )) {
-        buffer.write(chunk);
-        _aiResponseController.add(buffer.toString());
-
-        // Stream to glasses HUD only when connected
-        if (glassesConnected) {
-          await _sendToGlasses(buffer.toString(), isStreaming: true);
+        if (!_isResponseCurrent(responseToken)) {
+          return;
         }
+
+        responseText += chunk;
+        pendingDelta += chunk;
+
+        if (_shouldFlushBufferedResponse(pendingDelta)) {
+          await flushPendingDelta();
+        } else {
+          scheduleFlush();
+        }
+      }
+
+      await flushPendingDelta();
+      if (!_isResponseCurrent(responseToken)) {
+        return;
       }
 
       // Send final page to glasses
       if (glassesConnected) {
-        await _sendToGlasses(buffer.toString(), isStreaming: false);
+        await _streamToGlasses(responseText, isStreaming: false);
       }
 
-      final finalResponse = buffer.toString();
+      final finalResponse = responseText;
 
       // Save AI response to history
       _history.add(
@@ -840,21 +911,52 @@ $profileInstruction''';
       );
       _persistHistory();
 
-      _statusController.add(
-        _isActive ? EngineStatus.listening : EngineStatus.idle,
-      );
+      if (_isResponseCurrent(responseToken)) {
+        _statusController.add(
+          _isActive ? EngineStatus.listening : EngineStatus.idle,
+        );
+      }
 
       // Generate smart follow-up chips after response completes
       _generateFollowUpChips(finalResponse);
     } catch (e) {
+      if (!_isResponseCurrent(responseToken)) {
+        return;
+      }
       appLogger.e('Error generating response', error: e);
       final errorState = ProviderErrorState.fromException(e);
       _publishProviderError(errorState);
       _aiResponseController.add(errorState.userFacingMessage);
-      _statusController.add(
-        _isActive ? EngineStatus.listening : EngineStatus.idle,
-      );
+      if (_isResponseCurrent(responseToken)) {
+        _statusController.add(
+          _isActive ? EngineStatus.listening : EngineStatus.idle,
+        );
+      }
+    } finally {
+      flushTimer?.cancel();
     }
+  }
+
+  bool _shouldFlushBufferedResponse(String pendingDelta) {
+    if (pendingDelta.isEmpty) return false;
+    if (pendingDelta.length >= _responseFlushThreshold) {
+      return true;
+    }
+    if (pendingDelta.contains('\n') || pendingDelta.contains('\r')) {
+      return true;
+    }
+
+    final trimmed = pendingDelta.trimRight();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+
+    return trimmed.endsWith('.') ||
+        trimmed.endsWith('!') ||
+        trimmed.endsWith('?') ||
+        trimmed.endsWith('。') ||
+        trimmed.endsWith('！') ||
+        trimmed.endsWith('？');
   }
 
   /// Build context messages for the LLM
@@ -1016,6 +1118,10 @@ STYLE RULES:
     }
   }
 
+  Future<void> _streamToGlasses(String text, {required bool isStreaming}) {
+    return _glassesSender(text, isStreaming: isStreaming);
+  }
+
   /// Get LlmService instance (lazy to avoid import cycles)
   LlmService? _getLlmService() {
     try {
@@ -1027,8 +1133,27 @@ STYLE RULES:
 
   // Setter for dependency injection
   static LlmService Function()? _llmServiceGetter;
+  late Future<void> Function(String text, {required bool isStreaming})
+  _glassesSender = _sendToGlasses;
+  bool Function() _glassesConnectionChecker = BleManager.isBothConnected;
+
   static void setLlmServiceGetter(LlmService Function() getter) {
     _llmServiceGetter = getter;
+  }
+
+  static void setGlassesSender(
+    Future<void> Function(String text, {required bool isStreaming}) sender,
+  ) {
+    instance._glassesSender = sender;
+  }
+
+  static void setGlassesConnectionChecker(bool Function() checker) {
+    instance._glassesConnectionChecker = checker;
+  }
+
+  static void resetTestHooks() {
+    instance._glassesSender = instance._sendToGlasses;
+    instance._glassesConnectionChecker = BleManager.isBothConnected;
   }
 
   /// Load persisted history from SharedPreferences
@@ -1073,10 +1198,21 @@ STYLE RULES:
     _partialTranscription = '';
     _finalizedSegments.clear();
     _lastHandledQuestionKey = '';
-    _latestQuestionAnalysis = null;
+    _latestQuestionDetection = null;
     _emitTranscriptSnapshot();
     _persistHistory();
   }
+
+  int _beginResponseCycle() {
+    _responseToken++;
+    return _responseToken;
+  }
+
+  void _cancelInFlightResponse() {
+    _responseToken++;
+  }
+
+  bool _isResponseCurrent(int token) => token == _responseToken;
 
   void _publishProviderError(ProviderErrorState state) {
     _lastProviderError = state;
@@ -1101,7 +1237,7 @@ STYLE RULES:
     _aiResponseController.close();
     _modeController.close();
     _questionDetectedController.close();
-    _questionAnalysisController.close();
+    _questionDetectionController.close();
     _statusController.close();
     _proactiveSuggestionController.close();
     _coachingController.close();
@@ -1135,19 +1271,15 @@ class TranscriptSnapshot {
   final String fullTranscript;
 }
 
-class QuestionAnalysisResult {
-  const QuestionAnalysisResult({
-    required this.shouldRespond,
+class QuestionDetectionResult {
+  const QuestionDetectionResult({
     required this.question,
-    required this.answerForPhone,
-    required this.answerForGlasses,
+    required this.questionExcerpt,
     required this.timestamp,
   });
 
-  final bool shouldRespond;
   final String question;
-  final String answerForPhone;
-  final String answerForGlasses;
+  final String questionExcerpt;
   final DateTime timestamp;
 }
 
