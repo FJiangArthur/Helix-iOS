@@ -14,6 +14,8 @@ class HudDisplayState {
       (isStreaming ? _aiShowing : _aiComplete) | _displayNewContent;
 
   static int textPage() => _textShow | _displayNewContent;
+
+  static int dashboardCard() => _textShow | _displayNewContent;
 }
 
 /// Normalizes notification payloads to match the G1 notification schema.

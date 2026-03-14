@@ -5,6 +5,7 @@ import 'ble_manager.dart';
 import 'services/llm/llm_service.dart';
 import 'services/settings_manager.dart';
 import 'services/conversation_engine.dart';
+import 'services/dashboard_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +18,9 @@ void main() async {
 
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
+
+  // Initialize the glasses tilt dashboard listeners
+  await DashboardService.instance.initialize();
 
   runApp(const HelixApp());
 }
@@ -34,7 +38,13 @@ Future<void> _initializeLlmService() async {
   final settings = SettingsManager.instance;
 
   // Load API keys from secure storage and configure providers
-  for (final providerId in ['openai', 'anthropic', 'deepseek', 'qwen', 'zhipu']) {
+  for (final providerId in [
+    'openai',
+    'anthropic',
+    'deepseek',
+    'qwen',
+    'zhipu',
+  ]) {
     final apiKey = await settings.getApiKey(providerId);
     if (apiKey != null && apiKey.isNotEmpty) {
       llmService.setApiKey(providerId, apiKey);

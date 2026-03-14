@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../ble_manager.dart';
+import '../services/dashboard_service.dart';
 import '../services/handoff_memory.dart';
 import '../services/text_service.dart';
 import '../theme/helix_theme.dart';
@@ -22,8 +23,10 @@ class G1TestScreen extends StatefulWidget {
 class _G1TestScreenState extends State<G1TestScreen> {
   Timer? scanTimer;
   StreamSubscription<HandoffRecord?>? _handoffSub;
+  StreamSubscription<DashboardDebugState>? _dashboardSub;
   bool isScanning = false;
   HandoffRecord? _lastHandoff;
+  DashboardDebugState _dashboardState = DashboardService.instance.state;
 
   @override
   void initState() {
@@ -35,6 +38,10 @@ class _G1TestScreenState extends State<G1TestScreen> {
     _handoffSub = HandoffMemory.instance.stream.listen((record) {
       if (!mounted) return;
       setState(() => _lastHandoff = record);
+    });
+    _dashboardSub = DashboardService.instance.stream.listen((state) {
+      if (!mounted) return;
+      setState(() => _dashboardState = state);
     });
   }
 
@@ -87,6 +94,8 @@ class _G1TestScreenState extends State<G1TestScreen> {
           const SizedBox(height: 16),
           if (_isConnected) ...[
             _buildTelemetryCard(),
+            const SizedBox(height: 16),
+            _buildDashboardDebugCard(),
             const SizedBox(height: 16),
             _buildLastHandoffCard(),
             const SizedBox(height: 16),
@@ -159,7 +168,10 @@ class _G1TestScreenState extends State<G1TestScreen> {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(999),
@@ -286,10 +298,12 @@ class _G1TestScreenState extends State<G1TestScreen> {
       children: [
         _buildSectionLabel('AVAILABLE PAIRS'),
         const SizedBox(height: 10),
-        ...glasses.map((g) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildGlassesCard(g),
-            )),
+        ...glasses.map(
+          (g) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildGlassesCard(g),
+          ),
+        ),
       ],
     );
   }
@@ -374,11 +388,133 @@ class _G1TestScreenState extends State<G1TestScreen> {
         children: [
           _buildSectionLabel('SYSTEM SNAPSHOT'),
           const SizedBox(height: 14),
-          _buildInfoRow(Icons.battery_full_rounded, 'Battery path', 'Connected'),
+          _buildInfoRow(
+            Icons.battery_full_rounded,
+            'Battery path',
+            'Connected',
+          ),
           const Divider(color: Colors.white12, height: 24),
           _buildInfoRow(Icons.bluetooth_rounded, 'BLE channel', 'Active'),
           const Divider(color: Colors.white12, height: 24),
           _buildInfoRow(Icons.hearing_rounded, 'Microphone route', 'Ready'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDashboardDebugCard() {
+    final lastTriggeredAt = _dashboardState.lastTriggeredAt;
+    final lastTrigger =
+        _dashboardState.lastTriggerLabel ?? 'No tilt trigger yet';
+    final lastObserved =
+        _dashboardState.lastObservedEventLabel ??
+        'No device-order event observed';
+    final lastObservedHex =
+        _dashboardState.lastObservedEventHex ?? 'Waiting for hardware event';
+    final snapshotText = _dashboardState.lastSnapshotText.trim().isEmpty
+        ? 'Snapshot not resolved yet.'
+        : _dashboardState.lastSnapshotText.trim();
+
+    return GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _buildSectionLabel('TILT DASHBOARD'),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: HelixTheme.cyan.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: HelixTheme.cyan.withValues(alpha: 0.22),
+                  ),
+                ),
+                child: Text(
+                  _dashboardState.renderPath.label.toUpperCase(),
+                  style: const TextStyle(
+                    color: HelixTheme.cyan,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _buildInfoRow(
+            Icons.gesture_rounded,
+            'Last trigger',
+            lastTriggeredAt == null
+                ? lastTrigger
+                : '${_formatTime(lastTriggeredAt)} • $lastTrigger',
+          ),
+          const Divider(color: Colors.white12, height: 24),
+          _buildInfoRow(Icons.sensors_rounded, 'Observed event', lastObserved),
+          const SizedBox(height: 10),
+          Text(
+            lastObservedHex,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.48),
+              fontSize: 12,
+              fontFamily: 'SF Mono',
+              height: 1.4,
+            ),
+          ),
+          if (_dashboardState.lastBlockedReason != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _dashboardState.lastBlockedReason!,
+              style: TextStyle(
+                color: Colors.orangeAccent.withValues(alpha: 0.9),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 14),
+          Text(
+            'Last resolved snapshot',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111A31),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Text(
+              snapshotText,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          GlowButton(
+            label: 'Preview Dashboard',
+            icon: Icons.dashboard_customize_outlined,
+            color: HelixTheme.cyan,
+            onPressed: () async {
+              await DashboardService.instance.previewDashboard();
+            },
+          ),
         ],
       ),
     );
@@ -583,10 +719,18 @@ class _G1TestScreenState extends State<G1TestScreen> {
     );
   }
 
+  String _formatTime(DateTime value) {
+    final hour = value.hour.toString().padLeft(2, '0');
+    final minute = value.minute.toString().padLeft(2, '0');
+    final second = value.second.toString().padLeft(2, '0');
+    return '$hour:$minute:$second';
+  }
+
   @override
   void dispose() {
     scanTimer?.cancel();
     _handoffSub?.cancel();
+    _dashboardSub?.cancel();
     isScanning = false;
     BleManager.get().onStatusChanged = null;
     super.dispose();

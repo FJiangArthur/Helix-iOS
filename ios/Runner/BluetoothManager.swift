@@ -332,10 +332,17 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         default:
             let isLeft = cbPeripheral?.identifier.uuidString == leftUUIDStr
             let legStr = isLeft ? "L" : "R"
+            let hexString = data.map { String(format: "%02x", $0) }.joined(separator: " ")
+            let notifyIndex = data.count > 1 ? Int(data[1]) : -1
+            let command = Int(data[0])
             let dictionary: [String: Any] = [
-                "type": "type",
+                "type": rspCommand == .BLE_REQ_DEVICE_ORDER ? "deviceOrder" : "type",
                 "lr": legStr,
-                "data": data
+                "data": data,
+                "command": command,
+                "notifyIndex": notifyIndex,
+                "payloadLength": data.count,
+                "hexString": hexString
             ]
 
             if let sink = blueInfoSink {

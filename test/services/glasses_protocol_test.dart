@@ -10,6 +10,7 @@ void main() {
       expect(HudDisplayState.aiFrame(isStreaming: true), 0x31);
       expect(HudDisplayState.aiFrame(isStreaming: false), 0x41);
       expect(HudDisplayState.textPage(), 0x71);
+      expect(HudDisplayState.dashboardCard(), 0x71);
     });
   });
 

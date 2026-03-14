@@ -4,6 +4,7 @@ enum HudIntent {
   liveListening,
   textTransfer,
   notification,
+  dashboard,
 }
 
 class HudRouteState {
