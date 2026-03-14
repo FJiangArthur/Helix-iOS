@@ -13,19 +13,19 @@ class AIAssistantScreen extends StatelessWidget {
           _buildSectionHeader('AI Personas', Icons.psychology),
           _buildPersonaCards(context),
           const SizedBox(height: 24),
-          
+
           _buildSectionHeader('Real-time Analysis', Icons.analytics),
           _buildAnalysisCard(context),
           const SizedBox(height: 24),
-          
+
           _buildSectionHeader('Fact Checking', Icons.fact_check),
           _buildFactCheckCard(context),
           const SizedBox(height: 24),
-          
+
           _buildSectionHeader('Conversation Insights', Icons.insights),
           _buildInsightsCard(context),
           const SizedBox(height: 24),
-          
+
           _buildSectionHeader('LLM Providers', Icons.hub),
           _buildProvidersCard(context),
         ],
@@ -42,10 +42,7 @@ class AIAssistantScreen extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -191,9 +188,21 @@ class AIAssistantScreen extends StatelessWidget {
 
   Widget _buildFactCheckCard(BuildContext context) {
     final facts = [
-      {'statement': 'Flutter supports 6 platforms', 'status': 'verified', 'confidence': 0.95},
-      {'statement': 'Meeting scheduled for tomorrow', 'status': 'unverified', 'confidence': 0.60},
-      {'statement': 'Budget increased by 20%', 'status': 'checking', 'confidence': 0.75},
+      {
+        'statement': 'Flutter supports 6 platforms',
+        'status': 'verified',
+        'confidence': 0.95,
+      },
+      {
+        'statement': 'Meeting scheduled for tomorrow',
+        'status': 'unverified',
+        'confidence': 0.60,
+      },
+      {
+        'statement': 'Budget increased by 20%',
+        'status': 'checking',
+        'confidence': 0.75,
+      },
     ];
 
     return Card(
@@ -204,7 +213,7 @@ class AIAssistantScreen extends StatelessWidget {
           children: facts.map((fact) {
             IconData icon;
             Color color;
-            
+
             switch (fact['status']) {
               case 'verified':
                 icon = Icons.check_circle;
@@ -238,7 +247,10 @@ class AIAssistantScreen extends StatelessWidget {
                           children: [
                             Text(
                               'Confidence: ${((fact['confidence'] as double) * 100).toInt()}%',
-                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
                             ),
                             const SizedBox(width: 8),
                             SizedBox(
@@ -246,8 +258,12 @@ class AIAssistantScreen extends StatelessWidget {
                               height: 4,
                               child: LinearProgressIndicator(
                                 value: fact['confidence'] as double,
-                                backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                                valueColor: AlwaysStoppedAnimation<Color>(color),
+                                backgroundColor: Colors.grey.withValues(
+                                  alpha: 0.2,
+                                ),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  color,
+                                ),
                               ),
                             ),
                           ],
@@ -305,7 +321,12 @@ class AIAssistantScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInsightItem(IconData icon, String title, String content, Color color) {
+  Widget _buildInsightItem(
+    IconData icon,
+    String title,
+    String content,
+    Color color,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
@@ -334,10 +355,7 @@ class AIAssistantScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   content,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                 ),
               ],
             ),
@@ -353,29 +371,56 @@ class AIAssistantScreen extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text(
+              'Frontier Providers',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
             _buildProviderTile(
-              'OpenAI GPT-4',
-              'Advanced reasoning and analysis',
-              Icons.auto_awesome,
+              'OpenAI',
+              'GPT chat and realtime models for fast, general-purpose assistance',
+              Icons.bolt,
               Colors.teal,
-              true,
+              'Realtime + Chat',
             ),
             const Divider(),
             _buildProviderTile(
-              'Anthropic Claude',
-              'Detailed conversation understanding',
+              'Anthropic',
+              'Anthropic models for dependable reasoning and nuanced writing',
               Icons.psychology_alt,
-              Colors.indigo,
-              false,
+              Colors.orange,
+              'Anthropic API',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Chinese Providers',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            _buildProviderTile(
+              'DeepSeek',
+              'Strong value for chat and reasoning with an OpenAI-style API',
+              Icons.auto_graph,
+              Colors.blue,
+              'OpenAI-compatible',
             ),
             const Divider(),
             _buildProviderTile(
-              'Local LLM',
-              'Privacy-focused on-device processing',
-              Icons.smartphone,
-              Colors.grey,
-              false,
+              'Qwen',
+              'Alibaba Qwen models for bilingual assistants and enterprise routing',
+              Icons.language,
+              Colors.green,
+              'DashScope',
+            ),
+            const Divider(),
+            _buildProviderTile(
+              'Zhipu AI',
+              'GLM models for lightweight and China-hosted deployments',
+              Icons.hub,
+              Colors.indigo,
+              'OpenAI-compatible',
             ),
           ],
         ),
@@ -383,8 +428,15 @@ class AIAssistantScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildProviderTile(String name, String description, IconData icon, Color color, bool isActive) {
+  Widget _buildProviderTile(
+    String name,
+    String description,
+    IconData icon,
+    Color color,
+    String badge,
+  ) {
     return ListTile(
+      contentPadding: EdgeInsets.zero,
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -394,14 +446,21 @@ class AIAssistantScreen extends StatelessWidget {
         child: Icon(icon, color: color),
       ),
       title: Text(name),
-      subtitle: Text(
-        description,
-        style: const TextStyle(fontSize: 12),
-      ),
-      trailing: Switch(
-        value: isActive,
-        onChanged: (value) {},
-        activeThumbColor: color,
+      subtitle: Text(description, style: const TextStyle(fontSize: 12)),
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          badge,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

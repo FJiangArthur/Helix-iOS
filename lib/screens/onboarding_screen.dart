@@ -36,9 +36,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _OnboardingPage(
       icon: Icons.psychology,
       title: 'Your Choice of AI',
-      subtitle: 'Five providers, one seamless experience',
+      subtitle: 'Anthropic, frontier, and Chinese providers in one flow',
       description:
-          'Bring your own API key from OpenAI, Anthropic, DeepSeek, Qwen, or Zhipu. Responses stream to your glasses in real-time with no subscription required and no data stored on our servers.',
+          'Bring your own API key from OpenAI, Anthropic, DeepSeek, Qwen, or Zhipu. Configure multiple providers in parallel, then switch between Anthropic and China-focused model catalogs without leaving the app.',
       gradient: [HelixTheme.purple, Color(0xFFFF6B6B)],
     ),
     _OnboardingPage(
@@ -105,17 +105,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: page.gradient.first.withValues(alpha: 0.3),
+                                color: page.gradient.first.withValues(
+                                  alpha: 0.3,
+                                ),
                                 blurRadius: 30,
                                 spreadRadius: 5,
                               ),
                             ],
                           ),
-                          child: Icon(
-                            page.icon,
-                            size: 44,
-                            color: Colors.white,
-                          ),
+                          child: Icon(page.icon, size: 44, color: Colors.white),
                         ),
                         const SizedBox(height: 40),
                         Text(

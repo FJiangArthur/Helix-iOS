@@ -579,7 +579,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _isChinese ? '连接 AI 提供商' : 'Connect an AI provider',
+                    _isChinese
+                        ? '连接 OpenAI、Anthropic 或国内模型'
+                        : 'Connect OpenAI, Anthropic, or a Chinese provider',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 13,
@@ -589,8 +591,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(height: 2),
                   Text(
                     _isChinese
-                        ? '前往设置添加 API key 以启用回复。'
-                        : 'Add your API key in Settings to enable responses.',
+                        ? '前往设置添加一个或多个 API key，即可在 Anthropic、DeepSeek、Qwen 或 Zhipu 之间切换。'
+                        : 'Add one or more API keys in Settings, then switch between Anthropic, DeepSeek, Qwen, or Zhipu anytime.',
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.62),
                       fontSize: 12,
