@@ -26,7 +26,8 @@ class ProviderErrorState {
     return const ProviderErrorState(
       kind: ProviderErrorKind.missingConfiguration,
       title: 'API key required',
-      message: 'Add an API key in Settings to enable assistant responses.',
+      message:
+          'Add an OpenAI, Anthropic, DeepSeek, Qwen, or Zhipu API key in Settings to enable assistant responses.',
       actionLabel: 'Open Settings',
       canRetry: false,
     );
@@ -43,7 +44,8 @@ class ProviderErrorState {
       return const ProviderErrorState(
         kind: ProviderErrorKind.authentication,
         title: 'Authentication failed',
-        message: 'Check the active provider API key in Settings and try again.',
+        message:
+            'Check the active provider API key in Settings and make sure the selected provider matches the credential you entered.',
         actionLabel: 'Open Settings',
         canRetry: false,
       );
@@ -56,7 +58,8 @@ class ProviderErrorState {
       return const ProviderErrorState(
         kind: ProviderErrorKind.rateLimited,
         title: 'Rate limit reached',
-        message: 'The provider is throttling requests right now. Try again in a moment.',
+        message:
+            'The provider is throttling requests right now. Try again in a moment.',
       );
     }
 
@@ -68,7 +71,8 @@ class ProviderErrorState {
       return const ProviderErrorState(
         kind: ProviderErrorKind.network,
         title: 'Network issue',
-        message: 'The request could not reach the provider. Check connectivity and retry.',
+        message:
+            'The request could not reach the provider. Check connectivity and retry.',
       );
     }
 

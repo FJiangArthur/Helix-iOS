@@ -3,10 +3,39 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/assistant_profile.dart';
+import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../widgets/glass_card.dart';
+
+const _automaticModelSelection = '__provider_default__';
+const _providerDisplayOrder = [
+  'openai',
+  'anthropic',
+  'deepseek',
+  'qwen',
+  'zhipu',
+];
+const _frontierProviderIds = {'openai', 'anthropic'};
+
+class _ProviderPresentation {
+  final Color accent;
+  final String cluster;
+  final String description;
+  final IconData icon;
+  final String protocol;
+  final String region;
+
+  const _ProviderPresentation({
+    required this.accent,
+    required this.cluster,
+    required this.description,
+    required this.icon,
+    required this.protocol,
+    required this.region,
+  });
+}
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -104,11 +133,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _setActiveProvider(String providerId) async {
+    await _settings.update((s) {
+      s.activeProviderId = providerId;
+      s.activeModel = null;
+    });
+    try {
+      _llmService.setActiveProvider(providerId, model: null);
+    } catch (_) {}
+    await _loadModelsForActiveProvider();
+    if (mounted) {
+      setState(() {
+        _connectionTestResult = null;
+        _connectionTestError = null;
+      });
+    }
+  }
+
+  List<MapEntry<String, LlmProvider>> _orderedProviderEntries() {
+    final providers = _llmService.providers;
+    final ordered = <MapEntry<String, LlmProvider>>[];
+
+    for (final id in _providerDisplayOrder) {
+      final provider = providers[id];
+      if (provider != null) {
+        ordered.add(MapEntry(id, provider));
+      }
+    }
+
+    for (final entry in providers.entries) {
+      final alreadyIncluded = ordered.any((item) => item.key == entry.key);
+      if (!alreadyIncluded) {
+        ordered.add(MapEntry(entry.key, entry.value));
+      }
+    }
+
+    return ordered;
+  }
+
+  _ProviderPresentation _providerPresentation(String providerId) {
+    switch (providerId) {
+      case 'anthropic':
+        return const _ProviderPresentation(
+          accent: Color(0xFFD59B5B),
+          cluster: 'Frontier Providers',
+          description:
+              'Anthropic models tuned for dependable reasoning, writing, and instruction following.',
+          icon: Icons.psychology_alt_rounded,
+          protocol: 'Native Messages API',
+          region: 'Anthropic',
+        );
+      case 'deepseek':
+        return const _ProviderPresentation(
+          accent: Color(0xFF4DB8FF),
+          cluster: 'Chinese Providers',
+          description:
+              'DeepSeek chat and reasoning models with a strong value profile and familiar API shape.',
+          icon: Icons.auto_graph_rounded,
+          protocol: 'OpenAI-compatible',
+          region: 'DeepSeek',
+        );
+      case 'qwen':
+        return const _ProviderPresentation(
+          accent: Color(0xFF57C785),
+          cluster: 'Chinese Providers',
+          description:
+              'Alibaba Qwen models for bilingual assistants, enterprise routing, and broad China coverage.',
+          icon: Icons.language_rounded,
+          protocol: 'DashScope compatible',
+          region: 'Alibaba Cloud',
+        );
+      case 'zhipu':
+        return const _ProviderPresentation(
+          accent: Color(0xFF7C83FF),
+          cluster: 'Chinese Providers',
+          description:
+              'GLM models from Zhipu AI with a lightweight flash tier and China-hosted deployment path.',
+          icon: Icons.hub_rounded,
+          protocol: 'OpenAI-compatible',
+          region: 'Zhipu AI',
+        );
+      case 'openai':
+      default:
+        return const _ProviderPresentation(
+          accent: HelixTheme.cyan,
+          cluster: 'Frontier Providers',
+          description:
+              'GPT chat and realtime models for general-purpose use, voice features, and broad model coverage.',
+          icon: Icons.bolt_rounded,
+          protocol: 'Realtime + Chat',
+          region: 'OpenAI',
+        );
+    }
+  }
+
   Future<void> _showCustomModelDialog() async {
     final controller = TextEditingController(text: _settings.activeModel ?? '');
     final provider =
         _llmService.providers[_settings.activeProviderId]?.name ??
         _settings.activeProviderId;
+    final accent = _providerPresentation(_settings.activeProviderId).accent;
 
     await showDialog<void>(
       context: context,
@@ -134,9 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: HelixTheme.cyan.withValues(alpha: 0.42),
-              ),
+              borderSide: BorderSide(color: accent.withValues(alpha: 0.42)),
             ),
           ),
         ),
@@ -148,11 +270,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () async {
               await _setActiveModel(controller.text);
-              if (mounted) {
-                Navigator.of(context).pop();
-              }
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
             },
-            child: const Text('Save'),
+            child: Text(
+              'Save',
+              style: TextStyle(color: accent.withValues(alpha: 0.92)),
+            ),
           ),
         ],
       ),
@@ -309,87 +433,325 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProviderSelector() {
-    final providers = _llmService.providers;
+    final providerEntries = _orderedProviderEntries();
+    final frontierProviders = providerEntries
+        .where((entry) => _frontierProviderIds.contains(entry.key))
+        .toList();
+    final chineseProviders = providerEntries
+        .where((entry) => !_frontierProviderIds.contains(entry.key))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildProviderSpotlight(),
+        const SizedBox(height: 8),
+        _buildProviderGroup(
+          title: 'Frontier Providers',
+          subtitle: 'OpenAI and Anthropic for premium global models',
+          providers: frontierProviders,
+        ),
+        if (chineseProviders.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _buildProviderGroup(
+            title: 'Chinese Providers',
+            subtitle: 'DeepSeek, Qwen, and Zhipu AI for China-focused routing',
+            providers: chineseProviders,
+          ),
+        ],
+        const SizedBox(height: 10),
+        Text(
+          'Each provider keeps its own API key. Anthropic uses its native API, while DeepSeek, Qwen, and Zhipu follow OpenAI-style request formats.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 12,
+            height: 1.45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProviderSpotlight() {
+    final providerId = _settings.activeProviderId;
+    final provider = _llmService.providers[providerId];
+    if (provider == null) return const SizedBox.shrink();
+
+    final presentation = _providerPresentation(providerId);
+    final configuredCount = _configuredProviders.values.where((v) => v).length;
+    final isConfigured = _configuredProviders[providerId] ?? false;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            presentation.accent.withValues(alpha: 0.18),
+            Colors.white.withValues(alpha: 0.04),
+          ],
+        ),
+        border: Border.all(color: presentation.accent.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: presentation.accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  presentation.icon,
+                  color: presentation.accent,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Active Provider',
+                      style: TextStyle(
+                        color: presentation.accent.withValues(alpha: 0.86),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      provider.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      presentation.description,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildProviderTag(
+                label: presentation.cluster,
+                color: presentation.accent,
+              ),
+              _buildProviderTag(
+                label: presentation.protocol,
+                color: Colors.white,
+              ),
+              _buildProviderTag(
+                label: 'Default ${provider.defaultModel}',
+                color: presentation.accent,
+              ),
+              _buildProviderTag(
+                label: isConfigured ? 'API key ready' : 'Needs API key',
+                color: isConfigured ? Colors.green : Colors.orange,
+              ),
+              _buildProviderTag(
+                label:
+                    '$configuredCount/${_llmService.providers.length} configured',
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProviderGroup({
+    required String title,
+    required String subtitle,
+    required List<MapEntry<String, LlmProvider>> providers,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Active Provider',
+          title,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: Colors.white.withValues(alpha: 0.82),
             fontSize: 13,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: providers.entries.map((entry) {
-            final isActive = entry.key == _settings.activeProviderId;
-            final isConfigured = _configuredProviders[entry.key] ?? false;
-
-            return GestureDetector(
-              onTap: () async {
-                await _settings.update((s) {
-                  s.activeProviderId = entry.key;
-                  s.activeModel = null;
-                });
-                try {
-                  _llmService.setActiveProvider(entry.key, model: null);
-                } catch (_) {}
-                await _loadModelsForActiveProvider();
-                setState(() {
-                  _connectionTestResult = null;
-                  _connectionTestError = null;
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? HelixTheme.cyan.withValues(alpha: 0.15)
-                      : Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isActive
-                        ? HelixTheme.cyan.withValues(alpha: 0.4)
-                        : Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      entry.value.name,
-                      style: TextStyle(
-                        color: isActive
-                            ? HelixTheme.cyan
-                            : Colors.white.withValues(alpha: 0.6),
-                        fontSize: 13,
-                        fontWeight: isActive
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                      ),
-                    ),
-                    if (isConfigured) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.check_circle,
-                        size: 12,
-                        color: Colors.green.withValues(alpha: 0.7),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.46),
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...providers.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _buildProviderCard(entry.key),
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildProviderCard(String providerId) {
+    final provider = _llmService.providers[providerId];
+    if (provider == null) return const SizedBox.shrink();
+
+    final presentation = _providerPresentation(providerId);
+    final isActive = providerId == _settings.activeProviderId;
+    final isConfigured = _configuredProviders[providerId] ?? false;
+
+    return GestureDetector(
+      onTap: () => _setActiveProvider(providerId),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isActive
+              ? presentation.accent.withValues(alpha: 0.11)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isActive
+                ? presentation.accent.withValues(alpha: 0.38)
+                : Colors.white.withValues(alpha: 0.08),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: presentation.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(
+                presentation.icon,
+                color: presentation.accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          provider.name,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (isConfigured)
+                        Icon(
+                          Icons.check_circle,
+                          size: 15,
+                          color: Colors.green.withValues(alpha: 0.8),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    presentation.description,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.56),
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _buildProviderTag(
+                        label: presentation.region,
+                        color: presentation.accent,
+                      ),
+                      _buildProviderTag(
+                        label: presentation.protocol,
+                        color: Colors.white,
+                      ),
+                      _buildProviderTag(
+                        label: provider.defaultModel,
+                        color: Colors.white,
+                      ),
+                      _buildProviderTag(
+                        label: isConfigured ? 'Configured' : 'Add key',
+                        color: isConfigured ? Colors.green : Colors.orange,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(
+              isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isActive
+                  ? presentation.accent
+                  : Colors.white.withValues(alpha: 0.28),
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderTag({required String label, required Color color}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color == Colors.white
+              ? Colors.white.withValues(alpha: 0.74)
+              : color.withValues(alpha: 0.92),
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -766,17 +1128,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildApiKeyTile() {
-    final isConfigured =
-        _configuredProviders[_settings.activeProviderId] == true;
+    final providerId = _settings.activeProviderId;
+    final presentation = _providerPresentation(providerId);
+    final isConfigured = _configuredProviders[providerId] == true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text(
+          'Connection',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: GestureDetector(
-                onTap: () => _showApiKeyDialog(_settings.activeProviderId),
+                onTap: () => _showApiKeyDialog(providerId),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -794,23 +1166,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Icon(
                         Icons.key,
                         size: 16,
-                        color: Colors.white.withValues(alpha: 0.5),
+                        color: presentation.accent.withValues(alpha: 0.78),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          isConfigured ? 'API Key configured' : 'Set API Key',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 14,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isConfigured
+                                  ? 'API key configured'
+                                  : 'Set API key',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.82),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${presentation.region} • ${presentation.protocol}',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.44),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Icon(
-                        isConfigured ? Icons.check_circle : Icons.warning_amber,
-                        size: 16,
-                        color: isConfigured ? Colors.green : Colors.orange,
-                      ),
+                      if (isConfigured)
+                        Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: Colors.green.withValues(alpha: 0.78),
+                        )
+                      else
+                        Icon(
+                          Icons.warning_amber,
+                          size: 16,
+                          color: Colors.orange.withValues(alpha: 0.82),
+                        ),
                     ],
                   ),
                 ),
@@ -822,22 +1217,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: _isTestingConnection ? null : _testCurrentConnection,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                    horizontal: 14,
+                    vertical: 12,
                   ),
                   decoration: BoxDecoration(
                     color: _connectionTestResult == true
                         ? Colors.green.withValues(alpha: 0.1)
                         : _connectionTestResult == false
                         ? Colors.red.withValues(alpha: 0.1)
-                        : HelixTheme.cyan.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
+                        : presentation.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: _connectionTestResult == true
                           ? Colors.green.withValues(alpha: 0.3)
                           : _connectionTestResult == false
                           ? Colors.red.withValues(alpha: 0.3)
-                          : HelixTheme.cyan.withValues(alpha: 0.2),
+                          : presentation.accent.withValues(alpha: 0.24),
                     ),
                   ),
                   child: _isTestingConnection
@@ -846,7 +1241,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           height: 16,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: HelixTheme.cyan.withValues(alpha: 0.6),
+                            color: presentation.accent.withValues(alpha: 0.75),
                           ),
                         )
                       : _connectionTestResult == true
@@ -860,7 +1255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       : Icon(
                           Icons.wifi_tethering,
                           size: 16,
-                          color: HelixTheme.cyan.withValues(alpha: 0.7),
+                          color: presentation.accent.withValues(alpha: 0.86),
                         ),
                 ),
               ),
@@ -901,6 +1296,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+        const SizedBox(height: 6),
+        Text(
+          'Switch providers at any time. Keys are stored separately, so you can keep Anthropic and Chinese provider credentials ready in parallel.',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.48),
+            fontSize: 11,
+            height: 1.45,
+          ),
+        ),
       ],
     );
   }
@@ -909,13 +1313,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final provider = _llmService.providers[_settings.activeProviderId];
     if (provider == null) return const SizedBox.shrink();
 
+    final accent = _providerPresentation(_settings.activeProviderId).accent;
     final models =
         _queriedModelsByProvider[_settings.activeProviderId] ??
         provider.availableModels;
     final currentModel = _settings.activeModel ?? provider.defaultModel;
+    final isUsingProviderDefault =
+        _settings.activeModel == null || _settings.activeModel!.trim().isEmpty;
     final canRefreshModels =
         (_configuredProviders[_settings.activeProviderId] ?? false) &&
         !_isLoadingModels;
+    final selectedValue = isUsingProviderDefault
+        ? _automaticModelSelection
+        : currentModel;
+
+    final dropdownItems = <DropdownMenuItem<String>>[
+      DropdownMenuItem(
+        value: _automaticModelSelection,
+        child: Text('Automatic (${provider.defaultModel})'),
+      ),
+      ...models.map(
+        (model) => DropdownMenuItem<String>(
+          value: model,
+          child: Text(model, overflow: TextOverflow.ellipsis),
+        ),
+      ),
+    ];
+
+    if (!isUsingProviderDefault && !models.contains(currentModel)) {
+      dropdownItems.add(
+        DropdownMenuItem<String>(
+          value: currentModel,
+          child: Text('Custom: $currentModel', overflow: TextOverflow.ellipsis),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -923,7 +1355,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Row(
           children: [
             Text(
-              'Model',
+              'Model Catalog',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 13,
@@ -931,7 +1363,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const Spacer(),
-            TextButton.icon(
+            Text(
+              '${models.length} options',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.42),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withValues(alpha: 0.18)),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: selectedValue,
+              isExpanded: true,
+              dropdownColor: HelixTheme.surfaceRaised,
+              borderRadius: BorderRadius.circular(16),
+              iconEnabledColor: accent.withValues(alpha: 0.9),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+              items: dropdownItems,
+              onChanged: (value) async {
+                if (value == null) return;
+                if (value == _automaticModelSelection) {
+                  await _setActiveModel(null);
+                  return;
+                }
+                await _setActiveModel(value);
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
               onPressed: canRefreshModels
                   ? () => _loadModelsForActiveProvider(refresh: true)
                   : null,
@@ -941,31 +1420,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       height: 12,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: HelixTheme.cyan.withValues(alpha: 0.7),
+                        color: accent.withValues(alpha: 0.75),
                       ),
                     )
                   : Icon(
                       Icons.refresh_rounded,
                       size: 14,
-                      color: HelixTheme.cyan.withValues(alpha: 0.75),
+                      color: accent.withValues(alpha: 0.9),
                     ),
               label: Text(
                 _isLoadingModels ? 'Loading' : 'Query Models',
                 style: TextStyle(
-                  color: HelixTheme.cyan.withValues(alpha: 0.75),
+                  color: accent.withValues(alpha: 0.9),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: accent.withValues(alpha: 0.22)),
+                foregroundColor: accent,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+              ),
             ),
-            TextButton(
+            OutlinedButton.icon(
               onPressed: _showCustomModelDialog,
-              child: Text(
+              icon: Icon(
+                Icons.edit_rounded,
+                size: 14,
+                color: accent.withValues(alpha: 0.9),
+              ),
+              label: Text(
                 'Custom',
                 style: TextStyle(
-                  color: HelixTheme.purple.withValues(alpha: 0.78),
+                  color: accent.withValues(alpha: 0.9),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: accent.withValues(alpha: 0.22)),
+                foregroundColor: accent,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
                 ),
               ),
             ),
@@ -981,56 +1481,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: models.map((model) {
-            final isSelected = model == currentModel;
-            return GestureDetector(
-              onTap: () async {
-                await _setActiveModel(model);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? HelixTheme.purple.withValues(alpha: 0.15)
-                      : Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? HelixTheme.purple.withValues(alpha: 0.4)
-                        : Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: Text(
-                  model,
-                  style: TextStyle(
-                    color: isSelected
-                        ? HelixTheme.purple
-                        : Colors.white.withValues(alpha: 0.5),
-                    fontSize: 12,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  ),
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        if (currentModel.isNotEmpty && !models.contains(currentModel)) ...[
-          const SizedBox(height: 10),
-          Text(
-            'Using custom model: $currentModel',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.52),
-              fontSize: 12,
-            ),
+        const SizedBox(height: 6),
+        Text(
+          isUsingProviderDefault
+              ? 'Automatic follows ${provider.name} default model: ${provider.defaultModel}.'
+              : models.contains(currentModel)
+              ? 'Selected from the ${provider.name} model catalog.'
+              : 'Using a custom model override: $currentModel',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.52),
+            fontSize: 12,
+            height: 1.45,
           ),
-        ],
+        ),
       ],
     );
   }
@@ -1402,6 +1865,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showApiKeyDialog(String providerId) {
     final controller = TextEditingController();
     final providerName = _llmService.providers[providerId]?.name ?? providerId;
+    final presentation = _providerPresentation(providerId);
     bool isTesting = false;
     bool? testResult;
 
@@ -1432,6 +1896,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${presentation.region} • ${presentation.protocol}',
+                    style: TextStyle(
+                      color: presentation.accent.withValues(alpha: 0.86),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    presentation.description,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.54),
+                      fontSize: 12,
+                      height: 1.45,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1493,8 +1975,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.2),
+                              color: presentation.accent.withValues(
+                                alpha: 0.24,
+                              ),
                             ),
+                            foregroundColor: presentation.accent,
                           ),
                           child: const Text('Test'),
                         ),
@@ -1511,7 +1996,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (context.mounted) Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: HelixTheme.cyan,
+                            backgroundColor: presentation.accent,
                           ),
                           child: const Text(
                             'Save',
