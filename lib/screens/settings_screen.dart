@@ -247,6 +247,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 (v) => _settings.update((s) => s.autoConnect = v),
               ),
               const SizedBox(height: 12),
+              _buildToggle(
+                'Tilt dashboard',
+                'Show the utility snapshot when the glasses detect a head-tilt gesture',
+                _settings.dashboardTiltEnabled,
+                (v) => _settings.update((s) => s.dashboardTiltEnabled = v),
+              ),
+              const SizedBox(height: 12),
               _buildSlider(
                 'HUD Brightness',
                 _settings.hudBrightness,

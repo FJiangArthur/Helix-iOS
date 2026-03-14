@@ -46,6 +46,9 @@ class BleManager {
   BleConnectionState _connectionState = BleConnectionState.disconnected;
   BleConnectionState get connectionState => _connectionState;
 
+  final _deviceEventController = StreamController<BleDeviceEvent>.broadcast();
+  Stream<BleDeviceEvent> get deviceEventStream => _deviceEventController.stream;
+
   void _updateConnectionState(BleConnectionState state) {
     _connectionState = state;
     _connectionStateController.add(state);
@@ -250,28 +253,37 @@ class BleManager {
       );
     }
 
-    if (res.data[0].toInt() == 0xF5) {
-      final notifyIndex = res.data[1].toInt();
+    final deviceEvent = BleDeviceEvent.fromReceive(res);
+    if (deviceEvent != null) {
+      _deviceEventController.add(deviceEvent);
+      appLogger.i(
+        'BleManager device event -> label=${deviceEvent.label}, index=${deviceEvent.notifyIndex}, side=${deviceEvent.side}, payload=${res.hex ?? res.hexStringData()}',
+      );
 
-      switch (notifyIndex) {
-        case 0:
+      switch (deviceEvent.kind) {
+        case BleDeviceEventKind.exitFunc:
           App.get.exitAll();
           break;
-        case 1:
-          if (res.lr == 'L') {
-            EvenAI.get.lastPageByTouchpad();
-          } else {
-            EvenAI.get.nextPageByTouchpad();
-          }
+        case BleDeviceEventKind.pageBack:
+          EvenAI.get.lastPageByTouchpad();
           break;
-        case 23: //BleEvent.evenaiStart:
+        case BleDeviceEventKind.pageForward:
+          EvenAI.get.nextPageByTouchpad();
+          break;
+        case BleDeviceEventKind.evenaiStart:
           EvenAI.get.toStartEvenAIByOS();
           break;
-        case 24: //BleEvent.evenaiRecordOver:
+        case BleDeviceEventKind.evenaiRecordOver:
           EvenAI.get.recordOverByOS();
           break;
-        default:
-          appLogger.d("Unknown Ble Event: $notifyIndex");
+        case BleDeviceEventKind.headUp:
+        case BleDeviceEventKind.headDown:
+        case BleDeviceEventKind.glassesConnectSuccess:
+        case BleDeviceEventKind.unknownDeviceOrder:
+          appLogger.d(
+            'BleManager discovery event retained for dashboard diagnostics: ${deviceEvent.label}',
+          );
+          break;
       }
       return;
     }
@@ -473,7 +485,9 @@ class BleManager {
           error: 'timeout',
         );
       } else {
-        _instance?._healthMetrics = _instance!._healthMetrics.recordSuccess(latency);
+        _instance?._healthMetrics = _instance!._healthMetrics.recordSuccess(
+          latency,
+        );
         _instance?._recordTransaction(
           command: cmd,
           target: lr0,

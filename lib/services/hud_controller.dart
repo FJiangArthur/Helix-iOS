@@ -15,14 +15,17 @@ class HudController {
   final StreamController<HudRouteState> _intentController =
       StreamController<HudRouteState>.broadcast();
   HudIntent _currentIntent = HudIntent.idle;
+  String _currentDisplayText = '';
 
   /// Stream of text to display on HUD
   Stream<String> get displayTextStream => _displayTextController.stream;
   Stream<HudRouteState> get intentStream => _intentController.stream;
   HudIntent get currentIntent => _currentIntent;
+  String get currentDisplayText => _currentDisplayText;
 
   /// Update HUD with new text
   void updateDisplay(String text) {
+    _currentDisplayText = text;
     _displayTextController.add(text);
   }
 
@@ -77,6 +80,10 @@ class HudController {
     await transitionTo(HudIntent.notification, source: source);
   }
 
+  Future<void> beginDashboard({String source = 'unknown'}) async {
+    await transitionTo(HudIntent.dashboard, source: source);
+  }
+
   Future<void> resetToIdle({
     String source = 'unknown',
     bool hideScreen = false,
@@ -103,6 +110,7 @@ class HudController {
 
   /// Clear display
   void clearDisplay() {
+    _currentDisplayText = '';
     _displayTextController.add('');
   }
 
