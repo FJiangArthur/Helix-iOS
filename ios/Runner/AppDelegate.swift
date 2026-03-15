@@ -44,22 +44,33 @@ import Speech
                 }
                 result(nil)
             case "startEvenAI":
-                let lang: String
-                let source: String
-                if let args = call.arguments as? [String: Any], let identifier = args["language"] as? String {
-                    lang = identifier
-                    source = args["source"] as? String ?? "glasses"
-                } else {
-                    lang = "EN"
-                    source = "glasses"
+                let args = call.arguments as? [String: Any] ?? [:]
+                let lang = args["language"] as? String ?? "EN"
+                let source = args["source"] as? String ?? "glasses"
+                let backendStr = args["backend"] as? String ?? "appleCloud"
+                let apiKey = args["apiKey"] as? String
+                let model = args["model"] as? String
+
+                let backend: TranscriptionBackend
+                switch backendStr {
+                case "openai":
+                    backend = .openai
+                case "appleOnDevice":
+                    backend = .appleOnDevice
+                default:
+                    backend = .appleCloud
                 }
+
                 SpeechStreamRecognizer.shared.startRecognition(
                     identifier: lang,
-                    source: source
+                    source: source,
+                    backend: backend,
+                    apiKey: apiKey,
+                    model: model
                 ) { startResult in
                     switch startResult {
                     case .success:
-                        result("Started Even AI speech recognition")
+                        result("Started speech recognition (\(backendStr))")
                     case .failure(let error):
                         result(
                             FlutterError(
@@ -102,6 +113,11 @@ extension AppDelegate : FlutterStreamHandler {
     }
     
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        if (arguments as? String == "eventBleReceive") {
+            BluetoothManager.shared.blueInfoSink = nil
+        } else if (arguments as? String == "eventSpeechRecognize") {
+            BluetoothManager.shared.blueSpeechSink = nil
+        }
         return nil
     }
 }

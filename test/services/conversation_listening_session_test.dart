@@ -14,7 +14,9 @@ void main() {
     late ConversationEngine engine;
 
     setUp(() async {
-      SharedPreferences.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({
+        'transcriptionBackend': 'appleCloud',
+      });
       await SettingsManager.instance.initialize();
       engine = ConversationEngine.instance;
       engine.clearHistory();

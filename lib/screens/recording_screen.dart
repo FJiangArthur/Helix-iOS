@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import '../services/audio_service.dart';
 import '../services/implementations/audio_service_impl.dart';
 import '../models/audio_configuration.dart';
 import 'file_management_screen.dart';
@@ -14,7 +13,7 @@ class RecordingScreen extends StatefulWidget {
 }
 
 class _RecordingScreenState extends State<RecordingScreen> {
-  late AudioService _audioService;
+  AudioServiceImpl? _audioService;
   bool _isRecording = false;
   bool _isInitialized = false;
   String? _errorMessage;
@@ -26,44 +25,45 @@ class _RecordingScreenState extends State<RecordingScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeAudioService();
+    // Audio service initialization is deferred until the user taps record.
+    // Opening flutter_sound eagerly conflicts with the AVAudioSession used
+    // by SpeechStreamRecognizer for live transcription on the Assistant tab.
   }
 
-  Future<void> _initializeAudioService() async {
+  Future<void> _ensureInitialized() async {
+    if (_isInitialized) return;
+
     try {
-      _audioService = AudioServiceImpl();
-      
-      // Initialize with speech recognition configuration
+      final service = AudioServiceImpl();
+      _audioService = service;
+
       final config = AudioConfiguration.speechRecognition();
-      await _audioService.initialize(config);
-      
-      // Request microphone permission
-      final hasPermission = await _audioService.requestPermission();
+      await service.initialize(config);
+
+      final hasPermission = await service.requestPermission();
       if (!hasPermission) {
         setState(() {
           _errorMessage = 'Microphone permission is required to record audio';
         });
         return;
       }
-      
-      // Subscribe to recording duration updates
-      _durationSubscription = _audioService.durationStream.listen(
+
+      _durationSubscription = service.durationStream.listen(
         (duration) {
           setState(() {
             _recordingDuration = duration;
           });
         },
       );
-      
-      // Subscribe to audio level updates
-      _audioLevelSubscription = _audioService.audioLevelStream.listen(
+
+      _audioLevelSubscription = service.audioLevelStream.listen(
         (level) {
           setState(() {
             _audioLevel = level;
           });
         },
       );
-      
+
       setState(() {
         _isInitialized = true;
       });
@@ -75,11 +75,17 @@ class _RecordingScreenState extends State<RecordingScreen> {
   }
 
   Future<void> _toggleRecording() async {
-    if (!_isInitialized) return;
-    
+    if (!_isInitialized) {
+      await _ensureInitialized();
+      if (!_isInitialized) return;
+    }
+
+    final audioService = _audioService;
+    if (audioService == null) return;
+
     try {
       if (_isRecording) {
-        await _audioService.stopRecording();
+        await audioService.stopRecording();
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
@@ -87,7 +93,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
         });
         
         // Show success message with file path
-        final filePath = _audioService.currentRecordingPath;
+        final filePath = audioService.currentRecordingPath;
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -97,7 +103,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
           );
         }
       } else {
-        await _audioService.startRecording();
+        await audioService.startRecording();
         setState(() {
           _isRecording = true;
         });
@@ -130,7 +136,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
   void dispose() {
     _durationSubscription?.cancel();
     _audioLevelSubscription?.cancel();
-    _audioService.dispose();
+    _audioService?.dispose();
     super.dispose();
   }
 
@@ -160,11 +166,11 @@ class _RecordingScreenState extends State<RecordingScreen> {
             
             // Status Text
             Text(
-              _isRecording 
-                ? 'Recording...' 
-                : _isInitialized 
-                  ? 'Ready to Record' 
-                  : 'Initializing...',
+              _isRecording
+                ? 'Recording...'
+                : _isInitialized
+                  ? 'Ready to Record'
+                  : 'Tap to Start',
               style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.w500,

@@ -7,6 +7,12 @@
 import AVFoundation
 import Speech
 
+enum TranscriptionBackend: String {
+    case openai
+    case appleCloud
+    case appleOnDevice
+}
+
 class SpeechStreamRecognizer {
     static let shared = SpeechStreamRecognizer()
 
@@ -24,6 +30,8 @@ class SpeechStreamRecognizer {
     private var didEmitFinalResult = false
     private var activeInputSource: InputSource = .glassesPcm
     private var pendingStartCompletion: ((Result<Void, Error>) -> Void)?
+    private var activeBackend: TranscriptionBackend = .appleCloud
+    private let openaiTranscriber = OpenAIRealtimeTranscriber()
 
     let languageDic = [
         "CN": "zh-CN",
@@ -65,13 +73,30 @@ class SpeechStreamRecognizer {
     func startRecognition(
         identifier: String,
         source: String = "glasses",
+        backend: TranscriptionBackend = .appleCloud,
+        apiKey: String? = nil,
+        model: String? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        print("[SpeechRecognizer] startRecognition called — identifier=\(identifier), source=\(source)")
         stopRecognition(emitFinal: false)
         pendingStartCompletion = completion
+        activeBackend = backend
+
+        if backend == .openai {
+            startOpenAIRecognition(
+                identifier: identifier,
+                source: source,
+                apiKey: apiKey ?? "",
+                model: model ?? "gpt-4o-mini-transcribe",
+                completion: completion
+            )
+            return
+        }
 
         Task { @MainActor in
             let speechAuthorized = await SFSpeechRecognizer.hasAuthorizationToRecognize()
+            print("[SpeechRecognizer] Speech authorization: \(speechAuthorized)")
             guard speechAuthorized else {
                 self.failToStart(RecognizerError.notAuthorizedToRecognize)
                 return
@@ -79,6 +104,7 @@ class SpeechStreamRecognizer {
 
             if source.lowercased() == "microphone" {
                 let micAuthorized = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+                print("[SpeechRecognizer] Microphone authorization: \(micAuthorized)")
                 guard micAuthorized else {
                     self.failToStart(RecognizerError.notPermittedToRecord)
                     return
@@ -90,6 +116,7 @@ class SpeechStreamRecognizer {
     }
 
     private func beginRecognition(identifier: String, source: String) {
+        print("[SpeechRecognizer] beginRecognition — identifier=\(identifier), source=\(source)")
 
         lastRecognizedText = ""
         lastEmittedText = ""
@@ -99,20 +126,25 @@ class SpeechStreamRecognizer {
             : .glassesPcm
 
         let localeIdentifier = languageDic[identifier] ?? "en-US"
+        print("[SpeechRecognizer] Creating recognizer for locale: \(localeIdentifier)")
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
 
         guard let recognizer = recognizer else {
+            print("[SpeechRecognizer] ERROR: recognizer is nil for locale \(localeIdentifier)")
             failToStart(RecognizerError.nilRecognizer)
             return
         }
 
         guard recognizer.isAvailable else {
+            print("[SpeechRecognizer] ERROR: recognizer not available (network issue or unsupported locale)")
             failToStart(RecognizerError.recognizerIsUnavailable)
             return
         }
+        print("[SpeechRecognizer] Recognizer available — supportsOnDeviceRecognition=\(recognizer.supportsOnDeviceRecognition)")
 
         let audioSession = AVAudioSession.sharedInstance()
         do {
+            print("[SpeechRecognizer] Configuring audio session...")
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: .voiceChat,
@@ -121,7 +153,9 @@ class SpeechStreamRecognizer {
             try audioSession.setPreferredSampleRate(16000)
             try audioSession.setPreferredIOBufferDuration(0.02)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            print("[SpeechRecognizer] Audio session configured — sampleRate=\(audioSession.sampleRate), ioBufferDuration=\(audioSession.ioBufferDuration)")
         } catch {
+            print("[SpeechRecognizer] Audio session setup FAILED: \(error.localizedDescription)")
             failToStart(error, messageOverride: "Error setting up audio session: \(error.localizedDescription)")
             return
         }
@@ -136,7 +170,7 @@ class SpeechStreamRecognizer {
         }
 
         recognitionRequest.shouldReportPartialResults = true
-        recognitionRequest.requiresOnDeviceRecognition = false
+        recognitionRequest.requiresOnDeviceRecognition = (activeBackend == .appleOnDevice)
 
         recognitionTask = recognizer.recognitionTask(with: recognitionRequest) {
             [weak self] result, error in
@@ -145,6 +179,7 @@ class SpeechStreamRecognizer {
             if let result = result {
                 let text = result.bestTranscription.formattedString
                     .trimmingCharacters(in: .whitespacesAndNewlines)
+                print("[SpeechRecognizer] Result — isFinal=\(result.isFinal), text=\"\(text.prefix(80))\"")
                 if !text.isEmpty {
                     self.lastRecognizedText = text
                     self.emitTranscript(text, isFinal: result.isFinal)
@@ -156,6 +191,7 @@ class SpeechStreamRecognizer {
             }
 
             if let error = error {
+                print("[SpeechRecognizer] Recognition error: \(error.localizedDescription)")
                 self.completePendingStart(.failure(error))
                 self.emitError("Speech recognition failed: \(error.localizedDescription)")
                 self.emitTranscript(self.lastRecognizedText, isFinal: true)
@@ -166,15 +202,97 @@ class SpeechStreamRecognizer {
         if activeInputSource == .microphone {
             do {
                 try startMicrophoneCapture()
+                print("[SpeechRecognizer] Microphone capture started successfully")
                 completePendingStart(.success(()))
             } catch {
+                print("[SpeechRecognizer] Microphone capture FAILED: \(error.localizedDescription)")
                 failToStart(
                     error,
                     messageOverride: "Failed to start microphone capture: \(error.localizedDescription)"
                 )
             }
         } else {
+            print("[SpeechRecognizer] Glasses PCM mode — waiting for appendPCMData calls")
             completePendingStart(.success(()))
+        }
+    }
+
+    private func startOpenAIRecognition(
+        identifier: String,
+        source: String,
+        apiKey: String,
+        model: String,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        lastRecognizedText = ""
+        lastEmittedText = ""
+        didEmitFinalResult = false
+        activeInputSource = source.lowercased() == "microphone" ? .microphone : .glassesPcm
+
+        openaiTranscriber.onTranscript = { [weak self] text, isFinal in
+            guard let self = self else { return }
+            if !text.isEmpty {
+                self.lastRecognizedText = text
+                self.emitTranscript(text, isFinal: isFinal)
+            }
+        }
+        openaiTranscriber.onError = { [weak self] message in
+            self?.emitError(message)
+        }
+
+        let langMap: [String: String] = [
+            "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
+            "ES": "es", "RU": "ru", "FR": "fr", "DE": "de",
+        ]
+        let lang = langMap[identifier] ?? "en"
+
+        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang) { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .success:
+                if self.activeInputSource == .microphone {
+                    let audioSession = AVAudioSession.sharedInstance()
+                    do {
+                        try audioSession.setCategory(
+                            .playAndRecord,
+                            mode: .voiceChat,
+                            options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+                        )
+                        try audioSession.setPreferredSampleRate(16000)
+                        try audioSession.setPreferredIOBufferDuration(0.02)
+                        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+                        let inputNode = self.audioEngine.inputNode
+                        let recordingFormat = AVAudioFormat(
+                            commonFormat: .pcmFormatInt16,
+                            sampleRate: 16000,
+                            channels: 1,
+                            interleaved: false
+                        )!
+                        inputNode.removeTap(onBus: 0)
+                        inputNode.installTap(onBus: 0, bufferSize: 1600, format: recordingFormat) {
+                            [weak self] buffer, _ in
+                            guard let self = self,
+                                  let channelData = buffer.int16ChannelData else { return }
+                            let frameLength = Int(buffer.frameLength)
+                            let data = Data(bytes: channelData.pointee, count: frameLength * 2)
+                            self.openaiTranscriber.appendAudio(data)
+                        }
+                        self.audioEngine.prepare()
+                        try self.audioEngine.start()
+                        print("[SpeechRecognizer] OpenAI mic capture started")
+                        completion(.success(()))
+                    } catch {
+                        print("[SpeechRecognizer] OpenAI mic setup failed: \(error)")
+                        completion(.failure(error))
+                    }
+                } else {
+                    print("[SpeechRecognizer] OpenAI glasses PCM mode ready")
+                    completion(.success(()))
+                }
+            case .failure(let error):
+                completion(.failure(error))
+            }
         }
     }
 
@@ -184,6 +302,10 @@ class SpeechStreamRecognizer {
 
     func appendPCMData(_ pcmData: Data) {
         guard activeInputSource == .glassesPcm else { return }
+        if activeBackend == .openai {
+            openaiTranscriber.appendAudio(pcmData)
+            return
+        }
         guard let recognitionRequest = recognitionRequest else {
             print("Recognition request is not available")
             return
@@ -236,6 +358,18 @@ class SpeechStreamRecognizer {
     }
 
     private func stopRecognition(emitFinal: Bool) {
+        if activeBackend == .openai {
+            if emitFinal {
+                emitTranscript(lastRecognizedText, isFinal: true)
+            }
+            openaiTranscriber.stop()
+            if audioEngine.isRunning {
+                audioEngine.stop()
+            }
+            audioEngine.inputNode.removeTap(onBus: 0)
+            return
+        }
+
         if emitFinal {
             emitTranscript(lastRecognizedText, isFinal: true)
         }
@@ -259,6 +393,10 @@ class SpeechStreamRecognizer {
         }
 
         DispatchQueue.main.async {
+            let hasSink = BluetoothManager.shared.blueSpeechSink != nil
+            if !hasSink {
+                print("[SpeechRecognizer] WARNING: blueSpeechSink is nil — transcript will be lost")
+            }
             BluetoothManager.shared.blueSpeechSink?([
                 "script": normalized,
                 "isFinal": isFinal

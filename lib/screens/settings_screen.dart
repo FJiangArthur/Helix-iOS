@@ -325,6 +325,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ]),
             const SizedBox(height: 20),
+            _buildSection('Transcription', Icons.record_voice_over, [
+              ListTile(
+                title: const Text('Backend'),
+                subtitle: Text(_transcriptionBackendLabel(_settings.transcriptionBackend)),
+                trailing: DropdownButton<String>(
+                  value: _settings.transcriptionBackend,
+                  dropdownColor: const Color(0xFF1A1F35),
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 'openai', child: Text('OpenAI Realtime')),
+                    DropdownMenuItem(value: 'appleCloud', child: Text('Apple Cloud')),
+                    DropdownMenuItem(value: 'appleOnDevice', child: Text('On-Device')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      _settings.update((s) => s.transcriptionBackend = value);
+                    }
+                  },
+                ),
+              ),
+              if (_settings.transcriptionBackend == 'openai')
+                ListTile(
+                  title: const Text('Model'),
+                  trailing: DropdownButton<String>(
+                    value: _settings.transcriptionModel,
+                    dropdownColor: const Color(0xFF1A1F35),
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'gpt-4o-mini-transcribe',
+                        child: Text('gpt-4o-mini-transcribe'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'gpt-4o-transcribe',
+                        child: Text('gpt-4o-transcribe'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        _settings.update((s) => s.transcriptionModel = value);
+                      }
+                    },
+                  ),
+                ),
+              ListTile(
+                title: const Text('Microphone'),
+                subtitle: Text(_micSourceLabel(_settings.preferredMicSource)),
+                trailing: DropdownButton<String>(
+                  value: _settings.preferredMicSource,
+                  dropdownColor: const Color(0xFF1A1F35),
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
+                    DropdownMenuItem(value: 'glasses', child: Text('Glasses')),
+                    DropdownMenuItem(value: 'phone', child: Text('Phone')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      _settings.update((s) => s.preferredMicSource = value);
+                    }
+                  },
+                ),
+              ),
+            ]),
+            const SizedBox(height: 20),
             _buildSection('Assistant Defaults', Icons.tune_rounded, [
               _buildAssistantProfileSelector(),
               const SizedBox(height: 12),
@@ -369,13 +434,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Connect when glasses are in range',
                 _settings.autoConnect,
                 (v) => _settings.update((s) => s.autoConnect = v),
-              ),
-              const SizedBox(height: 12),
-              _buildToggle(
-                'Tilt dashboard',
-                'Show the utility snapshot when the glasses detect a head-tilt gesture',
-                _settings.dashboardTiltEnabled,
-                (v) => _settings.update((s) => s.dashboardTiltEnabled = v),
               ),
               const SizedBox(height: 12),
               _buildSlider(
@@ -2033,5 +2091,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
+  }
+
+  String _transcriptionBackendLabel(String backend) {
+    switch (backend) {
+      case 'openai':
+        return 'Low-latency WebSocket (requires OpenAI key)';
+      case 'appleCloud':
+        return 'Apple cloud speech (free, ~1min limit)';
+      case 'appleOnDevice':
+        return 'On-device (works offline, lower accuracy)';
+      default:
+        return backend;
+    }
+  }
+
+  String _micSourceLabel(String source) {
+    switch (source) {
+      case 'auto':
+        return 'Glasses when connected, phone otherwise';
+      case 'glasses':
+        return 'Always use glasses microphone';
+      case 'phone':
+        return 'Always use phone microphone';
+      default:
+        return source;
+    }
   }
 }

@@ -140,6 +140,9 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         child: NavigationBar(
+          key: const Key('main-navigation-bar'),
+          height: 56,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
             setState(() {

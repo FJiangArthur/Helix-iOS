@@ -197,10 +197,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _isOverviewExpanded = false;
     });
 
-    final glassesConnected = BleManager.isBothConnected();
+    final settings = SettingsManager.instance;
+    final useGlasses = switch (settings.preferredMicSource) {
+      'glasses' => BleManager.isBothConnected(),
+      'phone' => false,
+      _ => BleManager.isBothConnected(), // 'auto'
+    };
 
     try {
-      if (glassesConnected) {
+      if (useGlasses) {
         await EvenAI.get.toStartEvenAIByOS();
       } else {
         await ConversationListeningSession.instance.startSession(

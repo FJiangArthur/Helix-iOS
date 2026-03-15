@@ -75,12 +75,17 @@ class ConversationListeningSession {
     _engine.start(source: source);
 
     await _speechSubscription?.cancel();
+    appLogger.d('[ListeningSession] Subscribing to eventSpeechRecognize stream');
     _speechSubscription = _speechEvents.listen(
       (event) {
         final payload = Map<String, dynamic>.from(event as Map);
         final text = (payload['script'] as String? ?? '').trim();
         final isFinal = payload['isFinal'] == true;
         final error = (payload['error'] as String?)?.trim();
+
+        appLogger.d('[ListeningSession] Speech event — '
+            'isFinal=$isFinal, text="${text.length > 60 ? text.substring(0, 60) : text}"'
+            '${error != null ? ", error=$error" : ""}');
 
         if (text.isNotEmpty) {
           _latestTranscript = text;
@@ -107,13 +112,30 @@ class ConversationListeningSession {
     );
 
     final langCode = _getLanguageCode();
+    final sourceStr =
+        source == TranscriptSource.glasses ? 'glasses' : 'microphone';
+    final settings = SettingsManager.instance;
+    String? apiKey;
+    if (settings.transcriptionBackend == 'openai') {
+      apiKey = await settings.getApiKey('openai');
+    }
+
+    appLogger.d('[ListeningSession] Calling startEvenAI — '
+        'lang=$langCode, source=$sourceStr, '
+        'backend=${settings.transcriptionBackend}, '
+        'model=${settings.transcriptionModel}');
     try {
       await _invokeMethod('startEvenAI', {
         'language': langCode,
-        'source': source == TranscriptSource.glasses ? 'glasses' : 'microphone',
+        'source': sourceStr,
+        'backend': settings.transcriptionBackend,
+        'apiKey': apiKey,
+        'model': settings.transcriptionModel,
       });
       _isRunning = true;
+      appLogger.d('[ListeningSession] startEvenAI succeeded — session is running');
     } on PlatformException catch (error) {
+      appLogger.e('[ListeningSession] startEvenAI PlatformException: ${error.message}');
       await _speechSubscription?.cancel();
       _speechSubscription = null;
       _isRunning = false;
@@ -121,6 +143,7 @@ class ConversationListeningSession {
       _publishError(error.message ?? 'Failed to start speech recognition.');
       rethrow;
     } catch (error) {
+      appLogger.e('[ListeningSession] startEvenAI error: $error');
       await _speechSubscription?.cancel();
       _speechSubscription = null;
       _isRunning = false;
