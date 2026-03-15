@@ -107,7 +107,8 @@ extension AppDelegate : FlutterStreamHandler {
         if (arguments as? String == "eventBleReceive") {
             BluetoothManager.shared.blueInfoSink = events
         } else if (arguments as? String == "eventSpeechRecognize") {
-            BluetoothManager.shared.blueSpeechSink = events
+            speechEventSink = events
+            SpeechStreamRecognizer.shared.attachEventSink(events)
         }
         return nil
     }
@@ -116,7 +117,8 @@ extension AppDelegate : FlutterStreamHandler {
         if (arguments as? String == "eventBleReceive") {
             BluetoothManager.shared.blueInfoSink = nil
         } else if (arguments as? String == "eventSpeechRecognize") {
-            BluetoothManager.shared.blueSpeechSink = nil
+            speechEventSink = nil
+            SpeechStreamRecognizer.shared.detachEventSink()
         }
         return nil
     }

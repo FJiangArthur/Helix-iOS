@@ -70,7 +70,7 @@ class ConversationListeningSession {
     _source = source;
     _latestTranscript = '';
     _lastFinalizedTranscript = '';
-    _speechFinalizationCompleter = Completer<void>();
+    _speechFinalizationCompleter = null;
     _publishError(null);
     _engine.start(source: source);
 
@@ -88,6 +88,7 @@ class ConversationListeningSession {
             '${error != null ? ", error=$error" : ""}');
 
         if (text.isNotEmpty) {
+          _ensureSpeechFinalizationCompleter();
           _latestTranscript = text;
           _publishError(null);
           _engine.onTranscriptionUpdate(text);
@@ -200,6 +201,13 @@ class ConversationListeningSession {
     final waiter = _speechFinalizationCompleter;
     if (waiter != null && !waiter.isCompleted) {
       waiter.complete();
+    }
+  }
+
+  void _ensureSpeechFinalizationCompleter() {
+    final waiter = _speechFinalizationCompleter;
+    if (waiter == null || waiter.isCompleted) {
+      _speechFinalizationCompleter = Completer<void>();
     }
   }
 
