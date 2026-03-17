@@ -12,6 +12,8 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
+		84F0A0013B7C100000000001 /* AudioResampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F0A0003B7C100000000001 /* AudioResampler.swift */; };
+		84F0A0033B7C100000000001 /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84F0A0023B7C100000000001 /* OpenAIRealtimeTranscriber.swift */; };
 		95307DC29E773F2B083126FC /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 03375BD71DAFA92805B5C4C0 /* Pods_RunnerTests.framework */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
@@ -74,6 +76,8 @@
 		6CFB262CD63652580BF417CB /* Pods_Runner.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Runner.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		84F0A0003B7C100000000001 /* AudioResampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioResampler.swift; sourceTree = "<group>"; };
+		84F0A0023B7C100000000001 /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		89B2A9AA0279384359627375 /* Pods-Runner.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Runner.profile.xcconfig"; path = "Target Support Files/Pods-Runner/Pods-Runner.profile.xcconfig"; sourceTree = "<group>"; };
 		9212AB2D73A4A7E7D1ECDFD4 /* Pods-RunnerTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RunnerTests.profile.xcconfig"; path = "Target Support Files/Pods-RunnerTests/Pods-RunnerTests.profile.xcconfig"; sourceTree = "<group>"; };
@@ -205,9 +209,11 @@
 			isa = PBXGroup;
 			children = (
 				DA91AD822E52F4C500220CE1 /* lc3 */,
+				84F0A0003B7C100000000001 /* AudioResampler.swift */,
 				DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */,
 				DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */,
 				DA91AD502E52F4A900220CE1 /* GattProtocal.swift */,
+				84F0A0023B7C100000000001 /* OpenAIRealtimeTranscriber.swift */,
 				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
 				DA91AD522E52F4A900220CE1 /* PcmConverter.m */,
 				DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */,
@@ -512,6 +518,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
+				84F0A0013B7C100000000001 /* AudioResampler.swift in Sources */,
 				DA91AD852E52F4C500220CE1 /* lc3.c in Sources */,
 				DA91AD862E52F4C500220CE1 /* bits.c in Sources */,
 				DA91AD872E52F4C500220CE1 /* attdet.c in Sources */,
@@ -532,6 +539,7 @@
 				DA91AD5D2E52F4A900220CE1 /* DebugHelper.swift in Sources */,
 				DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */,
 				DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */,
+				84F0A0033B7C100000000001 /* OpenAIRealtimeTranscriber.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

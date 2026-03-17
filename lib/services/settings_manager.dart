@@ -108,6 +108,9 @@ class SettingsManager {
   /// Display mode: 'minimal', 'standard', 'detailed'.
   String displayMode = 'standard';
 
+  /// Whether tilt-triggered dashboard rendering is enabled.
+  bool dashboardTiltEnabled = true;
+
   // ---------------------------------------------------------------------------
   // UI Settings
   // ---------------------------------------------------------------------------
@@ -173,6 +176,7 @@ class SettingsManager {
     autoConnect = prefs.getBool('autoConnect') ?? true;
     hudBrightness = prefs.getDouble('hudBrightness') ?? 0.7;
     displayMode = prefs.getString('displayMode') ?? 'standard';
+    dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
 
     // UI
     theme = prefs.getString('theme') ?? 'dark';
@@ -227,6 +231,7 @@ class SettingsManager {
     await prefs.setBool('autoConnect', autoConnect);
     await prefs.setDouble('hudBrightness', hudBrightness);
     await prefs.setString('displayMode', displayMode);
+    await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
 
     // UI
     await prefs.setString('theme', theme);
