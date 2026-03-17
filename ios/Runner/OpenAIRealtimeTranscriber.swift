@@ -1,6 +1,11 @@
 import Foundation
 
-class OpenAIRealtimeTranscriber: NSObject {
+enum RealtimeMode {
+    case transcriptionOnly
+    case conversation
+}
+
+class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
     enum TranscriberError: Error, LocalizedError {
         case missingApiKey
@@ -17,7 +22,10 @@ class OpenAIRealtimeTranscriber: NSObject {
     }
 
     var onTranscript: ((String, Bool) -> Void)?
+    var onResponse: ((String, Bool) -> Void)?
     var onError: ((String) -> Void)?
+
+    var isActive: Bool { webSocketTask != nil }
 
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
@@ -25,11 +33,15 @@ class OpenAIRealtimeTranscriber: NSObject {
     private var sendTimer: Timer?
     private var isConnected = false
     private var retryCount = 0
-    private let maxRetries = 1
+    private let maxRetries = 2
     private var apiKey: String = ""
     private var model: String = "gpt-4o-mini-transcribe"
     private var language: String = "en"
+    private var mode: RealtimeMode = .transcriptionOnly
+    private var systemInstructions: String = ""
     private var lastRecognizedText = ""
+    private var pendingCompletion: ((Result<Void, Error>) -> Void)?
+    private var connectTimeoutWork: DispatchWorkItem?
 
     private let sendIntervalMs: Double = 100
     private let targetSampleRate = 24000
@@ -39,6 +51,8 @@ class OpenAIRealtimeTranscriber: NSObject {
         apiKey: String,
         model: String,
         language: String,
+        mode: RealtimeMode = .transcriptionOnly,
+        systemPrompt: String = "",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         guard !apiKey.isEmpty else {
@@ -49,6 +63,8 @@ class OpenAIRealtimeTranscriber: NSObject {
         self.apiKey = apiKey
         self.model = model
         self.language = language
+        self.mode = mode
+        self.systemInstructions = systemPrompt
         self.retryCount = 0
         self.lastRecognizedText = ""
         self.audioBuffer = Data()
@@ -72,8 +88,78 @@ class OpenAIRealtimeTranscriber: NSObject {
         }
     }
 
+    // MARK: - URLSessionWebSocketDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        print("[OpenAITranscriber] WebSocket opened")
+        connectTimeoutWork?.cancel()
+        connectTimeoutWork = nil
+
+        isConnected = true
+        sendSessionConfig()
+        startSendTimer()
+        receiveMessage()
+
+        let completion = pendingCompletion
+        pendingCompletion = nil
+        completion?(.success(()))
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "none"
+        print("[OpenAITranscriber] WebSocket closed: code=\(closeCode.rawValue), reason=\(reasonStr)")
+        handleDisconnect(error: TranscriberError.connectionFailed("Closed with code \(closeCode.rawValue)"))
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error = error else { return }
+        print("[OpenAITranscriber] Session error: \(error.localizedDescription)")
+
+        if let completion = pendingCompletion {
+            connectTimeoutWork?.cancel()
+            connectTimeoutWork = nil
+            pendingCompletion = nil
+            isConnected = false
+            completion(.failure(error))
+            return
+        }
+
+        handleDisconnect(error: error)
+    }
+
+    // MARK: - Connection
+
+    private func realtimeSessionModel(for transcriptionModel: String) -> String {
+        switch transcriptionModel {
+        case "gpt-4o-transcribe":
+            return "gpt-4o-realtime-preview"
+        default:
+            return "gpt-4o-mini-realtime-preview"
+        }
+    }
+
     private func connect(completion: ((Result<Void, Error>) -> Void)? = nil) {
-        let urlString = "wss://api.openai.com/v1/realtime?intent=transcription&model=\(model)"
+        let sessionModel = realtimeSessionModel(for: model)
+        let urlString: String
+        switch mode {
+        case .transcriptionOnly:
+            urlString = "wss://api.openai.com/v1/realtime?intent=transcription&model=\(sessionModel)"
+        case .conversation:
+            urlString = "wss://api.openai.com/v1/realtime?model=\(sessionModel)"
+        }
         guard let url = URL(string: urlString) else {
             completion?(.failure(TranscriberError.connectionFailed("Invalid URL")))
             return
@@ -84,47 +170,87 @@ class OpenAIRealtimeTranscriber: NSObject {
         request.setValue("realtime=v1", forHTTPHeaderField: "OpenAI-Beta")
         request.timeoutInterval = 30
 
-        let session = URLSession(configuration: .default, delegate: nil, delegateQueue: .main)
+        pendingCompletion = completion
+
+        let session = URLSession(
+            configuration: .default,
+            delegate: self,
+            delegateQueue: .main
+        )
         self.urlSession = session
         let task = session.webSocketTask(with: request)
         self.webSocketTask = task
         task.resume()
 
-        receiveMessage()
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self = self, let completion = self.pendingCompletion else { return }
+            self.pendingCompletion = nil
+            self.disconnect()
+            print("[OpenAITranscriber] Connection timed out")
+            completion(.failure(TranscriberError.connectionFailed("Connection timed out")))
+        }
+        connectTimeoutWork = timeout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
 
+        print("[OpenAITranscriber] Connecting mode=\(mode), session=\(sessionModel)...")
+    }
+
+    private func sendSessionConfig() {
         let languageMap: [String: String] = [
             "en": "en", "zh": "zh", "ja": "ja", "ko": "ko",
             "es": "es", "ru": "ru", "fr": "fr", "de": "de",
         ]
         let resolvedLang = languageMap[language] ?? "en"
 
-        sendEvent([
-            "type": "transcription_session.update",
-            "session": [
-                "input_audio_format": "pcm16",
-                "input_audio_transcription": [
-                    "model": model,
-                    "language": resolvedLang,
+        switch mode {
+        case .transcriptionOnly:
+            sendEvent([
+                "type": "transcription_session.update",
+                "session": [
+                    "input_audio_format": "pcm16",
+                    "input_audio_transcription": [
+                        "language": resolvedLang,
+                    ],
+                    "turn_detection": [
+                        "type": "server_vad",
+                        "threshold": 0.5,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 500,
+                    ],
                 ],
-                "turn_detection": [
-                    "type": "server_vad",
-                    "threshold": 0.5,
-                    "prefix_padding_ms": 300,
-                    "silence_duration_ms": 500,
-                ],
-            ],
-        ])
+            ])
+            print("[OpenAITranscriber] Transcription config sent, language=\(resolvedLang)")
 
-        isConnected = true
-        startSendTimer()
-        completion?(.success(()))
-        print("[OpenAITranscriber] Connected to \(model), language=\(resolvedLang)")
+        case .conversation:
+            sendEvent([
+                "type": "session.update",
+                "session": [
+                    "modalities": ["text"],
+                    "instructions": systemInstructions,
+                    "input_audio_format": "pcm16",
+                    "input_audio_transcription": [
+                        "model": "gpt-4o-mini-transcribe",
+                        "language": resolvedLang,
+                    ],
+                    "turn_detection": [
+                        "type": "server_vad",
+                        "threshold": 0.5,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 800,
+                    ],
+                ],
+            ])
+            print("[OpenAITranscriber] Conversation config sent, language=\(resolvedLang)")
+        }
     }
 
     private func disconnect() {
+        connectTimeoutWork?.cancel()
+        connectTimeoutWork = nil
         sendTimer?.invalidate()
         sendTimer = nil
         isConnected = false
+        pendingCompletion = nil
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         webSocketTask = nil
         urlSession?.invalidateAndCancel()
@@ -161,7 +287,12 @@ class OpenAIRealtimeTranscriber: NSObject {
     }
 
     private func sendEvent(_ event: [String: Any]) {
-        guard let task = webSocketTask else { return }
+        let eventType = event["type"] as? String ?? ""
+        guard let task = webSocketTask,
+              isConnected
+              || eventType == "transcription_session.update"
+              || eventType == "session.update"
+        else { return }
         do {
             let data = try JSONSerialization.data(withJSONObject: event)
             let message = URLSessionWebSocketTask.Message.string(String(data: data, encoding: .utf8)!)
@@ -224,6 +355,18 @@ class OpenAIRealtimeTranscriber: NSObject {
                 }
             }
 
+        case "response.text.delta":
+            if let delta = json["delta"] as? String, !delta.isEmpty {
+                DispatchQueue.main.async {
+                    self.onResponse?(delta, false)
+                }
+            }
+
+        case "response.text.done":
+            DispatchQueue.main.async {
+                self.onResponse?("", true)
+            }
+
         case "error":
             let errorMsg = extractError(json)
             print("[OpenAITranscriber] API error: \(errorMsg)")
@@ -238,7 +381,8 @@ class OpenAIRealtimeTranscriber: NSObject {
                 }
             }
 
-        case "transcription_session.created", "transcription_session.updated":
+        case "transcription_session.created", "transcription_session.updated",
+             "session.created", "session.updated":
             print("[OpenAITranscriber] Session event: \(type)")
 
         default:
@@ -247,6 +391,15 @@ class OpenAIRealtimeTranscriber: NSObject {
     }
 
     private func handleDisconnect(error: Error) {
+        guard isConnected else { return }
+
+        // Flush partial response buffer on disconnect in conversation mode
+        if mode == .conversation {
+            DispatchQueue.main.async {
+                self.onResponse?("", true)
+            }
+        }
+
         isConnected = false
         sendTimer?.invalidate()
         sendTimer = nil
@@ -261,8 +414,10 @@ class OpenAIRealtimeTranscriber: NSObject {
 
         if retryCount < maxRetries {
             retryCount += 1
-            print("[OpenAITranscriber] Reconnecting (attempt \(retryCount))...")
-            connect()
+            print("[OpenAITranscriber] Reconnecting (attempt \(retryCount)/\(maxRetries))...")
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(retryCount)) { [weak self] in
+                self?.connect()
+            }
         } else {
             print("[OpenAITranscriber] Max retries reached, giving up")
             DispatchQueue.main.async {

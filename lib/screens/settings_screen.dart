@@ -334,7 +334,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   dropdownColor: const Color(0xFF1A1F35),
                   underline: const SizedBox.shrink(),
                   items: const [
-                    DropdownMenuItem(value: 'openai', child: Text('OpenAI Realtime')),
+                    DropdownMenuItem(value: 'openai', child: Text('OpenAI Transcription')),
+                    DropdownMenuItem(value: 'openaiRealtime', child: Text('OpenAI Live AI')),
                     DropdownMenuItem(value: 'appleCloud', child: Text('Apple Cloud')),
                     DropdownMenuItem(value: 'appleOnDevice', child: Text('On-Device')),
                   ],
@@ -2097,6 +2098,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     switch (backend) {
       case 'openai':
         return 'Low-latency WebSocket (requires OpenAI key)';
+      case 'openaiRealtime':
+        return 'Transcription + AI responses in one connection';
       case 'appleCloud':
         return 'Apple cloud speech (free, ~1min limit)';
       case 'appleOnDevice':

@@ -50,10 +50,12 @@ import Speech
                 let backendStr = args["backend"] as? String ?? "appleCloud"
                 let apiKey = args["apiKey"] as? String
                 let model = args["model"] as? String
+                let systemPrompt = args["systemPrompt"] as? String
+                let realtimeConversation = backendStr == "openaiRealtime"
 
                 let backend: TranscriptionBackend
                 switch backendStr {
-                case "openai":
+                case "openai", "openaiRealtime":
                     backend = .openai
                 case "appleOnDevice":
                     backend = .appleOnDevice
@@ -66,7 +68,9 @@ import Speech
                     source: source,
                     backend: backend,
                     apiKey: apiKey,
-                    model: model
+                    model: model,
+                    realtimeConversation: realtimeConversation,
+                    systemPrompt: systemPrompt
                 ) { startResult in
                     switch startResult {
                     case .success:

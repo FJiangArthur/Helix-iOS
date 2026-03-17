@@ -51,6 +51,7 @@ class ConversationEngine {
   static const Duration _responseFlushInterval = Duration(milliseconds: 75);
   static const int _responseFlushThreshold = 14;
   bool _silenceSuggestionSent = false;
+  String _realtimeResponseBuffer = '';
 
   // Configuration
   bool autoDetectQuestions = true;
@@ -74,6 +75,9 @@ class ConversationEngine {
   final _providerErrorController =
       StreamController<ProviderErrorState?>.broadcast();
   ProviderErrorState? _lastProviderError;
+
+  /// System prompt for the current mode and language, used by realtime sessions.
+  String get systemPrompt => _getSystemPrompt();
 
   Stream<String> get transcriptionStream => _transcriptionController.stream;
   Stream<TranscriptSnapshot> get transcriptSnapshotStream =>
@@ -194,6 +198,37 @@ class ConversationEngine {
     }
   }
 
+  /// Handle AI response text from the OpenAI Realtime API conversation mode.
+  void onRealtimeResponse(String text, {required bool isFinal}) {
+    if (text.isNotEmpty) {
+      _realtimeResponseBuffer += text;
+      _streamToGlasses(text, isStreaming: true);
+      _statusController.add(EngineStatus.responding);
+    }
+
+    if (isFinal) {
+      final fullResponse = _realtimeResponseBuffer.trim();
+      if (fullResponse.isNotEmpty) {
+        _streamToGlasses('', isStreaming: false);
+        _history.add(
+          ConversationTurn(
+            role: 'assistant',
+            content: fullResponse,
+            timestamp: DateTime.now(),
+            mode: _mode.name,
+            assistantProfileId: _activeAssistantProfile().id,
+          ),
+        );
+        _persistHistory();
+        _aiResponseController.add(fullResponse);
+      }
+      _realtimeResponseBuffer = '';
+      _statusController.add(
+        _isActive ? EngineStatus.listening : EngineStatus.idle,
+      );
+    }
+  }
+
   /// User explicitly asks a question (Direct Q&A mode)
   /// Works even when engine is not actively listening (standalone text mode)
   Future<void> askQuestion(String question) async {
@@ -243,6 +278,9 @@ class ConversationEngine {
 
   /// Use the LLM to generate a proactive suggestion based on the conversation
   Future<void> _generateProactiveSuggestion() async {
+    if (SettingsManager.instance.transcriptionBackend == 'openaiRealtime') {
+      return;
+    }
     final llmService = _getLlmService();
     if (llmService == null) return;
 
@@ -812,6 +850,9 @@ $profileInstruction''';
     String question, {
     required int responseToken,
   }) async {
+    if (SettingsManager.instance.transcriptionBackend == 'openaiRealtime') {
+      return;
+    }
     Timer? flushTimer;
     try {
       if (!_isResponseCurrent(responseToken)) return;

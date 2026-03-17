@@ -64,7 +64,11 @@ class ConversationListeningSession {
 
   Future<void> startSession({required TranscriptSource source}) async {
     if (_isRunning) {
-      await stopSession();
+      // Stop native side without tearing down the EventChannel subscription.
+      // Full stopSession() cancels the subscription which triggers a
+      // detach/attach cycle that races with the new startEvenAI call.
+      await _invokeMethod('stopEvenAI');
+      _isRunning = false;
     }
 
     _source = source;
@@ -74,9 +78,13 @@ class ConversationListeningSession {
     _publishError(null);
     _engine.start(source: source);
 
-    await _speechSubscription?.cancel();
-    appLogger.d('[ListeningSession] Subscribing to eventSpeechRecognize stream');
-    _speechSubscription = _speechEvents.listen(
+    // Reuse the existing EventChannel subscription if it's still alive.
+    if (_speechSubscription != null) {
+      appLogger.d('[ListeningSession] Reusing existing eventSpeechRecognize subscription');
+    } else {
+      appLogger.d('[ListeningSession] Subscribing to eventSpeechRecognize stream');
+    }
+    _speechSubscription ??= _speechEvents.listen(
       (event) {
         final payload = Map<String, dynamic>.from(event as Map);
         final text = (payload['script'] as String? ?? '').trim();
@@ -104,6 +112,14 @@ class ConversationListeningSession {
             overrideText: text.isNotEmpty ? text : _latestTranscript,
           );
         }
+
+        final aiResponse = payload['aiResponse'] as String?;
+        if (aiResponse != null) {
+          _engine.onRealtimeResponse(
+            aiResponse,
+            isFinal: payload['isFinal'] == true,
+          );
+        }
       },
       onError: (error) {
         appLogger.e('Speech recognition stream error', error: error);
@@ -117,8 +133,13 @@ class ConversationListeningSession {
         source == TranscriptSource.glasses ? 'glasses' : 'microphone';
     final settings = SettingsManager.instance;
     String? apiKey;
-    if (settings.transcriptionBackend == 'openai') {
+    String? systemPrompt;
+    if (settings.transcriptionBackend == 'openai' ||
+        settings.transcriptionBackend == 'openaiRealtime') {
       apiKey = await settings.getApiKey('openai');
+    }
+    if (settings.transcriptionBackend == 'openaiRealtime') {
+      systemPrompt = _engine.systemPrompt;
     }
 
     appLogger.d('[ListeningSession] Calling startEvenAI — '
@@ -132,6 +153,7 @@ class ConversationListeningSession {
         'backend': settings.transcriptionBackend,
         'apiKey': apiKey,
         'model': settings.transcriptionModel,
+        'systemPrompt': systemPrompt,
       });
       _isRunning = true;
       appLogger.d('[ListeningSession] startEvenAI succeeded — session is running');

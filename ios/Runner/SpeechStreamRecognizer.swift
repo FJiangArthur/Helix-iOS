@@ -100,10 +100,16 @@ class SpeechStreamRecognizer {
         backend: TranscriptionBackend = .appleCloud,
         apiKey: String? = nil,
         model: String? = nil,
+        realtimeConversation: Bool = false,
+        systemPrompt: String? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         log("Starting recognition language=\(identifier) source=\(source) backend=\(backend.rawValue)")
-        stopRecognition(emitFinal: false)
+        // Only stop if there's actually an active session to avoid killing
+        // an in-flight OpenAI WebSocket connection on a redundant restart.
+        if openaiTranscriber.isActive || recognitionTask != nil {
+            stopRecognition(emitFinal: false)
+        }
         pendingStartCompletion = completion
         activeBackend = backend
         pendingSpeechEvents.removeAll()
@@ -115,6 +121,8 @@ class SpeechStreamRecognizer {
                 source: source,
                 apiKey: apiKey ?? "",
                 model: model ?? "gpt-4o-mini-transcribe",
+                realtimeConversation: realtimeConversation,
+                systemPrompt: systemPrompt,
                 completion: completion
             )
             return
@@ -241,6 +249,8 @@ class SpeechStreamRecognizer {
         source: String,
         apiKey: String,
         model: String,
+        realtimeConversation: Bool = false,
+        systemPrompt: String? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         lastRecognizedText = ""
@@ -260,6 +270,9 @@ class SpeechStreamRecognizer {
         openaiTranscriber.onError = { [weak self] message in
             self?.emitError(message)
         }
+        openaiTranscriber.onResponse = { [weak self] text, isFinal in
+            self?.emitAIResponse(text, isFinal: isFinal)
+        }
 
         let langMap: [String: String] = [
             "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
@@ -267,7 +280,8 @@ class SpeechStreamRecognizer {
         ]
         let lang = langMap[identifier] ?? "en"
 
-        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang) { [weak self] result in
+        let mode: RealtimeMode = realtimeConversation ? .conversation : .transcriptionOnly
+        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang, mode: mode, systemPrompt: systemPrompt ?? "") { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success:
@@ -434,6 +448,13 @@ class SpeechStreamRecognizer {
             "script": lastRecognizedText,
             "isFinal": true,
             "error": message
+        ])
+    }
+
+    private func emitAIResponse(_ text: String, isFinal: Bool) {
+        emitSpeechEvent([
+            "aiResponse": text,
+            "isFinal": isFinal,
         ])
     }
 
