@@ -9,15 +9,62 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  const secureStorageChannel = MethodChannel(
+    'plugins.it_nomads.com/flutter_secure_storage',
+  );
+  final secureStorageValues = <String, String>{};
+
+  Future<Object?> secureStorageHandler(MethodCall call) async {
+    final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+    final key = arguments['key'] as String?;
+
+    switch (call.method) {
+      case 'read':
+        return key == null ? null : secureStorageValues[key];
+      case 'write':
+        final value = arguments['value'] as String?;
+        if (key != null && value != null) {
+          secureStorageValues[key] = value;
+        }
+        return null;
+      case 'delete':
+        if (key != null) {
+          secureStorageValues.remove(key);
+        }
+        return null;
+      case 'deleteAll':
+        secureStorageValues.clear();
+        return null;
+      case 'containsKey':
+        return key != null && secureStorageValues.containsKey(key);
+      case 'readAll':
+        return Map<String, String>.from(secureStorageValues);
+      default:
+        return null;
+    }
+  }
+
+  setUpAll(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
+  });
+
+  tearDownAll(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(secureStorageChannel, null);
+  });
 
   group('ConversationListeningSession', () {
     late ConversationEngine engine;
 
     setUp(() async {
+      secureStorageValues.clear();
       SharedPreferences.setMockInitialValues({
         'transcriptionBackend': 'appleCloud',
       });
       await SettingsManager.instance.initialize();
+      SettingsManager.instance.transcriptionBackend = 'appleCloud';
+      SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -177,5 +224,43 @@ void main() {
 
       await speechEvents.close();
     });
+
+    test(
+      'openai realtime start forwards stored key and system prompt',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final methodCalls = <(String, Object?)>[];
+
+        SettingsManager.instance.transcriptionBackend = 'openaiRealtime';
+        SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
+        await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
+
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async {
+            methodCalls.add((method, arguments));
+            return null;
+          },
+        );
+
+        await session.startSession(source: TranscriptSource.phone);
+
+        expect(methodCalls.single.$1, 'startEvenAI');
+        final startArgs = Map<String, dynamic>.from(
+          methodCalls.single.$2! as Map,
+        );
+        expect(startArgs['backend'], 'openaiRealtime');
+        expect(startArgs['source'], 'microphone');
+        expect(startArgs['apiKey'], 'sk-live-test');
+        expect(startArgs['model'], 'gpt-4o-mini-transcribe');
+        expect(startArgs['systemPrompt'], isA<String>());
+        expect((startArgs['systemPrompt'] as String).trim(), isNotEmpty);
+
+        await session.stopSession();
+        await speechEvents.close();
+      },
+    );
   });
 }

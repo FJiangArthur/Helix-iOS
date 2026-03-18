@@ -108,6 +108,9 @@ class SettingsManager {
   /// Display mode: 'minimal', 'standard', 'detailed'.
   String displayMode = 'standard';
 
+  /// Whether tilt gestures can open the dashboard overlay on the glasses.
+  bool dashboardTiltEnabled = true;
+
   // ---------------------------------------------------------------------------
   // UI Settings
   // ---------------------------------------------------------------------------
@@ -162,17 +165,16 @@ class SettingsManager {
     vadSensitivity = prefs.getDouble('vadSensitivity') ?? 0.5;
 
     // Transcription
-    transcriptionBackend =
-        prefs.getString('transcriptionBackend') ?? 'openai';
+    transcriptionBackend = prefs.getString('transcriptionBackend') ?? 'openai';
     transcriptionModel =
         prefs.getString('transcriptionModel') ?? 'gpt-4o-mini-transcribe';
-    preferredMicSource =
-        prefs.getString('preferredMicSource') ?? 'auto';
+    preferredMicSource = prefs.getString('preferredMicSource') ?? 'auto';
 
     // Glasses
     autoConnect = prefs.getBool('autoConnect') ?? true;
     hudBrightness = prefs.getDouble('hudBrightness') ?? 0.7;
     displayMode = prefs.getString('displayMode') ?? 'standard';
+    dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
 
     // UI
     theme = prefs.getString('theme') ?? 'dark';
@@ -227,6 +229,7 @@ class SettingsManager {
     await prefs.setBool('autoConnect', autoConnect);
     await prefs.setDouble('hudBrightness', hudBrightness);
     await prefs.setString('displayMode', displayMode);
+    await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
 
     // UI
     await prefs.setString('theme', theme);
@@ -286,10 +289,7 @@ class SettingsManager {
 
   /// Store an API key for the given [providerId].
   Future<void> setApiKey(String providerId, String apiKey) async {
-    await _secureStorage.write(
-      key: '$_apiKeyPrefix$providerId',
-      value: apiKey,
-    );
+    await _secureStorage.write(key: '$_apiKeyPrefix$providerId', value: apiKey);
   }
 
   /// Retrieve the API key for [providerId], or null if not configured.
@@ -304,13 +304,7 @@ class SettingsManager {
 
   /// Returns a map of provider IDs to whether they have an API key configured.
   Future<Map<String, bool>> getConfiguredProviders() async {
-    const providerIds = [
-      'openai',
-      'anthropic',
-      'deepseek',
-      'qwen',
-      'zhipu',
-    ];
+    const providerIds = ['openai', 'anthropic', 'deepseek', 'qwen', 'zhipu'];
 
     final result = <String, bool>{};
     for (final id in providerIds) {

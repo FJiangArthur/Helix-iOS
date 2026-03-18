@@ -1,0 +1,112 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 40px; color: #111827; line-height: 1.45; }
+h1 { font-size: 28px; margin: 0 0 18px; }
+h2 { font-size: 20px; margin: 26px 0 10px; color: #111827; }
+h3 { font-size: 15px; margin: 18px 0 8px; color: #1f2937; }
+p { margin: 8px 0; }
+ul { margin: 8px 0 12px 20px; }
+li { margin: 5px 0; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0 18px; font-size: 12px; }
+th, td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; text-align: left; }
+th { background: #e2e8f0; font-weight: 700; }
+code { background: #f3f4f6; padding: 1px 4px; border-radius: 4px; font-size: 90%; }
+</style></head><body>
+<h1>Helix 6-Week Roadmap</h1>
+<p>Generated from repository inspection on 2026-03-17.</p>
+<h2>Planning Basis</h2>
+<ul>
+<li>The current product surface is already broader than the older top-level docs imply: onboarding, Assistant, Glasses, History, Record, Settings, file management, provider configuration, native iOS speech, BLE integration, and dashboard handoff are all present in the repo.</li>
+<li>The most current near-term work is concentrated in the recent realtime transcription and realtime conversation specs under <code>docs/superpowers</code>.</li>
+<li>The older <code>PLAN.md</code> and <code>todo.md</code> still point to unresolved recording UI and waveform work, but they refer to an older <code>ConversationTab</code> shape that no longer matches the active <code>RecordingScreen</code> path.</li>
+<li>The Assistant surface already contains dormant building blocks for richer UI and tooling, including assistant profiles, quick-ask presets, summary toggles, follow-up toggles, response tool widgets, and insight extraction helpers.</li>
+<li>The next six weeks should harden and verify the current stack. This repo is already built around singleton services, platform channels, and native iOS dependencies, so a major architecture rewrite would add risk without helping the beta path.</li>
+</ul>
+<h2>Constraints to Honor</h2>
+<ul>
+<li>Keep Flutter UI, native iOS speech/BLE code, and existing service singletons working incrementally.</li>
+<li>Resolve audio session conflicts before adding more product scope. The recording flow already defers <code>flutter_sound</code> initialization to avoid clashes with live speech recognition.</li>
+<li>Reconcile stale planning docs with the current code before execution starts, or the team risks delivering against the wrong surface.</li>
+<li>Build a Flutter-aware verification path. The current GitHub workflow is generic Xcode only, and the repo has no <code>integration_test/</code> directory.</li>
+</ul>
+<h2>Milestones</h2>
+<h3>Milestone 1 - Repo Truth Locked and Transcription Stable</h3>
+<p>**Target:** End of Week 2</p>
+<ul>
+<li>Reconcile older planning docs with the current app surface and produce one active backlog.</li>
+<li>Stabilize transcription backend and microphone source switching across OpenAI, Apple Cloud, Apple On-Device, glasses mic, and phone mic paths.</li>
+<li>Establish a repeatable local and CI verification baseline for analyze, test, and build.</li>
+</ul>
+<p>**Acceptance criteria**</p>
+<ul>
+<li>Old <code>ConversationTab</code> planning is mapped to the current <code>RecordingScreen</code> and Assistant flows or explicitly retired.</li>
+<li>Permission, missing-key, auth, and fallback failures surface clearly to the user and do not silently fail.</li>
+<li><code>transcriptionBackend</code>, <code>transcriptionModel</code>, and <code>preferredMicSource</code> are validated on the intended paths.</li>
+<li>The team has one agreed verification entry point for lint, test, and build.</li>
+</ul>
+<h3>Milestone 2 - Realtime Assistant Loop Reliable</h3>
+<p>**Target:** End of Week 4</p>
+<ul>
+<li>Harden <code>openaiRealtime</code> conversation mode so transcript and AI response streams stay coherent.</li>
+<li>Improve HUD delivery, dashboard handoff, and history persistence around the realtime path.</li>
+<li>Surface dormant assistant tooling on the Home screen: follow-up chips, summary access, response actions, and insight cards that match the existing settings and profile model.</li>
+<li>Finish the unresolved recording-tab stabilization work so Record, Assistant, and History behave like one product.</li>
+</ul>
+<p>**Acceptance criteria**</p>
+<ul>
+<li>Realtime transcript events and AI response events run through one stable session without duplicate downstream LLM calls.</li>
+<li>The Assistant tab exposes response tools and insight-driven UI that are powered by the existing conversation engine rather than hardcoded placeholder content.</li>
+<li>Glasses delivery, dashboard tilt, and reconnect behavior recover cleanly from native or provider failures.</li>
+<li>Audio files, transcripts, and saved turns have a clear lifecycle and retention rule.</li>
+<li>The highest-risk realtime and recording flows have targeted test coverage or scripted manual QA.</li>
+</ul>
+<h3>Milestone 3 - Beta Ready Build and Release Gate</h3>
+<p>**Target:** End of Week 6</p>
+<ul>
+<li>Tighten CI and release verification.</li>
+<li>Polish onboarding, settings diagnostics, and user-facing failure states.</li>
+<li>Run simulator, device, and glasses-hardware validation and cut a beta candidate.</li>
+</ul>
+<p>**Acceptance criteria**</p>
+<ul>
+<li>Flutter analyze, Flutter test, and at least one iOS or macOS build pass in the supported environment.</li>
+<li>No open P0 or P1 issues remain across Assistant, Glasses, History, Record, and Settings.</li>
+<li>Hardware validation covers glasses mic, phone mic, reconnect, offline fallback, and provider auth failure paths.</li>
+<li>Release notes, known issues, and a go or no-go checklist are published.</li>
+</ul>
+<h2>Week-by-Week Plan</h2>
+<table>
+<thead><tr><th>Week</th><th>Focus</th><th>Weekly goals</th><th>Deliverables</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Repo truth and release scope</td><td>Reconcile current code against older docs, confirm active surfaces, map native iOS dependencies, and define the beta scope</td><td>Repo truth matrix, active backlog, verification checklist</td></tr>
+<tr><td>2</td><td>Transcription stabilization</td><td>Validate backend switching, mic source fallback, permission flow, missing key handling, and auth/network recovery</td><td>Stable transcription settings flow, fallback test notes, Milestone 1 evidence</td></tr>
+<tr><td>3</td><td>Realtime conversation reliability and assistant tooling</td><td>Harden <code>openaiRealtime</code>, verify transcript plus AI response routing, tighten status transitions, and surface summary, follow-up, and insight tooling on the Assistant tab</td><td>Realtime conversation beta path, assistant response tools, targeted tests or QA scripts</td></tr>
+<tr><td>4</td><td>Recording, history, and persistence</td><td>Align Record, Assistant, and History around one session lifecycle, resolve stale <code>ConversationTab</code> work, and clean up retention rules</td><td>Recording-tab stabilization, history consistency fixes, Milestone 2 evidence</td></tr>
+<tr><td>5</td><td>CI, UX polish, and operations</td><td>Improve onboarding and settings diagnostics, add release-facing instrumentation, and replace or extend the generic Xcode workflow with Flutter-aware checks</td><td>Flutter-aware CI plan or workflow, polished setup diagnostics, beta readiness checklist</td></tr>
+<tr><td>6</td><td>Regression and beta cut</td><td>Run simulator, device, and hardware validation, burn down blockers, and prepare TestFlight release notes and go/no-go review</td><td>Beta release candidate, regression report, go or no-go summary</td></tr>
+</tbody></table>
+<h2>Dependencies</h2>
+<ul>
+<li>Even Realities glasses hardware is required for BLE mic, HUD, dashboard tilt, and handoff validation.</li>
+<li>OpenAI API access with realtime quota is required for the primary transcription and live conversation paths.</li>
+<li>Xcode, CocoaPods, Flutter, and a writable toolchain environment are required for end-to-end build verification.</li>
+<li>Product decisions are needed on beta scope, especially whether <code>openaiRealtime</code> ships broadly or behind a controlled rollout.</li>
+<li>QA coverage needs both simulator and on-device passes because the highest-risk flows cross Flutter, native iOS, and hardware boundaries.</li>
+</ul>
+<h2>Risks</h2>
+<ul>
+<li>Planning drift: older docs still target <code>ConversationTab</code>, while the current code centers on <code>RecordingScreen</code> and <code>ConversationListeningSession</code>.</li>
+<li>Audio stack fragility: the app already documents audio-session conflicts between <code>flutter_sound</code> and speech recognition, so changes in one path can break another.</li>
+<li>Dormant feature drift: summary, follow-up, and response-action settings already exist in the repo, so leaving them disconnected from the Home screen creates UX inconsistency and raises support cost.</li>
+<li>Hardware dependence: a large share of user value depends on glasses connectivity and native platform channels that cannot be fully covered by the current test suite.</li>
+<li>Verification gap: CI is not yet Flutter-aware and there is no <code>integration_test/</code> suite, so regressions can slip through unless week 1 and week 5 close that gap.</li>
+<li>Documentation drift: top-level architecture docs describe future phases that are already partially implemented, which can distort planning if left uncorrected.</li>
+</ul>
+<h2>Recommended Execution Order</h2>
+<ul>
+<li>Start with repo-truth cleanup and verification because every later week depends on knowing which flows are current and how they are validated.</li>
+<li>Stabilize transcription before realtime conversation polish because the realtime path depends on the same native speech and mic-source plumbing.</li>
+<li>Resolve recording and history lifecycle issues before the beta cut so support and QA have one consistent mental model for saved sessions.</li>
+</ul>
+</body></html>

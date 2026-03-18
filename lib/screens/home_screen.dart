@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/assistant_profile.dart';
 import '../services/conversation_listening_session.dart';
@@ -35,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _transcription = '';
   String _aiResponse = '';
   bool _isRecording = false;
+  bool _isSummarizing = false;
 
   final List<StreamSubscription> _subscriptions = [];
   final ScrollController _scrollController = ScrollController();
@@ -49,6 +51,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   GlassesAnswerDeliveryState _glassesDeliveryState =
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
+  String? _conversationSummary;
+  List<String> _followUpChips = const [];
+  AssistantInsightSnapshot? _insightSnapshot;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -98,6 +103,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _selectedPreset = _presetFromId(
               SettingsManager.instance.defaultQuickAskPreset,
             );
+            _insightSnapshot = _buildInsightSnapshot();
           });
         }
       }),
@@ -106,10 +112,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() {
           _transcription = snapshot.fullTranscript;
           _transcriptSource = snapshot.source;
+          _insightSnapshot = _buildInsightSnapshot(
+            transcription: snapshot.fullTranscript,
+          );
         });
       }),
       _engine.aiResponseStream.listen((text) {
-        setState(() => _aiResponse = text);
+        if (!mounted) return;
+        setState(() {
+          _aiResponse = text;
+          _insightSnapshot = _buildInsightSnapshot(aiResponse: text);
+        });
+        _scrollToBottom();
+      }),
+      _engine.followUpChipsStream.listen((chips) {
+        if (!mounted) return;
+        setState(() => _followUpChips = chips);
         _scrollToBottom();
       }),
       _engine.questionDetectionStream.listen((detection) {
@@ -178,6 +196,195 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+  AssistantInsightSnapshot? _buildInsightSnapshot({
+    String? transcription,
+    String? aiResponse,
+  }) {
+    return AssistantInsightSnapshot.fromConversation(
+      transcription: transcription ?? _transcription,
+      aiResponse: aiResponse ?? _aiResponse,
+      history: _engine.history,
+      isChinese: _isChinese,
+    );
+  }
+
+  void _showAssistantSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: HelixTheme.surface,
+      ),
+    );
+  }
+
+  Future<void> _summarizeConversation() async {
+    if (_isRecording || _isSummarizing) return;
+    setState(() => _isSummarizing = true);
+
+    final summary = await _engine.getSummary();
+    if (!mounted) return;
+
+    setState(() {
+      _isSummarizing = false;
+      _conversationSummary = summary?.trim().isEmpty ?? true
+          ? null
+          : summary!.trim();
+    });
+
+    if ((_conversationSummary ?? '').isEmpty) {
+      _showAssistantSnack(
+        _tr(
+          en: 'No conversation summary is available yet.',
+          zh: '当前还没有可用的对话摘要。',
+          ja: 'まだ利用できる会話要約はありません。',
+          ko: '아직 사용할 수 있는 대화 요약이 없습니다.',
+          es: 'Todavia no hay un resumen de la conversacion disponible.',
+          ru: 'Пока нет доступного резюме разговора.',
+        ),
+      );
+      return;
+    }
+
+    _scrollToBottom();
+  }
+
+  Future<void> _runResponseToolPrompt(
+    String prompt, {
+    String? previewText,
+  }) async {
+    if (_isRecording || prompt.trim().isEmpty) return;
+
+    setState(() {
+      _conversationSummary = null;
+      _followUpChips = const [];
+      _providerError = null;
+      _isOverviewExpanded = false;
+      if (previewText != null && previewText.trim().isNotEmpty) {
+        _transcription = previewText.trim();
+      }
+    });
+
+    await _engine.askQuestion(prompt);
+  }
+
+  Future<void> _rephraseLastAnswer() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+
+    final prompt = _isChinese
+        ? '请把下面这段回答改写成更自然、更适合我直接说出口的表达，保持意思不变：\n$answer'
+        : 'Rewrite this answer so I can say it out loud naturally without changing the meaning:\n$answer';
+    final preview = _isChinese
+        ? '正在改写刚才的回答...'
+        : 'Rephrasing the latest answer...';
+    await _runResponseToolPrompt(prompt, previewText: preview);
+  }
+
+  Future<void> _translateLastAnswer() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+
+    final languageName = switch (_languageCode) {
+      'zh' => 'Chinese',
+      'ja' => 'Japanese',
+      'ko' => 'Korean',
+      'es' => 'Spanish',
+      'ru' => 'Russian',
+      _ => 'Chinese',
+    };
+    final prompt = _isChinese
+        ? '请把下面这段回答翻译成自然、简洁的中文：\n$answer'
+        : 'Translate this answer into natural, concise $languageName:\n$answer';
+    final preview = _isChinese
+        ? '正在翻译刚才的回答...'
+        : 'Translating the latest answer...';
+    await _runResponseToolPrompt(prompt, previewText: preview);
+  }
+
+  Future<void> _factCheckLastAnswer() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+
+    final prompt = _isChinese
+        ? '请核实下面这段回答里的关键事实，指出高风险说法，并给出更可靠的版本：\n$answer'
+        : 'Fact-check the key claims in this answer, flag any risky statements, and provide a safer corrected version:\n$answer';
+    final preview = _isChinese
+        ? '正在核实刚才的回答...'
+        : 'Fact-checking the latest answer...';
+    await _runResponseToolPrompt(prompt, previewText: preview);
+  }
+
+  Future<void> _sendCurrentAnswerToGlasses() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+    await GlassesAnswerPresenter.instance.present(
+      answer,
+      source: 'home.response_tools.manual_send',
+    );
+  }
+
+  Future<void> _pinCurrentAnswer() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: answer));
+    if (!mounted) return;
+    _showAssistantSnack(
+      _tr(
+        en: 'Answer copied to the clipboard.',
+        zh: '答案已复制到剪贴板。',
+        ja: '回答をクリップボードにコピーしました。',
+        ko: '답변을 클립보드에 복사했습니다.',
+        es: 'La respuesta se copio al portapapeles.',
+        ru: 'Ответ скопирован в буфер обмена.',
+      ),
+    );
+  }
+
+  void _pinFollowUpPrompt() {
+    final prompt = _insightSnapshot?.focusPrompt.trim() ?? '';
+    if (prompt.isEmpty) return;
+
+    _askController
+      ..text = prompt
+      ..selection = TextSelection.collapsed(offset: prompt.length);
+    _showAssistantSnack(
+      _tr(
+        en: 'Follow-up loaded into the composer.',
+        zh: '追问已放入输入框。',
+        ja: 'フォローアップを入力欄に入れました。',
+        ko: '후속 질문을 입력창에 넣었습니다.',
+        es: 'La pregunta de seguimiento se cargo en el compositor.',
+        ru: 'Следующий вопрос загружен в поле ввода.',
+      ),
+    );
+  }
+
+  Future<void> _starCurrentInsight() async {
+    final insight = _insightSnapshot;
+    if (insight == null || !insight.hasContent) return;
+
+    final payload = [
+      if (insight.summary.isNotEmpty) insight.summary,
+      if (insight.recommendedNextMove.isNotEmpty) insight.recommendedNextMove,
+    ].join('\n');
+    if (payload.trim().isEmpty) return;
+
+    await Clipboard.setData(ClipboardData(text: payload));
+    if (!mounted) return;
+    _showAssistantSnack(
+      _tr(
+        en: 'Insight copied to the clipboard.',
+        zh: '洞察已复制到剪贴板。',
+        ja: '洞察をクリップボードにコピーしました。',
+        ko: '인사이트를 클립보드에 복사했습니다.',
+        es: 'La idea se copio al portapapeles.',
+        ru: 'Инсайт скопирован в буфер обмена.',
+      ),
+    );
+  }
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       await _stopRecording();
@@ -195,6 +402,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
       _listeningError = null;
       _isOverviewExpanded = false;
+      _conversationSummary = null;
+      _followUpChips = const [];
+      _insightSnapshot = null;
     });
 
     final settings = SettingsManager.instance;
@@ -537,6 +747,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _openAssistantSetupSheet() {
+    var sheetProfile = _assistantProfile;
+    var sheetPreset = _selectedPreset;
+    var sheetAutoShowSummary = SettingsManager.instance.autoShowSummary;
+    var sheetAutoShowFollowUps = SettingsManager.instance.autoShowFollowUps;
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -625,6 +840,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           profiles: SettingsManager.instance.assistantProfiles,
                           selectedProfileId: _assistantProfileId,
                           onSelected: (profile) {
+                            sheetProfile = profile;
                             _selectAssistantProfile(profile);
                             setSheetState(() {});
                           },
@@ -632,12 +848,242 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 14),
                         AssistantPresetStrip(
-                          selected: _selectedPreset,
+                          selected: sheetPreset,
                           onSelected: (preset) {
+                            sheetPreset = preset;
                             _selectPreset(preset);
                             setSheetState(() {});
                           },
                           isChinese: _isChinese,
+                        ),
+                        const SizedBox(height: 14),
+                        AssistantLoadoutCard(
+                          key: const Key('home-setup-preview-card'),
+                          profile: sheetProfile,
+                          preset: sheetPreset,
+                          isChinese: _isChinese,
+                          autoShowSummary: sheetAutoShowSummary,
+                          autoShowFollowUps: sheetAutoShowFollowUps,
+                          backendLabel: _transcriptionBackendLabel(
+                            SettingsManager.instance.transcriptionBackend,
+                          ),
+                          micLabel: _preferredMicLabel(
+                            SettingsManager.instance.preferredMicSource,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _tr(
+                            en: 'TOOLING',
+                            zh: '工具配置',
+                            ja: 'ツール設定',
+                            ko: '도구 설정',
+                            es: 'HERRAMIENTAS',
+                            ru: 'ИНСТРУМЕНТЫ',
+                          ),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-tool-summary-toggle'),
+                          title: _tr(
+                            en: 'Summary Tool',
+                            zh: '摘要工具',
+                            ja: '要約ツール',
+                            ko: '요약 도구',
+                            es: 'Resumen',
+                            ru: 'Сводка',
+                          ),
+                          description: _tr(
+                            en: 'Keep manual summary actions available for this profile.',
+                            zh: '为这个档案保留手动摘要能力。',
+                            ja: 'このプロフィールで手動要約を使えるようにします。',
+                            ko: '이 프로필에서 수동 요약 기능을 유지합니다.',
+                            es: 'Mantiene disponible el resumen manual en este perfil.',
+                            ru: 'Оставляет ручную сводку доступной для этого профиля.',
+                          ),
+                          value: sheetProfile.showSummaryTool,
+                          onTap: () async {
+                            final updated = sheetProfile.copyWith(
+                              showSummaryTool: !sheetProfile.showSummaryTool,
+                            );
+                            setSheetState(() => sheetProfile = updated);
+                            await SettingsManager.instance.saveAssistantProfile(
+                              updated,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-tool-followups-toggle'),
+                          title: _tr(
+                            en: 'Follow-up Suggestions',
+                            zh: '追问建议',
+                            ja: 'フォローアップ提案',
+                            ko: '후속 질문 제안',
+                            es: 'Seguimientos',
+                            ru: 'Следующие вопросы',
+                          ),
+                          description: _tr(
+                            en: 'Surface contextual next questions for this profile.',
+                            zh: '为这个档案展示上下文追问建议。',
+                            ja: 'このプロフィール向けに文脈に沿った次の質問を表示します。',
+                            ko: '이 프로필에 맞는 맥락형 후속 질문을 표시합니다.',
+                            es: 'Muestra preguntas siguientes según el contexto.',
+                            ru: 'Показывает контекстные следующие вопросы для профиля.',
+                          ),
+                          value: sheetProfile.showFollowUps,
+                          onTap: () async {
+                            final updated = sheetProfile.copyWith(
+                              showFollowUps: !sheetProfile.showFollowUps,
+                            );
+                            setSheetState(() => sheetProfile = updated);
+                            await SettingsManager.instance.saveAssistantProfile(
+                              updated,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-tool-factcheck-toggle'),
+                          title: _tr(
+                            en: 'Fact Check',
+                            zh: '事实核实',
+                            ja: 'ファクトチェック',
+                            ko: '사실 확인',
+                            es: 'Verificacion',
+                            ru: 'Проверка фактов',
+                          ),
+                          description: _tr(
+                            en: 'Expose verification actions when the answer looks risky.',
+                            zh: '在回答风险较高时暴露核实动作。',
+                            ja: '回答が危うい時に検証アクションを表示します。',
+                            ko: '답변이 위험해 보일 때 검증 동작을 노출합니다.',
+                            es: 'Muestra acciones de verificacion cuando la respuesta parece riesgosa.',
+                            ru: 'Показывает действия проверки, когда ответ выглядит рискованным.',
+                          ),
+                          value: sheetProfile.showFactCheck,
+                          onTap: () async {
+                            final updated = sheetProfile.copyWith(
+                              showFactCheck: !sheetProfile.showFactCheck,
+                            );
+                            setSheetState(() => sheetProfile = updated);
+                            await SettingsManager.instance.saveAssistantProfile(
+                              updated,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-tool-actionitems-toggle'),
+                          title: _tr(
+                            en: 'Action Items',
+                            zh: '行动项',
+                            ja: 'アクション項目',
+                            ko: '실행 항목',
+                            es: 'Acciones',
+                            ru: 'Пункты действий',
+                          ),
+                          description: _tr(
+                            en: 'Highlight extracted tasks and review signals on Home.',
+                            zh: '在主页高亮提取出的任务和复盘信号。',
+                            ja: 'ホームで抽出されたタスクとレビュー信号を強調します。',
+                            ko: '홈에서 추출된 작업과 리뷰 신호를 강조합니다.',
+                            es: 'Resalta tareas extraidas y senales de revision en Inicio.',
+                            ru: 'Подсвечивает извлеченные задачи и сигналы обзора на главном экране.',
+                          ),
+                          value: sheetProfile.showActionItems,
+                          onTap: () async {
+                            final updated = sheetProfile.copyWith(
+                              showActionItems: !sheetProfile.showActionItems,
+                            );
+                            setSheetState(() => sheetProfile = updated);
+                            await SettingsManager.instance.saveAssistantProfile(
+                              updated,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _tr(
+                            en: 'AUTO SURFACES',
+                            zh: '自动展示',
+                            ja: '自動表示',
+                            ko: '자동 표시',
+                            es: 'SUPERFICIES AUTOMATICAS',
+                            ru: 'АВТОПОКАЗ',
+                          ),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-auto-summary-toggle'),
+                          title: _tr(
+                            en: 'Auto Insights',
+                            zh: '自动洞察',
+                            ja: '自動インサイト',
+                            ko: '자동 인사이트',
+                            es: 'Insights automaticos',
+                            ru: 'Автоинсайты',
+                          ),
+                          description: _tr(
+                            en: 'Keep summary and insight surfaces expanded when useful.',
+                            zh: '在合适的时候自动展开摘要和洞察区。',
+                            ja: '必要なときに要約とインサイトを自動で表示します。',
+                            ko: '필요할 때 요약과 인사이트를 자동으로 펼칩니다.',
+                            es: 'Mantiene visibles los paneles de resumen e insights cuando son utiles.',
+                            ru: 'Автоматически раскрывает сводку и инсайты, когда это полезно.',
+                          ),
+                          value: sheetAutoShowSummary,
+                          onTap: () async {
+                            final nextValue = !sheetAutoShowSummary;
+                            setSheetState(
+                              () => sheetAutoShowSummary = nextValue,
+                            );
+                            await SettingsManager.instance.update((settings) {
+                              settings.autoShowSummary = nextValue;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        AssistantSettingsToggleTile(
+                          key: const Key('home-setup-auto-followups-toggle'),
+                          title: _tr(
+                            en: 'Auto Follow-ups',
+                            zh: '自动追问',
+                            ja: '自動フォローアップ',
+                            ko: '자동 후속 질문',
+                            es: 'Seguimientos automaticos',
+                            ru: 'Автоследующие вопросы',
+                          ),
+                          description: _tr(
+                            en: 'Show the next-question deck as soon as it is ready.',
+                            zh: '一旦准备好，就自动展示下一步追问卡片。',
+                            ja: '次の質問デッキが準備でき次第すぐ表示します。',
+                            ko: '다음 질문 덱이 준비되면 바로 표시합니다.',
+                            es: 'Muestra el mazo de siguientes preguntas apenas este listo.',
+                            ru: 'Показывает колоду следующих вопросов сразу после готовности.',
+                          ),
+                          value: sheetAutoShowFollowUps,
+                          onTap: () async {
+                            final nextValue = !sheetAutoShowFollowUps;
+                            setSheetState(
+                              () => sheetAutoShowFollowUps = nextValue,
+                            );
+                            await SettingsManager.instance.update((settings) {
+                              settings.autoShowFollowUps = nextValue;
+                            });
+                          },
                         ),
                       ],
                     ),
@@ -801,56 +1247,69 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           final label = _modeName(mode);
           final icon = _modeIcon(mode);
           final modeColor = _modeColor(mode);
+          final chipKey = Key('home-mode-${mode.name}');
 
-          return GestureDetector(
-            onTap: () => _setMode(mode),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? modeColor.withValues(alpha: 0.15)
-                    : Colors.transparent,
+          return Semantics(
+            button: true,
+            label: 'Switch to $label mode',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _setMode(mode),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isSelected
-                      ? modeColor.withValues(alpha: 0.3)
-                      : Colors.white.withValues(alpha: 0.06),
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: modeColor.withValues(alpha: 0.1),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 16,
+                child: AnimatedContainer(
+                  key: chipKey,
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
                     color: isSelected
-                        ? modeColor
-                        : Colors.white.withValues(alpha: 0.45),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    label,
-                    style: TextStyle(
+                        ? modeColor.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
                       color: isSelected
-                          ? Colors.white
-                          : Colors.white.withValues(alpha: 0.66),
-                      fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                          ? modeColor.withValues(alpha: 0.3)
+                          : Colors.white.withValues(alpha: 0.06),
                     ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: modeColor.withValues(alpha: 0.1),
+                              blurRadius: 8,
+                            ),
+                          ]
+                        : null,
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: isSelected
+                            ? modeColor
+                            : Colors.white.withValues(alpha: 0.45),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : Colors.white.withValues(alpha: 0.66),
+                          fontSize: 12,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           );
@@ -918,8 +1377,34 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildLoadoutCard() {
+    final settings = SettingsManager.instance;
+    return AssistantLoadoutCard(
+      key: const Key('home-session-loadout-card'),
+      profile: _assistantProfile,
+      preset: _selectedPreset,
+      isChinese: _isChinese,
+      autoShowSummary: settings.autoShowSummary,
+      autoShowFollowUps: settings.autoShowFollowUps,
+      backendLabel: _transcriptionBackendLabel(settings.transcriptionBackend),
+      micLabel: _preferredMicLabel(settings.preferredMicSource),
+    );
+  }
+
   Widget _buildConversationArea() {
     final modeColor = _modeColor(_currentMode);
+    final insightSnapshot = _insightSnapshot;
+    final visibleInsightSnapshot =
+        SettingsManager.instance.autoShowSummary &&
+            insightSnapshot != null &&
+            insightSnapshot.hasContent
+        ? insightSnapshot
+        : null;
+    final showFollowUps =
+        _assistantProfile.showFollowUps &&
+        SettingsManager.instance.autoShowFollowUps &&
+        _followUpChips.isNotEmpty;
+    final showInsights = visibleInsightSnapshot != null;
     final hasLiveConversation =
         _isRecording ||
         _transcription.isNotEmpty ||
@@ -972,6 +1457,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: [
                 _buildAssistantCard(),
                 const SizedBox(height: 10),
+                _buildLoadoutCard(),
+                const SizedBox(height: 10),
                 _buildSuggestionChips(),
               ],
             )
@@ -1006,12 +1493,167 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 _latestQuestionDetection != null) ...[
               _buildPhoneAnswerCard(),
             ],
+            if (_aiResponse.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              AssistantResponseActions(
+                key: const Key('home-response-tools-card'),
+                isChinese: _isChinese,
+                allowSummary: _assistantProfile.showSummaryTool,
+                allowFactCheck: _assistantProfile.showFactCheck,
+                isSummarizing: _isSummarizing,
+                onSummarize: _summarizeConversation,
+                onRephrase: _rephraseLastAnswer,
+                onTranslate: _translateLastAnswer,
+                onFactCheck: _factCheckLastAnswer,
+                onSendToGlasses: _sendCurrentAnswerToGlasses,
+                canSendToGlasses:
+                    BleManager.isBothConnected() &&
+                    _aiResponse.trim().isNotEmpty,
+                followUpCount: showFollowUps ? _followUpChips.length : 0,
+                actionItemCount: _assistantProfile.showActionItems
+                    ? (insightSnapshot?.actionItems.length ?? 0)
+                    : 0,
+                verificationCount:
+                    insightSnapshot?.verificationCandidates.length ?? 0,
+                onPinResponse: _pinCurrentAnswer,
+                onPinFollowUp: insightSnapshot == null || !showFollowUps
+                    ? null
+                    : _pinFollowUpPrompt,
+                onStarInsight: insightSnapshot == null || !showInsights
+                    ? null
+                    : _starCurrentInsight,
+              ),
+            ],
+            if ((_conversationSummary ?? '').trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _buildConversationSummaryCard(),
+            ],
+            if (showFollowUps) ...[
+              const SizedBox(height: 10),
+              _buildFollowUpChipDeck(),
+            ],
+            if (visibleInsightSnapshot != null) ...[
+              const SizedBox(height: 10),
+              AssistantInsightsCard(
+                key: const Key('home-insights-card'),
+                snapshot: visibleInsightSnapshot,
+                isChinese: _isChinese,
+              ),
+            ],
             if (_glassesDeliveryState.status !=
                 GlassesAnswerDeliveryStatus.idle) ...[
               const SizedBox(height: 10),
               _buildGlassesDeliveryCard(),
             ],
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationSummaryCard() {
+    final summary = _conversationSummary?.trim() ?? '';
+    if (summary.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return GlassCard(
+      key: const Key('home-conversation-summary-card'),
+      opacity: 0.08,
+      borderColor: HelixTheme.purple.withValues(alpha: 0.22),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _tr(
+              en: 'CONVERSATION SUMMARY',
+              zh: '对话摘要',
+              ja: '会話サマリー',
+              ko: '대화 요약',
+              es: 'RESUMEN DE LA CONVERSACION',
+              ru: 'СВОДКА РАЗГОВОРА',
+            ),
+            style: TextStyle(
+              color: HelixTheme.purple,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            summary,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.84),
+              fontSize: 13,
+              height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFollowUpChipDeck() {
+    return GlassCard(
+      key: const Key('home-follow-up-chip-deck'),
+      opacity: 0.08,
+      borderColor: HelixTheme.purple.withValues(alpha: 0.22),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _tr(
+              en: 'FOLLOW-UP DECK',
+              zh: '追问推荐',
+              ja: 'フォローアップ候補',
+              ko: '후속 질문 제안',
+              es: 'PREGUNTAS DE SEGUIMIENTO',
+              ru: 'СЛЕДУЮЩИЕ ВОПРОСЫ',
+            ),
+            style: TextStyle(
+              color: HelixTheme.purple,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.1,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _followUpChips.map((chip) {
+              return GestureDetector(
+                onTap: () {
+                  _askController.text = chip;
+                  _submitQuestion();
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.04),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: HelixTheme.purple.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    chip,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
@@ -1982,6 +2624,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _aiResponse = '';
         _providerError = null;
         _transcription = text;
+        _conversationSummary = null;
+        _followUpChips = const [];
+        _insightSnapshot = _buildInsightSnapshot(
+          transcription: text,
+          aiResponse: '',
+        );
       });
     }
   }
@@ -2038,6 +2686,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return 'interview';
       case AssistantQuickAskPreset.factCheck:
         return 'factCheck';
+    }
+  }
+
+  String _transcriptionBackendLabel(String backend) {
+    switch (backend) {
+      case 'openaiRealtime':
+        return _isChinese ? 'OpenAI 实时' : 'OpenAI Live AI';
+      case 'appleCloud':
+        return _isChinese ? '苹果云端' : 'Apple Cloud';
+      case 'appleOnDevice':
+        return _isChinese ? '苹果本地' : 'Apple On-Device';
+      case 'openai':
+        return _isChinese ? 'OpenAI 转写' : 'OpenAI STT';
+      default:
+        return backend;
+    }
+  }
+
+  String _preferredMicLabel(String source) {
+    switch (source) {
+      case 'glasses':
+        return _isChinese ? '眼镜麦克风' : 'Glasses Mic';
+      case 'phone':
+        return _isChinese ? '手机麦克风' : 'Phone Mic';
+      default:
+        return _isChinese ? '自动麦克风' : 'Auto Mic';
     }
   }
 

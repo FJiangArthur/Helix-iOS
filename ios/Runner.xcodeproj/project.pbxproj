@@ -23,6 +23,8 @@
 		DA91AD5D2E52F4A900220CE1 /* DebugHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */; };
 		DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */; };
 		DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD572E52F4A900220CE1 /* TestRecording.swift */; };
+		DA91AD912E52F4A900220CE1 /* AudioResampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD922E52F4A900220CE1 /* AudioResampler.swift */; };
+		DA91AD932E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */; };
 		DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD722E52F4C500220CE1 /* makefile.mk */; };
 		DA91AD842E52F4C500220CE1 /* meson.build in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD762E52F4C500220CE1 /* meson.build */; };
 		DA91AD852E52F4C500220CE1 /* lc3.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6B2E52F4C500220CE1 /* lc3.c */; };
@@ -89,6 +91,8 @@
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
 		DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHelper.swift; sourceTree = "<group>"; };
 		DA91AD502E52F4A900220CE1 /* GattProtocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GattProtocal.swift; sourceTree = "<group>"; };
+		DA91AD922E52F4A900220CE1 /* AudioResampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioResampler.swift; sourceTree = "<group>"; };
+		DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		DA91AD512E52F4A900220CE1 /* PcmConverter.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PcmConverter.h; sourceTree = "<group>"; };
 		DA91AD522E52F4A900220CE1 /* PcmConverter.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = PcmConverter.m; sourceTree = "<group>"; };
 		DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceIdentifiers.swift; sourceTree = "<group>"; };
@@ -205,9 +209,11 @@
 			isa = PBXGroup;
 			children = (
 				DA91AD822E52F4C500220CE1 /* lc3 */,
+				DA91AD922E52F4A900220CE1 /* AudioResampler.swift */,
 				DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */,
 				DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */,
 				DA91AD502E52F4A900220CE1 /* GattProtocal.swift */,
+				DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */,
 				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
 				DA91AD522E52F4A900220CE1 /* PcmConverter.m */,
 				DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */,
@@ -525,7 +531,9 @@
 				DA91AD8F2E52F4C500220CE1 /* sns.c in Sources */,
 				DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
+				DA91AD912E52F4A900220CE1 /* AudioResampler.swift in Sources */,
 				DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */,
+				DA91AD932E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift in Sources */,
 				DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */,
 				DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */,
 				DA91AD5C2E52F4A900220CE1 /* PcmConverter.m in Sources */,

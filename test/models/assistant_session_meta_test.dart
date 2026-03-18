@@ -37,6 +37,10 @@ void main() {
       expect(meta.assistantCount, 1);
       expect(meta.summaryTitle, isNotEmpty);
       expect(meta.summaryBody, contains('Even AI'));
+      expect(meta.reviewSignalCount, 4);
+      expect(meta.reviewBrief, contains('Summary:'));
+      expect(meta.reviewBrief, contains('Action items:'));
+      expect(meta.reviewBrief, contains('Verification candidates:'));
       expect(meta.actionItems, isNotEmpty);
       expect(meta.actionItems.join(' '), contains('review'));
       expect(meta.verificationCandidates, isNotEmpty);

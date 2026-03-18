@@ -47,6 +47,54 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private let targetSampleRate = 24000
     private let sourceSampleRate = 16000
 
+    private func resolvedLanguageCode() -> String {
+        let languageMap: [String: String] = [
+            "en": "en", "zh": "zh", "ja": "ja", "ko": "ko",
+            "es": "es", "ru": "ru", "fr": "fr", "de": "de",
+        ]
+        return languageMap[language] ?? "en"
+    }
+
+    private func sessionConfigEvent(for resolvedLang: String) -> [String: Any] {
+        switch mode {
+        case .transcriptionOnly:
+            return [
+                "type": "transcription_session.update",
+                "session": [
+                    "input_audio_format": "pcm16",
+                    "input_audio_transcription": [
+                        "language": resolvedLang,
+                    ],
+                    "turn_detection": [
+                        "type": "server_vad",
+                        "threshold": 0.5,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 500,
+                    ],
+                ],
+            ]
+        case .conversation:
+            return [
+                "type": "session.update",
+                "session": [
+                    "modalities": ["text"],
+                    "instructions": systemInstructions,
+                    "input_audio_format": "pcm16",
+                    "input_audio_transcription": [
+                        "model": "gpt-4o-mini-transcribe",
+                        "language": resolvedLang,
+                    ],
+                    "turn_detection": [
+                        "type": "server_vad",
+                        "threshold": 0.5,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 800,
+                    ],
+                ],
+            ]
+        }
+    }
+
     func start(
         apiKey: String,
         model: String,
@@ -196,50 +244,12 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     private func sendSessionConfig() {
-        let languageMap: [String: String] = [
-            "en": "en", "zh": "zh", "ja": "ja", "ko": "ko",
-            "es": "es", "ru": "ru", "fr": "fr", "de": "de",
-        ]
-        let resolvedLang = languageMap[language] ?? "en"
-
+        let resolvedLang = resolvedLanguageCode()
+        sendEvent(sessionConfigEvent(for: resolvedLang))
         switch mode {
         case .transcriptionOnly:
-            sendEvent([
-                "type": "transcription_session.update",
-                "session": [
-                    "input_audio_format": "pcm16",
-                    "input_audio_transcription": [
-                        "language": resolvedLang,
-                    ],
-                    "turn_detection": [
-                        "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
-                    ],
-                ],
-            ])
             print("[OpenAITranscriber] Transcription config sent, language=\(resolvedLang)")
-
         case .conversation:
-            sendEvent([
-                "type": "session.update",
-                "session": [
-                    "modalities": ["text"],
-                    "instructions": systemInstructions,
-                    "input_audio_format": "pcm16",
-                    "input_audio_transcription": [
-                        "model": "gpt-4o-mini-transcribe",
-                        "language": resolvedLang,
-                    ],
-                    "turn_detection": [
-                        "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 800,
-                    ],
-                ],
-            ])
             print("[OpenAITranscriber] Conversation config sent, language=\(resolvedLang)")
         }
     }
@@ -433,5 +443,25 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 ?? "Unknown API error"
         }
         return "Unknown API error"
+    }
+}
+
+extension OpenAIRealtimeTranscriber {
+    func debugConfigureForTesting(
+        mode: RealtimeMode,
+        language: String = "en",
+        systemPrompt: String = ""
+    ) {
+        self.mode = mode
+        self.language = language
+        self.systemInstructions = systemPrompt
+    }
+
+    func debugSessionConfigEvent() -> [String: Any] {
+        sessionConfigEvent(for: resolvedLanguageCode())
+    }
+
+    func debugHandleMessage(_ text: String) {
+        handleMessage(text)
     }
 }

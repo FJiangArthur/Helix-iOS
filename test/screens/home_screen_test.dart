@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/ble_manager.dart';
+import 'package:flutter_helix/models/assistant_profile.dart';
 import 'package:flutter_helix/screens/home_screen.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
 import 'package:flutter_helix/services/llm/llm_service.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
 import 'package:flutter_helix/theme/helix_theme.dart';
+import 'package:flutter_helix/widgets/home_assistant_modules.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _FakeStreamResponse {
@@ -151,21 +153,28 @@ void main() {
         .setMockMethodCallHandler(bluetoothChannel, null);
   });
 
-  setUp(() {
+  setUp(() async {
     secureStorageValues.clear();
     bluetoothMethodCalls.clear();
     ConversationEngine.resetTestHooks();
     ConversationEngine.instance.clearHistory();
     ConversationEngine.instance.stop();
+    ConversationEngine.instance.setMode(ConversationMode.general);
     BleManager.get().isConnected = false;
-    SettingsManager.instance.activeProviderId = 'openai';
-    SettingsManager.instance.assistantProfileId = 'general';
-    SettingsManager.instance.defaultQuickAskPreset = 'concise';
-    SettingsManager.instance.language = 'en';
-    SettingsManager.instance.autoDetectQuestions = true;
-    SettingsManager.instance.autoAnswerQuestions = true;
-    SettingsManager.instance.autoShowFollowUps = true;
-    SettingsManager.instance.autoShowSummary = true;
+    for (final profile in AssistantProfile.defaults) {
+      await SettingsManager.instance.saveAssistantProfile(profile);
+    }
+    SettingsManager.instance
+      ..activeProviderId = 'openai'
+      ..assistantProfileId = 'general'
+      ..defaultQuickAskPreset = 'concise'
+      ..language = 'en'
+      ..autoDetectQuestions = true
+      ..autoAnswerQuestions = true
+      ..autoShowFollowUps = true
+      ..autoShowSummary = true
+      ..preferredMicSource = 'auto';
+    await SettingsManager.instance.save();
   });
 
   testWidgets('home screen uses compact overview and fixed composer dock', (
@@ -187,6 +196,8 @@ void main() {
     expect(find.byKey(const Key('home-fixed-composer-dock')), findsOneWidget);
     expect(find.byKey(const Key('home-composer-input-shell')), findsOneWidget);
     expect(find.byKey(const Key('home-composer-send-button')), findsOneWidget);
+    expect(find.byKey(const Key('home-session-loadout-card')), findsOneWidget);
+    expect(find.text('READY STACK'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const Key('home-fixed-composer-dock')),
@@ -214,6 +225,53 @@ void main() {
       return true;
     });
     expect(hasScrollAncestor, isFalse);
+  });
+
+  testWidgets('assistant setup sheet tunes profile tooling and auto surfaces', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: HomeScreen())),
+    );
+    await tester.pump();
+
+    await tester.tap(find.text('Tune'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home-setup-preview-card')), findsOneWidget);
+    expect(
+      find.byKey(const Key('home-setup-tool-summary-toggle')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('home-setup-auto-summary-toggle')),
+      findsOneWidget,
+    );
+
+    expect(
+      SettingsManager.instance
+          .resolveAssistantProfile('general')
+          .showSummaryTool,
+      isTrue,
+    );
+    final summaryToggle = tester.widget<AssistantSettingsToggleTile>(
+      find.byKey(const Key('home-setup-tool-summary-toggle')),
+    );
+    await summaryToggle.onTap();
+    await tester.pumpAndSettle();
+    expect(
+      SettingsManager.instance
+          .resolveAssistantProfile('general')
+          .showSummaryTool,
+      isFalse,
+    );
+
+    final autoSummaryToggle = tester.widget<AssistantSettingsToggleTile>(
+      find.byKey(const Key('home-setup-auto-summary-toggle')),
+    );
+    await autoSummaryToggle.onTap();
+    await tester.pumpAndSettle();
+    expect(SettingsManager.instance.autoShowSummary, isFalse);
   });
 
   test('navigation theme is compact and icons only', () {
@@ -261,6 +319,31 @@ void main() {
       expect(find.text('DETECTED QUESTION'), findsOneWidget);
       expect(find.text('PHONE ANSWER'), findsOneWidget);
       expect(find.textContaining('Here is the concise answer.'), findsWidgets);
+      expect(find.byKey(const Key('home-response-tools-card')), findsOneWidget);
+      expect(find.byKey(const Key('home-follow-up-chip-deck')), findsOneWidget);
+      expect(find.byKey(const Key('home-insights-card')), findsOneWidget);
+      expect(find.text('RESPONSE TOOLS'), findsOneWidget);
+      expect(find.text('FOLLOW-UP DECK'), findsOneWidget);
+      expect(find.text('INSIGHTS'), findsOneWidget);
+      expect(find.text('Tell me more'), findsOneWidget);
+
+      final pinFollowUpChip = tester.widget<GestureDetector>(
+        find
+            .ancestor(
+              of: find.text('Pin Follow-up'),
+              matching: find.byType(GestureDetector),
+            )
+            .first,
+      );
+      pinFollowUpChip.onTap?.call();
+      await tester.pump();
+      final composerField = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const Key('home-fixed-composer-dock')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(composerField.controller?.text, isNotEmpty);
 
       engine.stop();
       await tester.pump();
@@ -268,9 +351,10 @@ void main() {
   );
 
   testWidgets(
-    'home screen mic starts a phone listening session even when glasses are connected',
+    'home screen mic honors phone override even when glasses are connected',
     (tester) async {
       BleManager.get().isConnected = true;
+      SettingsManager.instance.preferredMicSource = 'phone';
 
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: HomeScreen())),
@@ -288,6 +372,38 @@ void main() {
       expect(arguments['source'], 'microphone');
       expect(find.text('PHONE INPUT'), findsOneWidget);
       expect(find.text('G1 OUTPUT ONLY'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'home screen mode selector switches between interview and general',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: HomeScreen())),
+      );
+      await tester.pump();
+
+      expect(ConversationEngine.instance.mode, ConversationMode.general);
+
+      final interviewChip = tester.widget<InkWell>(
+        find.ancestor(
+          of: find.byKey(const Key('home-mode-interview')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      interviewChip.onTap?.call();
+      await tester.pumpAndSettle();
+      expect(ConversationEngine.instance.mode, ConversationMode.interview);
+
+      final generalChip = tester.widget<InkWell>(
+        find.ancestor(
+          of: find.byKey(const Key('home-mode-general')),
+          matching: find.byType(InkWell),
+        ),
+      );
+      generalChip.onTap?.call();
+      await tester.pumpAndSettle();
+      expect(ConversationEngine.instance.mode, ConversationMode.general);
     },
   );
 

@@ -24,13 +24,21 @@ extension AssistantQuickAskPresetX on AssistantQuickAskPreset {
   String description(bool isChinese) {
     switch (this) {
       case AssistantQuickAskPreset.concise:
-        return isChinese ? '默认短答，最快可用。' : 'Default short answer for the fastest handoff.';
+        return isChinese
+            ? '默认短答，最快可用。'
+            : 'Default short answer for the fastest handoff.';
       case AssistantQuickAskPreset.speakForMe:
-        return isChinese ? '改成适合直接说出口的表达。' : 'Rewrite it as something you can say directly.';
+        return isChinese
+            ? '改成适合直接说出口的表达。'
+            : 'Rewrite it as something you can say directly.';
       case AssistantQuickAskPreset.interview:
-        return isChinese ? '压缩成有说服力的面试表达。' : 'Compress it into a persuasive interview answer.';
+        return isChinese
+            ? '压缩成有说服力的面试表达。'
+            : 'Compress it into a persuasive interview answer.';
       case AssistantQuickAskPreset.factCheck:
-        return isChinese ? '优先核实关键事实和风险。' : 'Prioritize verification and risky claims.';
+        return isChinese
+            ? '优先核实关键事实和风险。'
+            : 'Prioritize verification and risky claims.';
     }
   }
 
@@ -90,7 +98,11 @@ class AssistantInsightSnapshot {
     final actionItems = _extractActionItems(source);
     final sentiment = _sentimentFor(source, isChinese);
     final verificationCandidates = _extractVerificationCandidates(source);
-    final recommendedNextMove = _recommendedNextMoveFor(history, source, isChinese);
+    final recommendedNextMove = _recommendedNextMoveFor(
+      history,
+      source,
+      isChinese,
+    );
     final summary = _summaryFor(
       transcription: transcription,
       aiResponse: aiResponse,
@@ -166,7 +178,9 @@ class AssistantInsightSnapshot {
     required String aiResponse,
     required bool isChinese,
   }) {
-    final source = aiResponse.trim().isNotEmpty ? aiResponse.trim() : transcription.trim();
+    final source = aiResponse.trim().isNotEmpty
+        ? aiResponse.trim()
+        : transcription.trim();
     if (source.isEmpty) return '';
     final compact = source.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (compact.length <= 120) return compact;
@@ -207,7 +221,9 @@ class AssistantInsightSnapshot {
       }
     }
     if (userTurn == null || userTurn.content.trim().isEmpty) {
-      return isChinese ? '继续追问最关键的细节。' : 'Push on the most decision-relevant detail next.';
+      return isChinese
+          ? '继续追问最关键的细节。'
+          : 'Push on the most decision-relevant detail next.';
     }
     return isChinese
         ? '围绕“${_compact(userTurn.content, 24)}”补一个具体例子。'
@@ -523,6 +539,157 @@ class AssistantProfileStrip extends StatelessWidget {
   }
 }
 
+class AssistantLoadoutCard extends StatelessWidget {
+  const AssistantLoadoutCard({
+    super.key,
+    required this.profile,
+    required this.preset,
+    required this.isChinese,
+    required this.autoShowSummary,
+    required this.autoShowFollowUps,
+    required this.backendLabel,
+    required this.micLabel,
+  });
+
+  final AssistantProfile profile;
+  final AssistantQuickAskPreset preset;
+  final bool isChinese;
+  final bool autoShowSummary;
+  final bool autoShowFollowUps;
+  final String backendLabel;
+  final String micLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final readiness = <Widget>[
+      _MetaChip(
+        label: profile.name,
+        icon: Icons.person_outline_rounded,
+        color: HelixTheme.purple,
+      ),
+      _MetaChip(
+        label: preset.label(isChinese),
+        icon: preset.icon,
+        color: HelixTheme.cyan,
+      ),
+      _MetaChip(
+        label: backendLabel,
+        icon: Icons.hub_outlined,
+        color: const Color(0xFFFFB74D),
+      ),
+      _MetaChip(
+        label: micLabel,
+        icon: Icons.mic_none_rounded,
+        color: const Color(0xFF7CFFB2),
+      ),
+      if (profile.showSummaryTool)
+        _TagChip(label: isChinese ? '摘要工具' : 'Summary Tool'),
+      if (profile.showFollowUps)
+        _TagChip(label: isChinese ? '追问推荐' : 'Follow-ups'),
+      if (profile.showFactCheck)
+        _TagChip(label: isChinese ? '事实核实' : 'Fact Check'),
+      if (profile.showActionItems)
+        _TagChip(label: isChinese ? '行动项' : 'Action Items'),
+      if (autoShowSummary)
+        _TagChip(label: isChinese ? '自动展开洞察' : 'Auto Insights'),
+      if (autoShowFollowUps)
+        _TagChip(label: isChinese ? '自动展开追问' : 'Auto Follow-ups'),
+    ];
+
+    return GlassCard(
+      opacity: 0.08,
+      borderColor: HelixTheme.cyan.withValues(alpha: 0.18),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionCaption(
+            label: isChinese ? '当前配置' : 'READY STACK',
+            icon: Icons.dashboard_customize_outlined,
+          ),
+          const SizedBox(height: 10),
+          _NarrativeBlock(
+            text: isChinese
+                ? '风格：${profile.answerStyle}\n默认预设：${preset.description(true)}'
+                : 'Style: ${profile.answerStyle}\nDefault preset: ${preset.description(false)}',
+          ),
+          const SizedBox(height: 10),
+          Wrap(spacing: 8, runSpacing: 8, children: readiness),
+        ],
+      ),
+    );
+  }
+}
+
+class AssistantSettingsToggleTile extends StatelessWidget {
+  const AssistantSettingsToggleTile({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String title;
+  final String description;
+  final bool value;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        onTap();
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.58),
+                      fontSize: 11,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Switch(
+              value: value,
+              activeThumbColor: HelixTheme.cyan,
+              onChanged: (_) {
+                onTap();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AssistantResponseActions extends StatelessWidget {
   const AssistantResponseActions({
     super.key,
@@ -576,7 +743,9 @@ class AssistantResponseActions extends StatelessWidget {
     if (actionItemCount > 0) {
       readiness.add(
         _MetaChip(
-          label: isChinese ? '行动项 $actionItemCount' : '$actionItemCount action items',
+          label: isChinese
+              ? '行动项 $actionItemCount'
+              : '$actionItemCount action items',
           icon: Icons.checklist_rounded,
           color: const Color(0xFF7CFFB2),
         ),
@@ -585,7 +754,9 @@ class AssistantResponseActions extends StatelessWidget {
     if (verificationCount > 0) {
       readiness.add(
         _MetaChip(
-          label: isChinese ? '待核实 $verificationCount' : '$verificationCount verify',
+          label: isChinese
+              ? '待核实 $verificationCount'
+              : '$verificationCount verify',
           icon: Icons.fact_check_outlined,
           color: const Color(0xFFFFB74D),
         ),
@@ -725,7 +896,9 @@ class AssistantInsightsCard extends StatelessWidget {
           if (snapshot.verificationCandidates.isNotEmpty) ...[
             const SizedBox(height: 12),
             _InsightLabel(
-              label: isChinese ? 'Verification Candidates' : 'Verification Candidates',
+              label: isChinese
+                  ? 'Verification Candidates'
+                  : 'Verification Candidates',
             ),
             const SizedBox(height: 6),
             ...snapshot.verificationCandidates.map(
@@ -739,7 +912,8 @@ class AssistantInsightsCard extends StatelessWidget {
               ),
             ),
           ],
-          if (snapshot.sentiment.isNotEmpty || snapshot.recommendedNextMove.isNotEmpty) ...[
+          if (snapshot.sentiment.isNotEmpty ||
+              snapshot.recommendedNextMove.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(
               children: [
@@ -750,7 +924,8 @@ class AssistantInsightsCard extends StatelessWidget {
                       value: snapshot.sentiment,
                     ),
                   ),
-                if (snapshot.sentiment.isNotEmpty && snapshot.recommendedNextMove.isNotEmpty)
+                if (snapshot.sentiment.isNotEmpty &&
+                    snapshot.recommendedNextMove.isNotEmpty)
                   const SizedBox(width: 10),
                 if (snapshot.recommendedNextMove.isNotEmpty)
                   Expanded(

@@ -149,7 +149,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
       _sessions = _sessions
           .map(
             (item) => item.id == session.id
-                ? item.copyWith(isFavorite: _favoriteSessionIds.contains(item.id))
+                ? item.copyWith(
+                    isFavorite: _favoriteSessionIds.contains(item.id),
+                  )
                 : item,
           )
           .toList();
@@ -227,7 +229,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           profiles: profiles,
         );
         sessions.add(
-          session.copyWith(isFavorite: _favoriteSessionIds.contains(session.id)),
+          session.copyWith(
+            isFavorite: _favoriteSessionIds.contains(session.id),
+          ),
         );
         current = <ConversationTurn>[next];
       } else {
@@ -236,7 +240,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     }
 
     final tail = AssistantSessionMeta.fromTurns(current, profiles: profiles);
-    sessions.add(tail.copyWith(isFavorite: _favoriteSessionIds.contains(tail.id)));
+    sessions.add(
+      tail.copyWith(isFavorite: _favoriteSessionIds.contains(tail.id)),
+    );
     return sessions.reversed.toList();
   }
 
@@ -334,8 +340,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               child: _sessions.isEmpty
                   ? _buildEmptyState()
                   : _filteredSessions.isEmpty
-                      ? _buildNoResultsState()
-                      : _buildHistoryList(),
+                  ? _buildNoResultsState()
+                  : _buildHistoryList(),
             ),
             if (_sessions.isNotEmpty) _buildClearButton(),
           ],
@@ -347,7 +353,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   Widget _buildHeader() {
     final totalTurns = _history.length;
     final totalSessions = _sessions.length;
-    final favoriteSessions = _sessions.where((session) => session.isFavorite).length;
+    final favoriteSessions = _sessions
+        .where((session) => session.isFavorite)
+        .length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -520,8 +528,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
         itemBuilder: (context, index) {
           final mode = _modeFilters[index];
           final isSelected = _selectedMode == mode;
-          final color =
-              mode == 'All' ? HelixTheme.cyan : _modeColor(mode.toLowerCase());
+          final color = mode == 'All'
+              ? HelixTheme.cyan
+              : _modeColor(mode.toLowerCase());
 
           return GestureDetector(
             onTap: () => _onModeSelected(mode),
@@ -542,8 +551,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               child: Text(
                 mode,
                 style: TextStyle(
-                  color:
-                      isSelected ? color : Colors.white.withValues(alpha: 0.54),
+                  color: isSelected
+                      ? color
+                      : Colors.white.withValues(alpha: 0.54),
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   letterSpacing: 0.2,
@@ -593,8 +603,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               child: Text(
                 filter,
                 style: TextStyle(
-                  color:
-                      isSelected ? color : Colors.white.withValues(alpha: 0.54),
+                  color: isSelected
+                      ? color
+                      : Colors.white.withValues(alpha: 0.54),
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                 ),
@@ -811,7 +822,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 IconButton(
                   onPressed: () => _toggleFavorite(session),
                   icon: Icon(
-                    session.isFavorite ? Icons.star_rounded : Icons.star_border_rounded,
+                    session.isFavorite
+                        ? Icons.star_rounded
+                        : Icons.star_border_rounded,
                     color: session.isFavorite
                         ? const Color(0xFFFFC857)
                         : Colors.white.withValues(alpha: 0.36),
@@ -846,7 +859,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
             Text(
               session.summaryBody,
               maxLines: isExpanded ? 6 : 3,
-              overflow: isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
+              overflow: isExpanded
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 13,
@@ -892,6 +907,12 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   Icons.bolt_outlined,
                   '${session.assistantCount} AI replies',
                 ),
+                if (session.reviewSignalCount > 0)
+                  _buildMetaChip(
+                    Icons.description_outlined,
+                    '${session.reviewSignalCount} review signals',
+                    accent: HelixTheme.purple,
+                  ),
                 if (session.hasActionItems)
                   _buildMetaChip(
                     Icons.task_alt_rounded,
@@ -920,13 +941,23 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   ),
                 ),
                 _buildActionButton(
+                  icon: Icons.note_alt_outlined,
+                  label: 'Copy brief',
+                  onTap: session.reviewBrief.trim().isNotEmpty
+                      ? () => _copyToClipboard(
+                          session.reviewBrief,
+                          'Review brief',
+                        )
+                      : null,
+                ),
+                _buildActionButton(
                   icon: Icons.task_alt_rounded,
                   label: 'Copy action items',
                   onTap: session.hasActionItems
                       ? () => _copyToClipboard(
-                            session.actionItems.join('\n'),
-                            'Action items',
-                          )
+                          session.actionItems.join('\n'),
+                          'Action items',
+                        )
                       : null,
                 ),
                 _buildActionButton(
@@ -1096,7 +1127,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               Text(
                 label,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: isEnabled ? 0.78 : 0.34),
+                  color: Colors.white.withValues(
+                    alpha: isEnabled ? 0.78 : 0.34,
+                  ),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -1147,10 +1180,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '•',
-                    style: TextStyle(color: accent, fontSize: 14),
-                  ),
+                  Text('•', style: TextStyle(color: accent, fontSize: 14)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(

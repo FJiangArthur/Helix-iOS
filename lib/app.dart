@@ -227,17 +227,31 @@ class ErrorBoundary extends StatefulWidget {
 }
 
 class _ErrorBoundaryState extends State<ErrorBoundary> {
+  void Function(FlutterErrorDetails details)? _previousOnError;
+  late final void Function(FlutterErrorDetails details) _errorHandler;
+
+  @override
+  void initState() {
+    super.initState();
+    _previousOnError = FlutterError.onError;
+    _errorHandler = (FlutterErrorDetails details) {
+      widget.onError(details.exception);
+      _previousOnError?.call(details);
+    };
+    FlutterError.onError = _errorHandler;
+  }
+
   @override
   Widget build(BuildContext context) {
     return widget.child;
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    FlutterError.onError = (FlutterErrorDetails details) {
-      widget.onError(details.exception);
-    };
+  void dispose() {
+    if (identical(FlutterError.onError, _errorHandler)) {
+      FlutterError.onError = _previousOnError;
+    }
+    super.dispose();
   }
 }
 

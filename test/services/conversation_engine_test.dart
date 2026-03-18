@@ -169,6 +169,7 @@ void main() {
       ConversationEngine.resetTestHooks();
       SettingsManager.instance.assistantProfileId = 'general';
       SettingsManager.instance.language = 'en';
+      SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.autoAnswerQuestions = true;
       engine = ConversationEngine.instance;
@@ -200,6 +201,48 @@ void main() {
         expect(snapshots.last.partialText, '');
         expect(snapshots.last.finalizedSegments, ['Hello there']);
         expect(snapshots.last.fullTranscript, 'Hello there');
+      },
+    );
+
+    test(
+      'openai realtime skips downstream llm streaming and persists streamed assistant turns',
+      () async {
+        final provider = await configureFakeLlm(
+          responses: const [],
+          streamResponses: const [
+            FakeStreamResponse(['should never stream']),
+          ],
+        );
+        SettingsManager.instance.transcriptionBackend = 'openaiRealtime';
+
+        final statusEvents = <EngineStatus>[];
+        final statusSub = engine.statusStream.listen(statusEvents.add);
+        final aiResponseFuture = engine.aiResponseStream.firstWhere(
+          (text) => text.isNotEmpty,
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('What is the release plan?');
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(provider.streamCallCount, 0);
+
+        engine.onRealtimeResponse('Here is ', isFinal: false);
+        engine.onRealtimeResponse('the release plan.', isFinal: false);
+        engine.onRealtimeResponse('', isFinal: true);
+
+        expect(await aiResponseFuture, 'Here is the release plan.');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final assistantTurns = engine.history
+            .where((turn) => turn.role == 'assistant')
+            .toList();
+        expect(assistantTurns, hasLength(1));
+        expect(assistantTurns.single.content, 'Here is the release plan.');
+        expect(statusEvents, contains(EngineStatus.responding));
+        expect(statusEvents, contains(EngineStatus.listening));
+
+        await statusSub.cancel();
       },
     );
 

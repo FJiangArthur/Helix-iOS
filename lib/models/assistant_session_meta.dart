@@ -17,6 +17,8 @@ class AssistantSessionMeta {
     required this.assistantCount,
     required this.actionItems,
     required this.verificationCandidates,
+    required this.reviewBrief,
+    required this.reviewSignalCount,
     required this.searchableText,
     required this.fullTranscript,
     this.isFavorite = false,
@@ -40,17 +42,17 @@ class AssistantSessionMeta {
     final profileId = turns
         .map((turn) => turn.assistantProfileId)
         .whereType<String>()
-        .firstWhere(
-          (value) => value.isNotEmpty,
-          orElse: () => 'general',
-        );
+        .firstWhere((value) => value.isNotEmpty, orElse: () => 'general');
     final profile = AssistantProfile.normalize(profiles).firstWhere(
       (candidate) => candidate.id == profileId,
       orElse: () => AssistantProfile.fallback(profileId),
     );
+    final actionItems = _extractActionItems(turns);
+    final verificationCandidates = _extractVerificationCandidates(turns);
     final summaryTitle = firstAssistant != null
         ? _compactLine(firstAssistant.content, maxLength: 72)
         : _compactLine(firstUser.content, maxLength: 72);
+    final summaryBody = _summaryBody(turns);
 
     return AssistantSessionMeta(
       id: '${first.timestamp.millisecondsSinceEpoch}-${turns.length}',
@@ -61,17 +63,27 @@ class AssistantSessionMeta {
       startedAt: first.timestamp,
       duration: last.timestamp.difference(first.timestamp),
       summaryTitle: summaryTitle,
-      summaryBody: _summaryBody(turns),
+      summaryBody: summaryBody,
       promptPreview: _compactLine(firstUser.content),
       answerPreview: _compactLine(
         firstAssistant?.content ?? turns.last.content,
       ),
       assistantCount: turns.where((turn) => turn.role == 'assistant').length,
-      actionItems: _extractActionItems(turns),
-      verificationCandidates: _extractVerificationCandidates(turns),
+      actionItems: actionItems,
+      verificationCandidates: verificationCandidates,
+      reviewBrief: _buildReviewBrief(
+        summaryTitle: summaryTitle,
+        summaryBody: summaryBody,
+        actionItems: actionItems,
+        verificationCandidates: verificationCandidates,
+      ),
+      reviewSignalCount: actionItems.length + verificationCandidates.length,
       searchableText: turns.map((turn) => turn.content.toLowerCase()).join(' '),
       fullTranscript: turns
-          .map((turn) => '${turn.role == 'user' ? 'You' : 'Even AI'}: ${turn.content}')
+          .map(
+            (turn) =>
+                '${turn.role == 'user' ? 'You' : 'Even AI'}: ${turn.content}',
+          )
           .join('\n\n'),
       isFavorite: isFavorite,
     );
@@ -91,6 +103,8 @@ class AssistantSessionMeta {
   final int assistantCount;
   final List<String> actionItems;
   final List<String> verificationCandidates;
+  final String reviewBrief;
+  final int reviewSignalCount;
   final String searchableText;
   final String fullTranscript;
   final bool isFavorite;
@@ -115,6 +129,8 @@ class AssistantSessionMeta {
       assistantCount: assistantCount,
       actionItems: actionItems,
       verificationCandidates: verificationCandidates,
+      reviewBrief: reviewBrief,
+      reviewSignalCount: reviewSignalCount,
       searchableText: searchableText,
       fullTranscript: fullTranscript,
       isFavorite: isFavorite ?? this.isFavorite,
@@ -142,6 +158,33 @@ class AssistantSessionMeta {
         .join('  ');
   }
 
+  static String _buildReviewBrief({
+    required String summaryTitle,
+    required String summaryBody,
+    required List<String> actionItems,
+    required List<String> verificationCandidates,
+  }) {
+    final sections = <String>[];
+    if (summaryTitle.trim().isNotEmpty) {
+      sections.add('Summary: ${summaryTitle.trim()}');
+    }
+    if (summaryBody.trim().isNotEmpty &&
+        summaryBody.trim() != summaryTitle.trim()) {
+      sections.add(summaryBody.trim());
+    }
+    if (actionItems.isNotEmpty) {
+      sections.add(
+        'Action items:\n${actionItems.map((item) => '- $item').join('\n')}',
+      );
+    }
+    if (verificationCandidates.isNotEmpty) {
+      sections.add(
+        'Verification candidates:\n${verificationCandidates.map((item) => '- $item').join('\n')}',
+      );
+    }
+    return sections.join('\n\n').trim();
+  }
+
   static List<String> _extractActionItems(List<ConversationTurn> turns) {
     final results = <String>[];
     for (final turn in turns) {
@@ -158,7 +201,9 @@ class AssistantSessionMeta {
     return results;
   }
 
-  static List<String> _extractVerificationCandidates(List<ConversationTurn> turns) {
+  static List<String> _extractVerificationCandidates(
+    List<ConversationTurn> turns,
+  ) {
     final results = <String>[];
     for (final turn in turns) {
       for (final segment in turn.content.split(RegExp(r'[\n.!?。！？]+'))) {
