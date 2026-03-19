@@ -89,8 +89,14 @@ class SettingsManager {
   /// Transcription backend: 'openai', 'appleCloud', 'appleOnDevice'.
   String transcriptionBackend = 'openai';
 
+  /// OpenAI session mode: 'transcription' or 'realtime'.
+  String openAISessionMode = 'transcription';
+
   /// Model for OpenAI transcription.
   String transcriptionModel = 'gpt-4o-mini-transcribe';
+
+  /// Optional prompt override for OpenAI realtime conversation mode.
+  String? openAIRealtimePrompt;
 
   /// Preferred mic source: 'auto', 'glasses', 'phone'.
   String preferredMicSource = 'auto';
@@ -133,6 +139,9 @@ class SettingsManager {
     );
   }
 
+  bool get usesOpenAIRealtimeSession =>
+      transcriptionBackend == 'openai' && openAISessionMode == 'realtime';
+
   /// Load all settings from SharedPreferences, applying defaults for any
   /// values that have not been persisted yet.
   Future<void> initialize() async {
@@ -166,8 +175,16 @@ class SettingsManager {
 
     // Transcription
     transcriptionBackend = prefs.getString('transcriptionBackend') ?? 'openai';
+    if (transcriptionBackend == 'openaiRealtime') {
+      transcriptionBackend = 'openai';
+      openAISessionMode = 'realtime';
+    } else {
+      openAISessionMode =
+          prefs.getString('openAISessionMode') ?? 'transcription';
+    }
     transcriptionModel =
         prefs.getString('transcriptionModel') ?? 'gpt-4o-mini-transcribe';
+    openAIRealtimePrompt = prefs.getString('openAIRealtimePrompt');
     preferredMicSource = prefs.getString('preferredMicSource') ?? 'auto';
 
     // Glasses
@@ -222,7 +239,13 @@ class SettingsManager {
 
     // Transcription
     await prefs.setString('transcriptionBackend', transcriptionBackend);
+    await prefs.setString('openAISessionMode', openAISessionMode);
     await prefs.setString('transcriptionModel', transcriptionModel);
+    if (openAIRealtimePrompt != null && openAIRealtimePrompt!.trim().isNotEmpty) {
+      await prefs.setString('openAIRealtimePrompt', openAIRealtimePrompt!.trim());
+    } else {
+      await prefs.remove('openAIRealtimePrompt');
+    }
     await prefs.setString('preferredMicSource', preferredMicSource);
 
     // Glasses

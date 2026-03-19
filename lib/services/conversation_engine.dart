@@ -203,6 +203,7 @@ class ConversationEngine {
     if (text.isNotEmpty) {
       _realtimeResponseBuffer += text;
       _streamToGlasses(text, isStreaming: true);
+      _aiResponseController.add(_realtimeResponseBuffer);
       _statusController.add(EngineStatus.responding);
     }
 
@@ -278,7 +279,7 @@ class ConversationEngine {
 
   /// Use the LLM to generate a proactive suggestion based on the conversation
   Future<void> _generateProactiveSuggestion() async {
-    if (SettingsManager.instance.transcriptionBackend == 'openaiRealtime') {
+    if (SettingsManager.instance.usesOpenAIRealtimeSession) {
       return;
     }
     final llmService = _getLlmService();
@@ -850,7 +851,7 @@ $profileInstruction''';
     String question, {
     required int responseToken,
   }) async {
-    if (SettingsManager.instance.transcriptionBackend == 'openaiRealtime') {
+    if (SettingsManager.instance.usesOpenAIRealtimeSession) {
       return;
     }
     Timer? flushTimer;

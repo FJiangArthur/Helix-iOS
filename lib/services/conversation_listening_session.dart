@@ -134,23 +134,27 @@ class ConversationListeningSession {
     final settings = SettingsManager.instance;
     String? apiKey;
     String? systemPrompt;
-    if (settings.transcriptionBackend == 'openai' ||
-        settings.transcriptionBackend == 'openaiRealtime') {
+    if (settings.transcriptionBackend == 'openai') {
       apiKey = await settings.getApiKey('openai');
     }
-    if (settings.transcriptionBackend == 'openaiRealtime') {
-      systemPrompt = _engine.systemPrompt;
+    if (settings.usesOpenAIRealtimeSession) {
+      systemPrompt =
+          settings.openAIRealtimePrompt?.trim().isNotEmpty == true
+          ? settings.openAIRealtimePrompt!.trim()
+          : _engine.systemPrompt;
     }
 
     appLogger.d('[ListeningSession] Calling startEvenAI — '
         'lang=$langCode, source=$sourceStr, '
         'backend=${settings.transcriptionBackend}, '
+        'sessionMode=${settings.openAISessionMode}, '
         'model=${settings.transcriptionModel}');
     try {
       await _invokeMethod('startEvenAI', {
         'language': langCode,
         'source': sourceStr,
         'backend': settings.transcriptionBackend,
+        'sessionMode': settings.openAISessionMode,
         'apiKey': apiKey,
         'model': settings.transcriptionModel,
         'systemPrompt': systemPrompt,

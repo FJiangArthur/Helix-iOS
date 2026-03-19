@@ -489,15 +489,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: Column(
           children: [
             _buildOverviewCard(),
             if (!_hasApiKey) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildSetupBanner(),
             ],
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Expanded(
               child: Stack(
                 children: [
@@ -1329,54 +1329,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAssistantCard() {
-    final modeColor = _modeColor(_currentMode);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            modeColor.withValues(alpha: 0.12),
-            Colors.white.withValues(alpha: 0.02),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: modeColor.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: modeColor.withValues(alpha: 0.12),
-              border: Border.all(color: modeColor.withValues(alpha: 0.2)),
-            ),
-            child: Icon(_modeIcon(_currentMode), size: 18, color: modeColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _getModeHint(),
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.72),
-                fontSize: 12,
-                height: 1.3,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildLoadoutCard() {
     final settings = SettingsManager.instance;
     return AssistantLoadoutCard(
@@ -1416,7 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GlassCard(
       opacity: 0.14,
       borderColor: modeColor.withValues(alpha: 0.2),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1451,21 +1403,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           if (!hasLiveConversation)
             Column(
               children: [
-                _buildAssistantCard(),
-                const SizedBox(height: 10),
                 _buildLoadoutCard(),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _buildSuggestionChips(),
               ],
             )
           else ...[
             if (_transcription.isNotEmpty || _isRecording) ...[
               _buildContextRibbon(),
-              const SizedBox(height: 10),
+              if (_transcription.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                _buildTranscriptMessageCard(),
+              ],
+              const SizedBox(height: 8),
             ],
             if ((_listeningError?.isNotEmpty ?? false)) ...[
               _buildListeningErrorCard(),
@@ -1474,7 +1428,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   hasProviderError ||
                   _glassesDeliveryState.status !=
                       GlassesAnswerDeliveryStatus.idle)
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
             ],
             if (hasProviderError) ...[
               _buildProviderErrorCard(),
@@ -1482,11 +1436,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   _aiResponse.trim().isNotEmpty ||
                   _glassesDeliveryState.status !=
                       GlassesAnswerDeliveryStatus.idle)
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
             ],
             if (_latestQuestionDetection != null) ...[
               _buildDetectedQuestionCard(),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
             ],
             if (_aiResponse.trim().isNotEmpty ||
                 _status == EngineStatus.thinking ||
@@ -1494,7 +1448,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               _buildPhoneAnswerCard(),
             ],
             if (_aiResponse.trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               AssistantResponseActions(
                 key: const Key('home-response-tools-card'),
                 isChinese: _isChinese,
@@ -1525,15 +1479,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
             if ((_conversationSummary ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildConversationSummaryCard(),
             ],
             if (showFollowUps) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildFollowUpChipDeck(),
             ],
             if (visibleInsightSnapshot != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               AssistantInsightsCard(
                 key: const Key('home-insights-card'),
                 snapshot: visibleInsightSnapshot,
@@ -1542,7 +1496,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
             if (_glassesDeliveryState.status !=
                 GlassesAnswerDeliveryStatus.idle) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _buildGlassesDeliveryCard(),
             ],
           ],
@@ -1910,7 +1864,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GlassCard(
       opacity: 0.08,
       borderColor: accentColor.withValues(alpha: 0.22),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1938,34 +1892,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _tr(
-                    en: glassesConnected
-                        ? 'Live speech stays on the phone. G1 only shows generated answers after a question is detected.'
-                        : 'Live speech streams to the phone first, then GPT filters for questions.',
-                    zh: glassesConnected
-                        ? '实时语音只显示在手机上。检测到问题后，G1 只显示生成的答案。'
-                        : '实时语音优先显示在手机上，再由 GPT 过滤问题。',
-                    ja: glassesConnected
-                        ? 'ライブ音声はスマホのみに表示されます。質問が検出されると、G1 には生成された回答だけが表示されます。'
-                        : 'ライブ音声はまずスマホに表示され、その後 GPT が質問を抽出します。',
-                    ko: glassesConnected
-                        ? '실시간 음성은 휴대폰에만 표시됩니다. 질문이 감지되면 G1에는 생성된 답변만 표시됩니다.'
-                        : '실시간 음성은 먼저 휴대폰으로 전달되고, 그다음 GPT가 질문을 골라냅니다.',
-                    es: glassesConnected
-                        ? 'La voz en vivo se queda en el teléfono. El G1 solo muestra respuestas generadas cuando se detecta una pregunta.'
-                        : 'La voz en vivo se muestra primero en el teléfono y luego GPT filtra las preguntas.',
-                    ru: glassesConnected
-                        ? 'Живая речь остается только на телефоне. G1 показывает только сгенерированные ответы после обнаружения вопроса.'
-                        : 'Живая речь сначала поступает на телефон, а затем GPT отфильтровывает вопросы.',
-                  ),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.58),
-                    fontSize: 11,
-                    height: 1.3,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -2021,8 +1947,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                _buildTranscriptText(),
               ],
             ),
           ),
@@ -2031,23 +1955,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildTranscriptText() {
-    final transcript = _transcription.isNotEmpty
-        ? _transcription
-        : _tr(
-            en: 'Active transcription is engaged. Speak and the transcript will appear here immediately.',
-            zh: '正在主动转写。你说话后，文字会直接显示在这里。',
-            ja: 'ライブ文字起こし中です。話し始めると、ここにすぐ文字が表示されます。',
-            ko: '실시간 전사가 활성化되었습니다. 말하면 내용이 바로 여기에 표시됩니다.',
-            es: 'La transcripción activa está activada. Habla y el texto aparecerá aquí de inmediato.',
-            ru: 'Активная расшифровка включена. Говорите, и текст сразу появится здесь.',
-          );
-    final excerpt = _latestQuestionDetection?.questionExcerpt ?? '';
-
-    return Text.rich(
-      _buildHighlightedTranscriptSpan(transcript, excerpt),
-      maxLines: 12,
-      overflow: TextOverflow.fade,
+  Widget _buildTranscriptMessageCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: HelixTheme.cyan.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              _transcriptSource == TranscriptSource.glasses
+                  ? _tr(
+                      en: 'GLASSES INPUT',
+                      zh: '眼镜输入',
+                      ja: 'メガネ入力',
+                      ko: '안경 입력',
+                      es: 'ENTRADA DE LAS GAFAS',
+                      ru: 'ВВОД С ОЧКОВ',
+                    )
+                  : _tr(
+                      en: 'PHONE INPUT',
+                      zh: '手机输入',
+                      ja: 'スマホ入力',
+                      ko: '휴대폰 입력',
+                      es: 'ENTRADA DEL TELÉFONO',
+                      ru: 'ВВОД С ТЕЛЕФОНА',
+                    ),
+              style: TextStyle(
+                color: HelixTheme.cyan,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text.rich(_buildHighlightedTranscriptSpan(_transcription, _latestQuestionDetection?.questionExcerpt ?? '')),
+        ],
+      ),
     );
   }
 
@@ -2691,13 +2646,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   String _transcriptionBackendLabel(String backend) {
     switch (backend) {
-      case 'openaiRealtime':
-        return _isChinese ? 'OpenAI 实时' : 'OpenAI Live AI';
       case 'appleCloud':
         return _isChinese ? '苹果云端' : 'Apple Cloud';
       case 'appleOnDevice':
         return _isChinese ? '苹果本地' : 'Apple On-Device';
       case 'openai':
+        final isRealtime = SettingsManager.instance.usesOpenAIRealtimeSession;
+        if (isRealtime) {
+          return _isChinese ? 'OpenAI 实时' : 'OpenAI Realtime';
+        }
         return _isChinese ? 'OpenAI 转写' : 'OpenAI STT';
       default:
         return backend;
@@ -2957,24 +2914,4 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  String _getModeHint() {
-    if (_isChinese) {
-      switch (_currentMode) {
-        case ConversationMode.general:
-          return '点击聆听或在下方输入问题';
-        case ConversationMode.interview:
-          return '用STAR方法辅导面试问题';
-        case ConversationMode.passive:
-          return '自动检测问题并建议回答';
-      }
-    }
-    switch (_currentMode) {
-      case ConversationMode.general:
-        return 'Tap Listen or type a question below';
-      case ConversationMode.interview:
-        return 'Get STAR method coaching for interview questions';
-      case ConversationMode.passive:
-        return 'Auto-detects questions and suggests answers';
-    }
-  }
 }

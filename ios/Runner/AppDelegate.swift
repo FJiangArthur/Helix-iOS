@@ -15,9 +15,13 @@ import Speech
         // Audio session and microphone permissions are deferred until user starts recording
         
         GeneratedPluginRegistrant.register(with: self)
-        
+
+        guard let controller = resolveFlutterViewController() else {
+            assertionFailure("Failed to locate FlutterViewController during launch.")
+            return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+        }
+
         // Setup real Bluetooth manager
-        let controller = window?.rootViewController as! FlutterViewController
         let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
         
         // Initialize BluetoothManager with the Flutter channel (like EvenDemoApp)
@@ -48,10 +52,12 @@ import Speech
                 let lang = args["language"] as? String ?? "EN"
                 let source = args["source"] as? String ?? "glasses"
                 let backendStr = args["backend"] as? String ?? "appleCloud"
+                let sessionMode = args["sessionMode"] as? String ?? "transcription"
                 let apiKey = args["apiKey"] as? String
                 let model = args["model"] as? String
                 let systemPrompt = args["systemPrompt"] as? String
-                let realtimeConversation = backendStr == "openaiRealtime"
+                let realtimeConversation =
+                    sessionMode == "realtime" || backendStr == "openaiRealtime"
 
                 let backend: TranscriptionBackend
                 switch backendStr {
@@ -102,6 +108,27 @@ import Speech
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    private func resolveFlutterViewController() -> FlutterViewController? {
+        if let controller = window?.rootViewController as? FlutterViewController {
+            return controller
+        }
+
+        let activeScenes = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }
+
+        for scene in activeScenes {
+            if let controller = scene.windows.first(where: \.isKeyWindow)?.rootViewController as? FlutterViewController {
+                return controller
+            }
+            if let controller = scene.windows.first?.rootViewController as? FlutterViewController {
+                return controller
+            }
+        }
+
+        return nil
     }
 }
 

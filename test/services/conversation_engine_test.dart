@@ -205,7 +205,7 @@ void main() {
     );
 
     test(
-      'openai realtime skips downstream llm streaming and persists streamed assistant turns',
+      'openai realtime session skips downstream llm streaming and persists streamed assistant turns',
       () async {
         final provider = await configureFakeLlm(
           responses: const [],
@@ -213,13 +213,13 @@ void main() {
             FakeStreamResponse(['should never stream']),
           ],
         );
-        SettingsManager.instance.transcriptionBackend = 'openaiRealtime';
+        SettingsManager.instance.transcriptionBackend = 'openai';
+        SettingsManager.instance.openAISessionMode = 'realtime';
 
         final statusEvents = <EngineStatus>[];
         final statusSub = engine.statusStream.listen(statusEvents.add);
-        final aiResponseFuture = engine.aiResponseStream.firstWhere(
-          (text) => text.isNotEmpty,
-        );
+        final aiResponses = <String>[];
+        final aiResponseSub = engine.aiResponseStream.listen(aiResponses.add);
 
         engine.start(source: TranscriptSource.phone);
         engine.onTranscriptionFinalized('What is the release plan?');
@@ -231,8 +231,9 @@ void main() {
         engine.onRealtimeResponse('the release plan.', isFinal: false);
         engine.onRealtimeResponse('', isFinal: true);
 
-        expect(await aiResponseFuture, 'Here is the release plan.');
         await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(aiResponses, contains('Here is '));
+        expect(aiResponses, contains('Here is the release plan.'));
 
         final assistantTurns = engine.history
             .where((turn) => turn.role == 'assistant')
@@ -242,6 +243,7 @@ void main() {
         expect(statusEvents, contains(EngineStatus.responding));
         expect(statusEvents, contains(EngineStatus.listening));
 
+        await aiResponseSub.cancel();
         await statusSub.cancel();
       },
     );

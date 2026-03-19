@@ -226,13 +226,15 @@ void main() {
     });
 
     test(
-      'openai realtime start forwards stored key and system prompt',
+      'openai realtime session start forwards stored key and prompt settings',
       () async {
         final speechEvents = StreamController<dynamic>.broadcast();
         final methodCalls = <(String, Object?)>[];
 
-        SettingsManager.instance.transcriptionBackend = 'openaiRealtime';
+        SettingsManager.instance.transcriptionBackend = 'openai';
+        SettingsManager.instance.openAISessionMode = 'realtime';
         SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
+        SettingsManager.instance.openAIRealtimePrompt = 'Answer only questions.';
         await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
 
         final session = ConversationListeningSession.test(
@@ -251,12 +253,12 @@ void main() {
         final startArgs = Map<String, dynamic>.from(
           methodCalls.single.$2! as Map,
         );
-        expect(startArgs['backend'], 'openaiRealtime');
+        expect(startArgs['backend'], 'openai');
+        expect(startArgs['sessionMode'], 'realtime');
         expect(startArgs['source'], 'microphone');
         expect(startArgs['apiKey'], 'sk-live-test');
         expect(startArgs['model'], 'gpt-4o-mini-transcribe');
-        expect(startArgs['systemPrompt'], isA<String>());
-        expect((startArgs['systemPrompt'] as String).trim(), isNotEmpty);
+        expect(startArgs['systemPrompt'], 'Answer only questions.');
 
         await session.stopSession();
         await speechEvents.close();

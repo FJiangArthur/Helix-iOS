@@ -283,6 +283,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _showRealtimePromptDialog() async {
+    final controller = TextEditingController(
+      text: _settings.openAIRealtimePrompt ?? '',
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: HelixTheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Realtime prompt',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 6,
+          maxLines: 12,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText:
+                'Optional override for the realtime assistant prompt. Leave blank to use the generated conversation prompt.',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: HelixTheme.cyan.withValues(alpha: 0.42),
+              ),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await _settings.update((s) => s.openAIRealtimePrompt = null);
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+            },
+            child: const Text('Use Default'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final value = controller.text.trim();
+              await _settings.update(
+                (s) => s.openAIRealtimePrompt = value.isEmpty ? null : value,
+              );
+              if (!context.mounted) return;
+              Navigator.of(context).pop();
+            },
+            child: Text(
+              'Save',
+              style: TextStyle(color: HelixTheme.cyan.withValues(alpha: 0.92)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _settingsSub?.cancel();
@@ -334,18 +404,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   dropdownColor: const Color(0xFF1A1F35),
                   underline: const SizedBox.shrink(),
                   items: const [
-                    DropdownMenuItem(value: 'openai', child: Text('OpenAI Transcription')),
-                    DropdownMenuItem(value: 'openaiRealtime', child: Text('OpenAI Live AI')),
+                    DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
                     DropdownMenuItem(value: 'appleCloud', child: Text('Apple Cloud')),
                     DropdownMenuItem(value: 'appleOnDevice', child: Text('On-Device')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
-                      _settings.update((s) => s.transcriptionBackend = value);
+                      _settings.update((s) {
+                        s.transcriptionBackend = value;
+                        if (value != 'openai') {
+                          s.openAISessionMode = 'transcription';
+                        }
+                      });
                     }
                   },
                 ),
               ),
+              if (_settings.transcriptionBackend == 'openai')
+                ListTile(
+                  title: const Text('OpenAI Session'),
+                  subtitle: Text(
+                    _openAISessionModeLabel(_settings.openAISessionMode),
+                  ),
+                  trailing: DropdownButton<String>(
+                    value: _settings.openAISessionMode,
+                    dropdownColor: const Color(0xFF1A1F35),
+                    underline: const SizedBox.shrink(),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'transcription',
+                        child: Text('Transcription'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'realtime',
+                        child: Text('Realtime'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        _settings.update((s) => s.openAISessionMode = value);
+                      }
+                    },
+                  ),
+                ),
               if (_settings.transcriptionBackend == 'openai')
                 ListTile(
                   title: const Text('Model'),
@@ -368,6 +469,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         _settings.update((s) => s.transcriptionModel = value);
                       }
                     },
+                  ),
+                ),
+              if (_settings.transcriptionBackend == 'openai' &&
+                  _settings.openAISessionMode == 'realtime')
+                ListTile(
+                  title: const Text('Realtime Prompt'),
+                  subtitle: Text(
+                    _settings.openAIRealtimePrompt?.trim().isNotEmpty == true
+                        ? _settings.openAIRealtimePrompt!.trim()
+                        : 'Use generated conversation prompt',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: TextButton(
+                    onPressed: _showRealtimePromptDialog,
+                    child: const Text('Edit'),
                   ),
                 ),
               ListTile(
@@ -2097,15 +2214,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _transcriptionBackendLabel(String backend) {
     switch (backend) {
       case 'openai':
-        return 'Low-latency WebSocket (requires OpenAI key)';
-      case 'openaiRealtime':
-        return 'Transcription + AI responses in one connection';
+        return 'OpenAI speech with selectable transcription or realtime session';
       case 'appleCloud':
         return 'Apple cloud speech (free, ~1min limit)';
       case 'appleOnDevice':
         return 'On-device (works offline, lower accuracy)';
       default:
         return backend;
+    }
+  }
+
+  String _openAISessionModeLabel(String mode) {
+    switch (mode) {
+      case 'realtime':
+        return 'Transcription plus live text answers for detected questions';
+      case 'transcription':
+      default:
+        return 'Transcription only';
     }
   }
 

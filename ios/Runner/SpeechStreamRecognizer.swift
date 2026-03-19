@@ -38,6 +38,15 @@ class SpeechStreamRecognizer {
     private var shouldBufferSpeechEvents = false
     private var didLogFirstPartialEmission = false
     private var didLogFinalEmission = false
+    private var isInputTapInstalled = false
+    private var openAIMicrophoneConverter: AVAudioConverter?
+    private var openAIMicrophoneInputFormat: AVAudioFormat?
+    private let openAIMicrophoneOutputFormat = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 16_000,
+        channels: 1,
+        interleaved: false
+    )!
 
     let languageDic = [
         "CN": "zh-CN",
@@ -298,27 +307,23 @@ class SpeechStreamRecognizer {
                         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
 
                         let inputNode = self.audioEngine.inputNode
-                        let recordingFormat = AVAudioFormat(
-                            commonFormat: .pcmFormatInt16,
-                            sampleRate: 16000,
-                            channels: 1,
-                            interleaved: false
-                        )!
-                        inputNode.removeTap(onBus: 0)
+                        let recordingFormat = inputNode.outputFormat(forBus: 0)
+                        self.removeInputTapIfNeeded()
                         inputNode.installTap(onBus: 0, bufferSize: 1600, format: recordingFormat) {
                             [weak self] buffer, _ in
                             guard let self = self,
-                                  let channelData = buffer.int16ChannelData else { return }
-                            let frameLength = Int(buffer.frameLength)
-                            let data = Data(bytes: channelData.pointee, count: frameLength * 2)
+                                  let data = self.convertBufferToOpenAIInput(buffer) else { return }
                             self.openaiTranscriber.appendAudio(data)
                         }
+                        self.isInputTapInstalled = true
                         self.audioEngine.prepare()
                         try self.audioEngine.start()
                         self.log("OpenAI mic capture started")
                         completion(.success(()))
                     } catch {
                         self.log("OpenAI mic setup failed: \(error)")
+                        self.openaiTranscriber.stop()
+                        self.cleanupRecognition(deactivateSession: true)
                         completion(.failure(error))
                     }
                 } else {
@@ -382,11 +387,12 @@ class SpeechStreamRecognizer {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
 
-        inputNode.removeTap(onBus: 0)
+        removeInputTapIfNeeded()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) {
             [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
         }
+        isInputTapInstalled = true
 
         audioEngine.prepare()
         try audioEngine.start()
@@ -402,7 +408,7 @@ class SpeechStreamRecognizer {
             if audioEngine.isRunning {
                 audioEngine.stop()
             }
-            audioEngine.inputNode.removeTap(onBus: 0)
+            removeInputTapIfNeeded()
             return
         }
 
@@ -514,7 +520,9 @@ class SpeechStreamRecognizer {
         if audioEngine.isRunning {
             audioEngine.stop()
         }
-        audioEngine.inputNode.removeTap(onBus: 0)
+        removeInputTapIfNeeded()
+        openAIMicrophoneConverter = nil
+        openAIMicrophoneInputFormat = nil
 
         recognitionRequest = nil
         recognitionTask = nil
@@ -534,6 +542,68 @@ class SpeechStreamRecognizer {
 
     private func log(_ message: String) {
         NSLog("[SpeechStreamRecognizer] %@", message)
+    }
+
+    private func removeInputTapIfNeeded() {
+        guard isInputTapInstalled else { return }
+        audioEngine.inputNode.removeTap(onBus: 0)
+        isInputTapInstalled = false
+    }
+
+    private func convertBufferToOpenAIInput(_ buffer: AVAudioPCMBuffer) -> Data? {
+        let inputFormat = buffer.format
+
+        if openAIMicrophoneConverter == nil || openAIMicrophoneInputFormat != inputFormat {
+            openAIMicrophoneInputFormat = inputFormat
+            openAIMicrophoneConverter = AVAudioConverter(
+                from: inputFormat,
+                to: openAIMicrophoneOutputFormat
+            )
+        }
+
+        guard let converter = openAIMicrophoneConverter else {
+            log("Failed to create AVAudioConverter for OpenAI microphone input")
+            return nil
+        }
+
+        let outputFrameCapacity = AVAudioFrameCount(
+            ceil(Double(buffer.frameLength) * openAIMicrophoneOutputFormat.sampleRate / inputFormat.sampleRate)
+        )
+
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: openAIMicrophoneOutputFormat,
+            frameCapacity: max(outputFrameCapacity, 1)
+        ) else {
+            log("Failed to allocate converted microphone buffer")
+            return nil
+        }
+
+        var didProvideInput = false
+        var conversionError: NSError?
+        let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+            if didProvideInput {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+
+            didProvideInput = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+
+        if let conversionError {
+            log("Microphone buffer conversion failed: \(conversionError.localizedDescription)")
+            return nil
+        }
+
+        guard status == .haveData || status == .inputRanDry,
+              outputBuffer.frameLength > 0,
+              let channelData = outputBuffer.int16ChannelData else {
+            return nil
+        }
+
+        let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
+        return Data(bytes: channelData.pointee, count: byteCount)
     }
 }
 

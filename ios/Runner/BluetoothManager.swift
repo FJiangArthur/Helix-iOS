@@ -248,11 +248,15 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             }
         }
 
-        if peripheral.identifier.uuidString == leftUUIDStr, leftRChar != nil, leftWChar != nil {
-            leftPeripheral?.setNotifyValue(true, for: leftRChar!)
+        if peripheral.identifier.uuidString == leftUUIDStr,
+           let leftRChar,
+           leftWChar != nil {
+            leftPeripheral?.setNotifyValue(true, for: leftRChar)
             writeData(writeData: Data([0x4d, 0x01]), lr: "L")
-        } else if peripheral.identifier.uuidString == rightUUIDStr, rightRChar != nil, rightWChar != nil {
-            rightPeripheral?.setNotifyValue(true, for: rightRChar!)
+        } else if peripheral.identifier.uuidString == rightUUIDStr,
+                  let rightRChar,
+                  rightWChar != nil {
+            rightPeripheral?.setNotifyValue(true, for: rightRChar)
             writeData(writeData: Data([0x4d, 0x01]), lr: "R")
         }
     }
@@ -318,6 +322,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func getCommandValue(data: Data, cbPeripheral: CBPeripheral? = nil) {
+        guard !data.isEmpty else {
+            print("Warning: Received empty BLE payload")
+            return
+        }
+
         let rspCommand = AG_BLE_REQ(rawValue: data[0])
         switch rspCommand {
         case .BLE_REQ_TRANSFER_MIC_DATA:
