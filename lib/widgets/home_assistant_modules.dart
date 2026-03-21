@@ -83,6 +83,23 @@ class AssistantInsightSnapshot {
       verificationCandidates.isNotEmpty ||
       recommendedNextMove.isNotEmpty;
 
+  /// Create an [AssistantInsightSnapshot] from a raw LLM JSON response.
+  static AssistantInsightSnapshot? fromLlmResponse(Map<String, dynamic> json) {
+    try {
+      return AssistantInsightSnapshot(
+        summary: json['summary'] as String? ?? '',
+        topics: (json['topics'] as List<dynamic>?)?.cast<String>() ?? [],
+        actionItems:
+            (json['actionItems'] as List<dynamic>?)?.cast<String>() ?? [],
+        sentiment: json['sentiment'] as String? ?? '',
+        verificationCandidates: [],
+        recommendedNextMove: '',
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   static AssistantInsightSnapshot? fromConversation({
     required String transcription,
     required String aiResponse,
@@ -190,8 +207,8 @@ class AssistantInsightSnapshot {
 
   static String _sentimentFor(String source, bool isChinese) {
     final lower = source.toLowerCase();
-    final positive = _positiveHints.where(lower.contains).length;
-    final caution = _cautionHints.where(lower.contains).length;
+    final positive = _positiveHints.where((hint) => lower.contains(hint)).length;
+    final caution = _cautionHints.where((hint) => lower.contains(hint)).length;
     if (caution > positive) {
       return isChinese ? '谨慎 / 有风险' : 'Cautious / Risky';
     }

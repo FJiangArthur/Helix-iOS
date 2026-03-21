@@ -26,21 +26,14 @@ static uint16_t sampleOfFrames;
 static uint16_t bytesOfFrames;
 // Encoder buffer
 static void* encMem = NULL;
-// Decoder buffer
-static void* decMem = NULL;
 // File descriptor of the input file
 static int inFd = -1;
 // File descriptor of output file
 static int outFd = -1;
-// Input frame buffer
-static unsigned char *inBuf;
-// Output frame buffer
-static unsigned char *outBuf;
 
 -(NSMutableData *)decode: (NSData *)lc3data {
-    
-    encodeSize = lc3_encoder_size(dtUs, srHz);
-    decodeSize = lc3_decoder_size(dtUs, srHz);
+
+    unsigned localDecodeSize = lc3_decoder_size(dtUs, srHz);
     sampleOfFrames = lc3_frame_samples(dtUs, srHz);
     bytesOfFrames = sampleOfFrames*2;
 
@@ -48,45 +41,37 @@ static unsigned char *outBuf;
         printf("Failed to decode Base64 data\n");
         return [[NSMutableData alloc] init];
     }
-    
-    decMem = malloc(decodeSize);
-    lc3_decoder_t lc3_decoder = lc3_setup_decoder(dtUs, srHz, 0, decMem);
-    if ((outBuf = malloc(bytesOfFrames)) == NULL) {
+
+    void *localDecMem = malloc(localDecodeSize);
+    lc3_decoder_t lc3_decoder = lc3_setup_decoder(dtUs, srHz, 0, localDecMem);
+    unsigned char *localOutBuf;
+    if ((localOutBuf = malloc(bytesOfFrames)) == NULL) {
         printf("Failed to allocate memory for outBuf\n");
+        free(localDecMem);
         return [[NSMutableData alloc] init];
     }
-    
+
     int totalBytes = (int)lc3data.length;
     int bytesRead = 0;
-    
+
     NSMutableData *pcmData = [[NSMutableData alloc] init];
-    
+
     while (bytesRead < totalBytes) {
         int bytesToRead = MIN(outputByteCount, totalBytes - bytesRead);
         NSRange range = NSMakeRange(bytesRead, bytesToRead);
         NSData *subdata = [lc3data subdataWithRange:range];
-        inBuf = (unsigned char *)subdata.bytes;
-        
-        NSUInteger length = subdata.length;
-        for (NSUInteger i = 0; i < length; ++i) {
-           // printf("%02X ", inBuf[i]);
-        }
-        lc3_decode(lc3_decoder, inBuf, outputByteCount, LC3_PCM_FORMAT_S16, outBuf, 1);
-        
-        NSMutableString *hexString = [NSMutableString stringWithCapacity:bytesOfFrames * 2];
-        for (int i = 0; i < bytesOfFrames; i++) {
-            
-            [hexString appendFormat:@"%02X ", outBuf[i]];
-        }
-         
-        NSData *data = [NSData dataWithBytes:outBuf length:bytesOfFrames];
+        unsigned char *inBuf = (unsigned char *)subdata.bytes;
+
+        lc3_decode(lc3_decoder, inBuf, bytesToRead, LC3_PCM_FORMAT_S16, localOutBuf, 1);
+
+        NSData *data = [NSData dataWithBytes:localOutBuf length:bytesOfFrames];
         [pcmData appendData:data];
         bytesRead += bytesToRead;
     }
-    
-    free(decMem);
-    free(outBuf);
-    
+
+    free(localDecMem);
+    free(localOutBuf);
+
     return pcmData;
 }
 @end

@@ -91,9 +91,40 @@ import Speech
                         )
                     }
                 }
+            case "transcribeAudioFile":
+                let args = call.arguments as? [String: Any] ?? [:]
+                let filePath = args["filePath"] as? String ?? ""
+                let lang = args["language"] as? String ?? "EN"
+                let realtime = args["realtime"] as? Bool ?? false
+
+                let fileURL = URL(fileURLWithPath: filePath)
+                SpeechStreamRecognizer.shared.transcribeAudioFile(
+                    fileURL: fileURL,
+                    identifier: lang,
+                    realtime: realtime
+                ) { transcribeResult in
+                    switch transcribeResult {
+                    case .success:
+                        result("Started file transcription: \(fileURL.lastPathComponent)")
+                    case .failure(let error):
+                        result(
+                            FlutterError(
+                                code: "TranscribeFileFailed",
+                                message: error.localizedDescription,
+                                details: nil
+                            )
+                        )
+                    }
+                }
             case "stopEvenAI":
                 SpeechStreamRecognizer.shared.stopRecognition()
                 result("Stopped Even AI speech recognition")
+            case "pauseEvenAI":
+                SpeechStreamRecognizer.shared.pauseRecognition()
+                result("Paused Even AI speech recognition")
+            case "resumeEvenAI":
+                SpeechStreamRecognizer.shared.resumeRecognition()
+                result("Resumed Even AI speech recognition")
             default:
                 result(FlutterMethodNotImplemented)
             }

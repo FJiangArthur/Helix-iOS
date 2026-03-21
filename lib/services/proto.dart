@@ -9,10 +9,9 @@ import '../utils/utils.dart';
 
 class Proto {
   static String lR() {
-    // todo
-    if (BleManager.isBothConnected()) return "R";
-    //if (BleManager.isConnectedR()) return "R";
-    return "L";
+    if (BleManager.isConnectedR()) return "R";
+    if (BleManager.isConnectedL()) return "L";
+    return "L"; // default
   }
 
   static Future<bool> pushScreen(int screenId) async {
@@ -65,31 +64,30 @@ class Proto {
       '${DateTime.now()} proto--sendEvenAIData---text---$text---_evenaiSeq----$_evenaiSeq---newScreen---$newScreen---pos---$pos---current_page_num--$current_page_num---max_page_num--$max_page_num--dataList----$dataList---',
     );
 
-    bool isSuccess = await BleManager.requestList(
+    // Send to L and R independently - don't abort one if the other fails
+    bool isSuccessL = await BleManager.requestList(
       dataList,
       lr: "L",
       timeoutMs: timeoutMs ?? 2000,
     );
-
-    appLogger.d(
-      '${DateTime.now()} sendEvenAIData-----isSuccess-----$isSuccess-------',
-    );
-    if (!isSuccess) {
-      appLogger.d("${DateTime.now()} sendEvenAIData failed  L ");
-      return false;
-    } else {
-      isSuccess = await BleManager.requestList(
-        dataList,
-        lr: "R",
-        timeoutMs: timeoutMs ?? 2000,
-      );
-
-      if (!isSuccess) {
-        appLogger.d("${DateTime.now()} sendEvenAIData failed  R ");
-        return false;
-      }
-      return true;
+    if (!isSuccessL) {
+      appLogger.d("${DateTime.now()} sendEvenAIData failed L (continuing to R)");
     }
+
+    bool isSuccessR = await BleManager.requestList(
+      dataList,
+      lr: "R",
+      timeoutMs: timeoutMs ?? 2000,
+    );
+    if (!isSuccessR) {
+      appLogger.d("${DateTime.now()} sendEvenAIData failed R");
+    }
+
+    final anySuccess = isSuccessL || isSuccessR;
+    appLogger.d(
+      '${DateTime.now()} sendEvenAIData L=$isSuccessL R=$isSuccessR anySuccess=$anySuccess',
+    );
+    return anySuccess;
   }
 
   static int _beatHeartSeq = 0;
@@ -136,6 +134,7 @@ class Proto {
   static Future<String> getLegSn(String lr) async {
     var cmd = Uint8List.fromList([0x34]);
     var resp = await BleManager.request(cmd, lr: lr);
+    if (resp.isTimeout || resp.data.length < 18) return '';
     var sn = String.fromCharCodes(resp.data.sublist(2, 18).toList());
     return sn;
   }

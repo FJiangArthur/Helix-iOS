@@ -37,12 +37,13 @@ class ConversationEngine {
   TranscriptSource _transcriptSource = TranscriptSource.phone;
   String _currentTranscription = '';
   String _partialTranscription = '';
-  final List<String> _finalizedSegments = [];
+  final List<TranscriptSegment> _finalizedSegments = [];
   final List<ConversationTurn> _history = [];
   Timer? _analysisTimer;
   int _analysisToken = 0;
   int _responseToken = 0;
   String _lastHandledQuestionKey = '';
+  DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
 
   // Silence detection state
@@ -53,9 +54,16 @@ class ConversationEngine {
   bool _silenceSuggestionSent = false;
   String _realtimeResponseBuffer = '';
 
-  // Configuration
-  bool autoDetectQuestions = true;
-  bool autoAnswerQuestions = true; // false = confirm-first
+  // Progressive sentence finalization: track how many complete sentences
+  // from the current Apple recognition segment we've already finalized.
+  int _segmentSentencesFinalized = 0;
+  static final _sentenceBoundary = RegExp(r'(?<=[.?!])\s+');
+
+  // Configuration — read through SettingsManager so tests can set values there.
+  bool get autoDetectQuestions => SettingsManager.instance.autoDetectQuestions;
+  set autoDetectQuestions(bool v) => SettingsManager.instance.autoDetectQuestions = v;
+  bool get autoAnswerQuestions => SettingsManager.instance.autoAnswerQuestions;
+  set autoAnswerQuestions(bool v) => SettingsManager.instance.autoAnswerQuestions = v;
 
   // Streams
   final _transcriptionController = StreamController<String>.broadcast();
@@ -74,6 +82,8 @@ class ConversationEngine {
   final _followUpChipsController = StreamController<List<String>>.broadcast();
   final _providerErrorController =
       StreamController<ProviderErrorState?>.broadcast();
+  final _postConversationController =
+      StreamController<Map<String, dynamic>?>.broadcast();
   ProviderErrorState? _lastProviderError;
 
   /// System prompt for the current mode and language, used by realtime sessions.
@@ -96,6 +106,8 @@ class ConversationEngine {
       _followUpChipsController.stream;
   Stream<ProviderErrorState?> get providerErrorStream =>
       _providerErrorController.stream;
+  Stream<Map<String, dynamic>?> get postConversationAnalysisStream =>
+      _postConversationController.stream;
 
   ConversationMode get mode => _mode;
   bool get isActive => _isActive;
@@ -103,13 +115,40 @@ class ConversationEngine {
   TranscriptSnapshot get currentTranscriptSnapshot => TranscriptSnapshot(
     source: _transcriptSource,
     partialText: _partialTranscription,
-    finalizedSegments: List.unmodifiable(_finalizedSegments),
+    finalizedSegments: List.unmodifiable(
+      _finalizedSegments.map((s) => s.text).toList(),
+    ),
     fullTranscript: _currentTranscription,
   );
   List<ConversationTurn> get history => List.unmodifiable(_history);
   ProviderErrorState? get lastProviderError => _lastProviderError;
   QuestionDetectionResult? get latestQuestionDetection =>
       _latestQuestionDetection;
+
+  /// Compute live transcript statistics for UI display.
+  TranscriptStats get transcriptStats {
+    final words = _currentTranscription
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .length;
+    final segments = _finalizedSegments.length;
+    // Estimate WPM from finalized segments with timestamps
+    double wpm = 0;
+    if (_finalizedSegments.length >= 2) {
+      final first = _finalizedSegments.first.timestamp;
+      final last = _finalizedSegments.last.timestamp;
+      final minutes = last.difference(first).inSeconds / 60.0;
+      if (minutes > 0.1) {
+        wpm = words / minutes;
+      }
+    }
+    return TranscriptStats(
+      wordCount: words,
+      segmentCount: segments,
+      wordsPerMinute: wpm.roundToDouble(),
+      questionCount: _history.where((t) => t.role == 'user').length,
+    );
+  }
 
   /// Start the conversation engine
   void start({
@@ -122,9 +161,11 @@ class ConversationEngine {
     _silenceSuggestionSent = false;
     _analysisToken = 0;
     _lastHandledQuestionKey = '';
+    _lastHandledQuestionTime = null;
     _latestQuestionDetection = null;
     _currentTranscription = '';
     _partialTranscription = '';
+    _segmentSentencesFinalized = 0;
     _finalizedSegments.clear();
     _clearProviderError();
     if (mode != null) setMode(mode);
@@ -140,9 +181,26 @@ class ConversationEngine {
     _analysisToken++;
     _analysisTimer?.cancel();
     _silenceTimer?.cancel();
+    _segmentSentencesFinalized = 0;
     _clearProviderError();
     _statusController.add(EngineStatus.idle);
     appLogger.i('ConversationEngine stopped');
+
+    // Trigger post-conversation analysis asynchronously if there is
+    // meaningful history and the session produced finalized segments.
+    if (_history.length > 1 && _finalizedSegments.length > 1) {
+      final stopToken = _analysisToken;
+      getPostConversationAnalysis().then((result) {
+        if (stopToken == _analysisToken) {
+          _postConversationController.add(result);
+        }
+      }).catchError((e) {
+        appLogger.e('Post-conversation analysis failed', error: e);
+        if (stopToken == _analysisToken) {
+          _postConversationController.add(null);
+        }
+      });
+    }
   }
 
   /// Set conversation mode
@@ -152,44 +210,97 @@ class ConversationEngine {
     appLogger.d('Mode changed to ${mode.name}');
   }
 
-  /// Called when new transcription text arrives from speech recognition
+  /// Called when new transcription text arrives from speech recognition.
+  ///
+  /// Apple's recognizer sends the full buffer text on each partial callback.
+  /// We split it into sentences and progressively finalize complete ones,
+  /// keeping only the trailing incomplete sentence as the live partial.
   void onTranscriptionUpdate(String text) {
     if (!_isActive) return;
 
-    _partialTranscription = text.trim();
-    _emitTranscriptSnapshot();
-    _silenceSuggestionSent = false;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
 
-    // Reset silence timer on each transcription update
+    // Split by sentence boundaries and progressively finalize complete ones.
+    // Wrapped in try-catch so a regex or split issue can never kill the
+    // event pipeline — fall back to the original behavior (full text as partial).
+    try {
+      _progressiveUpdate(trimmed);
+    } catch (e) {
+      appLogger.w('[Engine] Sentence split failed, using full text: $e');
+      _partialTranscription = trimmed;
+      _emitTranscriptSnapshot();
+    }
+
+    _silenceSuggestionSent = false;
     _resetSilenceTimer();
 
-    // Analyze a stable transcript window after 1.5s of silence.
     if (autoDetectQuestions) {
       _scheduleTranscriptAnalysis();
     }
-
-    // Check for behavioral interview questions (STAR coaching)
     if (_mode == ConversationMode.interview &&
         _partialTranscription.isNotEmpty) {
       _checkForBehavioralQuestion(_partialTranscription);
     }
   }
 
-  /// Called when transcription is finalized (recording stops)
-  void onTranscriptionFinalized(String text) {
-    if (!_isActive) return;
-    final normalized = text.trim();
-    if (normalized.isEmpty) return;
+  /// Split [trimmed] by sentence boundaries. Complete sentences are finalized,
+  /// the trailing incomplete sentence becomes the live partial.
+  void _progressiveUpdate(String trimmed) {
+    final parts = trimmed.split(_sentenceBoundary);
 
-    if (_finalizedSegments.isEmpty || _finalizedSegments.last != normalized) {
-      _finalizedSegments.add(normalized);
+    // All parts except the last are complete sentences.
+    final completeCount = parts.length > 1 ? parts.length - 1 : 0;
+
+    // Finalize any NEW complete sentences we haven't finalized yet.
+    for (int i = _segmentSentencesFinalized; i < completeCount; i++) {
+      final sentence = parts[i].trim();
+      if (sentence.isNotEmpty) {
+        _finalizedSegments.add(TranscriptSegment(
+          text: sentence,
+          timestamp: DateTime.now(),
+        ));
+        appLogger.d('[Engine] Progressive finalize: "$sentence"');
+      }
+    }
+    if (completeCount > _segmentSentencesFinalized) {
+      _segmentSentencesFinalized = completeCount;
+    }
+
+    // The last part is the in-progress sentence.
+    _partialTranscription = parts.last.trim();
+    _emitTranscriptSnapshot();
+  }
+
+  /// Called when transcription is finalized (segment ends or recording stops).
+  ///
+  /// Complete sentences have already been finalized progressively by
+  /// [onTranscriptionUpdate]. This only needs to finalize the trailing
+  /// incomplete sentence (the current partial).
+  void onTranscriptionFinalized(String text, {DateTime? segmentTimestamp}) {
+    if (!_isActive) return;
+
+    // Finalize the trailing partial sentence, not the full buffer text
+    // (complete sentences were already finalized by onTranscriptionUpdate).
+    final toFinalize = _partialTranscription.trim().isNotEmpty
+        ? _partialTranscription.trim()
+        : text.trim();
+
+    if (toFinalize.isNotEmpty &&
+        (_finalizedSegments.isEmpty ||
+            _finalizedSegments.last.text != toFinalize)) {
+      _finalizedSegments.add(TranscriptSegment(
+        text: toFinalize,
+        timestamp: segmentTimestamp ?? DateTime.now(),
+      ));
     }
     _partialTranscription = '';
+    _segmentSentencesFinalized = 0;
     _emitTranscriptSnapshot();
 
     // Check for behavioral questions in interview mode
     if (_mode == ConversationMode.interview) {
-      _checkForBehavioralQuestion(normalized);
+      _checkForBehavioralQuestion(toFinalize);
     }
 
     // Analyze finalized text immediately.
@@ -444,6 +555,12 @@ Current topic: $_currentTranscription''';
 
         _coachingController.add(coaching);
         appLogger.d('STAR coaching triggered for: $questionContext');
+
+        // Push a compact STAR reminder to glasses HUD
+        if (_glassesConnectionChecker()) {
+          final hudText = coaching.steps.join('\n');
+          _streamToGlasses(hudText, isStreaming: false);
+        }
         break;
       }
     }
@@ -498,6 +615,54 @@ Format:
       return response;
     } catch (e) {
       appLogger.e('Failed to generate summary', error: e);
+      return null;
+    }
+  }
+
+  /// Generate a structured post-conversation analysis.
+  /// Returns null if no conversation history exists or LLM is unavailable.
+  Future<Map<String, dynamic>?> getPostConversationAnalysis() async {
+    if (_history.length < 2) return null;
+
+    final llmService = _getLlmService();
+    if (llmService == null) return null;
+
+    final isChinese = _language == 'zh';
+    final recentHistory = _history.length > 30
+        ? _history.sublist(_history.length - 30)
+        : _history;
+
+    final transcript = recentHistory
+        .map((t) => '${t.role == 'user' ? 'User' : 'AI'}: ${t.content}')
+        .join('\n');
+
+    final prompt = isChinese
+        ? '''分析以下对话并返回结构化JSON：
+
+$transcript
+
+返回格式（不要使用markdown代码块）：
+{"summary": "简要总结", "topics": ["话题1", "话题2"], "actionItems": ["待办1"], "sentiment": "积极/中性/消极"}'''
+        : '''Analyze this conversation and return structured JSON:
+
+$transcript
+
+Return format (no markdown code blocks):
+{"summary": "brief summary", "topics": ["topic1", "topic2"], "actionItems": ["action1"], "sentiment": "positive/neutral/negative"}''';
+
+    try {
+      final response = await llmService.getResponse(
+        systemPrompt: isChinese
+            ? '你是一个对话分析助手。只用JSON格式回复。'
+            : 'You are a conversation analysis assistant. Reply only in JSON format.',
+        messages: [ChatMessage(role: 'user', content: prompt)],
+      );
+
+      final cleaned = _stripMarkdownCodeFence(response);
+      final result = jsonDecode(cleaned) as Map<String, dynamic>;
+      return result;
+    } catch (e) {
+      appLogger.e('Failed to generate post-conversation analysis', error: e);
       return null;
     }
   }
@@ -571,7 +736,9 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
     final snapshot = TranscriptSnapshot(
       source: _transcriptSource,
       partialText: _partialTranscription,
-      finalizedSegments: List.unmodifiable(_finalizedSegments),
+      finalizedSegments: List.unmodifiable(
+        _finalizedSegments.map((s) => s.text).toList(),
+      ),
       fullTranscript: _currentTranscription,
     );
     _transcriptionController.add(snapshot.fullTranscript);
@@ -580,7 +747,9 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
   String _composeFullTranscript() {
     final parts = <String>[
-      ..._finalizedSegments.where((segment) => segment.trim().isNotEmpty),
+      ..._finalizedSegments
+          .map((s) => s.text)
+          .where((text) => text.trim().isNotEmpty),
     ];
     if (_partialTranscription.trim().isNotEmpty) {
       parts.add(_partialTranscription.trim());
@@ -590,6 +759,7 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
   void _scheduleTranscriptAnalysis({bool immediate = false}) {
     if (!autoDetectQuestions) return;
+    if (SettingsManager.instance.usesOpenAIRealtimeSession) return;
 
     final token = ++_analysisToken;
     _analysisTimer?.cancel();
@@ -605,19 +775,29 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
   }
 
   String _buildRecentTranscriptWindow() {
-    final segments = _finalizedSegments.length > 3
-        ? _finalizedSegments.sublist(_finalizedSegments.length - 3)
+    final segments = _finalizedSegments.length > 8
+        ? _finalizedSegments.sublist(_finalizedSegments.length - 8)
         : _finalizedSegments;
-    final parts = <String>[...segments];
+    final parts = <String>[];
+    for (var i = 0; i < segments.length; i++) {
+      if (i > 0) {
+        final gap = segments[i].timestamp.difference(segments[i - 1].timestamp);
+        if (gap.inMilliseconds > 1000) {
+          final seconds = (gap.inMilliseconds / 1000).toStringAsFixed(1);
+          parts.add('[${seconds}s pause]');
+        }
+      }
+      parts.add(segments[i].text);
+    }
     if (_partialTranscription.trim().isNotEmpty) {
       parts.add(_partialTranscription.trim());
     }
 
     final window = parts.join('\n');
-    if (window.length <= 800) {
+    if (window.length <= 2000) {
       return window;
     }
-    return window.substring(window.length - 800);
+    return window.substring(window.length - 2000);
   }
 
   Future<void> _analyzeRecentTranscriptWindow(int token) async {
@@ -654,11 +834,18 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       }
 
       final questionKey = _normalizeQuestion(detection.question);
-      if (questionKey.isEmpty || questionKey == _lastHandledQuestionKey) {
+      if (questionKey.isEmpty) {
+        return;
+      }
+      final now = DateTime.now();
+      if (questionKey == _lastHandledQuestionKey &&
+          _lastHandledQuestionTime != null &&
+          now.difference(_lastHandledQuestionTime!).inSeconds < 45) {
         return;
       }
 
       _lastHandledQuestionKey = questionKey;
+      _lastHandledQuestionTime = now;
       _latestQuestionDetection = detection;
       _clearProviderError();
       _questionDetectionController.add(detection);
@@ -702,12 +889,14 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
     final isChinese = _language == 'zh';
     final historyContext = _buildRecentQaContext();
     if (isChinese) {
-      return '''分析下面这段最近对话，判断是否出现了一个值得立即帮助用户回答的问题。
+      return '''分析下面这段最近对话，判断另一人(OTHER)是否提出了佩戴者需要帮助回答的问题。
 
 要求：
 - 如果没有明确问题，返回 shouldRespond=false，并把 question 和 questionExcerpt 设为空字符串。
 - 如果有问题，question 提炼成一句话。
 - questionExcerpt 必须尽量直接复制最近对话窗口里对应问题的原文片段；如果做不到就返回空字符串。
+- 使用时间间隔标记 [X.Xs pause] 来推断说话人轮次——较长停顿通常表示说话人切换。
+- askedBy 设为 "other"（对方提问）或 "wearer"（佩戴者提问）。
 
 最近问答历史：
 $historyContext
@@ -716,12 +905,14 @@ $historyContext
 $window''';
     }
 
-    return '''Analyze this recent conversation window and decide whether there is a clear question worth answering right now.
+    return '''Analyze this recent conversation window and decide whether the OTHER PERSON has asked a question that the WEARER needs help answering.
 
 Rules:
 - If there is no clear question, return shouldRespond=false and leave question and questionExcerpt empty.
 - If there is a question, extract it as one sentence.
 - questionExcerpt should be a verbatim excerpt from the recent conversation window when possible. If you cannot quote it exactly, return an empty string.
+- Use timing gap markers [X.Xs pause] to infer speaker turns — longer pauses often indicate a speaker change.
+- Set askedBy to "other" (the other person asked) or "wearer" (the glasses wearer asked).
 
 Recent Q/A memory:
 $historyContext
@@ -749,20 +940,33 @@ $window''';
       isChinese: isChinese,
     );
     if (isChinese) {
-      return '''你是一个实时对话分析助手。你负责阅读最近对话窗口，判断是否需要帮助用户回答问题。
+      return '''你是一个实时对话分析助手。这段文字记录了一场两人对话。佩戴者(WEARER)戴着AI眼镜需要帮助。另一人(OTHER)是他们的对话对象。
+
+阅读最近对话窗口，判断另一人(OTHER)是否提出了佩戴者可能需要帮助回答的问题。
+
+规则：
+- 只有当另一人(OTHER)提出问题时才设置 shouldRespond=true
+- 如果佩戴者(WEARER)提出问题，那是在问对方的——不要回答
+- 使用时间间隔 [X.Xs pause] 作为说话人轮次的线索——较长的停顿通常表示不同的说话人
 
 只输出 JSON，不要 markdown，不要额外解释。
 JSON 格式必须是：
-{"shouldRespond": true/false, "question": "...", "questionExcerpt": "..."}
+{"shouldRespond": true/false, "question": "...", "questionExcerpt": "...", "askedBy": "other"|"wearer"}
 
 $profileInstruction''';
     }
 
-    return '''You are a live conversation analysis assistant. Read the latest conversation window and decide whether the user needs help answering a question right now.
+    return '''You are a live conversation analysis assistant. This transcript captures a two-person conversation. The WEARER has AI glasses and needs help. The OTHER PERSON is who they are talking to.
 
-Output JSON only. No markdown and no extra commentary.
-The JSON shape must be:
-{"shouldRespond": true/false, "question": "...", "questionExcerpt": "..."}
+Read the latest conversation window and decide if the OTHER PERSON has asked a question that the WEARER might need help answering right now.
+
+Rules:
+- Only set shouldRespond=true when the OTHER PERSON asks a question
+- If the WEARER asks a question, they are directing it at the other person — do NOT answer it
+- Use timing gaps [X.Xs pause] as hints for speaker turns — longer pauses often indicate a different speaker
+- Output JSON only. No markdown and no extra commentary.
+
+JSON shape: {"shouldRespond": true/false, "question": "...", "questionExcerpt": "...", "askedBy": "other"|"wearer"}
 
 $profileInstruction''';
   }
@@ -784,6 +988,11 @@ $profileInstruction''';
         return null;
       }
 
+      final askedBy = (decoded['askedBy'] as String? ?? 'other').trim();
+      if (askedBy == 'wearer') {
+        return null;
+      }
+
       return QuestionDetectionResult(
         question: question,
         questionExcerpt: _resolveQuestionExcerpt(
@@ -792,6 +1001,7 @@ $profileInstruction''';
           question,
         ),
         timestamp: DateTime.now(),
+        askedBy: askedBy,
       );
     } catch (error) {
       appLogger.d('Could not parse question detection: $error');
@@ -916,6 +1126,13 @@ $profileInstruction''';
         temperature: SettingsManager.instance.temperature,
       )) {
         if (!_isResponseCurrent(responseToken)) {
+          return;
+        }
+
+        if (responseText.isEmpty && chunk.startsWith('[Error]')) {
+          final errorState = ProviderErrorState.fromException(chunk);
+          _publishProviderError(errorState);
+          _statusController.add(_isActive ? EngineStatus.listening : EngineStatus.idle);
           return;
         }
 
@@ -1285,6 +1502,59 @@ STYLE RULES:
     _coachingController.close();
     _followUpChipsController.close();
     _providerErrorController.close();
+    _postConversationController.close();
+  }
+
+  /// Manually trigger question analysis from glasses button press.
+  /// Bypasses the realtime-session guard in [_scheduleTranscriptAnalysis] so
+  /// that the user can still request a local LLM analysis even when using
+  /// OpenAI Realtime mode.
+  void forceQuestionAnalysis() {
+    if (!_isActive) return;
+    final token = ++_analysisToken;
+    _analyzeRecentTranscriptWindow(token);
+  }
+
+  /// Simulate a multi-segment transcription session for testing the full
+  /// pipeline on the simulator (which has no real microphone).
+  /// Each segment is emitted as partial updates then finalized, with gaps
+  /// matching real-world behavior (25s segment restarts).
+  Future<void> simulateTranscription({
+    List<String>? segments,
+    Duration segmentDelay = const Duration(milliseconds: 800),
+    Duration wordDelay = const Duration(milliseconds: 60),
+  }) async {
+    final testSegments = segments ?? const [
+      'So tell me about your experience with distributed systems and how you handled scaling challenges at your previous company.',
+      'That sounds interesting. Can you walk me through a specific example where you had to debug a production issue under pressure?',
+      'What tools and methodologies do you use for monitoring and observability in a microservices architecture?',
+      'How do you approach mentoring junior engineers while still delivering on your own technical work?',
+    ];
+
+    if (!_isActive) {
+      start(mode: ConversationMode.interview, source: TranscriptSource.phone);
+    }
+    _statusController.add(EngineStatus.listening);
+
+    for (var i = 0; i < testSegments.length; i++) {
+      final segment = testSegments[i];
+      final words = segment.split(' ');
+
+      // Simulate word-by-word partial updates
+      for (var w = 1; w <= words.length; w++) {
+        final partial = words.sublist(0, w).join(' ');
+        onTranscriptionUpdate(partial);
+        await Future<void>.delayed(wordDelay);
+      }
+
+      // Finalize the segment
+      onTranscriptionFinalized(segment, segmentTimestamp: DateTime.now());
+      appLogger.i('[Simulation] Segment ${i + 1}/${testSegments.length} finalized: ${segment.length} chars');
+
+      if (i < testSegments.length - 1) {
+        await Future<void>.delayed(segmentDelay);
+      }
+    }
   }
 }
 
@@ -1313,16 +1583,25 @@ class TranscriptSnapshot {
   final String fullTranscript;
 }
 
+class TranscriptSegment {
+  final String text;
+  final DateTime timestamp;
+  String? speakerLabel; // "me" or "other"
+  TranscriptSegment({required this.text, required this.timestamp, this.speakerLabel});
+}
+
 class QuestionDetectionResult {
   const QuestionDetectionResult({
     required this.question,
     required this.questionExcerpt,
     required this.timestamp,
+    this.askedBy = 'other',
   });
 
   final String question;
   final String questionExcerpt;
   final DateTime timestamp;
+  final String askedBy;
 }
 
 /// A proactive suggestion emitted when silence is detected
@@ -1425,4 +1704,19 @@ class ConversationTurn {
     'mode': mode,
     'assistantProfileId': assistantProfileId,
   };
+}
+
+/// Live transcript statistics for UI dashboards.
+class TranscriptStats {
+  final int wordCount;
+  final int segmentCount;
+  final double wordsPerMinute;
+  final int questionCount;
+
+  const TranscriptStats({
+    required this.wordCount,
+    required this.segmentCount,
+    required this.wordsPerMinute,
+    required this.questionCount,
+  });
 }

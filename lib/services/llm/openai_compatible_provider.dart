@@ -123,6 +123,11 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async* {
+    if ((apiKey ?? '').trim().isEmpty) {
+      yield '[Error] Missing API key for $name';
+      return;
+    }
+
     final selectedModel = model ?? defaultModel;
     final body = buildRequestBody(
       systemPrompt: systemPrompt,
@@ -243,6 +248,10 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async {
+    if ((apiKey ?? '').trim().isEmpty) {
+      return '[Error] Missing API key for $name';
+    }
+
     final selectedModel = model ?? defaultModel;
     final body = buildRequestBody(
       systemPrompt: systemPrompt,

@@ -264,5 +264,167 @@ void main() {
         await speechEvents.close();
       },
     );
+
+    test(
+      'duplicate partials are filtered before reaching the engine',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        final snapshots = <TranscriptSnapshot>[];
+        final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
+
+        await session.startSession(source: TranscriptSource.phone);
+        // engine.start() emits an initial empty snapshot
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        final baselineCount = snapshots.length;
+
+        // Emit the same partial 20 times (simulating Apple recognizer flooding)
+        for (var i = 0; i < 20; i++) {
+          speechEvents.add({
+            'script': 'Islam is fine.',
+            'isFinal': false,
+          });
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Only ONE new snapshot should have been emitted (dedup filters the rest)
+        expect(snapshots.length - baselineCount, 1);
+        expect(snapshots.last.partialText, 'Islam is fine.');
+
+        // Now emit different text — this should go through.
+        // "Islam is fine. I think" has a sentence boundary, so the engine
+        // will finalize "Islam is fine." and set partial to "I think".
+        speechEvents.add({
+          'script': 'Islam is fine. I think',
+          'isFinal': false,
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        expect(snapshots.last.partialText, 'I think');
+        expect(snapshots.last.finalizedSegments, contains('Islam is fine.'));
+
+        final afterSentenceSplit = snapshots.length;
+
+        // Then flood the same text again
+        for (var i = 0; i < 15; i++) {
+          speechEvents.add({
+            'script': 'Islam is fine. I think',
+            'isFinal': false,
+          });
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        // No new snapshots — duplicates filtered (partial is still "I think")
+        expect(snapshots.length, afterSentenceSplit);
+
+        await session.stopSession();
+        await sub.cancel();
+        await speechEvents.close();
+      },
+    );
+
+    test(
+      'dedup resets after finalization so new segment partials pass through',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        final snapshots = <TranscriptSnapshot>[];
+        final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
+
+        await session.startSession(source: TranscriptSource.phone);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        final baselineCount = snapshots.length;
+
+        // Segment 1: partial then finalize
+        speechEvents.add({'script': 'Hello world', 'isFinal': false});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        expect(snapshots.length - baselineCount, 1);
+
+        speechEvents.add({
+          'script': 'Hello world',
+          'isFinal': true,
+          'segmentId': 1,
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+
+        // Finalization emits an update (the text passes because isFinal
+        // resets _lastEmittedPartial) plus the finalized snapshot.
+        final snapshotsAfterFinal = snapshots.length;
+
+        // Segment 2: new text after segment restart
+        speechEvents.add({'script': 'What', 'isFinal': false});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+
+        expect(snapshots.length, greaterThan(snapshotsAfterFinal));
+        expect(snapshots.last.partialText, 'What');
+        expect(snapshots.last.finalizedSegments, ['Hello world']);
+
+        await session.stopSession();
+        await sub.cancel();
+        await speechEvents.close();
+      },
+    );
+
+    test(
+      'multi-segment conversation preserves all finalized segments',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        await session.startSession(source: TranscriptSource.phone);
+
+        // Simulate 3 segments (like 25s restart timer would produce)
+        final segments = [
+          'From the Middle East, colonization efforts',
+          'What do you mean? That was by Muslim traders',
+          'Islam is fine. I don\'t have a problem',
+        ];
+
+        for (final seg in segments) {
+          speechEvents.add({'script': seg, 'isFinal': false});
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+          speechEvents.add({
+            'script': seg,
+            'isFinal': true,
+            'segmentId': segments.indexOf(seg) + 1,
+          });
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+
+        // Progressive sentence splitting detects boundaries within each
+        // segment's text, so "What do you mean? That was..." becomes 2
+        // segments, and "Islam is fine. I don't..." becomes 2 more.
+        final snapshot = engine.currentTranscriptSnapshot;
+        expect(snapshot.finalizedSegments.length, 5);
+        expect(snapshot.finalizedSegments[0], segments[0]);
+        expect(snapshot.finalizedSegments[1], 'What do you mean?');
+        expect(snapshot.finalizedSegments[2], 'That was by Muslim traders');
+        expect(snapshot.finalizedSegments[3], 'Islam is fine.');
+        expect(snapshot.finalizedSegments[4], "I don't have a problem");
+
+        // Full transcript should contain all content
+        expect(snapshot.fullTranscript, contains('colonization'));
+        expect(snapshot.fullTranscript, contains('Muslim traders'));
+        expect(snapshot.fullTranscript, contains('Islam is fine'));
+
+        await session.stopSession();
+        await speechEvents.close();
+      },
+    );
   });
 }

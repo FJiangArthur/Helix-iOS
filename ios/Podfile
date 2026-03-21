@@ -4,7 +4,39 @@ platform :ios, '15.0'
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-project 'Runner', {
+def ios_project_path
+  runner_project = File.expand_path('Runner.xcodeproj', __dir__)
+  return runner_project if File.exist?(runner_project)
+
+  candidates = Dir.glob(File.join(__dir__, '*.xcodeproj')).sort
+  raise "No Xcode project found in #{__dir__}" if candidates.empty?
+
+  candidates.first
+end
+
+def ios_target_names(project_path)
+  require 'xcodeproj'
+
+  project = Xcodeproj::Project.open(project_path)
+  app_target = project.targets.find do |target|
+    target.respond_to?(:product_type) &&
+      target.product_type == 'com.apple.product-type.application'
+  end
+  raise "No iOS application target found in #{project_path}" if app_target.nil?
+
+  test_target = project.targets.find do |target|
+    target.respond_to?(:product_type) &&
+      target.product_type == 'com.apple.product-type.bundle.unit-test'
+  end
+
+  [app_target.name, test_target&.name]
+end
+
+ios_project = ios_project_path
+ios_project_name = File.basename(ios_project, '.xcodeproj')
+ios_app_target_name, ios_test_target_name = ios_target_names(ios_project)
+
+project ios_project_name, {
   'Debug' => :debug,
   'Profile' => :release,
   'Release' => :release,
@@ -27,12 +59,14 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-target 'Runner' do
+target ios_app_target_name do
   use_frameworks!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  target 'RunnerTests' do
-    inherit! :search_paths
+  if ios_test_target_name
+    target ios_test_target_name do
+      inherit! :search_paths
+    end
   end
 end
 

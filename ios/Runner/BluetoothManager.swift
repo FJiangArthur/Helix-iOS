@@ -168,6 +168,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         markPeripheralDisconnected(peripheral)
         channel.invokeMethod("glassesDisconnected", arguments: [
             "deviceName": deviceNameByPeripheralId[peripheral.identifier] ?? "",
+            "disconnectedSide": sideByPeripheralId[peripheral.identifier] ?? "",
             "status": "disconnected"
         ])
 
@@ -232,28 +233,30 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         guard let characteristics = service.characteristics else { return }
         guard service.uuid.isEqual(UARTServiceUUID) else { return }
 
+        let side = sideByPeripheralId[peripheral.identifier]
+
         for characteristic in characteristics {
             if characteristic.uuid.isEqual(UARTRXCharacteristicUUID) {
-                if peripheral.identifier.uuidString == leftUUIDStr {
+                if side == "L" {
                     leftRChar = characteristic
-                } else if peripheral.identifier.uuidString == rightUUIDStr {
+                } else if side == "R" {
                     rightRChar = characteristic
                 }
             } else if characteristic.uuid.isEqual(UARTTXCharacteristicUUID) {
-                if peripheral.identifier.uuidString == leftUUIDStr {
+                if side == "L" {
                     leftWChar = characteristic
-                } else if peripheral.identifier.uuidString == rightUUIDStr {
+                } else if side == "R" {
                     rightWChar = characteristic
                 }
             }
         }
 
-        if peripheral.identifier.uuidString == leftUUIDStr,
+        if side == "L",
            let leftRChar,
            leftWChar != nil {
             leftPeripheral?.setNotifyValue(true, for: leftRChar)
             writeData(writeData: Data([0x4d, 0x01]), lr: "L")
-        } else if peripheral.identifier.uuidString == rightUUIDStr,
+        } else if side == "R",
                   let rightRChar,
                   rightWChar != nil {
             rightPeripheral?.setNotifyValue(true, for: rightRChar)
@@ -339,8 +342,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             let pcmData = pcmConverter.decode(effectiveData)
             SpeechStreamRecognizer.shared.appendPCMData(pcmData as Data)
         default:
-            let isLeft = cbPeripheral?.identifier.uuidString == leftUUIDStr
-            let legStr = isLeft ? "L" : "R"
+            let legStr = sideByPeripheralId[cbPeripheral?.identifier ?? UUID()] ?? "L"
             let hexString = data.map { String(format: "%02x", $0) }.joined(separator: " ")
             let notifyIndex = data.count > 1 ? Int(data[1]) : -1
             let command = Int(data[0])
@@ -428,12 +430,22 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         peripheral.delegate = self
         peripheral.discoverServices([UARTServiceUUID])
 
-        if let leftPeripheral = connectedDevices[deviceName]?.0,
-           let rightPeripheral = connectedDevices[deviceName]?.1 {
-            persistConnectedDevice(deviceName: deviceName, left: leftPeripheral, right: rightPeripheral)
+        let currentPair = connectedDevices[deviceName]
+        if let leftP = currentPair?.0, let rightP = currentPair?.1 {
+            // Both sides connected
+            persistConnectedDevice(deviceName: deviceName, left: leftP, right: rightP)
             channel.invokeMethod("glassesConnected", arguments: [
-                "leftDeviceName": leftPeripheral.name ?? "",
-                "rightDeviceName": rightPeripheral.name ?? "",
+                "leftDeviceName": leftP.name ?? "",
+                "rightDeviceName": rightP.name ?? "",
+                "status": "connected"
+            ])
+        } else {
+            // Partial connection - first side connected
+            channel.invokeMethod("glassesConnected", arguments: [
+                "leftDeviceName": currentPair?.0?.name ?? "",
+                "rightDeviceName": currentPair?.1?.name ?? "",
+                "connectedSide": side,
+                "partial": "true",
                 "status": "connected"
             ])
         }

@@ -38,7 +38,18 @@ class SpeechStreamRecognizer {
     private var shouldBufferSpeechEvents = false
     private var didLogFirstPartialEmission = false
     private var didLogFinalEmission = false
+    private var segmentCounter: Int = 0
+    /// Monotonically increasing ID so callbacks from cancelled recognition tasks
+    /// can detect they are stale and skip cleanup that would destroy the new task.
+    private var recognitionGeneration: Int = 0
+    var isPaused = false
     private var isInputTapInstalled = false
+    private var segmentRestartTimer: Timer?
+    private static let segmentRestartInterval: TimeInterval = 15  // restart recognition every 15s to prevent degradation
+    // Segment restart interval reduced from 25s to 15s for more responsive partials
+
+    private var currentLanguageIdentifier: String = "EN"
+    private var currentSource: String = "glasses"
     private var openAIMicrophoneConverter: AVAudioConverter?
     private var openAIMicrophoneInputFormat: AVAudioFormat?
     private let openAIMicrophoneOutputFormat = AVAudioFormat(
@@ -165,6 +176,8 @@ class SpeechStreamRecognizer {
         didEmitFinalResult = false
         didLogFirstPartialEmission = false
         didLogFinalEmission = false
+        currentLanguageIdentifier = identifier
+        currentSource = source
         activeInputSource = source.lowercased() == "microphone"
             ? .microphone
             : .glassesPcm
@@ -212,28 +225,37 @@ class SpeechStreamRecognizer {
         recognitionRequest.shouldReportPartialResults = true
         recognitionRequest.requiresOnDeviceRecognition = (activeBackend == .appleOnDevice)
 
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
         recognitionTask = recognizer.recognitionTask(with: recognitionRequest) {
             [weak self] result, error in
-            guard let self = self else { return }
+            // Serialize all state mutations on the main queue to prevent race
+            // conditions when Apple's recognizer fires concurrent callbacks.
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                // After a segment restart the old task fires a cancellation callback.
+                // Ignore it — the new task is already running.
+                guard self.recognitionGeneration == generation else { return }
 
-            if let result = result {
-                let text = result.bestTranscription.formattedString
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !text.isEmpty {
-                    self.lastRecognizedText = text
-                    self.emitTranscript(text, isFinal: result.isFinal)
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty {
+                        self.lastRecognizedText = text
+                        self.emitTranscript(text, isFinal: result.isFinal)
+                    }
+
+                    if result.isFinal {
+                        self.cleanupRecognition(deactivateSession: true)
+                    }
                 }
 
-                if result.isFinal {
+                if let error = error {
+                    self.completePendingStart(.failure(error))
+                    self.emitError("Speech recognition failed: \(error.localizedDescription)")
+                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
                     self.cleanupRecognition(deactivateSession: true)
                 }
-            }
-
-            if let error = error {
-                self.completePendingStart(.failure(error))
-                self.emitError("Speech recognition failed: \(error.localizedDescription)")
-                self.emitTranscript(self.lastRecognizedText, isFinal: true)
-                self.cleanupRecognition(deactivateSession: true)
             }
         }
 
@@ -251,6 +273,96 @@ class SpeechStreamRecognizer {
         } else {
             completePendingStart(.success(()))
         }
+
+        // Schedule periodic restart to prevent recognition degradation on long sessions.
+        // Apple's SFSpeechRecognizer re-processes the entire audio buffer on each partial
+        // result, causing increasing latency and garbled partials after ~20-30 seconds.
+        startSegmentRestartTimer()
+    }
+
+    private func startSegmentRestartTimer() {
+        segmentRestartTimer?.invalidate()
+        segmentRestartTimer = Timer.scheduledTimer(
+            withTimeInterval: Self.segmentRestartInterval,
+            repeats: true
+        ) { [weak self] _ in
+            self?.restartRecognitionSegment()
+        }
+    }
+
+    private func restartRecognitionSegment() {
+        guard activeBackend != .openai else { return }  // OpenAI handles its own sessions
+        guard recognitionTask != nil else { return }
+        guard !isPaused else { return }
+
+        log("Restarting recognition segment to prevent degradation")
+
+        // Finalize current text as a segment
+        let currentText = lastRecognizedText
+        if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            emitTranscript(currentText, isFinal: true)
+        }
+
+        // Prepare the new recognizer and request BEFORE tearing down the old
+        // task, so that appendPCMData() sees a valid recognitionRequest for
+        // as much of the transition as possible.
+        let localeIdentifier = languageDic[currentLanguageIdentifier] ?? "en-US"
+        let newRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
+
+        guard let newRecognizer = newRecognizer, newRecognizer.isAvailable else {
+            log("Recognizer unavailable during segment restart")
+            return
+        }
+
+        let newRequest = SFSpeechAudioBufferRecognitionRequest()
+        newRequest.shouldReportPartialResults = true
+        newRequest.requiresOnDeviceRecognition = (activeBackend == .appleOnDevice)
+
+        // Tear down old task — keep audio session alive.
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+
+        // Swap to new request immediately so appendPCMData() can feed audio.
+        recognitionRequest = newRequest
+        recognizer = newRecognizer
+
+        // Reset emission state for the new segment
+        lastRecognizedText = ""
+        lastEmittedText = ""
+        didEmitFinalResult = false
+        didLogFirstPartialEmission = false
+        didLogFinalEmission = false
+
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+        recognitionTask = newRecognizer.recognitionTask(with: newRequest) {
+            [weak self] result, error in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                guard self.recognitionGeneration == generation else { return }
+
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty {
+                        self.lastRecognizedText = text
+                        self.emitTranscript(text, isFinal: result.isFinal)
+                    }
+
+                    if result.isFinal {
+                        self.cleanupRecognition(deactivateSession: true)
+                    }
+                }
+
+                if let error = error {
+                    self.emitError("Speech recognition failed: \(error.localizedDescription)")
+                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                    self.cleanupRecognition(deactivateSession: true)
+                }
+            }
+        }
+
+        log("Recognition segment restarted gen=\(generation)")
     }
 
     private func startOpenAIRecognition(
@@ -336,18 +448,267 @@ class SpeechStreamRecognizer {
         }
     }
 
+    // MARK: - File-based transcription for experimentation
+
+    /// Transcribe an audio file using SFSpeechURLRecognitionRequest.
+    /// Emits the same speech events as live recognition, enabling end-to-end
+    /// pipeline testing with pre-recorded audio.
+    ///
+    /// - Parameters:
+    ///   - fileURL: Local file URL to a WAV/M4A/MP3 audio file.
+    ///   - identifier: Language identifier (e.g. "EN", "CN").
+    ///   - realtime: If true, reads the file in 100ms PCM chunks to simulate
+    ///     real-time streaming pace. If false, uses SFSpeechURLRecognitionRequest
+    ///     for fastest-possible transcription.
+    ///   - completion: Called when transcription setup succeeds or fails.
+    func transcribeAudioFile(
+        fileURL: URL,
+        identifier: String = "EN",
+        realtime: Bool = false,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        log("transcribeAudioFile path=\(fileURL.path) realtime=\(realtime) lang=\(identifier)")
+
+        // Stop any active session first
+        if recognitionTask != nil || openaiTranscriber.isActive {
+            stopRecognition(emitFinal: false)
+        }
+
+        lastRecognizedText = ""
+        lastEmittedText = ""
+        didEmitFinalResult = false
+        didLogFirstPartialEmission = false
+        didLogFinalEmission = false
+        currentLanguageIdentifier = identifier
+        activeBackend = .appleCloud
+        pendingSpeechEvents.removeAll()
+        shouldBufferSpeechEvents = true
+
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            let err = NSError(domain: "SpeechStreamRecognizer", code: 404,
+                              userInfo: [NSLocalizedDescriptionKey: "Audio file not found: \(fileURL.path)"])
+            failToStart(err)
+            completion(.failure(err))
+            return
+        }
+
+        let localeIdentifier = languageDic[identifier] ?? "en-US"
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
+
+        guard let recognizer = recognizer, recognizer.isAvailable else {
+            let err = RecognizerError.recognizerIsUnavailable
+            failToStart(err)
+            completion(.failure(err))
+            return
+        }
+
+        if realtime {
+            transcribeFileRealtime(fileURL: fileURL, recognizer: recognizer, completion: completion)
+        } else {
+            transcribeFileURL(fileURL: fileURL, recognizer: recognizer, completion: completion)
+        }
+    }
+
+    /// Fast file transcription using SFSpeechURLRecognitionRequest.
+    /// Apple handles decoding and pacing internally.
+    private func transcribeFileURL(
+        fileURL: URL,
+        recognizer: SFSpeechRecognizer,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let request = SFSpeechURLRecognitionRequest(url: fileURL)
+        request.shouldReportPartialResults = true
+
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+        let startTime = Date()
+
+        recognitionTask = recognizer.recognitionTask(with: request) {
+            [weak self] result, error in
+            DispatchQueue.main.async {
+                guard let self = self, self.recognitionGeneration == generation else { return }
+
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty {
+                        self.lastRecognizedText = text
+                        self.emitTranscript(text, isFinal: result.isFinal)
+                    }
+                    if result.isFinal {
+                        let elapsed = Date().timeIntervalSince(startTime)
+                        self.log("File transcription complete in \(String(format: "%.2f", elapsed))s chars=\(text.count)")
+                        self.cleanupRecognition(deactivateSession: false)
+                    }
+                }
+
+                if let error = error {
+                    self.emitError("File transcription failed: \(error.localizedDescription)")
+                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                    self.cleanupRecognition(deactivateSession: false)
+                }
+            }
+        }
+
+        log("SFSpeechURLRecognitionRequest started for \(fileURL.lastPathComponent)")
+        completion(.success(()))
+    }
+
+    /// Real-time file transcription: reads PCM chunks and feeds them at real-time
+    /// pace through SFSpeechAudioBufferRecognitionRequest — same path as live audio.
+    private func transcribeFileRealtime(
+        fileURL: URL,
+        recognizer: SFSpeechRecognizer,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        recognitionRequest = request
+
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+        let startTime = Date()
+
+        recognitionTask = recognizer.recognitionTask(with: request) {
+            [weak self] result, error in
+            DispatchQueue.main.async {
+                guard let self = self, self.recognitionGeneration == generation else { return }
+
+                if let result = result {
+                    let text = result.bestTranscription.formattedString
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !text.isEmpty {
+                        self.lastRecognizedText = text
+                        self.emitTranscript(text, isFinal: result.isFinal)
+                    }
+                    if result.isFinal {
+                        let elapsed = Date().timeIntervalSince(startTime)
+                        self.log("Realtime file transcription complete in \(String(format: "%.2f", elapsed))s")
+                        self.cleanupRecognition(deactivateSession: false)
+                    }
+                }
+
+                if let error = error {
+                    self.emitError("Realtime file transcription failed: \(error.localizedDescription)")
+                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                    self.cleanupRecognition(deactivateSession: false)
+                }
+            }
+        }
+
+        // Feed audio chunks on a background queue at real-time pace
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let audioFile = try AVAudioFile(forReading: fileURL)
+                let processingFormat = AVAudioFormat(
+                    commonFormat: .pcmFormatInt16,
+                    sampleRate: 16000,
+                    channels: 1,
+                    interleaved: false
+                )!
+
+                // If file isn't 16kHz mono, we need a converter
+                let fileFormat = audioFile.processingFormat
+                let needsConversion = fileFormat.sampleRate != 16000 ||
+                    fileFormat.channelCount != 1
+
+                let chunkDuration: TimeInterval = 0.1  // 100ms chunks
+                let chunkFrames = AVAudioFrameCount(16000 * chunkDuration)  // 1600 frames
+
+                if needsConversion {
+                    // Read in file's native format then convert
+                    guard let converter = AVAudioConverter(from: fileFormat, to: processingFormat) else {
+                        self.log("Failed to create audio converter")
+                        DispatchQueue.main.async { request.endAudio() }
+                        return
+                    }
+
+                    let readBuffer = AVAudioPCMBuffer(
+                        pcmFormat: fileFormat,
+                        frameCapacity: AVAudioFrameCount(fileFormat.sampleRate * chunkDuration)
+                    )!
+
+                    while audioFile.framePosition < audioFile.length {
+                        guard self.recognitionGeneration == generation else { break }
+                        try audioFile.read(into: readBuffer)
+
+                        let outputBuffer = AVAudioPCMBuffer(
+                            pcmFormat: processingFormat, frameCapacity: chunkFrames
+                        )!
+
+                        var didProvide = false
+                        let _ = converter.convert(to: outputBuffer, error: nil) { _, outStatus in
+                            if didProvide {
+                                outStatus.pointee = .noDataNow
+                                return nil
+                            }
+                            didProvide = true
+                            outStatus.pointee = .haveData
+                            return readBuffer
+                        }
+
+                        if outputBuffer.frameLength > 0 {
+                            request.append(outputBuffer)
+                        }
+
+                        Thread.sleep(forTimeInterval: chunkDuration)
+                    }
+                } else {
+                    // Already 16kHz mono — read directly
+                    let buffer = AVAudioPCMBuffer(
+                        pcmFormat: processingFormat, frameCapacity: chunkFrames
+                    )!
+
+                    while audioFile.framePosition < audioFile.length {
+                        guard self.recognitionGeneration == generation else { break }
+                        try audioFile.read(into: buffer)
+                        request.append(buffer)
+                        Thread.sleep(forTimeInterval: chunkDuration)
+                    }
+                }
+
+                DispatchQueue.main.async {
+                    self.log("Finished feeding audio file chunks")
+                    request.endAudio()
+                }
+            } catch {
+                self.log("Error reading audio file: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.emitError("Failed to read audio file: \(error.localizedDescription)")
+                    request.endAudio()
+                }
+            }
+        }
+
+        log("Realtime file transcription started for \(fileURL.lastPathComponent)")
+        completion(.success(()))
+    }
+
+    func pauseRecognition() {
+        isPaused = true
+        log("Recognition paused")
+    }
+
+    func resumeRecognition() {
+        isPaused = false
+        log("Recognition resumed")
+    }
+
     func stopRecognition() {
+        isPaused = false
         stopRecognition(emitFinal: true)
     }
 
     func appendPCMData(_ pcmData: Data) {
         guard activeInputSource == .glassesPcm else { return }
+        guard !isPaused else { return }
         if activeBackend == .openai {
             openaiTranscriber.appendAudio(pcmData)
             return
         }
         guard let recognitionRequest = recognitionRequest else {
-            print("Recognition request is not available")
+            log("Recognition request is not available")
             return
         }
 
@@ -364,7 +725,7 @@ class SpeechStreamRecognizer {
             pcmFormat: audioFormat,
             frameCapacity: frameCapacity
         ) else {
-            print("Failed to create audio buffer")
+            log("Failed to create audio buffer")
             return
         }
 
@@ -378,7 +739,7 @@ class SpeechStreamRecognizer {
                 )
                 recognitionRequest.append(audioBuffer)
             } else {
-                print("Failed to get pointer to audio data")
+                log("Failed to get pointer to audio data")
             }
         }
     }
@@ -399,6 +760,8 @@ class SpeechStreamRecognizer {
     }
 
     private func stopRecognition(emitFinal: Bool) {
+        segmentRestartTimer?.invalidate()
+        segmentRestartTimer = nil
         log("Stopping recognition emitFinal=\(emitFinal) backend=\(activeBackend.rawValue)")
         if activeBackend == .openai {
             if emitFinal {
@@ -430,6 +793,7 @@ class SpeechStreamRecognizer {
         if isFinal {
             didEmitFinalResult = true
             lastEmittedText = ""
+            segmentCounter += 1
             if !didLogFinalEmission {
                 didLogFinalEmission = true
                 log("Final transcript emitted chars=\(normalized.count)")
@@ -442,10 +806,15 @@ class SpeechStreamRecognizer {
             }
         }
 
-        emitSpeechEvent([
+        var payload: [String: Any] = [
             "script": normalized,
-            "isFinal": isFinal
-        ])
+            "isFinal": isFinal,
+            "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        if isFinal {
+            payload["segmentId"] = segmentCounter
+        }
+        emitSpeechEvent(payload)
     }
 
     private func emitError(_ message: String) {
@@ -517,6 +886,9 @@ class SpeechStreamRecognizer {
     }
 
     private func cleanupRecognition(deactivateSession: Bool) {
+        segmentRestartTimer?.invalidate()
+        segmentRestartTimer = nil
+
         if audioEngine.isRunning {
             audioEngine.stop()
         }

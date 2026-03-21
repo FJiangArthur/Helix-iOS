@@ -5,8 +5,8 @@ import 'package:flutter/services.dart';
 
 import '../models/assistant_profile.dart';
 import '../services/conversation_listening_session.dart';
-import '../services/evenai.dart';
 import '../services/conversation_engine.dart';
+import '../services/recording_coordinator.dart';
 import '../services/glasses_answer_presenter.dart';
 import '../services/llm/llm_service.dart';
 import '../services/provider_error_state.dart';
@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static const double _composerDockHeight = 66;
 
   final _engine = ConversationEngine.instance;
+  final _coordinator = RecordingCoordinator.instance;
 
   ConversationMode _currentMode = ConversationMode.general;
   EngineStatus _status = EngineStatus.idle;
@@ -36,7 +37,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _transcription = '';
   String _aiResponse = '';
   bool _isRecording = false;
-  bool _isSummarizing = false;
+  bool _showDetailLink = false;
+  Duration _recordingDuration = Duration.zero;
+  int _segmentCount = 0;
 
   final List<StreamSubscription> _subscriptions = [];
   final ScrollController _scrollController = ScrollController();
@@ -51,9 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   GlassesAnswerDeliveryState _glassesDeliveryState =
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
-  String? _conversationSummary;
   List<String> _followUpChips = const [];
-  AssistantInsightSnapshot? _insightSnapshot;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -103,25 +104,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _selectedPreset = _presetFromId(
               SettingsManager.instance.defaultQuickAskPreset,
             );
-            _insightSnapshot = _buildInsightSnapshot();
           });
         }
+      }),
+      _coordinator.recordingStateStream.listen((recording) {
+        if (!mounted) return;
+        final wasRecording = _isRecording;
+        setState(() {
+          _isRecording = recording;
+          if (!recording && wasRecording) {
+            _showDetailLink = true;
+          }
+          if (recording) {
+            _showDetailLink = false;
+            _recordingDuration = Duration.zero;
+            _segmentCount = 0;
+          }
+        });
+      }),
+      _coordinator.durationStream.listen((d) {
+        if (!mounted) return;
+        setState(() => _recordingDuration = d);
       }),
       _engine.transcriptSnapshotStream.listen((snapshot) {
         if (!mounted) return;
         setState(() {
           _transcription = snapshot.fullTranscript;
           _transcriptSource = snapshot.source;
-          _insightSnapshot = _buildInsightSnapshot(
-            transcription: snapshot.fullTranscript,
-          );
+          _segmentCount = snapshot.finalizedSegments.length;
         });
       }),
       _engine.aiResponseStream.listen((text) {
         if (!mounted) return;
         setState(() {
           _aiResponse = text;
-          _insightSnapshot = _buildInsightSnapshot(aiResponse: text);
         });
         _scrollToBottom();
       }),
@@ -141,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }),
       _engine.statusStream.listen((status) {
+        if (!mounted) return;
         setState(() => _status = status);
         if (status == EngineStatus.listening) {
           _pulseController.repeat(reverse: true);
@@ -150,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         }
       }),
       _engine.modeStream.listen((mode) {
+        if (!mounted) return;
         setState(() => _currentMode = mode);
       }),
       _engine.questionDetectedStream.listen((q) {
@@ -196,18 +214,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  AssistantInsightSnapshot? _buildInsightSnapshot({
-    String? transcription,
-    String? aiResponse,
-  }) {
-    return AssistantInsightSnapshot.fromConversation(
-      transcription: transcription ?? _transcription,
-      aiResponse: aiResponse ?? _aiResponse,
-      history: _engine.history,
-      isChinese: _isChinese,
-    );
-  }
-
   void _showAssistantSnack(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -218,35 +224,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Future<void> _summarizeConversation() async {
-    if (_isRecording || _isSummarizing) return;
-    setState(() => _isSummarizing = true);
-
-    final summary = await _engine.getSummary();
-    if (!mounted) return;
-
-    setState(() {
-      _isSummarizing = false;
-      _conversationSummary = summary?.trim().isEmpty ?? true
-          ? null
-          : summary!.trim();
-    });
-
-    if ((_conversationSummary ?? '').isEmpty) {
-      _showAssistantSnack(
-        _tr(
-          en: 'No conversation summary is available yet.',
-          zh: '当前还没有可用的对话摘要。',
-          ja: 'まだ利用できる会話要約はありません。',
-          ko: '아직 사용할 수 있는 대화 요약이 없습니다.',
-          es: 'Todavia no hay un resumen de la conversacion disponible.',
-          ru: 'Пока нет доступного резюме разговора.',
-        ),
-      );
-      return;
-    }
-
-    _scrollToBottom();
+  void _navigateToDetail() {
+    MainScreen.switchToTab(3);
   }
 
   Future<void> _runResponseToolPrompt(
@@ -256,7 +235,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_isRecording || prompt.trim().isEmpty) return;
 
     setState(() {
-      _conversationSummary = null;
       _followUpChips = const [];
       _providerError = null;
       _isOverviewExpanded = false;
@@ -342,108 +320,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _pinFollowUpPrompt() {
-    final prompt = _insightSnapshot?.focusPrompt.trim() ?? '';
-    if (prompt.isEmpty) return;
-
-    _askController
-      ..text = prompt
-      ..selection = TextSelection.collapsed(offset: prompt.length);
-    _showAssistantSnack(
-      _tr(
-        en: 'Follow-up loaded into the composer.',
-        zh: '追问已放入输入框。',
-        ja: 'フォローアップを入力欄に入れました。',
-        ko: '후속 질문을 입력창에 넣었습니다.',
-        es: 'La pregunta de seguimiento se cargo en el compositor.',
-        ru: 'Следующий вопрос загружен в поле ввода.',
-      ),
-    );
-  }
-
-  Future<void> _starCurrentInsight() async {
-    final insight = _insightSnapshot;
-    if (insight == null || !insight.hasContent) return;
-
-    final payload = [
-      if (insight.summary.isNotEmpty) insight.summary,
-      if (insight.recommendedNextMove.isNotEmpty) insight.recommendedNextMove,
-    ].join('\n');
-    if (payload.trim().isEmpty) return;
-
-    await Clipboard.setData(ClipboardData(text: payload));
-    if (!mounted) return;
-    _showAssistantSnack(
-      _tr(
-        en: 'Insight copied to the clipboard.',
-        zh: '洞察已复制到剪贴板。',
-        ja: '洞察をクリップボードにコピーしました。',
-        ko: '인사이트를 클립보드에 복사했습니다.',
-        es: 'La idea se copio al portapapeles.',
-        ru: 'Инсайт скопирован в буфер обмена.',
-      ),
-    );
-  }
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
-      await _stopRecording();
+      await _coordinator.toggleRecording(source: TranscriptSource.phone);
     } else {
-      await _startRecording();
-    }
-  }
+      setState(() {
+        _aiResponse = '';
+        _transcription = '';
+        _latestQuestionDetection = null;
+        _providerError = null;
+        _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
+        _listeningError = null;
+        _isOverviewExpanded = false;
+        _followUpChips = const [];
+        _showDetailLink = false;
+      });
 
-  Future<void> _startRecording() async {
-    setState(() {
-      _aiResponse = '';
-      _transcription = '';
-      _latestQuestionDetection = null;
-      _providerError = null;
-      _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
-      _listeningError = null;
-      _isOverviewExpanded = false;
-      _conversationSummary = null;
-      _followUpChips = const [];
-      _insightSnapshot = null;
-    });
-
-    final settings = SettingsManager.instance;
-    final useGlasses = switch (settings.preferredMicSource) {
-      'glasses' => BleManager.isBothConnected(),
-      'phone' => false,
-      _ => BleManager.isBothConnected(), // 'auto'
-    };
-
-    try {
-      if (useGlasses) {
-        await EvenAI.get.toStartEvenAIByOS();
-      } else {
-        await ConversationListeningSession.instance.startSession(
-          source: TranscriptSource.phone,
-        );
+      try {
+        await _coordinator.toggleRecording(source: TranscriptSource.phone);
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _isRecording = false;
+          _listeningError = _formatListeningError(error);
+        });
       }
-
-      if (!mounted) return;
-      setState(() {
-        _isRecording = true;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _isRecording = false;
-        _listeningError = _formatListeningError(error);
-      });
     }
-  }
-
-  Future<void> _stopRecording() async {
-    if (EvenAI.isRunning) {
-      await EvenAI.get.stopEvenAIByOS();
-    } else {
-      await ConversationListeningSession.instance.stopSession();
-    }
-
-    setState(() => _isRecording = false);
   }
 
   String _formatListeningError(Object error) {
@@ -1345,24 +1248,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildConversationArea() {
     final modeColor = _modeColor(_currentMode);
-    final insightSnapshot = _insightSnapshot;
-    final visibleInsightSnapshot =
-        SettingsManager.instance.autoShowSummary &&
-            insightSnapshot != null &&
-            insightSnapshot.hasContent
-        ? insightSnapshot
-        : null;
     final showFollowUps =
         _assistantProfile.showFollowUps &&
         SettingsManager.instance.autoShowFollowUps &&
         _followUpChips.isNotEmpty;
-    final showInsights = visibleInsightSnapshot != null;
     final hasLiveConversation =
         _isRecording ||
         _transcription.isNotEmpty ||
         _aiResponse.isNotEmpty ||
         _latestQuestionDetection != null ||
-        (_listeningError?.isNotEmpty ?? false);
+        (_listeningError?.isNotEmpty ?? false) ||
+        _showDetailLink;
     final hasProviderError = _providerError != null;
 
     return GlassCard(
@@ -1454,8 +1350,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 isChinese: _isChinese,
                 allowSummary: _assistantProfile.showSummaryTool,
                 allowFactCheck: _assistantProfile.showFactCheck,
-                isSummarizing: _isSummarizing,
-                onSummarize: _summarizeConversation,
+                isSummarizing: false,
+                onSummarize: _navigateToDetail,
                 onRephrase: _rephraseLastAnswer,
                 onTranslate: _translateLastAnswer,
                 onFactCheck: _factCheckLastAnswer,
@@ -1464,35 +1360,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     BleManager.isBothConnected() &&
                     _aiResponse.trim().isNotEmpty,
                 followUpCount: showFollowUps ? _followUpChips.length : 0,
-                actionItemCount: _assistantProfile.showActionItems
-                    ? (insightSnapshot?.actionItems.length ?? 0)
-                    : 0,
-                verificationCount:
-                    insightSnapshot?.verificationCandidates.length ?? 0,
+                actionItemCount: 0,
+                verificationCount: 0,
                 onPinResponse: _pinCurrentAnswer,
-                onPinFollowUp: insightSnapshot == null || !showFollowUps
-                    ? null
-                    : _pinFollowUpPrompt,
-                onStarInsight: insightSnapshot == null || !showInsights
-                    ? null
-                    : _starCurrentInsight,
+                onPinFollowUp: null,
+                onStarInsight: null,
               ),
-            ],
-            if ((_conversationSummary ?? '').trim().isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _buildConversationSummaryCard(),
             ],
             if (showFollowUps) ...[
               const SizedBox(height: 8),
               _buildFollowUpChipDeck(),
             ],
-            if (visibleInsightSnapshot != null) ...[
+            if (_showDetailLink && !_isRecording) ...[
               const SizedBox(height: 8),
-              AssistantInsightsCard(
-                key: const Key('home-insights-card'),
-                snapshot: visibleInsightSnapshot,
-                isChinese: _isChinese,
-              ),
+              _buildDetailAnalysisLink(),
             ],
             if (_glassesDeliveryState.status !=
                 GlassesAnswerDeliveryStatus.idle) ...[
@@ -1505,46 +1386,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildConversationSummaryCard() {
-    final summary = _conversationSummary?.trim() ?? '';
-    if (summary.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return GlassCard(
-      key: const Key('home-conversation-summary-card'),
-      opacity: 0.08,
-      borderColor: HelixTheme.purple.withValues(alpha: 0.22),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _tr(
-              en: 'CONVERSATION SUMMARY',
-              zh: '对话摘要',
-              ja: '会話サマリー',
-              ko: '대화 요약',
-              es: 'RESUMEN DE LA CONVERSACION',
-              ru: 'СВОДКА РАЗГОВОРА',
-            ),
-            style: TextStyle(
-              color: HelixTheme.purple,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
-            ),
+  Widget _buildDetailAnalysisLink() {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _navigateToDetail,
+        icon: Icon(
+          Icons.analytics_rounded,
+          size: 16,
+          color: HelixTheme.cyan,
+        ),
+        label: Text(
+          _tr(
+            en: 'View detailed analysis \u2192',
+            zh: '\u67E5\u770B\u8BE6\u7EC6\u5206\u6790 \u2192',
+            ja: '\u8A73\u7D30\u5206\u6790\u3092\u898B\u308B \u2192',
+            ko: '\uC0C1\uC138 \uBD84\uC11D \uBCF4\uAE30 \u2192',
+            es: 'Ver analisis detallado \u2192',
+            ru: '\u041F\u043E\u0434\u0440\u043E\u0431\u043D\u044B\u0439 \u0430\u043D\u0430\u043B\u0438\u0437 \u2192',
           ),
-          const SizedBox(height: 8),
-          Text(
-            summary,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.84),
-              fontSize: 13,
-              height: 1.45,
-            ),
+          style: TextStyle(
+            color: HelixTheme.cyan,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1918,6 +1783,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                     ),
+                    if (_isRecording)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${_recordingDuration.inMinutes.toString().padLeft(2, '0')}:${(_recordingDuration.inSeconds % 60).toString().padLeft(2, '0')}'
+                          '${_segmentCount > 0 ? ' \u00B7 seg $_segmentCount' : ''}',
+                          style: TextStyle(
+                            color: accentColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
                     if (glassesConnected)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -2579,12 +2465,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _aiResponse = '';
         _providerError = null;
         _transcription = text;
-        _conversationSummary = null;
         _followUpChips = const [];
-        _insightSnapshot = _buildInsightSnapshot(
-          transcription: text,
-          aiResponse: '',
-        );
       });
     }
   }

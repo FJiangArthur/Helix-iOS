@@ -18,17 +18,19 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
 
   @override
   List<String> get availableModels => const [
-    'gpt-4o',
-    'gpt-4o-mini',
+    'o3',
+    'o3-mini',
+    'o4-mini',
     'gpt-4.1',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
-    'gpt-5-mini',
+    'gpt-4o',
+    'gpt-4o-mini',
     'gpt-realtime',
   ];
 
   @override
-  String get defaultModel => 'gpt-4o';
+  String get defaultModel => 'gpt-4.1';
 
   @override
   List<String> filterQueriedModels(List<String> modelIds) {
@@ -48,7 +50,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
                   lower.startsWith('chatgpt-') ||
                   lower.startsWith('o1') ||
                   lower.startsWith('o3') ||
-                  lower.startsWith('o4');
+                  lower.startsWith('o4') ||
+                  lower.startsWith('o5');
             })
             .toSet()
             .toList()

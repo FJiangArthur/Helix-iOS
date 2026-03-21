@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'proto.dart';
+import '../ble_manager.dart';
 import '../utils/app_logger.dart';
 import 'hud_intent.dart';
 
@@ -25,13 +26,21 @@ class HudController {
 
   /// Update HUD with new text
   void updateDisplay(String text) {
+    if (!BleManager.get().isConnected) {
+      appLogger.w('HudController.updateDisplay: skipped, glasses not connected');
+      return;
+    }
     _currentDisplayText = text;
     _displayTextController.add(text);
   }
 
-  /// Push screen command to glasses
-  Future<void> pushScreen(int screenCode) async {
-    await Proto.pushScreen(screenCode);
+  /// Push screen command to glasses. Returns true if successful.
+  Future<bool> pushScreen(int screenCode) async {
+    if (!BleManager.get().isConnected) {
+      appLogger.w('HudController.pushScreen: skipped, glasses not connected');
+      return false;
+    }
+    return await Proto.pushScreen(screenCode);
   }
 
   Future<void> transitionTo(
@@ -41,23 +50,32 @@ class HudController {
     bool hideEvenAiScreen = false,
   }) async {
     final pushesScreen = pushEvenAiScreen || hideEvenAiScreen;
+    bool pushSucceeded = true;
+
     if (hideEvenAiScreen) {
-      await pushScreen(0x00);
+      pushSucceeded = await pushScreen(0x00);
     } else if (pushEvenAiScreen) {
-      await pushScreen(0x01);
+      pushSucceeded = await pushScreen(0x01);
     }
 
-    _currentIntent = intent;
-    final routeState = HudRouteState(
-      intent: intent,
-      source: source,
-      timestamp: DateTime.now(),
-      pushesScreen: pushesScreen,
-    );
-    _intentController.add(routeState);
-    appLogger.d(
-      'HudController -> intent=${intent.name}, source=$source, pushesScreen=$pushesScreen',
-    );
+    // Only update intent if no push was needed or the push succeeded
+    if (!pushesScreen || pushSucceeded) {
+      _currentIntent = intent;
+      final routeState = HudRouteState(
+        intent: intent,
+        source: source,
+        timestamp: DateTime.now(),
+        pushesScreen: pushesScreen,
+      );
+      _intentController.add(routeState);
+      appLogger.d(
+        'HudController -> intent=${intent.name}, source=$source, pushesScreen=$pushesScreen',
+      );
+    } else {
+      appLogger.w(
+        'HudController -> pushScreen failed, intent not updated (wanted=${intent.name}, source=$source)',
+      );
+    }
   }
 
   Future<void> beginQuickAsk({String source = 'unknown'}) async {

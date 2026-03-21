@@ -99,6 +99,7 @@ class DashboardService {
     DateTime Function()? clock,
     this.cooldown = const Duration(seconds: 4),
     this.displayDuration = const Duration(seconds: 5),
+    this.activeDisplayDuration = const Duration(seconds: 8),
   }) : _bleManager = bleManager ?? BleManager.get(),
        _hudController = hudController ?? HudController.instance,
        _conversationEngine = conversationEngine ?? ConversationEngine.instance,
@@ -125,6 +126,21 @@ class DashboardService {
   final DateTime Function() _clock;
   final Duration cooldown;
   final Duration displayDuration;
+  final Duration activeDisplayDuration;
+
+  /// Returns the effective display duration: extended when in active
+  /// conversation (listening/thinking/responding).
+  Duration get _effectiveDisplayDuration {
+    switch (_engineStatus) {
+      case EngineStatus.listening:
+      case EngineStatus.thinking:
+      case EngineStatus.responding:
+        return activeDisplayDuration;
+      case EngineStatus.idle:
+      case EngineStatus.error:
+        return displayDuration;
+    }
+  }
 
   final StreamController<DashboardDebugState> _stateController =
       StreamController<DashboardDebugState>.broadcast();
@@ -355,7 +371,7 @@ class DashboardService {
     );
 
     _hideTimer?.cancel();
-    _hideTimer = Timer(displayDuration, () {
+    _hideTimer = Timer(_effectiveDisplayDuration, () {
       unawaited(hideDashboard(source: 'DashboardService.autoHide'));
     });
   }
@@ -424,17 +440,66 @@ class DashboardService {
     _stateController.add(_state);
   }
 
+  DateTime? _recordingStartedAt;
+
   DashboardSnapshot _composeSnapshot(DateTime now) {
+    final history = _conversationEngine.history;
+    final isRecording = _conversationEngine.isActive;
+
+    // Track recording start time
+    if (isRecording && _recordingStartedAt == null) {
+      _recordingStartedAt = now;
+    } else if (!isRecording) {
+      _recordingStartedAt = null;
+    }
+
+    final Duration? recDuration =
+        isRecording && _recordingStartedAt != null
+            ? now.difference(_recordingStartedAt!)
+            : null;
+
+    final questionCount =
+        history.where((t) => t.role == 'user').length;
+    final answerCount =
+        history.where((t) => t.role == 'assistant').length;
+    final wordCount = history.fold<int>(
+      0,
+      (sum, t) =>
+          sum +
+          t.content
+              .split(RegExp(r'\s+'))
+              .where((w) => w.isNotEmpty)
+              .length,
+    );
+
     return DashboardSnapshot(
       timestamp: now,
       connectionState: _connectionState,
       mode: _mode,
       engineStatus: _engineStatus,
       contextLine: _buildContextLine(),
+      recordingDuration: recDuration,
+      questionCount: questionCount,
+      answerCount: answerCount,
+      wordCount: wordCount,
+      segmentCount: _conversationEngine.transcriptStats.segmentCount,
     );
   }
 
   String _buildContextLine() {
+    // Contextual status based on engine state
+    return switch (_engineStatus) {
+      EngineStatus.thinking => 'THINKING...',
+      EngineStatus.responding => 'RESPONDING...',
+      EngineStatus.listening => _lastUserQuestion().isNotEmpty
+          ? _lastUserQuestion()
+          : 'Listening for speech',
+      EngineStatus.error => 'Assistant needs attention',
+      EngineStatus.idle => _idleContextLine(),
+    };
+  }
+
+  String _idleContextLine() {
     final handoff = _lastHandoff;
     if (handoff != null) {
       final prefix = switch (handoff.status) {
@@ -449,13 +514,16 @@ class DashboardService {
       return 'AI $_lastAiSnippet';
     }
 
-    return switch (_engineStatus) {
-      EngineStatus.listening => 'Listening for speech',
-      EngineStatus.thinking => 'Thinking through answer',
-      EngineStatus.responding => 'Sending response to HUD',
-      EngineStatus.error => 'Assistant needs attention',
-      EngineStatus.idle => 'Tilt dashboard ready',
-    };
+    return 'Ready';
+  }
+
+  String _lastUserQuestion() {
+    for (final turn in _conversationEngine.history.reversed) {
+      if (turn.role == 'user') {
+        return _normalize(turn.content);
+      }
+    }
+    return '';
   }
 
   String _latestAssistantSnippet() {

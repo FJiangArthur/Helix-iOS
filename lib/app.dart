@@ -5,7 +5,7 @@ import 'screens/home_screen.dart';
 import 'screens/g1_test_screen.dart';
 import 'screens/conversation_history_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/recording_screen.dart';
+import 'screens/detail_analysis_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
 
@@ -42,7 +42,7 @@ class _AppEntryState extends State<AppEntry> {
   Future<void> _checkFirstLaunch() async {
     final prefs = await SharedPreferences.getInstance();
     final seen = prefs.getBool('onboarding_complete') ?? false;
-    setState(() => _showOnboarding = !seen);
+    if (mounted) setState(() => _showOnboarding = !seen);
   }
 
   Future<void> _completeOnboarding() async {
@@ -90,7 +90,7 @@ class _MainScreenState extends State<MainScreen> {
     const HomeScreen(),
     const G1TestScreen(),
     const ConversationHistoryScreen(),
-    const SafeRecordingScreen(),
+    const DetailAnalysisScreen(),
     const SettingsScreen(),
   ];
 
@@ -98,7 +98,7 @@ class _MainScreenState extends State<MainScreen> {
     'Assistant',
     'Glasses',
     'History',
-    'Record',
+    'Detail',
     'Settings',
   ];
 
@@ -166,9 +166,9 @@ class _MainScreenState extends State<MainScreen> {
               label: 'History',
             ),
             NavigationDestination(
-              icon: Icon(Icons.mic_none_rounded),
-              selectedIcon: Icon(Icons.mic_rounded),
-              label: 'Record',
+              icon: Icon(Icons.analytics_outlined),
+              selectedIcon: Icon(Icons.analytics_rounded),
+              label: 'Detail',
             ),
             NavigationDestination(
               icon: Icon(Icons.settings_outlined),
@@ -178,40 +178,6 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class SafeRecordingScreen extends StatefulWidget {
-  const SafeRecordingScreen({super.key});
-
-  @override
-  State<SafeRecordingScreen> createState() => _SafeRecordingScreenState();
-}
-
-class _SafeRecordingScreenState extends State<SafeRecordingScreen> {
-  Object? _error;
-
-  @override
-  Widget build(BuildContext context) {
-    if (_error != null) {
-      return ErrorScreen(
-        error: _error.toString(),
-        onRetry: () {
-          setState(() {
-            _error = null;
-          });
-        },
-      );
-    }
-
-    return ErrorBoundary(
-      onError: (error) {
-        setState(() {
-          _error = error;
-        });
-      },
-      child: const RecordingScreen(),
     );
   }
 }

@@ -5,7 +5,11 @@ import '../utils/app_logger.dart';
 import 'audio_buffer_manager.dart';
 import 'conversation_engine.dart';
 import 'conversation_listening_session.dart';
+import 'glasses_answer_presenter.dart';
+import 'glasses_protocol.dart';
 import 'hud_controller.dart';
+import 'hud_intent.dart';
+import 'proto.dart';
 
 /// Even AI coordinator service for conversation analysis
 /// Coordinates glasses-specific audio capture and session state.
@@ -47,6 +51,9 @@ class EvenAI {
   final int startTimeGap = 500;
   final int stopTimeGap = 500;
 
+  /// Pause/resume state for live listening
+  static bool _isPaused = false;
+
   /// Start AI processing
   static void startProcessing() {
     isEvenAISyncing.value = true;
@@ -74,6 +81,7 @@ class EvenAI {
     _audioBuffer.startReceiving();
 
     isRunning = true;
+    _isPaused = false;
     await ConversationListeningSession.instance.startSession(
       source: TranscriptSource.glasses,
     );
@@ -92,6 +100,7 @@ class EvenAI {
     _lastStopTime = currentTime;
 
     isRunning = false;
+    _isPaused = false;
     _stopRecordingTimer();
     _timer?.cancel();
     _timer = null;
@@ -107,24 +116,112 @@ class EvenAI {
   }
 
   /// Recording ended by OS
-  void recordOverByOS() async {
+  Future<void> recordOverByOS() async {
     if (!isRunning) return;
 
+    _isPaused = false;
     _stopRecordingTimer();
     _audioBuffer.stopReceiving();
     appLogger.d("Recording completed with ${_audioBuffer.bufferSize} bytes");
     ConversationListeningSession.instance.finalizePendingTranscript();
     _audioBuffer.clear();
+    isRunning = false;
+    await ConversationListeningSession.instance.stopSession();
   }
 
-  /// Navigate to last page by touchpad
+  /// Context-aware left touch handler (page back / pause / dismiss)
+  static void handleLeftTouch() {
+    final intent = HudController.instance.currentIntent;
+    appLogger.d('[EvenAI] handleLeftTouch — intent=${intent.name}');
+    switch (intent) {
+      case HudIntent.liveListening:
+        _togglePauseResume();
+        break;
+      case HudIntent.quickAsk:
+        GlassesAnswerPresenter.instance.previousPage();
+        break;
+      case HudIntent.dashboard:
+      case HudIntent.notification:
+        HudController.instance.resetToIdle(
+          source: 'EvenAI.handleLeftTouch',
+        );
+        break;
+      case HudIntent.textTransfer:
+        // existing page back behavior — no-op, auto-paced
+        break;
+      default:
+        break;
+    }
+  }
+
+  /// Context-aware right touch handler (page forward / analyze / dismiss)
+  static void handleRightTouch() {
+    final intent = HudController.instance.currentIntent;
+    appLogger.d('[EvenAI] handleRightTouch — intent=${intent.name}');
+    switch (intent) {
+      case HudIntent.liveListening:
+        _triggerManualQuestionDetection();
+        break;
+      case HudIntent.quickAsk:
+        GlassesAnswerPresenter.instance.nextPage();
+        break;
+      case HudIntent.dashboard:
+      case HudIntent.notification:
+        HudController.instance.resetToIdle(
+          source: 'EvenAI.handleRightTouch',
+        );
+        break;
+      case HudIntent.textTransfer:
+        // existing page forward behavior — no-op, auto-paced
+        break;
+      default:
+        break;
+    }
+  }
+
+  /// Navigate to last page by touchpad (delegates to context-aware handler)
   void lastPageByTouchpad() {
-    // Live listening answers are paced automatically.
+    handleLeftTouch();
   }
 
-  /// Navigate to next page by touchpad
+  /// Navigate to next page by touchpad (delegates to context-aware handler)
   void nextPageByTouchpad() {
-    // Live listening answers are paced automatically.
+    handleRightTouch();
+  }
+
+  /// Toggle pause/resume for live listening transcription
+  static void _togglePauseResume() {
+    if (_isPaused) {
+      ConversationListeningSession.instance.resumeTranscription();
+      _isPaused = false;
+      _flashFeedback('RESUMED');
+    } else {
+      ConversationListeningSession.instance.pauseTranscription();
+      _isPaused = true;
+      _flashFeedback('PAUSED');
+    }
+  }
+
+  /// Manually trigger question detection from glasses button press
+  static void _triggerManualQuestionDetection() {
+    ConversationEngine.instance.forceQuestionAnalysis();
+    _flashFeedback('ANALYZING...');
+  }
+
+  /// Show brief feedback text on glasses display, auto-clears after 500ms
+  static void _flashFeedback(String text) async {
+    appLogger.d('[EvenAI] Flash feedback: $text');
+    await Proto.sendEvenAIData(
+      text,
+      newScreen: HudDisplayState.textPage(),
+      pos: 0,
+      current_page_num: 1,
+      max_page_num: 1,
+    );
+    // Auto-dismiss after 500ms by clearing the overlay screen
+    Future.delayed(const Duration(milliseconds: 500), () {
+      Proto.pushScreen(0x00);
+    });
   }
 
   void _startRecordingTimer() {
@@ -144,9 +241,9 @@ class EvenAI {
     sendReplys.clear();
   }
 
-  /// Dispose resources
+  /// Dispose resources owned by this instance (not shared singletons).
   void dispose() {
-    _hudController.dispose();
-    _audioBuffer.dispose();
+    _stopRecordingTimer();
+    _recordingTimer?.cancel();
   }
 }

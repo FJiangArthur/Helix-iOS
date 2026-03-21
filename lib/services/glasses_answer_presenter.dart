@@ -129,6 +129,9 @@ class GlassesAnswerPresenter {
     }
 
     final windows = buildWindows(trimmed);
+    _currentWindows = windows;
+    _manualPageIndex = 0;
+    _isManualMode = false;
     if (windows.isEmpty) {
       _emit(
         GlassesAnswerDeliveryState(
@@ -249,6 +252,59 @@ class GlassesAnswerPresenter {
         _hudController.resetToIdle(
           source: 'GlassesAnswerPresenter.cancel:$source',
         ));
+  }
+
+  // --- Manual page navigation ---
+
+  List<String> _currentWindows = const [];
+  int _manualPageIndex = 0;
+  bool _isManualMode = false;
+
+  /// Whether the user has taken manual control of page navigation
+  bool get isManualMode => _isManualMode;
+
+  /// Navigate to the previous page of the current answer.
+  /// Increments `_sessionToken` to cancel any in-flight auto-paging loop.
+  void previousPage() {
+    if (_currentWindows.isEmpty) return;
+    if (_manualPageIndex > 0) {
+      _enterManualMode();
+      _manualPageIndex--;
+      _showManualPage();
+    }
+  }
+
+  /// Navigate to the next page of the current answer.
+  /// Increments `_sessionToken` to cancel any in-flight auto-paging loop.
+  void nextPage() {
+    if (_currentWindows.isEmpty) return;
+    if (_manualPageIndex < _currentWindows.length - 1) {
+      _enterManualMode();
+      _manualPageIndex++;
+      _showManualPage();
+    }
+  }
+
+  /// Switch to manual paging mode, cancelling the auto-paging loop.
+  void _enterManualMode() {
+    if (!_isManualMode) {
+      _isManualMode = true;
+      _sessionToken++; // cancel any running auto-page loop
+      appLogger.d('[GlassesAnswerPresenter] Entered manual paging mode');
+    }
+  }
+
+  void _showManualPage() {
+    final text = _currentWindows[_manualPageIndex];
+    _sender(text, _manualPageIndex + 1, _currentWindows.length);
+    _emit(
+      GlassesAnswerDeliveryState(
+        status: GlassesAnswerDeliveryStatus.delivering,
+        answerText: _state.answerText,
+        currentWindow: _manualPageIndex + 1,
+        totalWindows: _currentWindows.length,
+      ),
+    );
   }
 
   void dispose() {

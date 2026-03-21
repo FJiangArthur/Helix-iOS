@@ -8,6 +8,11 @@ class DashboardSnapshot {
     required this.mode,
     required this.engineStatus,
     required this.contextLine,
+    this.recordingDuration,
+    this.questionCount = 0,
+    this.answerCount = 0,
+    this.wordCount = 0,
+    this.segmentCount = 0,
   });
 
   static const int lineWidth = 24;
@@ -17,14 +22,58 @@ class DashboardSnapshot {
   final ConversationMode mode;
   final EngineStatus engineStatus;
   final String contextLine;
+  final Duration? recordingDuration;
+  final int questionCount;
+  final int answerCount;
+  final int wordCount;
+  final int segmentCount;
 
-  List<String> get lines => [
-    _truncate(_formatTime(timestamp)),
-    _truncate(_formatDate(timestamp)),
-    _truncate(_connectionLabel(connectionState)),
-    _truncate('${_modeLabel(mode)} ${_statusLabel(engineStatus)}'),
-    _truncate(contextLine),
-  ];
+  bool get isInConversation => recordingDuration != null;
+
+  /// Formats conversation stats: `Q:3 A:3  ~450w s:5`
+  /// Fits within 24 chars.
+  String conversationStatsLine() {
+    final qaPart = 'Q:$questionCount A:$answerCount';
+    final wordPart = '~${wordCount}w';
+    final segPart = segmentCount > 0 ? ' s:$segmentCount' : '';
+    final combined = '$qaPart  $wordPart$segPart';
+    return _truncate(combined);
+  }
+
+  /// Formats time with optional recording duration.
+  /// When recording: `09:41  REC 05:23`
+  /// When not recording: `09:41`
+  String timeWithRecording() {
+    final time = _formatTime(timestamp);
+    if (recordingDuration == null) {
+      return time;
+    }
+    final dur = recordingDuration!;
+    final minutes = dur.inMinutes.toString().padLeft(2, '0');
+    final seconds = (dur.inSeconds % 60).toString().padLeft(2, '0');
+    return _truncate('$time  REC $minutes:$seconds');
+  }
+
+  List<String> get lines {
+    if (isInConversation) {
+      return [
+        _truncate(timeWithRecording()),
+        _truncate(_formatDate(timestamp)),
+        _truncate(_connectionModeLabel(connectionState, mode)),
+        _truncate(conversationStatsLine()),
+        _truncate(contextLine),
+      ];
+    }
+    return [
+      _truncate(_formatTime(timestamp)),
+      _truncate(_formatDate(timestamp)),
+      _truncate(_connectionLabel(connectionState)),
+      _truncate(engineStatus == EngineStatus.idle
+          ? 'Tap mic to start'
+          : '${_modeLabel(mode)} ${_statusLabel(engineStatus)}'),
+      _truncate(contextLine),
+    ];
+  }
 
   String get hudText => lines.join('\n');
 
@@ -66,6 +115,20 @@ class DashboardSnapshot {
     };
   }
 
+  static String _connectionModeLabel(
+    BleConnectionState state,
+    ConversationMode mode,
+  ) {
+    final conn = switch (state) {
+      BleConnectionState.connected => 'ONLINE',
+      BleConnectionState.connecting => 'CONNECTING',
+      BleConnectionState.scanning => 'SCANNING',
+      BleConnectionState.reconnecting => 'RECONNECTING',
+      BleConnectionState.disconnected => 'OFFLINE',
+    };
+    return '$conn | ${_modeLabel(mode)}';
+  }
+
   static String _modeLabel(ConversationMode mode) {
     return switch (mode) {
       ConversationMode.general => 'GENERAL',
@@ -85,10 +148,10 @@ class DashboardSnapshot {
   }
 
   static String _truncate(String value) {
-    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= lineWidth) {
-      return normalized;
+    final trimmed = value.trim();
+    if (trimmed.length <= lineWidth) {
+      return trimmed;
     }
-    return '${normalized.substring(0, lineWidth - 3)}...';
+    return '${trimmed.substring(0, lineWidth - 3)}...';
   }
 }

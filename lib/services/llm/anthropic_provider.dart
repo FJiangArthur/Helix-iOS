@@ -10,6 +10,7 @@ import 'package:flutter_helix/services/llm/llm_provider.dart';
 class AnthropicProvider implements LlmProvider {
   static const String _baseUrl = 'https://api.anthropic.com/v1';
   static const String _apiVersion = '2023-06-01';
+  static const String _opusModel = 'cla' 'ude-opus-4-20250514';
   static const String _sonnetModel = 'cla' 'ude-sonnet-4-20250514';
   static const String _haikuModel = 'cla' 'ude-haiku-4-20250414';
 
@@ -23,6 +24,7 @@ class AnthropicProvider implements LlmProvider {
 
   @override
   List<String> get availableModels => const [
+    _opusModel,
     _sonnetModel,
     _haikuModel,
   ];
@@ -75,6 +77,11 @@ class AnthropicProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async* {
+    if ((apiKey ?? '').trim().isEmpty) {
+      yield '[Error] Missing API key for Anthropic';
+      return;
+    }
+
     final selectedModel = model ?? defaultModel;
     final body = _buildRequestBody(
       systemPrompt: systemPrompt,
@@ -178,6 +185,10 @@ class AnthropicProvider implements LlmProvider {
     String? model,
     double temperature = 0.7,
   }) async {
+    if ((apiKey ?? '').trim().isEmpty) {
+      return '[Error] Missing API key for Anthropic';
+    }
+
     final selectedModel = model ?? defaultModel;
     final body = _buildRequestBody(
       systemPrompt: systemPrompt,

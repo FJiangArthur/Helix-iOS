@@ -17,7 +17,6 @@ const _providerDisplayOrder = [
   'qwen',
   'zhipu',
 ];
-const _frontierProviderIds = {'openai', 'anthropic'};
 
 class _ProviderPresentation {
   final Color accent;
@@ -540,7 +539,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 14),
               ..._settings.assistantProfiles.map(
                 (profile) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: _buildAssistantProfileCard(profile),
                 ),
               ),
@@ -610,32 +609,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildProviderSelector() {
     final providerEntries = _orderedProviderEntries();
-    final frontierProviders = providerEntries
-        .where((entry) => _frontierProviderIds.contains(entry.key))
-        .toList();
-    final chineseProviders = providerEntries
-        .where((entry) => !_frontierProviderIds.contains(entry.key))
-        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildProviderSpotlight(),
-        const SizedBox(height: 8),
-        _buildProviderGroup(
-          title: 'Frontier Providers',
-          subtitle: 'OpenAI and Anthropic for premium global models',
-          providers: frontierProviders,
-        ),
-        if (chineseProviders.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          _buildProviderGroup(
-            title: 'Chinese Providers',
-            subtitle: 'DeepSeek, Qwen, and Zhipu AI for China-focused routing',
-            providers: chineseProviders,
+        ...providerEntries.map(
+          (entry) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _buildProviderCard(entry.key),
           ),
-        ],
-        const SizedBox(height: 10),
+        ),
+        const SizedBox(height: 4),
         Text(
           'Each provider keeps its own API key. Anthropic uses its native API, while DeepSeek, Qwen, and Zhipu follow OpenAI-style request formats.',
           style: TextStyle(
@@ -648,153 +632,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildProviderSpotlight() {
-    final providerId = _settings.activeProviderId;
-    final provider = _llmService.providers[providerId];
-    if (provider == null) return const SizedBox.shrink();
-
-    final presentation = _providerPresentation(providerId);
-    final configuredCount = _configuredProviders.values.where((v) => v).length;
-    final isConfigured = _configuredProviders[providerId] ?? false;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            presentation.accent.withValues(alpha: 0.18),
-            Colors.white.withValues(alpha: 0.04),
-          ],
-        ),
-        border: Border.all(color: presentation.accent.withValues(alpha: 0.28)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: presentation.accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  presentation.icon,
-                  color: presentation.accent,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Active Provider',
-                      style: TextStyle(
-                        color: presentation.accent.withValues(alpha: 0.86),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      provider.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      presentation.description,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontSize: 13,
-                        height: 1.45,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildProviderTag(
-                label: presentation.cluster,
-                color: presentation.accent,
-              ),
-              _buildProviderTag(
-                label: presentation.protocol,
-                color: Colors.white,
-              ),
-              _buildProviderTag(
-                label: 'Default ${provider.defaultModel}',
-                color: presentation.accent,
-              ),
-              _buildProviderTag(
-                label: isConfigured ? 'API key ready' : 'Needs API key',
-                color: isConfigured ? Colors.green : Colors.orange,
-              ),
-              _buildProviderTag(
-                label:
-                    '$configuredCount/${_llmService.providers.length} configured',
-                color: Colors.white,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProviderGroup({
-    required String title,
-    required String subtitle,
-    required List<MapEntry<String, LlmProvider>> providers,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.82),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.46),
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ...providers.map(
-          (entry) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _buildProviderCard(entry.key),
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildProviderCard(String providerId) {
     final provider = _llmService.providers[providerId];
@@ -808,12 +645,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onTap: () => _setActiveProvider(providerId),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isActive
               ? presentation.accent.withValues(alpha: 0.11)
               : Colors.white.withValues(alpha: 0.04),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isActive
                 ? presentation.accent.withValues(alpha: 0.38)
@@ -821,68 +658,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 42,
-              height: 42,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 color: presentation.accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 presentation.icon,
                 color: presentation.accent,
-                size: 20,
+                size: 18,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          provider.name,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.92),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      if (isConfigured)
-                        Icon(
-                          Icons.check_circle,
-                          size: 15,
-                          color: Colors.green.withValues(alpha: 0.8),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
                   Text(
-                    presentation.description,
+                    provider.name,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.56),
-                      fontSize: 12,
-                      height: 1.4,
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 4),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
-                      _buildProviderTag(
-                        label: presentation.region,
-                        color: presentation.accent,
-                      ),
-                      _buildProviderTag(
-                        label: presentation.protocol,
-                        color: Colors.white,
-                      ),
                       _buildProviderTag(
                         label: provider.defaultModel,
                         color: Colors.white,
@@ -896,7 +703,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const SizedBox(width: 10),
+            if (isConfigured)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Icon(
+                  Icons.check_circle,
+                  size: 15,
+                  color: Colors.green.withValues(alpha: 0.8),
+                ),
+              ),
             Icon(
               isActive ? Icons.radio_button_checked : Icons.radio_button_off,
               color: isActive
@@ -912,7 +727,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildProviderTag({required String label, required Color color}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -924,7 +739,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: color == Colors.white
               ? Colors.white.withValues(alpha: 0.74)
               : color.withValues(alpha: 0.92),
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -952,7 +767,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             final isSelected = profile.id == currentProfile.id;
             return _buildSelectionChip(
               label: profile.name,
-              subtitle: profile.description,
               isSelected: isSelected,
               onTap: () async {
                 await _settings.update(
@@ -1007,48 +821,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isDefault
               ? HelixTheme.cyan.withValues(alpha: 0.24)
               : Colors.white.withValues(alpha: 0.08),
         ),
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      profile.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      profile.description,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.56),
-                        fontSize: 12,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  profile.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               if (isDefault)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
+                    horizontal: 8,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: HelixTheme.cyan.withValues(alpha: 0.14),
@@ -1061,7 +861,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     'DEFAULT',
                     style: TextStyle(
                       color: HelixTheme.cyan,
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
                     ),
@@ -1069,10 +869,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 2),
+          Text(
+            profile.description,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.50),
+              fontSize: 11,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 8),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _buildMiniBadge('Style', profile.answerStyle),
               if (profile.showSummaryTool) _buildMiniBadge('Summary', 'On'),
@@ -1082,16 +891,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildMiniBadge('Action Items', 'On'),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: () => _showProfileEditor(profile),
-              icon: const Icon(Icons.edit_outlined, size: 16),
-              label: const Text('Edit Profile'),
+              icon: const Icon(Icons.edit_outlined, size: 14),
+              label: const Text('Edit', style: TextStyle(fontSize: 12)),
               style: TextButton.styleFrom(
                 foregroundColor: HelixTheme.cyan,
-                padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ),
           ),
@@ -1102,7 +913,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildMiniBadge(String label, String value) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(999),
@@ -1115,7 +926,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               text: '$label: ',
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.42),
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1123,7 +934,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               text: value,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.78),
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w600,
               ),
             ),

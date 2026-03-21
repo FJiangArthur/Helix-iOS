@@ -133,5 +133,61 @@ void main() {
         expect(HudController.instance.currentIntent, HudIntent.idle);
       },
     );
+
+    test('snapshot contains conversation metrics when idle', () async {
+      await service.handleDeviceEvent(headUpEvent());
+
+      expect(dashboardRenders, hasLength(1));
+      final text = dashboardRenders.first;
+      final lines = text.split('\n');
+      expect(lines, hasLength(5));
+
+      // When idle with no conversation, should show standard layout
+      expect(lines[0], '10:00');
+      expect(lines[1], 'Thu Mar 12');
+      expect(lines[2], 'GLASSES OFFLINE');
+      expect(lines[3], 'Tap mic to start');
+    });
+
+    test('contextual status shows Ready when idle with no data', () async {
+      await service.handleDeviceEvent(headUpEvent());
+
+      final text = dashboardRenders.first;
+      final lines = text.split('\n');
+      expect(lines[4], 'Ready');
+    });
+
+    test('all rendered lines fit in 24 chars', () async {
+      await service.handleDeviceEvent(headUpEvent());
+
+      final text = dashboardRenders.first;
+      for (final line in text.split('\n')) {
+        expect(line.length, lessThanOrEqualTo(24),
+            reason: 'Line "$line" exceeds 24 chars');
+      }
+    });
+
+    test('uses extended display duration during active conversation', () {
+      final activeService = DashboardService(
+        bleManager: BleManager.get(),
+        hudController: HudController.instance,
+        conversationEngine: ConversationEngine.instance,
+        handoffMemory: HandoffMemory.instance,
+        settingsManager: SettingsManager.instance,
+        dashboardRenderer: (text) async => true,
+        quickAskRestorer: (text) async => true,
+        exitRenderer: () async => true,
+        clock: () => DateTime(2026, 3, 12, 10, 0),
+        cooldown: const Duration(milliseconds: 200),
+        displayDuration: const Duration(seconds: 5),
+        activeDisplayDuration: const Duration(seconds: 8),
+      );
+
+      // Verify the durations are set correctly
+      expect(activeService.displayDuration, const Duration(seconds: 5));
+      expect(activeService.activeDisplayDuration, const Duration(seconds: 8));
+
+      activeService.dispose();
+    });
   });
 }

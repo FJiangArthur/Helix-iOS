@@ -53,8 +53,13 @@ class ConversationListeningSession {
   Completer<void>? _speechFinalizationCompleter;
   TranscriptSource _source = TranscriptSource.phone;
   String _latestTranscript = '';
+  int? _latestTimestampMs;
+  // ignore: unused_field
+  int? _latestSegmentId;
   String _lastFinalizedTranscript = '';
+  String _lastEmittedPartial = '';
   bool _isRunning = false;
+  bool _starting = false;
   String? _currentError;
 
   bool get isRunning => _isRunning;
@@ -63,6 +68,9 @@ class ConversationListeningSession {
   String? get currentError => _currentError;
 
   Future<void> startSession({required TranscriptSource source}) async {
+    if (_starting) return;
+    _starting = true;
+    try {
     if (_isRunning) {
       // Stop native side without tearing down the EventChannel subscription.
       // Full stopSession() cancels the subscription which triggers a
@@ -74,6 +82,7 @@ class ConversationListeningSession {
     _source = source;
     _latestTranscript = '';
     _lastFinalizedTranscript = '';
+    _lastEmittedPartial = '';
     _speechFinalizationCompleter = null;
     _publishError(null);
     _engine.start(source: source);
@@ -90,15 +99,23 @@ class ConversationListeningSession {
         final text = (payload['script'] as String? ?? '').trim();
         final isFinal = payload['isFinal'] == true;
         final error = (payload['error'] as String?)?.trim();
+        final timestampMs = payload['timestampMs'] as int?;
+        final segmentId = payload['segmentId'] as int?;
 
         appLogger.d('[ListeningSession] Speech event — '
-            'isFinal=$isFinal, text="${text.length > 60 ? text.substring(0, 60) : text}"'
+            'isFinal=$isFinal, text="${text.length > 140 ? text.substring(0, 140) : text}"'
+            '${segmentId != null ? ", segmentId=$segmentId" : ""}'
             '${error != null ? ", error=$error" : ""}');
 
         if (text.isNotEmpty) {
           _ensureSpeechFinalizationCompleter();
           _latestTranscript = text;
+          _latestTimestampMs = timestampMs;
+          _latestSegmentId = segmentId;
           _publishError(null);
+          // Dedup identical partials to avoid redundant UI updates and LLM scheduling
+          if (!isFinal && text == _lastEmittedPartial) return;
+          _lastEmittedPartial = isFinal ? '' : text;
           _engine.onTranscriptionUpdate(text);
         }
 
@@ -178,6 +195,9 @@ class ConversationListeningSession {
       _publishError('Failed to start speech recognition.');
       rethrow;
     }
+    } finally {
+      _starting = false;
+    }
   }
 
   Future<void> stopSession() async {
@@ -204,7 +224,10 @@ class ConversationListeningSession {
     }
 
     _lastFinalizedTranscript = candidate;
-    _engine.onTranscriptionFinalized(candidate);
+    final segmentTimestamp = _latestTimestampMs != null
+        ? DateTime.fromMillisecondsSinceEpoch(_latestTimestampMs!)
+        : null;
+    _engine.onTranscriptionFinalized(candidate, segmentTimestamp: segmentTimestamp);
     _completeSpeechFinalization();
   }
 
@@ -240,6 +263,18 @@ class ConversationListeningSession {
   void _publishError(String? message) {
     _currentError = message;
     _errorController.add(message);
+  }
+
+  /// Pause transcription - stop forwarding audio but keep session alive
+  void pauseTranscription() {
+    _invokeMethod('pauseEvenAI', {});
+    appLogger.d('[ListeningSession] Transcription paused');
+  }
+
+  /// Resume transcription
+  void resumeTranscription() {
+    _invokeMethod('resumeEvenAI', {});
+    appLogger.d('[ListeningSession] Transcription resumed');
   }
 
   String _getLanguageCode() {

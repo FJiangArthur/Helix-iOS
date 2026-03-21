@@ -36,6 +36,8 @@ class BleManager {
 
   final List<Map<String, String>> pairedGlasses = [];
   bool isConnected = false;
+  bool _isLeftConnected = false;
+  bool _isRightConnected = false;
   String connectionStatus = 'Not connected';
 
   // Connection state stream
@@ -168,7 +170,7 @@ class BleManager {
         _onGlassesConnecting();
         break;
       case 'glassesDisconnected':
-        _onGlassesDisconnected();
+        _onGlassesDisconnected(call.arguments);
         break;
       case 'foundPairedGlasses':
         _onPairedGlassesFound(Map<String, String>.from(call.arguments));
@@ -180,8 +182,21 @@ class BleManager {
 
   void _onGlassesConnected(dynamic arguments) {
     appLogger.d("_onGlassesConnected----arguments----$arguments------");
+
+    // Handle per-side connection tracking
+    final connectedSide = arguments is Map ? arguments['connectedSide'] : null;
+    if (connectedSide == 'L') {
+      _isLeftConnected = true;
+    } else if (connectedSide == 'R') {
+      _isRightConnected = true;
+    } else {
+      // Full connection (both sides) - legacy path
+      _isLeftConnected = true;
+      _isRightConnected = true;
+    }
+
     connectionStatus =
-        'Connected: \n${arguments['leftDeviceName']} \n${arguments['rightDeviceName']}';
+        'Connected: \n${arguments['leftDeviceName'] ?? ''} \n${arguments['rightDeviceName'] ?? ''}';
     isConnected = true;
     _updateConnectionState(BleConnectionState.connected);
 
@@ -218,10 +233,29 @@ class BleManager {
     onStatusChanged?.call();
   }
 
-  void _onGlassesDisconnected() {
-    connectionStatus = 'Not connected';
-    isConnected = false;
-    _updateConnectionState(BleConnectionState.disconnected);
+  void _onGlassesDisconnected([dynamic arguments]) {
+    final disconnectedSide =
+        arguments is Map ? arguments['disconnectedSide'] as String? : null;
+
+    if (disconnectedSide == 'L') {
+      _isLeftConnected = false;
+    } else if (disconnectedSide == 'R') {
+      _isRightConnected = false;
+    } else {
+      // No side specified (user-initiated full disconnect or legacy path)
+      _isLeftConnected = false;
+      _isRightConnected = false;
+    }
+
+    isConnected = _isLeftConnected || _isRightConnected;
+
+    if (isConnected) {
+      connectionStatus = 'Partially connected';
+      _updateConnectionState(BleConnectionState.connected);
+    } else {
+      connectionStatus = 'Not connected';
+      _updateConnectionState(BleConnectionState.disconnected);
+    }
 
     onStatusChanged?.call();
   }
@@ -392,7 +426,7 @@ class BleManager {
       );
       if (retR.isTimeout) return false;
       return isSuccess.call(retR.data);
-    } else if (ret.data[1].toInt() == 0xc9) {
+    } else if (ret.data.length >= 2 && ret.data[1].toInt() == 0xc9) {
       var ret = await BleManager.requestRetry(
         data,
         lr: "R",
@@ -400,6 +434,8 @@ class BleManager {
         retry: retry ?? 0,
       );
       if (ret.isTimeout) return false;
+    } else {
+      return false;
     }
     return true;
   }
@@ -515,6 +551,14 @@ class BleManager {
     return _instance?.isConnected ?? false;
   }
 
+  static bool isConnectedL() {
+    return _instance?._isLeftConnected ?? false;
+  }
+
+  static bool isConnectedR() {
+    return _instance?._isRightConnected ?? false;
+  }
+
   static Future<bool> requestList(
     List<Uint8List> sendList, {
     String? lr,
@@ -554,7 +598,7 @@ class BleManager {
       var resp = await request(pack, lr: lr, timeoutMs: timeoutMs ?? 350);
       if (resp.isTimeout) {
         return false;
-      } else if (resp.data[1].toInt() != 0xc9 && resp.data[1].toInt() != 0xcB) {
+      } else if (resp.data.length >= 2 && resp.data[1].toInt() != 0xc9 && resp.data[1].toInt() != 0xcB) {
         return false;
       }
     }
