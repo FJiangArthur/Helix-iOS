@@ -8,7 +8,6 @@ import 'services/hud_widgets/calendar_widget.dart';
 import 'services/hud_widgets/clock_widget.dart';
 import 'services/hud_widgets/news_widget.dart';
 import 'services/hud_widgets/reminders_widget.dart';
-import 'services/hud_widgets/steps_widget.dart';
 import 'services/hud_widgets/todos_widget.dart';
 import 'services/hud_widgets/weather_widget.dart';
 import 'services/llm/llm_service.dart';
@@ -45,7 +44,6 @@ Future<void> _initializeHudWidgets() async {
   registry.register(RemindersWidget());
   registry.register(TodosWidget());
   registry.register(NewsWidget());
-  registry.register(StepsWidget());
   registry.register(BatteryWidget());
   await registry.initialize();
 }

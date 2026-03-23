@@ -40,11 +40,7 @@
 	<string>Even Companion shows your upcoming events on your glasses</string>
 	<key>NSRemindersUsageDescription</key>
 	<string>Even Companion shows your reminders on your glasses</string>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Even Companion shows your step count on your glasses</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Even Companion does not write health data</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
+<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Even Companion uses your location for local weather</string>
 	<key>UIBackgroundModes</key>
 	<array>

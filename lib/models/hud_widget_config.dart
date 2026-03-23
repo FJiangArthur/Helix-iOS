@@ -38,7 +38,6 @@ class HudWidgetConfig {
         HudWidgetConfig(widgetId: 'reminders', sortOrder: 3),
         HudWidgetConfig(widgetId: 'todos', sortOrder: 4, enabled: false),
         HudWidgetConfig(widgetId: 'news', sortOrder: 5, enabled: false),
-        HudWidgetConfig(widgetId: 'steps', sortOrder: 6, enabled: false),
-        HudWidgetConfig(widgetId: 'battery', sortOrder: 7, enabled: false),
+        HudWidgetConfig(widgetId: 'battery', sortOrder: 6, enabled: false),
       ];
 }

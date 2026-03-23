@@ -156,12 +156,6 @@ import Speech
             EventKitChannel.shared.handle(call, result: result)
         }
 
-        // HealthKit channel (Steps)
-        let healthKitChannel = FlutterMethodChannel(name: "method.healthkit", binaryMessenger: controller.binaryMessenger)
-        healthKitChannel.setMethodCallHandler { (call, result) in
-            HealthKitChannel.shared.handle(call, result: result)
-        }
-
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
