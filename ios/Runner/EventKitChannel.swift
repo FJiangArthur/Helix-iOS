@@ -37,7 +37,13 @@ class EventKitChannel {
 
     private func getNextCalendarEvent(result: @escaping FlutterResult) {
         let status = EKEventStore.authorizationStatus(for: .event)
-        guard status == .authorized || status == .fullAccess else {
+        let isAuthorized: Bool
+        if #available(iOS 17.0, *) {
+            isAuthorized = (status == .fullAccess)
+        } else {
+            isAuthorized = (status == .authorized)
+        }
+        guard isAuthorized else {
             result(nil)
             return
         }
@@ -80,7 +86,13 @@ class EventKitChannel {
 
     private func getUpcomingReminders(result: @escaping FlutterResult) {
         let status = EKEventStore.authorizationStatus(for: .reminder)
-        guard status == .authorized || status == .fullAccess else {
+        let isAuthorized: Bool
+        if #available(iOS 17.0, *) {
+            isAuthorized = (status == .fullAccess)
+        } else {
+            isAuthorized = (status == .authorized)
+        }
+        guard isAuthorized else {
             result([])
             return
         }
