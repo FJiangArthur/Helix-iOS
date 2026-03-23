@@ -50,6 +50,13 @@ class SpeechStreamRecognizer {
 
     private var currentLanguageIdentifier: String = "EN"
     private var currentSource: String = "glasses"
+    private let glassesPcmFormat = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 16000,
+        channels: 1,
+        interleaved: false
+    )!
+
     private var openAIMicrophoneConverter: AVAudioConverter?
     private var openAIMicrophoneInputFormat: AVAudioFormat?
     private let openAIMicrophoneOutputFormat = AVAudioFormat(
@@ -712,17 +719,10 @@ class SpeechStreamRecognizer {
             return
         }
 
-        let audioFormat = AVAudioFormat(
-            commonFormat: .pcmFormatInt16,
-            sampleRate: 16000,
-            channels: 1,
-            interleaved: false
-        )!
-
-        let bytesPerFrame = audioFormat.streamDescription.pointee.mBytesPerFrame
+        let bytesPerFrame = glassesPcmFormat.streamDescription.pointee.mBytesPerFrame
         let frameCapacity = AVAudioFrameCount(pcmData.count) / bytesPerFrame
         guard let audioBuffer = AVAudioPCMBuffer(
-            pcmFormat: audioFormat,
+            pcmFormat: glassesPcmFormat,
             frameCapacity: frameCapacity
         ) else {
             log("Failed to create audio buffer")
@@ -789,6 +789,12 @@ class SpeechStreamRecognizer {
         if normalized.isEmpty && !isFinal { return }
         if didEmitFinalResult && isFinal { return }
         if !isFinal && normalized == lastEmittedText { return }
+
+        // Reset final guard when new speech arrives (enables multi-segment OpenAI flow)
+        if !isFinal {
+            didEmitFinalResult = false
+            didLogFinalEmission = false
+        }
 
         if isFinal {
             didEmitFinalResult = true

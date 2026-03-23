@@ -32,6 +32,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     private var deviceNameByPeripheralId: [UUID: String] = [:]
     private var sideByPeripheralId: [UUID: String] = [:]
+    private lazy var pcmConverter = PcmConverter()
 
     var leftPeripheral: CBPeripheral?
     var leftUUIDStr: String?
@@ -338,7 +339,6 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 break
             }
             let effectiveData = data.subdata(in: 2..<data.count)
-            let pcmConverter = PcmConverter()
             let pcmData = pcmConverter.decode(effectiveData)
             SpeechStreamRecognizer.shared.appendPCMData(pcmData as Data)
         default:
@@ -357,7 +357,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             ]
 
             if let sink = blueInfoSink {
-                sink(dictionary)
+                DispatchQueue.main.async {
+                    sink(dictionary)
+                }
             } else {
                 print("blueInfoSink not ready, dropping data")
             }

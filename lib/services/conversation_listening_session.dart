@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 
+import 'package:flutter/foundation.dart';
+
 import '../ble_manager.dart';
 import '../utils/app_logger.dart';
 import 'conversation_engine.dart';
@@ -61,6 +63,7 @@ class ConversationListeningSession {
   bool _isRunning = false;
   bool _starting = false;
   String? _currentError;
+  int _speechEventCount = 0;
 
   bool get isRunning => _isRunning;
   TranscriptSource get source => _source;
@@ -102,10 +105,12 @@ class ConversationListeningSession {
         final timestampMs = payload['timestampMs'] as int?;
         final segmentId = payload['segmentId'] as int?;
 
-        appLogger.d('[ListeningSession] Speech event — '
-            'isFinal=$isFinal, text="${text.length > 140 ? text.substring(0, 140) : text}"'
-            '${segmentId != null ? ", segmentId=$segmentId" : ""}'
-            '${error != null ? ", error=$error" : ""}');
+        if (kDebugMode && _speechEventCount++ % 10 == 0) {
+          appLogger.d('[ListeningSession] Speech event #$_speechEventCount — '
+              'isFinal=$isFinal, text="${text.length > 140 ? text.substring(0, 140) : text}"'
+              '${segmentId != null ? ", segmentId=$segmentId" : ""}'
+              '${error != null ? ", error=$error" : ""}');
+        }
 
         if (text.isNotEmpty) {
           _ensureSpeechFinalizationCompleter();

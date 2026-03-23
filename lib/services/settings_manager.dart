@@ -58,6 +58,9 @@ class SettingsManager {
   /// Default quick ask preset identifier.
   String defaultQuickAskPreset = 'concise';
 
+  /// Maximum sentences in AI responses sent to glasses (1-10).
+  int maxResponseSentences = 3;
+
   /// Whether Home should auto-expand summary tools.
   bool autoShowSummary = true;
 
@@ -163,6 +166,7 @@ class SettingsManager {
         prefs.getString('defaultQuickAskPreset') ?? 'concise';
     autoShowSummary = prefs.getBool('autoShowSummary') ?? true;
     autoShowFollowUps = prefs.getBool('autoShowFollowUps') ?? true;
+    maxResponseSentences = prefs.getInt('maxResponseSentences') ?? 3;
     language = prefs.getString('language') ?? 'en';
     _assistantProfiles = _restoreAssistantProfiles(
       prefs.getString('assistantProfiles'),
@@ -226,6 +230,7 @@ class SettingsManager {
     await prefs.setString('defaultQuickAskPreset', defaultQuickAskPreset);
     await prefs.setBool('autoShowSummary', autoShowSummary);
     await prefs.setBool('autoShowFollowUps', autoShowFollowUps);
+    await prefs.setInt('maxResponseSentences', maxResponseSentences);
     await prefs.setString('language', language);
     await prefs.setString(
       'assistantProfiles',

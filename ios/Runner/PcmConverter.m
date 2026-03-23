@@ -8,70 +8,56 @@
 #import "PcmConverter.h"
 #import "lc3.h"
 
-@implementation PcmConverter
+@implementation PcmConverter {
+    void *_decMem;
+    unsigned char *_outBuf;
+    lc3_decoder_t _decoder;
+    uint16_t _bytesOfFrames;
+}
 
 // Frame length 10ms
 static const int dtUs = 10000;
-// Sampling rate 48K
+// Sampling rate 16K
 static const int srHz = 16000;
 // Output bytes after encoding a single frame
-static const uint16_t outputByteCount = 20;  // 40
-// Buffer size required by the encoder
-static unsigned encodeSize;
-// Buffer size required by the decoder
-static unsigned decodeSize;
-// Number of samples in a single frame
-static uint16_t sampleOfFrames;
-// Number of bytes in a single frame, 16Bits takes up two bytes for the next sample
-static uint16_t bytesOfFrames;
-// Encoder buffer
-static void* encMem = NULL;
-// File descriptor of the input file
-static int inFd = -1;
-// File descriptor of output file
-static int outFd = -1;
+static const uint16_t outputByteCount = 20;
 
--(NSMutableData *)decode: (NSData *)lc3data {
+-(instancetype)init {
+    self = [super init];
+    if (self) {
+        unsigned decodeSize = lc3_decoder_size(dtUs, srHz);
+        uint16_t sampleOfFrames = lc3_frame_samples(dtUs, srHz);
+        _bytesOfFrames = sampleOfFrames * 2;
 
-    unsigned localDecodeSize = lc3_decoder_size(dtUs, srHz);
-    sampleOfFrames = lc3_frame_samples(dtUs, srHz);
-    bytesOfFrames = sampleOfFrames*2;
+        _decMem = malloc(decodeSize);
+        _decoder = lc3_setup_decoder(dtUs, srHz, 0, _decMem);
+        _outBuf = malloc(_bytesOfFrames);
+    }
+    return self;
+}
 
-    if (lc3data == nil) {
-        printf("Failed to decode Base64 data\n");
+-(void)dealloc {
+    if (_decMem) free(_decMem);
+    if (_outBuf) free(_outBuf);
+}
+
+-(NSMutableData *)decode:(NSData *)lc3data {
+    if (lc3data == nil || _decMem == NULL || _outBuf == NULL) {
         return [[NSMutableData alloc] init];
     }
-
-    void *localDecMem = malloc(localDecodeSize);
-    lc3_decoder_t lc3_decoder = lc3_setup_decoder(dtUs, srHz, 0, localDecMem);
-    unsigned char *localOutBuf;
-    if ((localOutBuf = malloc(bytesOfFrames)) == NULL) {
-        printf("Failed to allocate memory for outBuf\n");
-        free(localDecMem);
-        return [[NSMutableData alloc] init];
-    }
-
     int totalBytes = (int)lc3data.length;
+    int frameCount = (totalBytes + outputByteCount - 1) / outputByteCount;
+    NSMutableData *pcmData = [[NSMutableData alloc] initWithCapacity:frameCount * _bytesOfFrames];
+
+    const unsigned char *inputBytes = (const unsigned char *)lc3data.bytes;
     int bytesRead = 0;
-
-    NSMutableData *pcmData = [[NSMutableData alloc] init];
-
     while (bytesRead < totalBytes) {
         int bytesToRead = MIN(outputByteCount, totalBytes - bytesRead);
-        NSRange range = NSMakeRange(bytesRead, bytesToRead);
-        NSData *subdata = [lc3data subdataWithRange:range];
-        unsigned char *inBuf = (unsigned char *)subdata.bytes;
-
-        lc3_decode(lc3_decoder, inBuf, bytesToRead, LC3_PCM_FORMAT_S16, localOutBuf, 1);
-
-        NSData *data = [NSData dataWithBytes:localOutBuf length:bytesOfFrames];
-        [pcmData appendData:data];
+        lc3_decode(_decoder, inputBytes + bytesRead, bytesToRead,
+                   LC3_PCM_FORMAT_S16, _outBuf, 1);
+        [pcmData appendBytes:_outBuf length:_bytesOfFrames];
         bytesRead += bytesToRead;
     }
-
-    free(localDecMem);
-    free(localOutBuf);
-
     return pcmData;
 }
 @end

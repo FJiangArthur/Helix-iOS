@@ -18,14 +18,9 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
 
   @override
   List<String> get availableModels => const [
-    'o3',
-    'o3-mini',
-    'o4-mini',
     'gpt-4.1',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
-    'gpt-4o',
-    'gpt-4o-mini',
     'gpt-realtime',
   ];
 
@@ -38,20 +33,12 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
         modelIds
             .where((id) {
               final lower = id.toLowerCase();
-              if (lower.startsWith('whisper') ||
-                  lower.startsWith('tts') ||
-                  lower.contains('embedding') ||
-                  lower.contains('image') ||
-                  lower.contains('moderation') ||
-                  lower.contains('transcribe')) {
-                return false;
+              // Only keep gpt-4.1 family and realtime models
+              if (lower.startsWith('gpt-4.1') ||
+                  lower.contains('realtime')) {
+                return true;
               }
-              return lower.startsWith('gpt-') ||
-                  lower.startsWith('chatgpt-') ||
-                  lower.startsWith('o1') ||
-                  lower.startsWith('o3') ||
-                  lower.startsWith('o4') ||
-                  lower.startsWith('o5');
+              return false;
             })
             .toSet()
             .toList()

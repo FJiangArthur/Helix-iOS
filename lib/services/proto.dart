@@ -61,7 +61,7 @@ class Proto {
     _evenaiSeq++;
 
     appLogger.d(
-      '${DateTime.now()} proto--sendEvenAIData---text---$text---_evenaiSeq----$_evenaiSeq---newScreen---$newScreen---pos---$pos---current_page_num--$current_page_num---max_page_num--$max_page_num--dataList----$dataList---',
+      'proto--sendEvenAIData seq=$_evenaiSeq newScreen=$newScreen page=$current_page_num/$max_page_num textLen=${text.length}',
     );
 
     // Send to L and R independently - don't abort one if the other fails
@@ -71,7 +71,7 @@ class Proto {
       timeoutMs: timeoutMs ?? 2000,
     );
     if (!isSuccessL) {
-      appLogger.d("${DateTime.now()} sendEvenAIData failed L (continuing to R)");
+      appLogger.d("sendEvenAIData failed L (continuing to R)");
     }
 
     bool isSuccessR = await BleManager.requestList(
@@ -79,14 +79,11 @@ class Proto {
       lr: "R",
       timeoutMs: timeoutMs ?? 2000,
     );
-    if (!isSuccessR) {
-      appLogger.d("${DateTime.now()} sendEvenAIData failed R");
-    }
 
     final anySuccess = isSuccessL || isSuccessR;
-    appLogger.d(
-      '${DateTime.now()} sendEvenAIData L=$isSuccessL R=$isSuccessR anySuccess=$anySuccess',
-    );
+    if (!anySuccess) {
+      appLogger.d('sendEvenAIData failed both L and R');
+    }
     return anySuccess;
   }
 

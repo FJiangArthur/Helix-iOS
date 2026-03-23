@@ -26,6 +26,9 @@ class EvenAI {
   static bool _isRunning = false;
   static bool get isRunning => _isRunning;
 
+  /// Whether an AI answer is currently displayed on glasses (enables touchpad scrolling)
+  static bool hasActiveAnswer = false;
+
   static int maxRetry = 10;
   static Timer? _timer;
   static List<String> sendReplys = [];
@@ -135,7 +138,11 @@ class EvenAI {
     appLogger.d('[EvenAI] handleLeftTouch — intent=${intent.name}');
     switch (intent) {
       case HudIntent.liveListening:
-        _togglePauseResume();
+        if (hasActiveAnswer) {
+          GlassesAnswerPresenter.instance.previousPage();
+        } else {
+          _togglePauseResume();
+        }
         break;
       case HudIntent.quickAsk:
         GlassesAnswerPresenter.instance.previousPage();
@@ -160,7 +167,11 @@ class EvenAI {
     appLogger.d('[EvenAI] handleRightTouch — intent=${intent.name}');
     switch (intent) {
       case HudIntent.liveListening:
-        _triggerManualQuestionDetection();
+        if (hasActiveAnswer) {
+          GlassesAnswerPresenter.instance.nextPage();
+        } else {
+          _triggerManualQuestionDetection();
+        }
         break;
       case HudIntent.quickAsk:
         GlassesAnswerPresenter.instance.nextPage();

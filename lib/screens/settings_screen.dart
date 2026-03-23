@@ -462,6 +462,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         value: 'gpt-4o-transcribe',
                         child: Text('gpt-4o-transcribe'),
                       ),
+                      DropdownMenuItem(
+                        value: 'whisper-1',
+                        child: Text('whisper-1'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'gpt-4o-mini-realtime',
+                        child: Text('gpt-4o-mini-realtime'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'gpt-4o-realtime',
+                        child: Text('gpt-4o-realtime'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
@@ -524,6 +536,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Open follow-up suggestions when the answer settles',
                 _settings.autoShowFollowUps,
                 (v) => _settings.update((s) => s.autoShowFollowUps = v),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                title: const Text('Max Response Sentences'),
+                subtitle: Text(
+                  '${_settings.maxResponseSentences} sentences per answer on glasses',
+                ),
+                trailing: SizedBox(
+                  width: 160,
+                  child: Slider(
+                    value: _settings.maxResponseSentences.toDouble(),
+                    min: 1,
+                    max: 10,
+                    divisions: 9,
+                    label: '${_settings.maxResponseSentences}',
+                    onChanged: (v) {
+                      setState(() {
+                        _settings.update(
+                          (s) => s.maxResponseSentences = v.round(),
+                        );
+                      });
+                    },
+                  ),
+                ),
               ),
             ]),
             const SizedBox(height: 20),

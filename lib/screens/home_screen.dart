@@ -47,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _hasApiKey = false;
   AssistantQuickAskPreset _selectedPreset = AssistantQuickAskPreset.concise;
   ProviderErrorState? _providerError;
+  String? _factCheckAlert;
   String _assistantProfileId = 'general';
   bool _isOverviewExpanded = false;
 
@@ -55,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
   List<String> _followUpChips = const [];
+  Timer? _transcriptDebounce;
+  TranscriptSnapshot? _pendingSnapshot;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -127,17 +130,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() => _recordingDuration = d);
       }),
       _engine.transcriptSnapshotStream.listen((snapshot) {
-        if (!mounted) return;
-        setState(() {
-          _transcription = snapshot.fullTranscript;
-          _transcriptSource = snapshot.source;
-          _segmentCount = snapshot.finalizedSegments.length;
+        _pendingSnapshot = snapshot;
+        _transcriptDebounce?.cancel();
+        _transcriptDebounce = Timer(const Duration(milliseconds: 150), () {
+          if (!mounted) return;
+          setState(() {
+            _transcription = _pendingSnapshot!.fullTranscript;
+            _transcriptSource = _pendingSnapshot!.source;
+            _segmentCount = _pendingSnapshot!.finalizedSegments.length;
+          });
         });
       }),
       _engine.aiResponseStream.listen((text) {
         if (!mounted) return;
         setState(() {
           _aiResponse = text;
+          if (text.isEmpty) _factCheckAlert = null;
         });
         _scrollToBottom();
       }),
@@ -172,6 +180,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }),
       _engine.questionDetectedStream.listen((q) {
         // Could show a notification or highlight
+      }),
+      _engine.factCheckAlertStream.listen((alert) {
+        if (mounted) {
+          setState(() => _factCheckAlert = alert);
+        }
       }),
       GlassesAnswerPresenter.instance.stateStream.listen((state) {
         if (!mounted) return;
@@ -373,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _transcriptDebounce?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -1365,6 +1379,49 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 onPinResponse: _pinCurrentAnswer,
                 onPinFollowUp: null,
                 onStarInsight: null,
+              ),
+            ],
+            if (_factCheckAlert != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _factCheckAlert!,
+                        style: const TextStyle(
+                          color: Colors.orange,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => setState(() => _factCheckAlert = null),
+                      child: Icon(
+                        Icons.close,
+                        color: Colors.orange.withValues(alpha: 0.6),
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
             if (showFollowUps) ...[

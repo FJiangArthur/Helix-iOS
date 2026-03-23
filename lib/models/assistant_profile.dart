@@ -98,24 +98,10 @@ class AssistantProfile {
 
   String promptDirective({required bool isChinese}) {
     if (isChinese) {
-      return '''
-当前助手档案：
-- 名称：$name
-- 用途：$description
-- 回答风格：$answerStyle
-- 工具偏好：摘要=${showSummaryTool ? '开' : '关'}，追问=${showFollowUps ? '开' : '关'}，核实=${showFactCheck ? '开' : '关'}，行动项=${showActionItems ? '开' : '关'}
-
-请在不改变事实的前提下，优先遵循这个档案的语气、关注点和输出风格。''';
+      return '档案：$name — $answerStyle';
     }
 
-    return '''
-Active assistant profile:
-- Name: $name
-- Purpose: $description
-- Answer style: $answerStyle
-- Tool preferences: summary=${showSummaryTool ? 'on' : 'off'}, follow-ups=${showFollowUps ? 'on' : 'off'}, fact-check=${showFactCheck ? 'on' : 'off'}, action-items=${showActionItems ? 'on' : 'off'}
-
-Keep responses aligned with this profile's tone, priorities, and output style without changing the facts.''';
+    return 'Profile: $name — $answerStyle';
   }
 
   static AssistantProfile fallback([String id = 'general']) {

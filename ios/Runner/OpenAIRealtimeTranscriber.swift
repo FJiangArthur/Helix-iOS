@@ -52,7 +52,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     /// to detect when the OpenAI API stops making progress and needs a reconnect.
     private var lastEmittedPartialText = ""
     private var stalePartialCount = 0
-    private static let stalePartialThreshold = 15  // reconnect after 15 identical partials (~1.5s at 100ms intervals)
+    private static let stalePartialThreshold = 25  // reconnect after 25 identical partials (~2.5s at 100ms intervals)
 
     private let sendIntervalMs: Double = 100
     private let pingIntervalSeconds: TimeInterval = 10

@@ -10,6 +10,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface PcmConverter : NSObject
+-(instancetype)init;
 -(NSMutableData *)decode: (NSData *)lc3data;
 @end
 

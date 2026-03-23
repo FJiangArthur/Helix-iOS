@@ -10,8 +10,10 @@ import 'proto.dart';
 import 'glasses_protocol.dart';
 import 'llm/llm_service.dart';
 import 'llm/llm_provider.dart';
+import 'conversation_listening_session.dart';
 import 'settings_manager.dart';
 import 'text_service.dart';
+import 'evenai.dart';
 import '../ble_manager.dart';
 
 /// Drives the conversation intelligence pipeline:
@@ -53,6 +55,12 @@ class ConversationEngine {
   static const int _responseFlushThreshold = 14;
   bool _silenceSuggestionSent = false;
   String _realtimeResponseBuffer = '';
+  String _lastEmittedSnapshot = '';
+  String _lastEmittedPartial = '';
+  DateTime? _silenceTimerTarget;
+  DateTime? _analysisTimerTarget;
+  DateTime? _lastGlassesFlush;
+  static const _minFlushInterval = Duration(milliseconds: 200);
 
   // Progressive sentence finalization: track how many complete sentences
   // from the current Apple recognition segment we've already finalized.
@@ -84,6 +92,7 @@ class ConversationEngine {
       StreamController<ProviderErrorState?>.broadcast();
   final _postConversationController =
       StreamController<Map<String, dynamic>?>.broadcast();
+  final _factCheckAlertController = StreamController<String>.broadcast();
   ProviderErrorState? _lastProviderError;
 
   /// System prompt for the current mode and language, used by realtime sessions.
@@ -108,6 +117,8 @@ class ConversationEngine {
       _providerErrorController.stream;
   Stream<Map<String, dynamic>?> get postConversationAnalysisStream =>
       _postConversationController.stream;
+  Stream<String> get factCheckAlertStream =>
+      _factCheckAlertController.stream;
 
   ConversationMode get mode => _mode;
   bool get isActive => _isActive;
@@ -165,6 +176,8 @@ class ConversationEngine {
     _latestQuestionDetection = null;
     _currentTranscription = '';
     _partialTranscription = '';
+    _lastEmittedSnapshot = '';
+    _lastEmittedPartial = '';
     _segmentSentencesFinalized = 0;
     _finalizedSegments.clear();
     _clearProviderError();
@@ -182,6 +195,8 @@ class ConversationEngine {
     _analysisTimer?.cancel();
     _silenceTimer?.cancel();
     _segmentSentencesFinalized = 0;
+    _lastEmittedSnapshot = '';
+    _lastEmittedPartial = '';
     _clearProviderError();
     _statusController.add(EngineStatus.idle);
     appLogger.i('ConversationEngine stopped');
@@ -220,6 +235,9 @@ class ConversationEngine {
 
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
+
+    // Clear active answer flag so touchpad reverts to pause/analyze
+    EvenAI.hasActiveAnswer = false;
 
     // Split by sentence boundaries and progressively finalize complete ones.
     // Wrapped in try-catch so a regex or split issue can never kill the
@@ -373,10 +391,25 @@ class ConversationEngine {
   // Feature 1: Proactive Suggestions (silence detection)
   // ---------------------------------------------------------------------------
 
-  /// Reset the silence timer; fires after 5s of no new transcription
+  /// Reset the silence timer; fires after 5s of no new transcription.
+  /// Reuses the running timer to avoid cancel/recreate churn (called 5-10x/sec).
   void _resetSilenceTimer() {
-    _silenceTimer?.cancel();
-    _silenceTimer = Timer(_silenceThreshold, _onSilenceDetected);
+    final newTarget = DateTime.now().add(_silenceThreshold);
+    if (_silenceTimer?.isActive == true) {
+      _silenceTimerTarget = newTarget;
+      return;
+    }
+    _silenceTimerTarget = newTarget;
+    _silenceTimer = Timer(_silenceThreshold, _onSilenceCheck);
+  }
+
+  void _onSilenceCheck() {
+    final remaining = _silenceTimerTarget!.difference(DateTime.now());
+    if (remaining > Duration.zero) {
+      _silenceTimer = Timer(remaining, _onSilenceCheck);
+      return;
+    }
+    _onSilenceDetected();
   }
 
   /// Called when no transcription update has arrived for [_silenceThreshold]
@@ -731,8 +764,43 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
     }
   }
 
+  Future<void> _backgroundFactCheck(String answer) async {
+    if (answer.trim().length < 20) return; // too short to fact-check
+
+    final llmService = _getLlmService();
+    if (llmService == null) return;
+
+    final isChinese = _language == 'zh';
+    final prompt = isChinese
+        ? '检查以下回答的事实准确性。如果所有内容正确，只回复"OK"。如果有错误，用一句话说明纠正。\n\n$answer'
+        : 'Check this answer for factual accuracy. If all claims are correct, respond with just "OK". If any claim is wrong, state the correction in one sentence.\n\n$answer';
+
+    try {
+      final response = await llmService.getResponse(
+        systemPrompt: isChinese
+            ? '你是事实核查员。只回复"OK"或一句纠正。'
+            : 'You are a fact checker. Reply only with "OK" or a one-sentence correction.',
+        messages: [ChatMessage(role: 'user', content: prompt)],
+      );
+
+      final trimmed = response.trim();
+      if (trimmed.toUpperCase() != 'OK' && trimmed.isNotEmpty) {
+        appLogger.d('[FactCheck] Correction: $trimmed');
+        _factCheckAlertController.add(trimmed);
+      }
+    } catch (e) {
+      appLogger.d('Background fact-check failed: $e');
+    }
+  }
+
   void _emitTranscriptSnapshot() {
     _currentTranscription = _composeFullTranscript();
+    if (_currentTranscription == _lastEmittedSnapshot &&
+        _partialTranscription == _lastEmittedPartial) {
+      return; // nothing changed
+    }
+    _lastEmittedSnapshot = _currentTranscription;
+    _lastEmittedPartial = _partialTranscription;
     final snapshot = TranscriptSnapshot(
       source: _transcriptSource,
       partialText: _partialTranscription,
@@ -762,16 +830,27 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
     if (SettingsManager.instance.usesOpenAIRealtimeSession) return;
 
     final token = ++_analysisToken;
-    _analysisTimer?.cancel();
+
     if (immediate) {
+      _analysisTimer?.cancel();
       _analyzeRecentTranscriptWindow(token);
       return;
     }
 
-    _analysisTimer = Timer(
-      const Duration(milliseconds: 1500),
-      () => _analyzeRecentTranscriptWindow(token),
-    );
+    final newTarget = DateTime.now().add(const Duration(milliseconds: 1500));
+    if (_analysisTimer?.isActive == true) {
+      _analysisTimerTarget = newTarget;
+      return;
+    }
+    _analysisTimerTarget = newTarget;
+    _analysisTimer = Timer(const Duration(milliseconds: 1500), () {
+      final remaining = _analysisTimerTarget!.difference(DateTime.now());
+      if (remaining > const Duration(milliseconds: 100)) {
+        _analysisTimer = Timer(remaining, () => _analyzeRecentTranscriptWindow(token));
+        return;
+      }
+      _analyzeRecentTranscriptWindow(token);
+    });
   }
 
   String _buildRecentTranscriptWindow() {
@@ -870,12 +949,19 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
       _aiResponseController.add('');
       if (autoAnswerQuestions) {
+        final session = ConversationListeningSession.instance;
+        final shouldPause = session.isRunning;
+        if (shouldPause) session.pauseTranscription();
         final responseToken = _beginResponseCycle();
         _statusController.add(EngineStatus.thinking);
-        await _generateResponse(
-          detection.question,
-          responseToken: responseToken,
-        );
+        try {
+          await _generateResponse(
+            detection.question,
+            responseToken: responseToken,
+          );
+        } finally {
+          if (shouldPause) session.resumeTranscription();
+        }
       }
     } catch (error) {
       appLogger.e('Failed to analyze transcript window', error: error);
@@ -1065,6 +1151,7 @@ $profileInstruction''';
       return;
     }
     Timer? flushTimer;
+    _lastGlassesFlush = null; // reset rate limit for new response
     try {
       if (!_isResponseCurrent(responseToken)) return;
       _statusController.add(EngineStatus.responding);
@@ -1105,6 +1192,7 @@ $profileInstruction''';
 
           pendingDelta = '';
           _aiResponseController.add(responseText);
+          _lastGlassesFlush = DateTime.now();
 
           if (glassesConnected) {
             await _streamToGlasses(responseText, isStreaming: true);
@@ -1151,9 +1239,10 @@ $profileInstruction''';
         return;
       }
 
-      // Send final page to glasses
+      // Send final page to glasses and enable touchpad scrolling
       if (glassesConnected) {
         await _streamToGlasses(responseText, isStreaming: false);
+        EvenAI.hasActiveAnswer = true;
       }
 
       final finalResponse = responseText;
@@ -1178,6 +1267,9 @@ $profileInstruction''';
 
       // Generate smart follow-up chips after response completes
       _generateFollowUpChips(finalResponse);
+
+      // Background fact-check (non-blocking)
+      unawaited(_backgroundFactCheck(finalResponse));
     } catch (e) {
       if (!_isResponseCurrent(responseToken)) {
         return;
@@ -1198,6 +1290,13 @@ $profileInstruction''';
 
   bool _shouldFlushBufferedResponse(String pendingDelta) {
     if (pendingDelta.isEmpty) return false;
+
+    // Rate-limit BLE writes to avoid saturating the connection
+    if (_lastGlassesFlush != null &&
+        DateTime.now().difference(_lastGlassesFlush!) < _minFlushInterval) {
+      return false;
+    }
+
     if (pendingDelta.length >= _responseFlushThreshold) {
       return true;
     }
@@ -1257,98 +1356,46 @@ $profileInstruction''';
     final profileInstruction = _activeAssistantProfile().promptDirective(
       isChinese: isChinese,
     );
+    final maxSentences = SettingsManager.instance.maxResponseSentences;
 
     late final String basePrompt;
     switch (_mode) {
       case ConversationMode.interview:
         if (isChinese) {
-          basePrompt = '''你是一位显示在智能眼镜上的精英面试教练。你的任务是帮助用户出色地回答面试问题。
+          basePrompt = '''你是智能眼镜上的面试教练。直接给出用户应该说的话。
 
-回答格式：
-- **核心观点**：要传达的主要信息（1句话）
-- **STAR框架**：
-  - S（情境）：简要背景描述
-  - T（任务）：你负责什么
-  - A（行动）：你采取的具体步骤
-- R（结果）：可量化的成果
-- **关键词**：3-4个有力的动词（领导、优化、交付等）
-
-回答控制在100字以内。用户需要快速浏览你的回答然后自然地表达。简洁有力，直接可行。''';
+规则：最多$maxSentences句话。直接输出应说的内容，禁止说"你可以说"或"建议回答"。只用可以直接开口说的自然语言。''';
         } else {
           basePrompt =
-              '''You are an elite interview coach displayed on smart glasses during a live interview. Your job is to help the user answer interview questions brilliantly.
+              '''You are an interview coach on smart glasses. Output exactly what the user should say.
 
-FORMAT YOUR RESPONSES AS:
-- **Key Point**: The main message to convey (1 sentence)
-- **STAR Framework**:
-  - S (Situation): Brief context to set up
-  - T (Task): What you were responsible for
-  - A (Action): Specific steps you took
-- R (Result): Measurable outcome
-- **Power Words**: 3-4 strong verbs to use (led, optimized, delivered, etc.)
-
-Keep responses under 100 words. The user needs to glance at your response and speak naturally. No fluff. Be direct and actionable. Focus on what to say RIGHT NOW.''';
+Rules: Max $maxSentences sentences. Never write "you could say" or "try saying" — output the answer directly as speakable text.''';
         }
         break;
 
       case ConversationMode.passive:
         if (isChinese) {
-          basePrompt = '''你是一个显示在智能眼镜上的实时对话智能助手。你在后台默默监听对话，在能提供价值时介入。
+          basePrompt = '''你是智能眼镜上的对话助手，默默监听并在有用时介入。
 
-你的角色：
-- 准确简洁地回答事实性问题
-- 建议后续话题以保持对话有趣
-- 在话题允许时提供相关背景或数据
-- 当有人说了事实性错误时委婉地指出
-
-每次回答最多1-2句话。只在真正有用时发言。质量优于数量。''';
+规则：最多$maxSentences句话。直接陈述事实或纠正。禁止说"你可以说"。不废话，不加前缀。''';
         } else {
           basePrompt =
-              '''You are a real-time conversation intelligence assistant displayed on smart glasses. You silently monitor conversations and jump in when you can add value.
+              '''You are a conversation assistant on smart glasses, silently listening and chiming in when useful.
 
-YOUR ROLE:
-- Answer factual questions accurately and briefly
-- Suggest follow-up questions to keep conversations interesting
-- Provide relevant context or data when the topic allows it
-- Flag when someone says something factually incorrect (diplomatically suggest the correction)
-
-Keep responses to 1-2 sentences MAX. Only speak when you have something genuinely useful to add. Quality over quantity. The user should feel like having a brilliant friend whispering in their ear.''';
+Rules: Max $maxSentences sentences. State facts or corrections directly. Never write "you could say" or any preamble. No filler.''';
         }
         break;
 
       case ConversationMode.general:
         if (isChinese) {
-          basePrompt =
-              '''你是Even Companion，一个显示在智能眼镜上的对话智能伙伴。你帮助人们进行更好的对话——更有趣、更吸引人、更令人难忘。
+          basePrompt = '''你是智能眼镜上的对话伙伴，帮助用户进行更好的对话。
 
-你的能力：
-- 用简短、准确、对话式的方式回答问题
-- 当对话停滞时建议有趣的后续话题
-- 提供快速的事实、数据或背景来丰富讨论
-- 帮助清晰有力地表达想法
-- 被问到时提供开场白和破冰话题
-
-风格规则：
-- 每次回答最多2-3句话（显示在小HUD上）
-- 温暖、机智、像人一样——不要像机器人
-- 建议用户说的话时，使用可以直接说出来的自然语言
-- 优先考虑有用性而非全面性''';
+规则：最多$maxSentences句话。直接给出答案，禁止说"你可以说"或"这是建议"。用自然口语，不用列表格式。''';
         } else {
           basePrompt =
-              '''You are Even Companion, a conversation intelligence companion displayed on smart glasses. You help people have better conversations — more interesting, more engaging, more memorable.
+              '''You are a conversation companion on smart glasses helping the user have better conversations.
 
-YOUR SUPERPOWERS:
-- Answer questions with brief, accurate, conversational responses
-- Suggest interesting follow-up topics when conversation stalls
-- Provide quick facts, data, or context to enrich discussions
-- Help articulate ideas clearly and persuasively
-- Offer conversation starters and icebreakers when asked
-
-STYLE RULES:
-- Max 2-3 sentences per response (it displays on a small HUD)
-- Be warm, witty, and human — not robotic
-- When suggesting what to say, use natural language the user can speak directly
-- Prioritize being helpful over being comprehensive''';
+Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here's a suggestion". Use natural spoken language, no lists or formatting.''';
         }
         break;
     }
@@ -1455,6 +1502,8 @@ STYLE RULES:
     _history.clear();
     _currentTranscription = '';
     _partialTranscription = '';
+    _lastEmittedSnapshot = '';
+    _lastEmittedPartial = '';
     _finalizedSegments.clear();
     _lastHandledQuestionKey = '';
     _latestQuestionDetection = null;
