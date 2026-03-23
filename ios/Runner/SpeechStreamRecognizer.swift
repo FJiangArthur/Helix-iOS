@@ -43,6 +43,10 @@ class SpeechStreamRecognizer {
     /// can detect they are stale and skip cleanup that would destroy the new task.
     private var recognitionGeneration: Int = 0
     var isPaused = false
+    /// Callback for streaming PCM audio output from OpenAI Realtime voice responses.
+    var onRealtimeAudioOutput: ((Data) -> Void)?
+    /// Callback when a voice response audio stream completes.
+    var onRealtimeAudioDone: (() -> Void)?
     private var isInputTapInstalled = false
     private var segmentRestartTimer: Timer?
     private static let segmentRestartInterval: TimeInterval = 15  // restart recognition every 15s to prevent degradation
@@ -129,6 +133,7 @@ class SpeechStreamRecognizer {
         model: String? = nil,
         realtimeConversation: Bool = false,
         systemPrompt: String? = nil,
+        voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         log("Starting recognition language=\(identifier) source=\(source) backend=\(backend.rawValue)")
@@ -150,6 +155,7 @@ class SpeechStreamRecognizer {
                 model: model ?? "gpt-4o-mini-transcribe",
                 realtimeConversation: realtimeConversation,
                 systemPrompt: systemPrompt,
+                voice: voice,
                 completion: completion
             )
             return
@@ -379,6 +385,7 @@ class SpeechStreamRecognizer {
         model: String,
         realtimeConversation: Bool = false,
         systemPrompt: String? = nil,
+        voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         lastRecognizedText = ""
@@ -401,6 +408,12 @@ class SpeechStreamRecognizer {
         openaiTranscriber.onResponse = { [weak self] text, isFinal in
             self?.emitAIResponse(text, isFinal: isFinal)
         }
+        openaiTranscriber.onAudioOutput = { [weak self] audioData in
+            self?.onRealtimeAudioOutput?(audioData)
+        }
+        openaiTranscriber.onAudioOutputDone = { [weak self] in
+            self?.onRealtimeAudioDone?()
+        }
 
         let langMap: [String: String] = [
             "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
@@ -409,7 +422,7 @@ class SpeechStreamRecognizer {
         let lang = langMap[identifier] ?? "en"
 
         let mode: RealtimeMode = realtimeConversation ? .conversation : .transcriptionOnly
-        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang, mode: mode, systemPrompt: systemPrompt ?? "") { [weak self] result in
+        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang, mode: mode, systemPrompt: systemPrompt ?? "", voice: voice) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success:

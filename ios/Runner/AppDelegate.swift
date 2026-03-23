@@ -7,6 +7,7 @@ import Speech
 @main
 @objc class AppDelegate: FlutterAppDelegate {
     private var speechEventSink: FlutterEventSink?
+    private var realtimeAudioEventSink: FlutterEventSink?
 
     override func application(
         _ application: UIApplication,
@@ -56,6 +57,7 @@ import Speech
                 let apiKey = args["apiKey"] as? String
                 let model = args["model"] as? String
                 let systemPrompt = args["systemPrompt"] as? String
+                let voice = args["voice"] as? String ?? "alloy"
                 let realtimeConversation =
                     sessionMode == "realtime" || backendStr == "openaiRealtime"
 
@@ -76,7 +78,8 @@ import Speech
                     apiKey: apiKey,
                     model: model,
                     realtimeConversation: realtimeConversation,
-                    systemPrompt: systemPrompt
+                    systemPrompt: systemPrompt,
+                    voice: voice
                 ) { startResult in
                     switch startResult {
                     case .success:
@@ -135,7 +138,30 @@ import Speech
         
         let speechEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: controller.binaryMessenger)
         speechEvent.setStreamHandler(self)
-        
+
+        let realtimeAudioEvent = FlutterEventChannel(name: "eventRealtimeAudio", binaryMessenger: controller.binaryMessenger)
+        realtimeAudioEvent.setStreamHandler(self)
+
+        // Wire up OpenAI Realtime audio output to the event channel
+        SpeechStreamRecognizer.shared.onRealtimeAudioOutput = { [weak self] audioData in
+            self?.realtimeAudioEventSink?(FlutterStandardTypedData(bytes: audioData))
+        }
+        SpeechStreamRecognizer.shared.onRealtimeAudioDone = { [weak self] in
+            self?.realtimeAudioEventSink?(["event": "done"])
+        }
+
+        // EventKit channel (Calendar + Reminders)
+        let eventKitChannel = FlutterMethodChannel(name: "method.eventkit", binaryMessenger: controller.binaryMessenger)
+        eventKitChannel.setMethodCallHandler { (call, result) in
+            EventKitChannel.shared.handle(call, result: result)
+        }
+
+        // HealthKit channel (Steps)
+        let healthKitChannel = FlutterMethodChannel(name: "method.healthkit", binaryMessenger: controller.binaryMessenger)
+        healthKitChannel.setMethodCallHandler { (call, result) in
+            HealthKitChannel.shared.handle(call, result: result)
+        }
+
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
@@ -171,16 +197,20 @@ extension AppDelegate : FlutterStreamHandler {
         } else if (arguments as? String == "eventSpeechRecognize") {
             speechEventSink = events
             SpeechStreamRecognizer.shared.attachEventSink(events)
+        } else if (arguments as? String == "eventRealtimeAudio") {
+            realtimeAudioEventSink = events
         }
         return nil
     }
-    
+
     func onCancel(withArguments arguments: Any?) -> FlutterError? {
         if (arguments as? String == "eventBleReceive") {
             BluetoothManager.shared.blueInfoSink = nil
         } else if (arguments as? String == "eventSpeechRecognize") {
             speechEventSink = nil
             SpeechStreamRecognizer.shared.detachEventSink()
+        } else if (arguments as? String == "eventRealtimeAudio") {
+            realtimeAudioEventSink = nil
         }
         return nil
     }

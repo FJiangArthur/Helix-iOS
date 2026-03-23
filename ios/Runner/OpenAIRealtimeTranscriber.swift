@@ -25,6 +25,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     var onTranscriptWithId: ((String, Bool, String?) -> Void)?
     var onResponse: ((String, Bool) -> Void)?
     var onError: ((String) -> Void)?
+    var onAudioOutput: ((Data) -> Void)?
+    var onAudioOutputDone: (() -> Void)?
 
     var isActive: Bool { webSocketTask != nil }
 
@@ -40,6 +42,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var model: String = "gpt-4o-mini-transcribe"
     private var language: String = "en"
     private var mode: RealtimeMode = .transcriptionOnly
+    private var voice: String = "alloy"
     private var systemInstructions: String = ""
     private var lastRecognizedText = ""
     private var currentTranscriptItemID: String?
@@ -90,7 +93,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             return [
                 "type": "session.update",
                 "session": [
-                    "modalities": ["text"],
+                    "modalities": ["text", "audio"],
+                    "voice": voice,
+                    "output_audio_format": "pcm16",
                     "instructions": systemInstructions,
                     "input_audio_format": "pcm16",
                     "input_audio_transcription": [
@@ -114,6 +119,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         language: String,
         mode: RealtimeMode = .transcriptionOnly,
         systemPrompt: String = "",
+        voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         guard !apiKey.isEmpty else {
@@ -125,6 +131,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         self.model = model
         self.language = language
         self.mode = mode
+        self.voice = voice
         self.systemInstructions = systemPrompt
         self.retryCount = 0
         self.lastRecognizedText = ""
@@ -498,6 +505,19 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         case "response.text.done":
             DispatchQueue.main.async {
                 self.onResponse?("", true)
+            }
+
+        case "response.audio.delta":
+            if let delta = json["delta"] as? String,
+               let audioData = Data(base64Encoded: delta) {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onAudioOutput?(audioData)
+                }
+            }
+
+        case "response.audio.done":
+            DispatchQueue.main.async { [weak self] in
+                self?.onAudioOutputDone?()
             }
 
         case "error":

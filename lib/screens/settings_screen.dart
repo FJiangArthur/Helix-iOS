@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/assistant_profile.dart';
+import '../services/hud_widget_registry.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../widgets/glass_card.dart';
+import 'hud_widgets_screen.dart';
 
 const _automaticModelSelection = '__provider_default__';
 const _providerDisplayOrder = [
@@ -594,6 +596,61 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settings.hudBrightness,
                 (v) => _settings.update((s) => s.hudBrightness = v),
               ),
+            ]),
+            const SizedBox(height: 20),
+            _buildSection('HUD Widgets', Icons.dashboard_customize, [
+              Text(
+                'Customize what appears on your glasses dashboard when you tilt your head up.',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Manage Widgets',
+                  style: TextStyle(color: Colors.white),
+                ),
+                subtitle: Text(
+                  '${_settings.hudWidgetConfigs.where((c) => c.enabled).length} widgets · ${HudWidgetRegistry.instance.pageCount} pages',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.5),
+                    fontSize: 12,
+                  ),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right,
+                  color: Colors.white.withValues(alpha: 0.5),
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HudWidgetsScreen(),
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 20),
+            _buildSection('AI Tools', Icons.build_circle_outlined, [
+              _buildToggle(
+                'Web Search',
+                'Allow AI to search the web for fact-checking',
+                _settings.webSearchEnabled,
+                (v) => _settings.update((s) => s.webSearchEnabled = v),
+              ),
+              const SizedBox(height: 8),
+              _buildToggle(
+                'Voice Responses',
+                'AI speaks answers through phone speaker',
+                _settings.voiceResponseEnabled,
+                (v) => _settings.update((s) => s.voiceResponseEnabled = v),
+              ),
+              if (_settings.voiceResponseEnabled) ...[
+                const SizedBox(height: 8),
+                _buildVoiceSelector(),
+              ],
             ]),
             const SizedBox(height: 20),
             _buildSection('About', Icons.info_outline, [
@@ -1608,6 +1665,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
         ),
       ],
+    );
+  }
+
+  Widget _buildVoiceSelector() {
+    const voices = [
+      ('alloy', 'Alloy'),
+      ('echo', 'Echo'),
+      ('fable', 'Fable'),
+      ('onyx', 'Onyx'),
+      ('nova', 'Nova'),
+      ('shimmer', 'Shimmer'),
+    ];
+    final selected = _settings.voiceAssistantVoice;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: voices.map((v) {
+        final isSelected = v.$1 == selected;
+        return _buildSelectionChip(
+          label: v.$2,
+          isSelected: isSelected,
+          onTap: () => _settings.update((s) => s.voiceAssistantVoice = v.$1),
+        );
+      }).toList(),
     );
   }
 

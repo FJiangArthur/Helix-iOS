@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/assistant_profile.dart';
+import '../models/hud_widget_config.dart';
 
 /// Singleton service that persists all app settings.
 ///
@@ -121,6 +122,22 @@ class SettingsManager {
   bool dashboardTiltEnabled = true;
 
   // ---------------------------------------------------------------------------
+  // HUD Widget Settings
+  // ---------------------------------------------------------------------------
+
+  /// Ordered list of widget configurations for the HUD dashboard.
+  List<HudWidgetConfig> hudWidgetConfigs = HudWidgetConfig.defaults;
+
+  /// Whether AI responses can use web search for fact-checking.
+  bool webSearchEnabled = true;
+
+  /// Whether voice responses are enabled (OpenAI Realtime audio output).
+  bool voiceResponseEnabled = false;
+
+  /// Voice for OpenAI Realtime audio output.
+  String voiceAssistantVoice = 'alloy';
+
+  // ---------------------------------------------------------------------------
   // UI Settings
   // ---------------------------------------------------------------------------
 
@@ -197,6 +214,12 @@ class SettingsManager {
     displayMode = prefs.getString('displayMode') ?? 'standard';
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
 
+    // HUD Widgets
+    hudWidgetConfigs = _restoreWidgetConfigs(prefs.getString('hudWidgetConfigs'));
+    webSearchEnabled = prefs.getBool('webSearchEnabled') ?? true;
+    voiceResponseEnabled = prefs.getBool('voiceResponseEnabled') ?? false;
+    voiceAssistantVoice = prefs.getString('voiceAssistantVoice') ?? 'alloy';
+
     // UI
     theme = prefs.getString('theme') ?? 'dark';
   }
@@ -259,6 +282,15 @@ class SettingsManager {
     await prefs.setString('displayMode', displayMode);
     await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
 
+    // HUD Widgets
+    await prefs.setString(
+      'hudWidgetConfigs',
+      jsonEncode(hudWidgetConfigs.map((c) => c.toMap()).toList()),
+    );
+    await prefs.setBool('webSearchEnabled', webSearchEnabled);
+    await prefs.setBool('voiceResponseEnabled', voiceResponseEnabled);
+    await prefs.setString('voiceAssistantVoice', voiceAssistantVoice);
+
     // UI
     await prefs.setString('theme', theme);
 
@@ -291,6 +323,20 @@ class SettingsManager {
     }
     _assistantProfiles = AssistantProfile.normalize(nextProfiles);
     await save();
+  }
+
+  List<HudWidgetConfig> _restoreWidgetConfigs(String? raw) {
+    if (raw == null || raw.isEmpty) return HudWidgetConfig.defaults;
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      final configs = decoded
+          .whereType<Map<String, dynamic>>()
+          .map(HudWidgetConfig.fromMap)
+          .toList();
+      return configs.isEmpty ? HudWidgetConfig.defaults : configs;
+    } catch (_) {
+      return HudWidgetConfig.defaults;
+    }
   }
 
   List<AssistantProfile> _restoreAssistantProfiles(String? raw) {

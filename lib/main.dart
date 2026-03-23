@@ -2,6 +2,15 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'ble_manager.dart';
+import 'services/hud_widget_registry.dart';
+import 'services/hud_widgets/battery_widget.dart';
+import 'services/hud_widgets/calendar_widget.dart';
+import 'services/hud_widgets/clock_widget.dart';
+import 'services/hud_widgets/news_widget.dart';
+import 'services/hud_widgets/reminders_widget.dart';
+import 'services/hud_widgets/steps_widget.dart';
+import 'services/hud_widgets/todos_widget.dart';
+import 'services/hud_widgets/weather_widget.dart';
 import 'services/llm/llm_service.dart';
 import 'services/settings_manager.dart';
 import 'services/conversation_engine.dart';
@@ -16,6 +25,9 @@ void main() async {
   // Initialize BLE manager
   _initializeBleManager();
 
+  // Initialize HUD widget registry (before dashboard service)
+  await _initializeHudWidgets();
+
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
 
@@ -23,6 +35,19 @@ void main() async {
   await DashboardService.instance.initialize();
 
   runApp(const HelixApp());
+}
+
+Future<void> _initializeHudWidgets() async {
+  final registry = HudWidgetRegistry.instance;
+  registry.register(ClockWidget());
+  registry.register(CalendarWidget());
+  registry.register(WeatherWidget());
+  registry.register(RemindersWidget());
+  registry.register(TodosWidget());
+  registry.register(NewsWidget());
+  registry.register(StepsWidget());
+  registry.register(BatteryWidget());
+  await registry.initialize();
 }
 
 void _initializeBleManager() {

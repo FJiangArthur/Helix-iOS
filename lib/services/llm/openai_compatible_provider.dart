@@ -102,18 +102,25 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     required String model,
     required double temperature,
     required bool stream,
+    List<ToolDefinition>? tools,
   }) {
     final allMessages = <Map<String, dynamic>>[
       {'role': 'system', 'content': systemPrompt},
       ...messages.map((m) => m.toJson()),
     ];
 
-    return {
+    final body = <String, dynamic>{
       'model': model,
       'messages': allMessages,
       'temperature': temperature,
       'stream': stream,
     };
+
+    if (tools != null && tools.isNotEmpty) {
+      body['tools'] = tools.map((t) => t.toJson()).toList();
+    }
+
+    return body;
   }
 
   @override
@@ -338,6 +345,205 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       return false;
     } finally {
       client?.close();
+    }
+  }
+
+  @override
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    // If no tools provided, fall back to wrapping streamResponse as TextDelta.
+    if (tools == null || tools.isEmpty) {
+      await for (final chunk in streamResponse(
+        systemPrompt: systemPrompt,
+        messages: messages,
+        model: model,
+        temperature: temperature,
+      )) {
+        yield TextDelta(chunk);
+      }
+      return;
+    }
+
+    if ((apiKey ?? '').trim().isEmpty) {
+      yield TextDelta('[Error] Missing API key for $name');
+      return;
+    }
+
+    final selectedModel = model ?? defaultModel;
+    final body = buildRequestBody(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: selectedModel,
+      temperature: temperature,
+      stream: true,
+      tools: tools,
+    );
+    final headers = buildHeaders();
+    final url = '$baseUrl/chat/completions';
+
+    HttpClient? client;
+    try {
+      client = HttpClient();
+      final uri = Uri.parse(url);
+      final request = await client.postUrl(uri);
+
+      for (final entry in headers.entries) {
+        request.headers.set(entry.key, entry.value);
+      }
+      request.headers.contentType = ContentType.json;
+
+      request.write(jsonEncode(body));
+      final response = await request.close();
+
+      if (response.statusCode != 200) {
+        final errorBody = await response.transform(utf8.decoder).join();
+        yield TextDelta('[Error] HTTP ${response.statusCode}: $errorBody');
+        return;
+      }
+
+      yield* _parseSseStreamWithTools(response);
+    } on SocketException catch (e) {
+      yield TextDelta('[Error] Network error: ${e.message}');
+    } on HttpException catch (e) {
+      yield TextDelta('[Error] HTTP error: ${e.message}');
+    } catch (e) {
+      yield TextDelta('[Error] Unexpected error: $e');
+    } finally {
+      client?.close();
+    }
+  }
+
+  /// Parse SSE stream, emitting TextDelta and ToolCallRequest events.
+  Stream<LlmResponseEvent> _parseSseStreamWithTools(
+    HttpClientResponse response,
+  ) async* {
+    // Accumulators for tool calls, keyed by index.
+    final toolCallIds = <int, String>{};
+    final toolCallNames = <int, String>{};
+    final toolCallArgs = <int, StringBuffer>{};
+
+    var lineBuffer = '';
+
+    await for (final chunk in response.transform(utf8.decoder)) {
+      lineBuffer += chunk;
+      final lines = lineBuffer.split('\n');
+      lineBuffer = lines.removeLast();
+
+      for (final line in lines) {
+        final trimmed = line.trim();
+        if (trimmed.isEmpty || !trimmed.startsWith('data: ')) continue;
+
+        final data = trimmed.substring(6);
+        if (data == '[DONE]') {
+          // Emit any accumulated tool calls.
+          yield* _emitPendingToolCalls(
+            toolCallIds, toolCallNames, toolCallArgs,
+          );
+          return;
+        }
+
+        try {
+          final json = jsonDecode(data) as Map<String, dynamic>;
+          final choices = json['choices'] as List<dynamic>?;
+          if (choices == null || choices.isEmpty) continue;
+
+          final choice = choices[0] as Map<String, dynamic>;
+          final delta = choice['delta'] as Map<String, dynamic>?;
+          if (delta == null) {
+            // finish_reason present with no delta means stream ending.
+            continue;
+          }
+
+          // Handle text content.
+          final content = delta['content'] as String?;
+          if (content != null && content.isNotEmpty) {
+            yield TextDelta(content);
+          }
+
+          // Handle tool calls.
+          final toolCalls = delta['tool_calls'] as List<dynamic>?;
+          if (toolCalls != null) {
+            for (final tc in toolCalls) {
+              final tcMap = tc as Map<String, dynamic>;
+              final index = tcMap['index'] as int? ?? 0;
+              final id = tcMap['id'] as String?;
+              final function = tcMap['function'] as Map<String, dynamic>?;
+
+              if (id != null) {
+                toolCallIds[index] = id;
+              }
+              if (function != null) {
+                final fnName = function['name'] as String?;
+                if (fnName != null) {
+                  toolCallNames[index] = fnName;
+                }
+                final fnArgs = function['arguments'] as String?;
+                if (fnArgs != null) {
+                  toolCallArgs.putIfAbsent(index, () => StringBuffer());
+                  toolCallArgs[index]!.write(fnArgs);
+                }
+              }
+            }
+          }
+        } on FormatException {
+          continue;
+        }
+      }
+    }
+
+    // Process remaining buffer.
+    if (lineBuffer.trim().isNotEmpty) {
+      final trimmed = lineBuffer.trim();
+      if (trimmed.startsWith('data: ')) {
+        final data = trimmed.substring(6);
+        if (data != '[DONE]') {
+          try {
+            final json = jsonDecode(data) as Map<String, dynamic>;
+            final choices = json['choices'] as List<dynamic>?;
+            if (choices != null && choices.isNotEmpty) {
+              final delta =
+                  (choices[0] as Map<String, dynamic>)['delta']
+                      as Map<String, dynamic>?;
+              final content = delta?['content'] as String?;
+              if (content != null && content.isNotEmpty) {
+                yield TextDelta(content);
+              }
+            }
+          } on FormatException {
+            // Skip malformed JSON
+          }
+        }
+      }
+    }
+
+    // Emit any remaining tool calls.
+    yield* _emitPendingToolCalls(toolCallIds, toolCallNames, toolCallArgs);
+  }
+
+  /// Emit ToolCallRequest events for all accumulated tool calls.
+  Stream<LlmResponseEvent> _emitPendingToolCalls(
+    Map<int, String> ids,
+    Map<int, String> names,
+    Map<int, StringBuffer> args,
+  ) async* {
+    for (final index in names.keys) {
+      final id = ids[index] ?? 'call_$index';
+      final name = names[index] ?? '';
+      final rawArgs = args[index]?.toString() ?? '{}';
+
+      Map<String, dynamic> parsedArgs;
+      try {
+        parsedArgs = jsonDecode(rawArgs) as Map<String, dynamic>;
+      } catch (_) {
+        parsedArgs = {};
+      }
+
+      yield ToolCallRequest(id: id, name: name, arguments: parsedArgs);
     }
   }
 }

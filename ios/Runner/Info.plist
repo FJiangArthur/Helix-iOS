@@ -36,6 +36,14 @@
 	<string>Even Companion needs microphone access to record audio.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Even Companion needs speech recognition to transcribe conversations for AI analysis.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Helix shows your upcoming events on your glasses</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Helix shows your reminders on your glasses</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Helix shows your step count on your glasses</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Helix uses your location for local weather</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

@@ -89,6 +89,24 @@ class FakeJsonProvider implements LlmProvider {
 
   @override
   void updateApiKey(String apiKey) {}
+
+  @override
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    await for (final chunk in streamResponse(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: model,
+      temperature: temperature,
+    )) {
+      yield TextDelta(chunk);
+    }
+  }
 }
 
 void main() {
@@ -1556,6 +1574,24 @@ class _PromptCapturingProvider implements LlmProvider {
 
   @override
   void updateApiKey(String apiKey) {}
+
+  @override
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    await for (final chunk in streamResponse(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: model,
+      temperature: temperature,
+    )) {
+      yield TextDelta(chunk);
+    }
+  }
 }
 
 /// A provider that always throws to simulate LLM failures.
@@ -1605,4 +1641,15 @@ class _FailingProvider implements LlmProvider {
 
   @override
   void updateApiKey(String apiKey) {}
+
+  @override
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    throw Exception('Simulated LLM failure');
+  }
 }

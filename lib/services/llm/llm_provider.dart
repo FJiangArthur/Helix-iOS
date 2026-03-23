@@ -47,6 +47,25 @@ abstract class LlmProvider {
 
   /// Test if the API key is valid by making a lightweight request.
   Future<bool> testConnection(String apiKey);
+
+  /// Stream response with optional tool calling.
+  /// Default implementation wraps streamResponse into TextDelta events.
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    await for (final chunk in streamResponse(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: model,
+      temperature: temperature,
+    )) {
+      yield TextDelta(chunk);
+    }
+  }
 }
 
 /// Represents a single message in a chat conversation.
@@ -59,4 +78,41 @@ class ChatMessage {
     : timestamp = timestamp ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {'role': role, 'content': content};
+}
+
+/// Definition of a tool the LLM can call.
+class ToolDefinition {
+  final String name;
+  final String description;
+  final Map<String, dynamic> parameters; // JSON Schema
+
+  const ToolDefinition({
+    required this.name,
+    required this.description,
+    required this.parameters,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'type': 'function',
+    'function': {
+      'name': name,
+      'description': description,
+      'parameters': parameters,
+    },
+  };
+}
+
+/// Events emitted during a tool-calling response stream.
+sealed class LlmResponseEvent {}
+
+class TextDelta extends LlmResponseEvent {
+  final String text;
+  TextDelta(this.text);
+}
+
+class ToolCallRequest extends LlmResponseEvent {
+  final String id;
+  final String name;
+  final Map<String, dynamic> arguments;
+  ToolCallRequest({required this.id, required this.name, required this.arguments});
 }

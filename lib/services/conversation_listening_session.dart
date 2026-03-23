@@ -8,6 +8,7 @@ import '../ble_manager.dart';
 import '../utils/app_logger.dart';
 import 'conversation_engine.dart';
 import 'settings_manager.dart';
+import 'voice_assistant_service.dart';
 
 class ConversationListeningSession {
   ConversationListeningSession._({
@@ -62,6 +63,7 @@ class ConversationListeningSession {
   String _lastEmittedPartial = '';
   bool _isRunning = false;
   bool _starting = false;
+  bool _voiceWasEnabled = false;
   String? _currentError;
   int _speechEventCount = 0;
 
@@ -166,11 +168,15 @@ class ConversationListeningSession {
           : _engine.systemPrompt;
     }
 
+    final voiceEnabled = settings.voiceResponseEnabled;
+    final voiceName = settings.voiceAssistantVoice;
+
     appLogger.d('[ListeningSession] Calling startEvenAI — '
         'lang=$langCode, source=$sourceStr, '
         'backend=${settings.transcriptionBackend}, '
         'sessionMode=${settings.openAISessionMode}, '
-        'model=${settings.transcriptionModel}');
+        'model=${settings.transcriptionModel}'
+        '${voiceEnabled ? ", voice=$voiceName" : ""}');
     try {
       await _invokeMethod('startEvenAI', {
         'language': langCode,
@@ -180,8 +186,17 @@ class ConversationListeningSession {
         'apiKey': apiKey,
         'model': settings.transcriptionModel,
         'systemPrompt': systemPrompt,
+        if (voiceEnabled) 'voice': voiceName,
       });
       _isRunning = true;
+
+      // Start receiving voice audio output when voice responses are enabled
+      _voiceWasEnabled = voiceEnabled;
+      if (voiceEnabled) {
+        await VoiceAssistantService.instance.startListening();
+        appLogger.d('[ListeningSession] Voice assistant listening started');
+      }
+
       appLogger.d('[ListeningSession] startEvenAI succeeded — session is running');
     } on PlatformException catch (error) {
       appLogger.e('[ListeningSession] startEvenAI PlatformException: ${error.message}');
@@ -213,6 +228,10 @@ class ConversationListeningSession {
     }
 
     await _invokeMethod('stopEvenAI');
+    if (_voiceWasEnabled) {
+      await VoiceAssistantService.instance.stopListening();
+      _voiceWasEnabled = false;
+    }
     await _waitForSpeechFinalization();
     await _speechSubscription?.cancel();
     _speechSubscription = null;

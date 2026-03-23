@@ -10,6 +10,8 @@ import 'proto.dart';
 import 'glasses_protocol.dart';
 import 'llm/llm_service.dart';
 import 'llm/llm_provider.dart';
+import 'tools/tool_executor.dart';
+import 'tools/web_search_tool.dart';
 import 'conversation_listening_session.dart';
 import 'settings_manager.dart';
 import 'text_service.dart';
@@ -1208,30 +1210,58 @@ $profileInstruction''';
         });
       }
 
-      await for (final chunk in llmService.streamResponse(
-        systemPrompt: systemPrompt,
-        messages: messages,
-        temperature: SettingsManager.instance.temperature,
-      )) {
-        if (!_isResponseCurrent(responseToken)) {
-          return;
+      final useTools = SettingsManager.instance.webSearchEnabled;
+      final tools = useTools ? [WebSearchTool.definition] : <ToolDefinition>[];
+
+      // Tool call loop: stream response, execute any tool calls, re-stream
+      var toolMessages = List<ChatMessage>.from(messages);
+      const maxToolRounds = 3;
+      for (var round = 0; round <= maxToolRounds; round++) {
+        ToolCallRequest? pendingToolCall;
+
+        await for (final event in llmService.streamWithTools(
+          systemPrompt: systemPrompt,
+          messages: toolMessages,
+          tools: tools.isEmpty ? null : tools,
+          temperature: SettingsManager.instance.temperature,
+        )) {
+          if (!_isResponseCurrent(responseToken)) return;
+
+          switch (event) {
+            case TextDelta(:final text):
+              if (responseText.isEmpty && text.startsWith('[Error]')) {
+                final errorState = ProviderErrorState.fromException(text);
+                _publishProviderError(errorState);
+                _statusController.add(
+                    _isActive ? EngineStatus.listening : EngineStatus.idle);
+                return;
+              }
+              responseText += text;
+              pendingDelta += text;
+              if (_shouldFlushBufferedResponse(pendingDelta)) {
+                await flushPendingDelta();
+              } else {
+                scheduleFlush();
+              }
+            case ToolCallRequest():
+              pendingToolCall = event;
+          }
         }
 
-        if (responseText.isEmpty && chunk.startsWith('[Error]')) {
-          final errorState = ProviderErrorState.fromException(chunk);
-          _publishProviderError(errorState);
-          _statusController.add(_isActive ? EngineStatus.listening : EngineStatus.idle);
-          return;
-        }
+        // If no tool call was requested, we're done streaming
+        if (pendingToolCall == null) break;
 
-        responseText += chunk;
-        pendingDelta += chunk;
-
-        if (_shouldFlushBufferedResponse(pendingDelta)) {
-          await flushPendingDelta();
-        } else {
-          scheduleFlush();
-        }
+        // Execute the tool call and feed result back for next round
+        await flushPendingDelta();
+        final toolResult = await ToolExecutor.execute(
+          pendingToolCall.name,
+          pendingToolCall.arguments,
+        );
+        // Add assistant's tool call and tool result to messages for next round
+        toolMessages = List.from(toolMessages)
+          ..add(ChatMessage(role: 'assistant', content: responseText))
+          ..add(ChatMessage(role: 'user', content: '[Tool result for ${pendingToolCall.name}]: $toolResult'));
+        responseText = ''; // Reset for next round's text
       }
 
       await flushPendingDelta();

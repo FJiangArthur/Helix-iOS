@@ -281,4 +281,24 @@ class AnthropicProvider implements LlmProvider {
       client?.close();
     }
   }
+
+  @override
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    String? model,
+    double temperature = 0.7,
+  }) async* {
+    // Anthropic tool calling not yet implemented — tools are ignored.
+    // The LLM will answer from its own knowledge without tool augmentation.
+    await for (final chunk in streamResponse(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: model,
+      temperature: temperature,
+    )) {
+      yield TextDelta(chunk);
+    }
+  }
 }

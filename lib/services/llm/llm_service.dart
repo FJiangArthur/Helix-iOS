@@ -88,6 +88,22 @@ class LlmService {
     );
   }
 
+  /// Stream a response with optional tool calling using the active provider.
+  Stream<LlmResponseEvent> streamWithTools({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    List<ToolDefinition>? tools,
+    double temperature = 0.7,
+  }) {
+    return activeProvider.streamWithTools(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      tools: tools,
+      model: _activeModel,
+      temperature: temperature,
+    );
+  }
+
   /// Get a complete response using the active provider and model.
   Future<String> getResponse({
     required String systemPrompt,

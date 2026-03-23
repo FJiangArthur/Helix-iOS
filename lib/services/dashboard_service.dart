@@ -9,6 +9,7 @@ import 'glasses_protocol.dart';
 import 'handoff_memory.dart';
 import 'hud_controller.dart';
 import 'hud_intent.dart';
+import 'hud_widget_registry.dart';
 import 'proto.dart';
 import 'settings_manager.dart';
 
@@ -159,6 +160,7 @@ class DashboardService {
   StreamSubscription<HandoffRecord?>? _handoffSub;
   StreamSubscription<HudRouteState>? _intentSub;
   StreamSubscription<SettingsManager>? _settingsSub;
+  StreamSubscription<void>? _widgetPagesSub;
 
   Timer? _minuteTimer;
   Timer? _hideTimer;
@@ -174,6 +176,9 @@ class DashboardService {
   HudIntent _currentIntent = HudIntent.idle;
   HudIntent? _previousIntent;
   String _previousDisplayText = '';
+
+  /// Current page index for multi-page widget dashboard.
+  int _currentPageIndex = 0;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -228,6 +233,11 @@ class DashboardService {
       _dashboardEnabled = settings.dashboardTiltEnabled;
       if (!_dashboardEnabled && _active) {
         unawaited(hideDashboard(source: 'DashboardService.settingsDisabled'));
+      }
+    });
+    _widgetPagesSub = HudWidgetRegistry.instance.onPagesChanged.listen((_) {
+      if (_active && !_isInConversation) {
+        unawaited(_renderCurrentWidgetPage());
       }
     });
     _scheduleMinuteBoundary();
@@ -308,12 +318,28 @@ class DashboardService {
     _handoffSub?.cancel();
     _intentSub?.cancel();
     _settingsSub?.cancel();
+    _widgetPagesSub?.cancel();
     _stateController.close();
   }
+
+  bool get _isInConversation =>
+      _engineStatus == EngineStatus.listening ||
+      _engineStatus == EngineStatus.thinking ||
+      _engineStatus == EngineStatus.responding;
 
   Future<void> _handleDeviceEvent(BleDeviceEvent event) async {
     _dashboardEnabled = _settingsManager.dashboardTiltEnabled;
     _recordObservedEvent(event);
+
+    // Handle page navigation when dashboard is active
+    if (event.kind == BleDeviceEventKind.pageBack && _active) {
+      await _navigatePage(-1);
+      return;
+    }
+    if (event.kind == BleDeviceEventKind.pageForward && _active) {
+      await _navigatePage(1);
+      return;
+    }
 
     if (!event.isDashboardTrigger) {
       return;
@@ -346,8 +372,23 @@ class DashboardService {
   }
 
   Future<void> _showDashboard(BleDeviceEvent event) async {
-    final snapshot = _composeSnapshot(_clock());
-    final renderOk = await _dashboardRenderer(snapshot.hudText);
+    _currentPageIndex = 0;
+
+    // In conversation mode: show conversation stats snapshot.
+    // When idle: show widget pages from the registry.
+    final String displayText;
+    final int totalPages;
+    if (_isInConversation) {
+      final snapshot = _composeSnapshot(_clock());
+      displayText = snapshot.hudText;
+      totalPages = 1;
+    } else {
+      final registry = HudWidgetRegistry.instance;
+      displayText = registry.pageText(0);
+      totalPages = registry.pageCount;
+    }
+
+    final renderOk = await _renderPage(displayText, 1, totalPages);
 
     if (!renderOk) {
       _updateSnapshotState(blockedReason: 'Dashboard render failed');
@@ -359,7 +400,7 @@ class DashboardService {
     _lastShownAt = _clock();
     _active = true;
 
-    _hudController.updateDisplay(snapshot.hudText);
+    _hudController.updateDisplay(displayText);
     await _hudController.beginDashboard(
       source: 'DashboardService.${event.label}',
     );
@@ -374,6 +415,62 @@ class DashboardService {
     _hideTimer = Timer(_effectiveDisplayDuration, () {
       unawaited(hideDashboard(source: 'DashboardService.autoHide'));
     });
+  }
+
+  /// Navigate to a different widget page. Resets the auto-hide timer.
+  Future<void> _navigatePage(int delta) async {
+    if (_isInConversation) return; // No paging during conversation
+
+    final registry = HudWidgetRegistry.instance;
+    final maxPage = registry.pageCount - 1;
+    final newIndex = (_currentPageIndex + delta).clamp(0, maxPage);
+    if (newIndex == _currentPageIndex) return;
+
+    _currentPageIndex = newIndex;
+    await _renderCurrentWidgetPage();
+
+    // Guard: dashboard may have been hidden during the async render
+    if (!_active) return;
+
+    // Reset auto-hide timer on page navigation
+    _hideTimer?.cancel();
+    _hideTimer = Timer(_effectiveDisplayDuration, () {
+      unawaited(hideDashboard(source: 'DashboardService.autoHide'));
+    });
+  }
+
+  /// Render the current widget page to the glasses.
+  Future<void> _renderCurrentWidgetPage() async {
+    if (!_active) return;
+
+    final registry = HudWidgetRegistry.instance;
+    final text = registry.pageText(_currentPageIndex);
+    final totalPages = registry.pageCount;
+
+    final renderOk = await _renderPage(
+      text,
+      _currentPageIndex + 1,
+      totalPages,
+    );
+    if (renderOk) {
+      _hudController.updateDisplay(text);
+      _updateSnapshotState(activeOverride: true, blockedReason: null);
+    }
+  }
+
+  /// Send a page of text to the glasses with page number indicators.
+  Future<bool> _renderPage(String text, int pageNum, int maxPages) {
+    if (pageNum == 1 && maxPages == 1) {
+      // Use injectable renderer for single-page (keeps tests working)
+      return _dashboardRenderer(text);
+    }
+    return Proto.sendEvenAIData(
+      text,
+      newScreen: HudDisplayState.dashboardCard(),
+      pos: 0,
+      current_page_num: pageNum,
+      max_page_num: maxPages,
+    );
   }
 
   void _scheduleMinuteBoundary() {
@@ -397,14 +494,20 @@ class DashboardService {
       return;
     }
 
-    final snapshot = _composeSnapshot(_clock());
-    final renderOk = await _dashboardRenderer(snapshot.hudText);
-    if (!renderOk) {
-      _updateSnapshotState(blockedReason: 'Dashboard refresh failed');
+    if (_isInConversation) {
+      // Refresh conversation stats snapshot
+      final snapshot = _composeSnapshot(_clock());
+      final renderOk = await _renderPage(snapshot.hudText, 1, 1);
+      if (!renderOk) {
+        _updateSnapshotState(blockedReason: 'Dashboard refresh failed');
+        return;
+      }
+      _hudController.updateDisplay(snapshot.hudText);
+    } else {
+      // Refresh widget page
+      await _renderCurrentWidgetPage();
       return;
     }
-
-    _hudController.updateDisplay(snapshot.hudText);
     _updateSnapshotState(activeOverride: true, blockedReason: null);
   }
 
@@ -547,6 +650,7 @@ class DashboardService {
     _active = false;
     _previousIntent = null;
     _previousDisplayText = '';
+    _currentPageIndex = 0;
   }
 
   static Future<bool> _renderDashboardText(String text) {
