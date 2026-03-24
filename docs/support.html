@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support — Even Companion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --bg-card-hover: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(57, 215, 255, 0.3);
+            --cyan: #39D7FF;
+            --cyan-dim: rgba(57, 215, 255, 0.15);
+            --text: #e8e8ed;
+            --text-dim: #8a8a9a;
+            --text-bright: #ffffff;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-logo {
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--text-bright);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-logo span { color: var(--cyan); }
+
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text-bright); }
+
+        .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 4px; }
+        .nav-toggle span { display: block; width: 22px; height: 2px; background: var(--text); margin: 5px 0; border-radius: 1px; transition: 0.3s; }
+
+        .container { max-width: 800px; margin: 0 auto; padding: 0 1.5rem; }
+
+        /* Hero */
+        .page-hero {
+            padding: 8rem 0 3rem;
+            text-align: center;
+        }
+
+        .page-hero h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 800;
+            color: var(--text-bright);
+            letter-spacing: -0.03em;
+            margin-bottom: 0.75rem;
+        }
+
+        .page-hero p {
+            color: var(--text-dim);
+            font-size: 1.05rem;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+
+        /* Section */
+        .support-section {
+            margin-bottom: 4rem;
+        }
+
+        .section-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--cyan);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+
+        /* FAQ Accordion */
+        details {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 0.75rem;
+            transition: all 0.3s;
+        }
+
+        details:hover {
+            border-color: var(--border-hover);
+        }
+
+        details[open] {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+        }
+
+        summary {
+            padding: 1.25rem 1.5rem;
+            font-size: 0.975rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        summary::-webkit-details-marker { display: none; }
+
+        summary::after {
+            content: '+';
+            font-size: 1.3rem;
+            font-weight: 300;
+            color: var(--cyan);
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+
+        details[open] summary::after {
+            content: '\2212';
+        }
+
+        details .answer {
+            padding: 0 1.5rem 1.25rem;
+            font-size: 0.925rem;
+            color: var(--text-dim);
+            line-height: 1.75;
+        }
+
+        details .answer a {
+            color: var(--cyan);
+            text-decoration: none;
+        }
+
+        details .answer a:hover { opacity: 0.8; }
+
+        /* Troubleshooting cards */
+        .trouble-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .trouble-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: border-color 0.3s;
+        }
+
+        .trouble-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .trouble-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .trouble-card h3 .icon {
+            color: var(--cyan);
+            font-size: 1.1rem;
+        }
+
+        .trouble-card ul {
+            padding-left: 1.25rem;
+            margin: 0;
+        }
+
+        .trouble-card li {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            margin-bottom: 0.4rem;
+            line-height: 1.6;
+        }
+
+        /* Contact */
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+
+        .contact-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: block;
+        }
+
+        .contact-card:hover {
+            border-color: var(--border-hover);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+        }
+
+        .contact-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: var(--cyan-dim);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            margin: 0 auto 1rem;
+        }
+
+        .contact-card h3 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-bright);
+            margin-bottom: 0.35rem;
+        }
+
+        .contact-card p {
+            font-size: 0.85rem;
+            color: var(--cyan);
+        }
+
+        /* Footer */
+        footer {
+            padding: 2.5rem 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover { color: var(--text-bright); }
+
+        .footer-copy { font-size: 0.8rem; color: var(--text-dim); }
+
+        @media (max-width: 768px) {
+            nav { padding: 0 1rem; }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 64px;
+                left: 0;
+                right: 0;
+                flex-direction: column;
+                background: rgba(10, 10, 15, 0.97);
+                backdrop-filter: blur(20px);
+                padding: 1.5rem;
+                gap: 1rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .nav-links.open { display: flex; }
+            .nav-toggle { display: block; }
+
+            .page-hero { padding-top: 6.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="index.html" class="nav-logo">Even <span>Companion</span></a>
+    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#how-it-works">How It Works</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+    </div>
+</nav>
+
+<div class="page-hero">
+    <div class="container">
+        <h1>Support &amp; Help</h1>
+        <p>Find answers to common questions, troubleshooting tips, and ways to get in touch.</p>
+    </div>
+</div>
+
+<div class="container" style="padding-bottom: 4rem;">
+
+    <!-- FAQ -->
+    <div class="support-section">
+        <div class="section-label">Frequently Asked Questions</div>
+
+        <details>
+            <summary>What glasses does this app work with?</summary>
+            <div class="answer">Even Realities G1 smart glasses. The app connects to your glasses via Bluetooth Low Energy (BLE) and renders content directly on the glasses display.</div>
+        </details>
+
+        <details>
+            <summary>Do I need an API key?</summary>
+            <div class="answer">Yes, you need at least one LLM API key to use AI features. There are free options available: <strong>Zhipu AI</strong> offers GLM-4-Flash for free, <strong>SiliconFlow</strong> provides free open-source models, and <strong>DeepSeek</strong> gives 5 million free tokens to new accounts.</div>
+        </details>
+
+        <details>
+            <summary>How do I connect my glasses?</summary>
+            <div class="answer">Open the app, go to the Glasses tab, and tap Connect. Make sure Bluetooth is enabled on your iPhone and your G1 glasses are powered on and in pairing range. The app will automatically discover nearby glasses.</div>
+        </details>
+
+        <details>
+            <summary>The transcription isn't working</summary>
+            <div class="answer">Check that microphone permission is granted in <strong>Settings &gt; Even Companion &gt; Microphone</strong>. Also ensure you're in a reasonably quiet environment for best results. The app uses Apple's on-device Speech Recognition, which works best with clear audio.</div>
+        </details>
+
+        <details>
+            <summary>How do I switch AI providers?</summary>
+            <div class="answer">Go to <strong>Settings &gt; AI Provider</strong>, select your preferred provider from the list, enter your API key, and tap <strong>Test Connection</strong> to verify it works. The app supports OpenAI, Anthropic, DeepSeek, Qwen, Zhipu AI, and SiliconFlow.</div>
+        </details>
+
+        <details>
+            <summary>What is the Bitmap HUD?</summary>
+            <div class="answer">The Bitmap HUD is a rich graphical display mode that renders clock, weather, stocks, calendar events, and more as a bitmap image on your glasses. You can enable it in <strong>Settings &gt; HUD Widgets &gt; Bitmap HUD</strong> toggle. It uses efficient delta updates to minimize BLE transfer time.</div>
+        </details>
+
+        <details>
+            <summary>Is my data private?</summary>
+            <div class="answer">Yes. All speech processing is done on-device via Apple Speech Recognition. AI queries go directly from your phone to the provider you choose &mdash; we don't operate any servers in between. We don't track you, don't collect analytics, and don't see your conversations. Read our full <a href="privacy.html">Privacy Policy</a> for details.</div>
+        </details>
+    </div>
+
+    <!-- Troubleshooting -->
+    <div class="support-section">
+        <div class="section-label">Troubleshooting</div>
+
+        <div class="trouble-grid">
+            <div class="trouble-card">
+                <h3><span class="icon">&#128225;</span> BLE Connection Issues</h3>
+                <ul>
+                    <li>Toggle Bluetooth off and on in iOS Settings</li>
+                    <li>Forget the glasses in Bluetooth settings and re-pair</li>
+                    <li>Ensure your G1 glasses firmware is up to date</li>
+                    <li>Move closer to the glasses during initial pairing</li>
+                </ul>
+            </div>
+
+            <div class="trouble-card">
+                <h3><span class="icon">&#128273;</span> API Key Errors</h3>
+                <ul>
+                    <li>Verify the key is correct (no extra spaces or characters)</li>
+                    <li>Use the Test Connection button in Settings to diagnose</li>
+                    <li>Check your provider's status page for outages</li>
+                    <li>Ensure your API key has sufficient credits or quota</li>
+                </ul>
+            </div>
+
+            <div class="trouble-card">
+                <h3><span class="icon">&#127908;</span> Audio Issues</h3>
+                <ul>
+                    <li>Grant microphone permission in iOS Settings &gt; Even Companion</li>
+                    <li>Check if another app is currently using the microphone</li>
+                    <li>Restart the app if audio stops working mid-session</li>
+                    <li>Ensure Do Not Disturb or Focus mode isn't blocking audio</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contact -->
+    <div class="support-section">
+        <div class="section-label">Get in Touch</div>
+
+        <div class="contact-grid">
+            <a href="mailto:art@artjiang.com" class="contact-card">
+                <div class="contact-icon">&#9993;</div>
+                <h3>Email</h3>
+                <p>art@artjiang.com</p>
+            </a>
+
+            <a href="https://github.com/FJiangArthur/Helix-iOS/issues" target="_blank" rel="noopener" class="contact-card">
+                <div class="contact-icon">&#128027;</div>
+                <h3>Bug Reports</h3>
+                <p>GitHub Issues</p>
+            </a>
+
+            <a href="https://github.com/FJiangArthur/Helix-iOS/discussions" target="_blank" rel="noopener" class="contact-card">
+                <div class="contact-icon">&#128161;</div>
+                <h3>Feature Requests</h3>
+                <p>GitHub Discussions</p>
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <div class="container" style="max-width: 1120px;">
+        <div class="footer-links">
+            <a href="index.html">Home</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="support.html">Support</a>
+            <a href="https://github.com/FJiangArthur/Helix-iOS" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <p class="footer-copy">&copy; 2026 Even Companion. All rights reserved.</p>
+    </div>
+</footer>
+
+</body>
+</html>

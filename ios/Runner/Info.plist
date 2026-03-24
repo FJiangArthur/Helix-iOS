@@ -29,19 +29,19 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Even Companion needs Bluetooth access to connect to Even Realities G1 glasses for real-time AI assistance.</string>
+	<string>Even Companion connects via Bluetooth to your Even Realities G1 smart glasses to display AI insights, calendar events, weather, and notifications on the HUD.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Even Companion needs Bluetooth access to communicate with Even Realities G1 glasses.</string>
+	<string>Even Companion connects via Bluetooth to your Even Realities G1 smart glasses to display AI insights, calendar events, weather, and notifications on the HUD.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Even Companion needs microphone access to record audio.</string>
+	<string>Even Companion records audio to transcribe your conversations in real time and provide AI-powered insights on your smart glasses.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Even Companion needs speech recognition to transcribe conversations for AI analysis.</string>
+	<string>Even Companion uses on-device speech recognition to transcribe conversations in real time for AI analysis.</string>
 	<key>NSCalendarsUsageDescription</key>
-	<string>Even Companion shows your upcoming events on your glasses</string>
+	<string>Even Companion displays your upcoming calendar events on your smart glasses HUD.</string>
 	<key>NSRemindersUsageDescription</key>
-	<string>Even Companion shows your reminders on your glasses</string>
-<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Even Companion uses your location for local weather</string>
+	<string>Even Companion displays your reminders on your smart glasses HUD.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Even Companion uses your location to show local weather conditions on your smart glasses HUD.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

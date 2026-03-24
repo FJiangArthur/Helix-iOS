@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — Even Companion</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #0a0a0f;
+            --bg-card: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(57, 215, 255, 0.3);
+            --cyan: #39D7FF;
+            --cyan-dim: rgba(57, 215, 255, 0.15);
+            --text: #e8e8ed;
+            --text-dim: #8a8a9a;
+            --text-bright: #ffffff;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-logo {
+            font-weight: 700;
+            font-size: 1.15rem;
+            color: var(--text-bright);
+            text-decoration: none;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-logo span { color: var(--cyan); }
+
+        .nav-links { display: flex; gap: 2rem; align-items: center; }
+
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--text-bright); }
+
+        .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 4px; }
+        .nav-toggle span { display: block; width: 22px; height: 2px; background: var(--text); margin: 5px 0; border-radius: 1px; transition: 0.3s; }
+
+        .container { max-width: 800px; margin: 0 auto; padding: 0 1.5rem; }
+
+        /* Hero */
+        .page-hero {
+            padding: 8rem 0 3rem;
+            text-align: center;
+        }
+
+        .page-hero h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 800;
+            color: var(--text-bright);
+            letter-spacing: -0.03em;
+            margin-bottom: 0.75rem;
+        }
+
+        .page-hero p {
+            color: var(--text-dim);
+            font-size: 1.05rem;
+        }
+
+        /* Content */
+        .content {
+            padding-bottom: 5rem;
+        }
+
+        .content section {
+            margin-bottom: 2.5rem;
+        }
+
+        .content h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-bright);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .content h2 .num {
+            color: var(--cyan);
+            margin-right: 0.5rem;
+        }
+
+        .content p {
+            margin-bottom: 1rem;
+            color: var(--text);
+            font-size: 0.95rem;
+            line-height: 1.8;
+        }
+
+        .content ul {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+
+        .content li {
+            margin-bottom: 0.75rem;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--text);
+        }
+
+        .content li strong {
+            color: var(--text-bright);
+        }
+
+        .content a {
+            color: var(--cyan);
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .content a:hover { opacity: 0.8; }
+
+        .highlight-box {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin: 1.25rem 0;
+            font-size: 0.95rem;
+        }
+
+        .highlight-box strong {
+            color: var(--cyan);
+        }
+
+        /* Footer */
+        footer {
+            padding: 2.5rem 0;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 0.875rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover { color: var(--text-bright); }
+
+        .footer-copy { font-size: 0.8rem; color: var(--text-dim); }
+
+        @media (max-width: 768px) {
+            nav { padding: 0 1rem; }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 64px;
+                left: 0;
+                right: 0;
+                flex-direction: column;
+                background: rgba(10, 10, 15, 0.97);
+                backdrop-filter: blur(20px);
+                padding: 1.5rem;
+                gap: 1rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .nav-links.open { display: flex; }
+            .nav-toggle { display: block; }
+
+            .page-hero { padding-top: 6.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <a href="index.html" class="nav-logo">Even <span>Companion</span></a>
+    <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Toggle menu">
+        <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#how-it-works">How It Works</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="support.html">Support</a>
+    </div>
+</nav>
+
+<div class="page-hero">
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p>Effective Date: March 24, 2026</p>
+    </div>
+</div>
+
+<div class="content">
+    <div class="container">
+
+        <section>
+            <h2><span class="num">1.</span> Introduction</h2>
+            <p>Even Companion ("the App") is developed by Art Jiang. This privacy policy explains how the App collects, uses, and protects your information. We believe in transparency and minimal data collection &mdash; the App is designed to keep your data on your device.</p>
+        </section>
+
+        <section>
+            <h2><span class="num">2.</span> Data We Collect</h2>
+            <ul>
+                <li><strong>Audio:</strong> Microphone audio is captured temporarily for real-time transcription. Audio is processed on-device via Apple Speech Recognition and is <strong>not</strong> stored permanently or sent to our servers.</li>
+                <li><strong>Calendar &amp; Reminders:</strong> Read-only access to display upcoming events on your glasses HUD. Data stays on device and is never transmitted.</li>
+                <li><strong>Location:</strong> Approximate location is used solely to fetch local weather for the glasses HUD. Your location is not stored or shared.</li>
+                <li><strong>API Keys:</strong> Your LLM provider API keys (OpenAI, Anthropic, etc.) are stored in iOS Keychain (encrypted). They are sent only to the provider you select &mdash; never to us.</li>
+                <li><strong>Conversation History:</strong> Stored locally on your device only. Not uploaded anywhere.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2><span class="num">3.</span> Third-Party Services</h2>
+            <p>The App sends conversation text to the LLM provider <strong>you</strong> choose, using <strong>your</strong> API key. We do not operate any servers or intermediary services.</p>
+            <p>Supported providers: OpenAI, Anthropic, DeepSeek, Qwen, Zhipu AI, and SiliconFlow. Each provider has their own privacy policy governing how they handle data sent to their APIs.</p>
+        </section>
+
+        <section>
+            <h2><span class="num">4.</span> Data Sharing</h2>
+            <div class="highlight-box">
+                <strong>We do not sell, share, or transfer your data to third parties. Period.</strong>
+            </div>
+        </section>
+
+        <section>
+            <h2><span class="num">5.</span> Tracking</h2>
+            <p>The App does not track you. There are no analytics SDKs, no advertising frameworks, and no App Tracking Transparency prompt &mdash; because there is nothing to track.</p>
+        </section>
+
+        <section>
+            <h2><span class="num">6.</span> Data Storage &amp; Security</h2>
+            <ul>
+                <li>API keys are encrypted via iOS Keychain, Apple's hardware-backed secure storage.</li>
+                <li>Conversation history is stored in the local app sandbox, protected by iOS data protection.</li>
+                <li>There is no cloud sync, no remote database, and no server-side storage of any user data.</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2><span class="num">7.</span> Children's Privacy</h2>
+            <p>The App is not directed at children under 13. We do not knowingly collect personal information from children under 13 years of age.</p>
+        </section>
+
+        <section>
+            <h2><span class="num">8.</span> Changes to This Policy</h2>
+            <p>We may update this privacy policy from time to time. Any changes will be posted on this page with an updated effective date. We encourage you to check this page periodically for the latest information.</p>
+        </section>
+
+        <section>
+            <h2><span class="num">9.</span> Contact</h2>
+            <p>If you have questions or concerns about this privacy policy, you can reach us at:</p>
+            <ul>
+                <li><strong>Email:</strong> <a href="mailto:art@artjiang.com">art@artjiang.com</a></li>
+                <li><strong>GitHub Issues:</strong> <a href="https://github.com/FJiangArthur/Helix-iOS/issues" target="_blank" rel="noopener">github.com/FJiangArthur/Helix-iOS/issues</a></li>
+            </ul>
+        </section>
+
+    </div>
+</div>
+
+<footer>
+    <div class="container">
+        <div class="footer-links">
+            <a href="index.html">Home</a>
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="support.html">Support</a>
+            <a href="https://github.com/FJiangArthur/Helix-iOS" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <p class="footer-copy">&copy; 2026 Even Companion. All rights reserved.</p>
+    </div>
+</footer>
+
+</body>
+</html>
