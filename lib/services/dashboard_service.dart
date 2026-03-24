@@ -9,16 +9,18 @@ import 'glasses_protocol.dart';
 import 'handoff_memory.dart';
 import 'hud_controller.dart';
 import 'hud_intent.dart';
+import 'bitmap_hud/bitmap_hud_service.dart';
 import 'hud_widget_registry.dart';
 import 'proto.dart';
 import 'settings_manager.dart';
 
-enum DashboardRenderPath { fallbackHud, nativeDashboard }
+enum DashboardRenderPath { fallbackHud, nativeDashboard, bitmapHud }
 
 extension DashboardRenderPathLabel on DashboardRenderPath {
   String get label => switch (this) {
     DashboardRenderPath.fallbackHud => 'Fallback HUD',
     DashboardRenderPath.nativeDashboard => 'Native Dashboard',
+    DashboardRenderPath.bitmapHud => 'Bitmap HUD',
   };
 }
 
@@ -371,9 +373,44 @@ class DashboardService {
     await _showDashboard(event);
   }
 
+  /// Whether the bitmap HUD render path is active.
+  bool get _isBitmapMode =>
+      _settingsManager.hudRenderPath == 'bitmap';
+
   Future<void> _showDashboard(BleDeviceEvent event) async {
     _currentPageIndex = 0;
 
+    // Bitmap HUD mode: delegate to BitmapHudService for delta push
+    if (_isBitmapMode) {
+      final bitmapService = BitmapHudService.instance;
+      final renderOk = await bitmapService.pushDelta();
+
+      if (!renderOk) {
+        _updateSnapshotState(blockedReason: 'Bitmap dashboard render failed');
+        return;
+      }
+
+      _previousIntent = _currentIntent;
+      _previousDisplayText = _hudController.currentDisplayText;
+      _lastShownAt = _clock();
+      _active = true;
+
+      _hudController.updateDisplay('[Bitmap HUD]');
+      await _hudController.beginDashboard(
+        source: 'DashboardService.bitmap.${event.label}',
+      );
+
+      _updateSnapshotState(
+        activeOverride: true,
+        blockedReason: null,
+        triggeredEvent: event,
+      );
+
+      // Bitmap HUD is persistent — no auto-hide timer
+      return;
+    }
+
+    // Text HUD mode: original behavior
     // In conversation mode: show conversation stats snapshot.
     // When idle: show widget pages from the registry.
     final String displayText;

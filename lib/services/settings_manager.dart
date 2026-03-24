@@ -121,6 +121,15 @@ class SettingsManager {
   /// Whether tilt gestures can open the dashboard overlay on the glasses.
   bool dashboardTiltEnabled = true;
 
+  /// HUD render path: 'text' (fallback) or 'bitmap' (full bitmap HUD).
+  String hudRenderPath = 'text';
+
+  /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
+  String bitmapLayoutPreset = 'classic';
+
+  /// Stock ticker symbol for the bitmap HUD stock widget.
+  String stockTicker = '^DJI';
+
   // ---------------------------------------------------------------------------
   // HUD Widget Settings
   // ---------------------------------------------------------------------------
@@ -213,6 +222,9 @@ class SettingsManager {
     hudBrightness = prefs.getDouble('hudBrightness') ?? 0.7;
     displayMode = prefs.getString('displayMode') ?? 'standard';
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
+    hudRenderPath = prefs.getString('hudRenderPath') ?? 'text';
+    bitmapLayoutPreset = prefs.getString('bitmapLayoutPreset') ?? 'classic';
+    stockTicker = prefs.getString('stockTicker') ?? '^DJI';
 
     // HUD Widgets
     hudWidgetConfigs = _restoreWidgetConfigs(prefs.getString('hudWidgetConfigs'));
@@ -281,6 +293,9 @@ class SettingsManager {
     await prefs.setDouble('hudBrightness', hudBrightness);
     await prefs.setString('displayMode', displayMode);
     await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
+    await prefs.setString('hudRenderPath', hudRenderPath);
+    await prefs.setString('bitmapLayoutPreset', bitmapLayoutPreset);
+    await prefs.setString('stockTicker', stockTicker);
 
     // HUD Widgets
     await prefs.setString(

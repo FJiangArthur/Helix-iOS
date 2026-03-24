@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/hud_widget_config.dart';
+import '../services/bitmap_hud/bitmap_hud_service.dart';
+import '../services/bitmap_hud/hud_layout_presets.dart';
 import '../services/dashboard_service.dart';
 import '../services/hud_widget_registry.dart';
 import '../services/hud_widgets/todos_widget.dart';
@@ -76,6 +78,10 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
       ),
       body: Column(
         children: [
+          // HUD Mode Toggle
+          _buildHudModeToggle(),
+          // Bitmap layout picker (only when bitmap mode active)
+          if (_settings.hudRenderPath == 'bitmap') _buildLayoutPicker(),
           // Summary bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -85,7 +91,9 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                     color: HelixTheme.cyan, size: 18),
                 const SizedBox(width: 8),
                 Text(
-                  '$_enabledCount widgets enabled · ${_registry.pageCount} pages',
+                  _settings.hudRenderPath == 'bitmap'
+                      ? 'Bitmap HUD · ${_settings.bitmapLayoutPreset} layout'
+                      : '$_enabledCount widgets enabled · ${_registry.pageCount} pages',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.7),
                     fontSize: 13,
@@ -94,7 +102,11 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () {
-                    DashboardService.instance.previewDashboard();
+                    if (_settings.hudRenderPath == 'bitmap') {
+                      BitmapHudService.instance.pushFull();
+                    } else {
+                      DashboardService.instance.previewDashboard();
+                    }
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Dashboard sent to glasses'),
@@ -111,7 +123,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
               ],
             ),
           ),
-          // Widget list
+          // Widget list (text mode) or stock ticker settings (bitmap mode)
           Expanded(
             child: ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -234,6 +246,127 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildHudModeToggle() {
+    final isBitmap = _settings.hudRenderPath == 'bitmap';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GlassCard(
+        child: Row(
+          children: [
+            Icon(Icons.image, color: HelixTheme.cyan, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Bitmap HUD',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    isBitmap
+                        ? 'Rich graphical display with charts & icons'
+                        : 'Text-only display (24 chars × 5 lines)',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: isBitmap,
+              activeTrackColor: HelixTheme.cyan,
+              onChanged: (value) async {
+                await _settings.update(
+                    (s) => s.hudRenderPath = value ? 'bitmap' : 'text');
+                setState(() {});
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLayoutPicker() {
+    final presets = HudLayoutPresets.all();
+    final current = _settings.bitmapLayoutPreset;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SizedBox(
+        height: 80,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: presets.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            final preset = presets[index];
+            final selected = preset.id == current;
+            return GestureDetector(
+              onTap: () async {
+                await _settings
+                    .update((s) => s.bitmapLayoutPreset = preset.id);
+                setState(() {});
+              },
+              child: Container(
+                width: 110,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? HelixTheme.cyan
+                        : Colors.white.withValues(alpha: 0.15),
+                    width: selected ? 2 : 1,
+                  ),
+                  color: selected
+                      ? HelixTheme.cyan.withValues(alpha: 0.1)
+                      : Colors.white.withValues(alpha: 0.05),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _layoutIcon(preset.id),
+                      color: selected ? HelixTheme.cyan : Colors.white54,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      preset.name,
+                      style: TextStyle(
+                        color: selected ? HelixTheme.cyan : Colors.white70,
+                        fontSize: 11,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  IconData _layoutIcon(String presetId) {
+    return switch (presetId) {
+      'classic' => Icons.grid_view,
+      'minimal' => Icons.view_agenda,
+      'dense' => Icons.dashboard,
+      'conversation' => Icons.mic,
+      _ => Icons.view_module,
+    };
   }
 
   Widget _buildTodoManager() {

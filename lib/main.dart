@@ -13,6 +13,7 @@ import 'services/hud_widgets/weather_widget.dart';
 import 'services/llm/llm_service.dart';
 import 'services/settings_manager.dart';
 import 'services/conversation_engine.dart';
+import 'services/bitmap_hud/bitmap_hud_service.dart';
 import 'services/dashboard_service.dart';
 
 void main() async {
@@ -29,6 +30,9 @@ void main() async {
 
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
+
+  // Initialize bitmap HUD service (registers bitmap widgets, starts timers)
+  await BitmapHudService.instance.initialize();
 
   // Initialize the glasses tilt dashboard listeners
   await DashboardService.instance.initialize();
