@@ -393,7 +393,7 @@ class SettingsManager {
 
   /// Returns a map of provider IDs to whether they have an API key configured.
   Future<Map<String, bool>> getConfiguredProviders() async {
-    const providerIds = ['openai', 'anthropic', 'deepseek', 'qwen', 'zhipu'];
+    const providerIds = ['openai', 'anthropic', 'deepseek', 'qwen', 'zhipu', 'siliconflow'];
 
     final result = <String, bool>{};
     for (final id in providerIds) {

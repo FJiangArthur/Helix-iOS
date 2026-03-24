@@ -15,8 +15,10 @@ class ZhipuProvider extends OpenAiCompatibleProvider {
   List<String> get availableModels => const [
         'glm-4',
         'glm-4-flash',
+        'glm-4.5-flash',
+        'glm-4.7-flash',
       ];
 
   @override
-  String get defaultModel => 'glm-4';
+  String get defaultModel => 'glm-4-flash';
 }

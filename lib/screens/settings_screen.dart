@@ -18,6 +18,7 @@ const _providerDisplayOrder = [
   'deepseek',
   'qwen',
   'zhipu',
+  'siliconflow',
 ];
 
 class _ProviderPresentation {
@@ -213,6 +214,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.hub_rounded,
           protocol: 'OpenAI-compatible',
           region: 'Zhipu AI',
+        );
+      case 'siliconflow':
+        return const _ProviderPresentation(
+          accent: Color(0xFFFF8C42),
+          cluster: 'Chinese Providers',
+          description:
+              'Model aggregator with free open-source models (Qwen, DeepSeek, GLM) and paid premium tiers.',
+          icon: Icons.layers_rounded,
+          protocol: 'OpenAI-compatible',
+          region: 'SiliconFlow',
         );
       case 'openai':
       default:

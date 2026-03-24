@@ -3,6 +3,7 @@ import 'package:flutter_helix/services/llm/deepseek_provider.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
 import 'package:flutter_helix/services/llm/openai_provider.dart';
 import 'package:flutter_helix/services/llm/qwen_provider.dart';
+import 'package:flutter_helix/services/llm/siliconflow_provider.dart';
 import 'package:flutter_helix/services/llm/zhipu_provider.dart';
 
 /// Central manager for LLM providers.
@@ -144,5 +145,6 @@ class LlmService {
     registerProvider(DeepSeekProvider());
     registerProvider(QwenProvider());
     registerProvider(ZhipuProvider());
+    registerProvider(SiliconFlowProvider());
   }
 }
