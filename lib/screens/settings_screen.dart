@@ -3,13 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/assistant_profile.dart';
-import '../services/hud_widget_registry.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../widgets/glass_card.dart';
-import 'hud_widgets_screen.dart';
 
 const _automaticModelSelection = '__provider_default__';
 const _providerDisplayOrder = [
@@ -419,6 +417,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
                     DropdownMenuItem(value: 'appleCloud', child: Text('Apple Cloud')),
                     DropdownMenuItem(value: 'appleOnDevice', child: Text('On-Device')),
+                    DropdownMenuItem(value: 'whisper', child: Text('Whisper')),
                   ],
                   onChanged: (value) {
                     if (value != null) {
@@ -511,6 +510,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Edit'),
                   ),
                 ),
+              if (_settings.transcriptionBackend == 'whisper' ||
+                  _settings.transcriptionBackend == 'appleCloud' ||
+                  _settings.transcriptionBackend == 'appleOnDevice')
+                _buildToggle(
+                  'Speaker Diarization',
+                  'Identify different speakers in conversations (experimental)',
+                  _settings.enableDiarization,
+                  (v) => _settings.update((s) => s.enableDiarization = v),
+                ),
+              if (_settings.transcriptionBackend == 'whisper')
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: ListTile(
+                    title: const Text('Chunk Duration'),
+                    subtitle: Text('${_settings.whisperChunkDurationSec}s audio segments'),
+                    trailing: DropdownButton<int>(
+                      value: _settings.whisperChunkDurationSec,
+                      dropdownColor: const Color(0xFF1A1F35),
+                      underline: const SizedBox.shrink(),
+                      items: [3, 5, 10]
+                          .map((v) => DropdownMenuItem(value: v, child: Text('${v}s')))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          _settings.update((s) => s.whisperChunkDurationSec = value);
+                        }
+                      },
+                    ),
+                  ),
+                ),
               ListTile(
                 title: const Text('Microphone'),
                 subtitle: Text(_micSourceLabel(_settings.preferredMicSource)),
@@ -590,56 +619,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 (profile) => Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: _buildAssistantProfileCard(profile),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection('Glasses', Icons.visibility, [
-              _buildToggle(
-                'Auto-connect',
-                'Connect when glasses are in range',
-                _settings.autoConnect,
-                (v) => _settings.update((s) => s.autoConnect = v),
-              ),
-              const SizedBox(height: 12),
-              _buildSlider(
-                'HUD Brightness',
-                _settings.hudBrightness,
-                (v) => _settings.update((s) => s.hudBrightness = v),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection('HUD Widgets', Icons.dashboard_customize, [
-              Text(
-                'Customize what appears on your glasses dashboard when you tilt your head up.',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.5),
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Manage Widgets',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: Text(
-                  '${_settings.hudWidgetConfigs.where((c) => c.enabled).length} widgets · ${HudWidgetRegistry.instance.pageCount} pages',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 12,
-                  ),
-                ),
-                trailing: Icon(
-                  Icons.chevron_right,
-                  color: Colors.white.withValues(alpha: 0.5),
-                ),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const HudWidgetsScreen(),
-                  ),
                 ),
               ),
             ]),
@@ -2158,6 +2137,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Apple cloud speech (free, ~1min limit)';
       case 'appleOnDevice':
         return 'On-device (works offline, lower accuracy)';
+      case 'whisper':
+        return 'Whisper batch API (chunked, with optional diarization)';
       default:
         return backend;
     }

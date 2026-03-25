@@ -90,8 +90,14 @@ class SettingsManager {
   // Transcription Settings
   // ---------------------------------------------------------------------------
 
-  /// Transcription backend: 'openai', 'appleCloud', 'appleOnDevice'.
+  /// Transcription backend: 'openai', 'appleCloud', 'appleOnDevice', 'whisper'.
   String transcriptionBackend = 'openai';
+
+  /// Whether speaker diarization is enabled (Whisper and Apple Speech backends).
+  bool enableDiarization = false;
+
+  /// Chunk duration for Whisper batch transcription in seconds (3, 5, or 10).
+  int whisperChunkDurationSec = 5;
 
   /// OpenAI session mode: 'transcription' or 'realtime'.
   String openAISessionMode = 'transcription';
@@ -216,6 +222,8 @@ class SettingsManager {
         prefs.getString('transcriptionModel') ?? 'gpt-4o-mini-transcribe';
     openAIRealtimePrompt = prefs.getString('openAIRealtimePrompt');
     preferredMicSource = prefs.getString('preferredMicSource') ?? 'auto';
+    enableDiarization = prefs.getBool('enableDiarization') ?? false;
+    whisperChunkDurationSec = prefs.getInt('whisperChunkDurationSec') ?? 5;
 
     // Glasses
     autoConnect = prefs.getBool('autoConnect') ?? true;
@@ -287,6 +295,8 @@ class SettingsManager {
       await prefs.remove('openAIRealtimePrompt');
     }
     await prefs.setString('preferredMicSource', preferredMicSource);
+    await prefs.setBool('enableDiarization', enableDiarization);
+    await prefs.setInt('whisperChunkDurationSec', whisperChunkDurationSec);
 
     // Glasses
     await prefs.setBool('autoConnect', autoConnect);

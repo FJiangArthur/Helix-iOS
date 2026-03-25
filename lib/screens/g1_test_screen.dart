@@ -6,11 +6,14 @@ import 'package:get/get.dart';
 import '../ble_manager.dart';
 import '../services/dashboard_service.dart';
 import '../services/handoff_memory.dart';
+import '../services/hud_widget_registry.dart';
+import '../services/settings_manager.dart';
 import '../services/text_service.dart';
 import '../theme/helix_theme.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glow_button.dart';
 import 'even_features_screen.dart';
+import 'hud_widgets_screen.dart';
 
 /// Glasses connection and management screen
 class G1TestScreen extends StatefulWidget {
@@ -91,6 +94,8 @@ class _G1TestScreenState extends State<G1TestScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildHeroCard(),
+          const SizedBox(height: 16),
+          _buildGlassesSettings(),
           const SizedBox(height: 16),
           if (_isConnected) ...[
             _buildTelemetryCard(),
@@ -198,6 +203,87 @@ class _G1TestScreenState extends State<G1TestScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 14,
               height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlassesSettings() {
+    return GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel('GLASSES SETTINGS'),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Auto-connect',
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+            subtitle: Text(
+              'Connect when glasses are in range',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+              ),
+            ),
+            value: SettingsManager.instance.autoConnect,
+            activeColor: HelixTheme.cyan,
+            onChanged: (v) async {
+              await SettingsManager.instance.update((s) => s.autoConnect = v);
+              setState(() {});
+            },
+          ),
+          const SizedBox(height: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'HUD Brightness',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+              Slider(
+                value: SettingsManager.instance.hudBrightness,
+                activeColor: HelixTheme.cyan,
+                inactiveColor: Colors.white.withValues(alpha: 0.15),
+                onChanged: (v) async {
+                  await SettingsManager.instance
+                      .update((s) => s.hudBrightness = v);
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+          const Divider(color: Colors.white12, height: 24),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(
+              Icons.dashboard_customize,
+              color: HelixTheme.cyan,
+              size: 20,
+            ),
+            title: const Text(
+              'HUD Widgets',
+              style: TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              '${SettingsManager.instance.hudWidgetConfigs.where((c) => c.enabled).length} widgets · ${HudWidgetRegistry.instance.pageCount} pages',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 12,
+              ),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HudWidgetsScreen()),
             ),
           ),
         ],

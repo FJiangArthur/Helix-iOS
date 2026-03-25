@@ -12,6 +12,7 @@ enum TranscriptionBackend: String {
     case openai
     case appleCloud
     case appleOnDevice
+    case whisper
 }
 
 class SpeechStreamRecognizer {
@@ -33,6 +34,27 @@ class SpeechStreamRecognizer {
     private var pendingStartCompletion: ((Result<Void, Error>) -> Void)?
     private var activeBackend: TranscriptionBackend = .appleCloud
     private let openaiTranscriber = OpenAIRealtimeTranscriber()
+    let whisperTranscriber = WhisperBatchTranscriber()
+    private let speakerTurnDetector = SpeakerTurnDetector()
+    var enableDiarization = false
+    var noiseReductionEnabled = false
+    private lazy var rnnoiseProcessor = RNNoiseProcessor()
+    /// Tracks consecutive silence duration for VAD-gated audio engine pause.
+    private var consecutiveSilenceDuration: TimeInterval = 0
+    /// Timestamp of the last detected voice activity.
+    private var lastVoiceActivityTime: Date = Date()
+    /// Duration of consecutive silence before pausing the audio engine.
+    private static let silencePauseDuration: TimeInterval = 5.0
+    /// Trailing buffer duration after last voice detection to avoid clipping.
+    private static let vadTrailingBufferSec: TimeInterval = 0.3
+    /// RMS energy threshold for VAD gating on the microphone input.
+    private static let micVadThreshold: Float = 0.01
+    /// Tracks whether the audio engine was paused due to silence.
+    private var audioEnginePausedForSilence = false
+    /// Raw PCM data buffer kept for diarization energy analysis.
+    private var diarizationPcmBuffer = Data()
+    /// Max size of the diarization PCM buffer (~30 seconds).
+    private static let maxDiarizationPcmBytes = 30 * 16000 * 2
     private var speechEventSink: FlutterEventSink?
     private var pendingSpeechEvents: [[String: Any]] = []
     private var shouldBufferSpeechEvents = false
@@ -139,7 +161,7 @@ class SpeechStreamRecognizer {
         log("Starting recognition language=\(identifier) source=\(source) backend=\(backend.rawValue)")
         // Only stop if there's actually an active session to avoid killing
         // an in-flight OpenAI WebSocket connection on a redundant restart.
-        if openaiTranscriber.isActive || recognitionTask != nil {
+        if openaiTranscriber.isActive || whisperTranscriber.isActive || recognitionTask != nil {
             stopRecognition(emitFinal: false)
         }
         pendingStartCompletion = completion
@@ -156,6 +178,16 @@ class SpeechStreamRecognizer {
                 realtimeConversation: realtimeConversation,
                 systemPrompt: systemPrompt,
                 voice: voice,
+                completion: completion
+            )
+            return
+        }
+
+        if backend == .whisper {
+            startWhisperRecognition(
+                identifier: identifier,
+                source: source,
+                apiKey: apiKey ?? "",
                 completion: completion
             )
             return
@@ -189,6 +221,7 @@ class SpeechStreamRecognizer {
         didEmitFinalResult = false
         didLogFirstPartialEmission = false
         didLogFinalEmission = false
+        diarizationPcmBuffer = Data()
         currentLanguageIdentifier = identifier
         currentSource = source
         activeInputSource = source.lowercased() == "microphone"
@@ -212,15 +245,20 @@ class SpeechStreamRecognizer {
 
         let audioSession = AVAudioSession.sharedInstance()
         do {
+            // Use .measurement mode for glasses-only input to skip unnecessary
+            // echo cancellation DSP; keep .voiceChat for phone microphone.
+            let sessionMode: AVAudioSession.Mode = (activeInputSource == .glassesPcm)
+                ? .measurement
+                : .voiceChat
             try audioSession.setCategory(
                 .playAndRecord,
-                mode: .voiceChat,
+                mode: sessionMode,
                 options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
             )
             try audioSession.setPreferredSampleRate(16000)
             try audioSession.setPreferredIOBufferDuration(0.02)
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-            log("Audio session configured source=\(source)")
+            log("Audio session configured source=\(source) mode=\(sessionMode == .measurement ? "measurement" : "voiceChat")")
         } catch {
             failToStart(error, messageOverride: "Error setting up audio session: \(error.localizedDescription)")
             return
@@ -305,6 +343,7 @@ class SpeechStreamRecognizer {
 
     private func restartRecognitionSegment() {
         guard activeBackend != .openai else { return }  // OpenAI handles its own sessions
+        guard activeBackend != .whisper else { return }  // Whisper batch handles its own chunking
         guard recognitionTask != nil else { return }
         guard !isPaused else { return }
 
@@ -466,6 +505,164 @@ class SpeechStreamRecognizer {
                 completion(.failure(error))
             }
         }
+    }
+
+    // MARK: - Whisper Batch Transcription
+
+    private func startWhisperRecognition(
+        identifier: String,
+        source: String,
+        apiKey: String,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        lastRecognizedText = ""
+        lastEmittedText = ""
+        didEmitFinalResult = false
+        didLogFirstPartialEmission = false
+        didLogFinalEmission = false
+        activeInputSource = source.lowercased() == "microphone" ? .microphone : .glassesPcm
+        diarizationPcmBuffer = Data()
+
+        // Configure language for Whisper (2-letter code)
+        let langMap: [String: String] = [
+            "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
+            "ES": "es", "RU": "ru", "FR": "fr", "DE": "de",
+        ]
+        let lang = langMap[identifier] ?? "en"
+
+        // Wire up Whisper callbacks
+        whisperTranscriber.onTranscript = { [weak self] text, isFinal in
+            guard let self = self else { return }
+            if !text.isEmpty {
+                self.lastRecognizedText = text
+                self.emitTranscript(text, isFinal: isFinal)
+            }
+        }
+
+        whisperTranscriber.onWordTimestamps = { [weak self] words in
+            guard let self = self, self.enableDiarization else { return }
+            let pcmData = self.diarizationPcmBuffer
+            guard !pcmData.isEmpty else { return }
+            let segments = self.speakerTurnDetector.detectTurns(
+                words: words,
+                pcmData: pcmData,
+                sampleRate: 16000
+            )
+            for segment in segments {
+                self.emitSpeakerSegment(segment)
+            }
+        }
+
+        whisperTranscriber.onError = { [weak self] message in
+            self?.emitError(message)
+        }
+
+        // Start the transcriber
+        whisperTranscriber.start(
+            apiKey: apiKey,
+            language: lang,
+            chunkDurationSec: whisperTranscriber.chunkDurationSec
+        )
+
+        // If using microphone, set up audio session and tap
+        if activeInputSource == .microphone {
+            let audioSession = AVAudioSession.sharedInstance()
+            do {
+                try audioSession.setCategory(
+                    .playAndRecord,
+                    mode: .voiceChat,
+                    options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+                )
+                try audioSession.setPreferredSampleRate(16000)
+                try audioSession.setPreferredIOBufferDuration(0.02)
+                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+                let inputNode = audioEngine.inputNode
+                let recordingFormat = inputNode.outputFormat(forBus: 0)
+                removeInputTapIfNeeded()
+                inputNode.installTap(onBus: 0, bufferSize: 1600, format: recordingFormat) {
+                    [weak self] buffer, _ in
+                    guard let self = self,
+                          let data = self.convertBufferToOpenAIInput(buffer) else { return }
+                    // VAD gating on microphone input
+                    let rms = self.computeBufferRMS(data)
+                    if rms >= Self.micVadThreshold {
+                        self.lastVoiceActivityTime = Date()
+                        self.consecutiveSilenceDuration = 0
+                        if self.audioEnginePausedForSilence {
+                            self.audioEnginePausedForSilence = false
+                        }
+                        self.whisperTranscriber.appendAudio(data)
+                        // Also buffer for diarization
+                        if self.enableDiarization {
+                            self.appendDiarizationPcm(data)
+                        }
+                    } else {
+                        // Check trailing buffer - keep processing briefly after voice
+                        let silenceElapsed = Date().timeIntervalSince(self.lastVoiceActivityTime)
+                        if silenceElapsed < Self.vadTrailingBufferSec {
+                            self.whisperTranscriber.appendAudio(data)
+                            if self.enableDiarization {
+                                self.appendDiarizationPcm(data)
+                            }
+                        }
+                    }
+                }
+                isInputTapInstalled = true
+                audioEngine.prepare()
+                try audioEngine.start()
+                log("Whisper mic capture started")
+                completion(.success(()))
+            } catch {
+                log("Whisper mic setup failed: \(error)")
+                whisperTranscriber.stop()
+                cleanupRecognition(deactivateSession: true)
+                completion(.failure(error))
+            }
+        } else {
+            // Glasses PCM mode - audio comes via appendPCMData()
+            log("Whisper glasses PCM mode ready")
+            completion(.success(()))
+        }
+    }
+
+    /// Append PCM data to the diarization buffer (capped at ~30 seconds).
+    private func appendDiarizationPcm(_ data: Data) {
+        diarizationPcmBuffer.append(data)
+        if diarizationPcmBuffer.count > Self.maxDiarizationPcmBytes {
+            let overflow = diarizationPcmBuffer.count - Self.maxDiarizationPcmBytes
+            diarizationPcmBuffer.removeFirst(overflow)
+        }
+    }
+
+    /// Emit a speaker segment via the speech event channel.
+    private func emitSpeakerSegment(_ segment: SpeakerTurnDetector.SpeakerSegment) {
+        let payload: [String: Any] = [
+            "script": segment.text,
+            "isFinal": true,
+            "speaker": segment.speaker,
+            "speakerStartTime": segment.startTime,
+            "speakerEndTime": segment.endTime,
+            "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        emitSpeechEvent(payload)
+    }
+
+    /// Compute RMS energy from raw PCM16 data for VAD gating.
+    private func computeBufferRMS(_ pcmData: Data) -> Float {
+        let sampleCount = pcmData.count / MemoryLayout<Int16>.size
+        guard sampleCount > 0 else { return 0 }
+
+        var sumSquares: Float = 0
+        pcmData.withUnsafeBytes { rawBuffer in
+            guard let ptr = rawBuffer.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
+            for i in 0..<sampleCount {
+                let sample = Float(ptr[i]) / Float(Int16.max)
+                sumSquares += sample * sample
+            }
+        }
+
+        return sqrt(sumSquares / Float(sampleCount))
     }
 
     // MARK: - File-based transcription for experimentation
@@ -727,6 +924,27 @@ class SpeechStreamRecognizer {
             openaiTranscriber.appendAudio(pcmData)
             return
         }
+        if activeBackend == .whisper {
+            // Apply noise reduction if enabled
+            let processedData: Data
+            if noiseReductionEnabled, rnnoiseProcessor.isAvailable {
+                processedData = rnnoiseProcessor.processPCM16(pcmData) as Data
+            } else {
+                processedData = pcmData
+            }
+            whisperTranscriber.appendAudio(processedData)
+            // Also buffer for diarization
+            if enableDiarization {
+                appendDiarizationPcm(processedData)
+            }
+            // Resume audio engine if it was paused for silence and BLE data arrives
+            if audioEnginePausedForSilence {
+                audioEnginePausedForSilence = false
+                lastVoiceActivityTime = Date()
+                consecutiveSilenceDuration = 0
+            }
+            return
+        }
         guard let recognitionRequest = recognitionRequest else {
             log("Recognition request is not available")
             return
@@ -755,6 +973,11 @@ class SpeechStreamRecognizer {
                 log("Failed to get pointer to audio data")
             }
         }
+
+        // Buffer PCM for diarization when enabled (Apple Speech glasses path)
+        if enableDiarization {
+            appendDiarizationPcm(pcmData)
+        }
     }
 
     private func startMicrophoneCapture() throws {
@@ -764,7 +987,12 @@ class SpeechStreamRecognizer {
         removeInputTapIfNeeded()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) {
             [weak self] buffer, _ in
-            self?.recognitionRequest?.append(buffer)
+            guard let self = self else { return }
+            self.recognitionRequest?.append(buffer)
+            // Buffer PCM for diarization when enabled
+            if self.enableDiarization, let data = self.convertBufferToOpenAIInput(buffer) {
+                self.appendDiarizationPcm(data)
+            }
         }
         isInputTapInstalled = true
 
@@ -788,10 +1016,28 @@ class SpeechStreamRecognizer {
             return
         }
 
+        if activeBackend == .whisper {
+            if emitFinal {
+                // Flush remaining audio in the whisper buffer
+                whisperTranscriber.flush()
+                emitTranscript(lastRecognizedText, isFinal: true)
+            }
+            whisperTranscriber.stop()
+            diarizationPcmBuffer = Data()
+            audioEnginePausedForSilence = false
+            if audioEngine.isRunning {
+                audioEngine.stop()
+            }
+            removeInputTapIfNeeded()
+            cleanupRecognition(deactivateSession: true)
+            return
+        }
+
         if emitFinal {
             emitTranscript(lastRecognizedText, isFinal: true)
         }
 
+        diarizationPcmBuffer = Data()
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
         cleanupRecognition(deactivateSession: true)
@@ -834,6 +1080,43 @@ class SpeechStreamRecognizer {
             payload["segmentId"] = segmentCounter
         }
         emitSpeechEvent(payload)
+
+        // Run energy-based diarization on final Apple Speech segments
+        if isFinal && enableDiarization && (activeBackend == .appleCloud || activeBackend == .appleOnDevice) {
+            runAppleSpeechDiarization(text: normalized)
+        }
+    }
+
+    /// Run energy-based speaker diarization on the accumulated PCM buffer for
+    /// Apple Speech segments. Apple Speech doesn't provide word-level timestamps,
+    /// so we treat the entire segment as a single block and assign a speaker label
+    /// based on average energy.
+    private func runAppleSpeechDiarization(text: String) {
+        guard enableDiarization else { return }
+        let pcmData = diarizationPcmBuffer
+        guard !pcmData.isEmpty else { return }
+
+        // For Apple Speech, we don't have word timestamps.
+        // Create a single "word" spanning the entire segment for the detector.
+        let duration = Double(pcmData.count) / (16000.0 * 2.0) // 16kHz, 16-bit
+        let words = [WhisperWord(
+            word: text,
+            start: 0.0,
+            end: duration
+        )]
+
+        let segments = speakerTurnDetector.detectTurns(
+            words: words,
+            pcmData: pcmData,
+            sampleRate: 16000
+        )
+
+        for segment in segments {
+            emitSpeakerSegment(segment)
+        }
+
+        // Clear buffer after processing
+        diarizationPcmBuffer = Data()
     }
 
     private func emitError(_ message: String) {
