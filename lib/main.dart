@@ -15,6 +15,7 @@ import 'services/settings_manager.dart';
 import 'services/conversation_engine.dart';
 import 'services/bitmap_hud/bitmap_hud_service.dart';
 import 'services/dashboard_service.dart';
+import 'services/entity_memory.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,9 @@ void main() async {
 
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
+
+  // Load persisted entity memory (people/companies from past conversations)
+  await EntityMemory.instance.load();
 
   // Initialize bitmap HUD service (registers bitmap widgets, starts timers)
   await BitmapHudService.instance.initialize();

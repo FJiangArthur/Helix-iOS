@@ -369,8 +369,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _invokeLiveActivity(String method, [Map<String, dynamic>? args]) async {
     try {
       await _liveActivityChannel.invokeMethod(method, args);
-    } catch (_) {
-      // Non-fatal: Live Activity is supplementary UX
+    } on MissingPluginException {
+      // Expected: Live Activity plugin not registered (e.g. simulator).
+    } on PlatformException catch (e) {
+      debugPrint('[LiveActivity] $method failed: ${e.message}');
     }
   }
 

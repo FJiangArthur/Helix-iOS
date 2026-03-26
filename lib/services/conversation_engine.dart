@@ -881,8 +881,10 @@ Then your response text.''',
         parsedAction = preamble['action'] as String?;
         parsedTarget = preamble['target'] as String?;
       }
-    } catch (_) {
-      // Preamble parsing is best-effort.
+    } on FormatException {
+      // Expected: LLM may not produce valid JSON preamble. Proceed with defaults.
+    } on TypeError catch (e) {
+      appLogger.d('[Engine] Proactive preamble type mismatch: $e');
     }
 
     _sessionContextManager.addAnsweredQuestion(AnsweredQuestion(
@@ -1771,7 +1773,9 @@ Rules:
   LlmService? _getLlmService() {
     try {
       return _llmServiceGetter?.call();
-    } catch (e) {
+    } on StateError catch (e) {
+      // Expected: no provider registered yet (user hasn't configured API key).
+      appLogger.d('[Engine] LLM service unavailable: ${e.message}');
       return null;
     }
   }
@@ -1893,14 +1897,26 @@ Rules:
 
   bool _analyticsRunning = false;
 
+  /// Timeout for each individual background analytics call to prevent
+  /// permanent lockout if an LLM call hangs.
+  static const _analyticsTimeout = Duration(seconds: 30);
+
   /// Runs sentiment analysis then entity extraction sequentially so they
   /// never overlap with each other. Skips if a prior run is still in-flight.
+  /// Each call is individually guarded by [_analyticsTimeout] to prevent
+  /// a hung LLM call from permanently disabling analytics.
   Future<void> _runBackgroundAnalytics() async {
     if (_analyticsRunning) return;
     _analyticsRunning = true;
     try {
-      await _maybeTriggerSentimentAnalysis();
-      await _maybeTriggerEntityExtraction();
+      await _maybeTriggerSentimentAnalysis().timeout(_analyticsTimeout,
+          onTimeout: () {
+        appLogger.w('[Engine] Sentiment analysis timed out');
+      });
+      await _maybeTriggerEntityExtraction().timeout(_analyticsTimeout,
+          onTimeout: () {
+        appLogger.w('[Engine] Entity extraction timed out');
+      });
     } finally {
       _analyticsRunning = false;
     }
@@ -1950,9 +1966,15 @@ Rules:
       // Guard: engine may have stopped while awaiting the LLM response.
       if (!_isActive) return;
 
-      final parsed = double.tryParse(response.trim());
+      // LLMs sometimes wrap the number in text like "The sentiment is 0.5".
+      // Extract the first decimal number from the response.
+      final numMatch = RegExp(r'-?\d+\.?\d*').firstMatch(response.trim());
+      final parsed = numMatch != null ? double.tryParse(numMatch.group(0)!) : null;
       if (parsed != null && parsed >= -1.0 && parsed <= 1.0) {
         _sentimentController.add(parsed);
+      } else {
+        appLogger.d('[Engine] Sentiment response unparseable: '
+            '"${response.trim().length > 60 ? '${response.trim().substring(0, 60)}...' : response.trim()}"');
       }
     } catch (e) {
       appLogger.w('[Engine] Sentiment analysis failed: $e');

@@ -50,9 +50,16 @@ class TranslationService {
         systemPrompt: systemPrompt,
         messages: messages,
         temperature: 0.3,
-      ).handleError((e) {
+      ).handleError((Object e) {
+        // Log and re-throw so the caller's onError handler also fires.
         appLogger.e('[TranslationService] Stream error: $e');
+        // ignore: only_throw_errors
+        throw e;
       });
+    } on StateError catch (e) {
+      // Expected: no LLM provider configured.
+      appLogger.w('[TranslationService] LLM not configured: ${e.message}');
+      return const Stream.empty();
     } catch (e) {
       appLogger.e('[TranslationService] Failed to start translation: $e');
       return Stream.value('[Translation unavailable]');
