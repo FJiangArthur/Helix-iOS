@@ -95,6 +95,8 @@ class _G1TestScreenState extends State<G1TestScreen> {
         children: [
           _buildHeroCard(),
           const SizedBox(height: 16),
+          _buildMicSourceSection(),
+          const SizedBox(height: 16),
           _buildGlassesSettings(),
           const SizedBox(height: 16),
           if (_isConnected) ...[
@@ -204,6 +206,71 @@ class _G1TestScreenState extends State<G1TestScreen> {
               fontSize: 14,
               height: 1.45,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMicSourceSection() {
+    return GlassCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionLabel('MIC SOURCE'),
+          const SizedBox(height: 12),
+          ...['phone', 'glasses', 'auto'].map((source) {
+            final isSelected = SettingsManager.instance.preferredMicSource == source;
+            final label = switch (source) {
+              'phone' => 'Phone only',
+              'glasses' => 'Glasses mic',
+              'auto' => 'Auto (glasses when connected)',
+              _ => source,
+            };
+            final icon = switch (source) {
+              'phone' => Icons.phone_iphone,
+              'glasses' => Icons.visibility,
+              'auto' => Icons.auto_awesome,
+              _ => Icons.mic,
+            };
+            return RadioListTile<String>(
+              contentPadding: EdgeInsets.zero,
+              title: Row(
+                children: [
+                  Icon(icon, color: isSelected ? HelixTheme.cyan : Colors.white54, size: 18),
+                  const SizedBox(width: 8),
+                  Text(label, style: TextStyle(
+                    color: isSelected ? Colors.white : Colors.white70,
+                    fontSize: 14,
+                  )),
+                ],
+              ),
+              value: source,
+              groupValue: SettingsManager.instance.preferredMicSource,
+              activeColor: HelixTheme.cyan,
+              onChanged: (v) async {
+                if (v != null) {
+                  await SettingsManager.instance.update((s) => s.preferredMicSource = v);
+                  setState(() {});
+                }
+              },
+            );
+          }),
+          const Divider(color: Colors.white12),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Noise reduction', style: TextStyle(color: Colors.white, fontSize: 14)),
+            subtitle: Text(
+              'RNNoise denoising for glasses mic',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+            ),
+            value: SettingsManager.instance.noiseReduction,
+            activeColor: HelixTheme.cyan,
+            onChanged: (v) async {
+              await SettingsManager.instance.update((s) => s.noiseReduction = v);
+              setState(() {});
+            },
           ),
         ],
       ),
