@@ -21,7 +21,6 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     'gpt-4.1',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
-    'gpt-realtime',
   ];
 
   @override
@@ -29,22 +28,10 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
 
   @override
   List<String> filterQueriedModels(List<String> modelIds) {
-    final filtered =
-        modelIds
-            .where((id) {
-              final lower = id.toLowerCase();
-              // Only keep gpt-4.1 family and realtime models
-              if (lower.startsWith('gpt-4.1') ||
-                  lower.contains('realtime')) {
-                return true;
-              }
-              return false;
-            })
-            .toSet()
-            .toList()
-          ..sort();
-
-    return filtered;
+    // Only keep exact GPT-4.1 family (no date-suffixed variants)
+    const allowed = {'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'};
+    final filtered = modelIds.where((id) => allowed.contains(id.toLowerCase())).toSet().toList()..sort();
+    return filtered.isEmpty ? availableModels : filtered;
   }
 
   @override

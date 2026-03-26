@@ -1,0 +1,79 @@
+import ActivityKit
+import Foundation
+
+/// Manages the Helix Live Activity lifecycle: start, update, end.
+/// Called from AppDelegate via method channel from Dart.
+@available(iOS 16.2, *)
+class LiveActivityManager {
+    static let shared = LiveActivityManager()
+
+    private var currentActivity: Activity<HelixLiveActivityAttributes>?
+
+    /// Start a new Live Activity for the given conversation mode.
+    func startActivity(mode: String) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            print("[LiveActivity] Activities not enabled")
+            return
+        }
+
+        // End any existing activity first
+        endActivity()
+
+        let attributes = HelixLiveActivityAttributes(mode: mode)
+        let initialState = HelixLiveActivityAttributes.ContentState(
+            question: "Listening...",
+            answer: "",
+            status: "listening",
+            duration: 0
+        )
+
+        do {
+            let content = ActivityContent(state: initialState, staleDate: nil)
+            let activity = try Activity<HelixLiveActivityAttributes>.request(
+                attributes: attributes,
+                content: content,
+                pushType: nil
+            )
+            currentActivity = activity
+            print("[LiveActivity] Started: \(activity.id)")
+        } catch {
+            print("[LiveActivity] Failed to start: \(error)")
+        }
+    }
+
+    /// Update the Live Activity with new Q&A content.
+    func updateActivity(question: String, answer: String, status: String, duration: Int) {
+        guard let activity = currentActivity else { return }
+
+        let updatedState = HelixLiveActivityAttributes.ContentState(
+            question: question,
+            answer: answer,
+            status: status,
+            duration: duration
+        )
+
+        Task {
+            let content = ActivityContent(state: updatedState, staleDate: nil)
+            await activity.update(content)
+        }
+    }
+
+    /// End the current Live Activity.
+    func endActivity() {
+        guard let activity = currentActivity else { return }
+
+        let finalState = HelixLiveActivityAttributes.ContentState(
+            question: "Session ended",
+            answer: "",
+            status: "ended",
+            duration: 0
+        )
+
+        Task {
+            let content = ActivityContent(state: finalState, staleDate: nil)
+            await activity.end(content, dismissalPolicy: .immediate)
+        }
+        currentActivity = nil
+        print("[LiveActivity] Ended")
+    }
+}

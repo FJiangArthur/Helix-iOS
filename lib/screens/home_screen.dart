@@ -146,6 +146,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (text.isEmpty) _factCheckAlert = null;
         });
         _scrollToBottom();
+        // Update Live Activity with AI response (throttle: only every 20 chars)
+        if (text.isNotEmpty && text.length % 20 < 3) {
+          final q = _latestQuestionDetection?.question ?? '';
+          _liveActivityChannel.invokeMethod('updateLiveActivity', {
+            'question': q,
+            'answer': text.length > 200 ? '${text.substring(0, 200)}...' : text,
+            'status': 'answered',
+            'duration': _recordingDuration.inSeconds,
+          });
+        }
       }),
       _engine.followUpChipsStream.listen((chips) {
         if (!mounted) return;
@@ -156,6 +166,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!mounted) return;
         setState(() => _latestQuestionDetection = detection);
         _scrollToBottom();
+        // Update Live Activity with detected question
+        _liveActivityChannel.invokeMethod('updateLiveActivity', {
+          'question': detection.question,
+          'answer': '',
+          'status': 'thinking',
+          'duration': _recordingDuration.inSeconds,
+        });
       }),
       _engine.providerErrorStream.listen((error) {
         if (mounted) {
@@ -331,9 +348,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
 
+  static const _liveActivityChannel = MethodChannel('method.evenai');
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       await _coordinator.toggleRecording(source: TranscriptSource.phone);
+      // End Live Activity when recording stops
+      _liveActivityChannel.invokeMethod('stopLiveActivity');
     } else {
       setState(() {
         _aiResponse = '';
@@ -348,6 +369,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
       try {
         await _coordinator.toggleRecording(source: TranscriptSource.phone);
+        // Start Live Activity when recording begins
+        _liveActivityChannel.invokeMethod('startLiveActivity', {
+          'mode': _modeName(_engine.mode),
+        });
       } catch (error) {
         if (!mounted) return;
         setState(() {

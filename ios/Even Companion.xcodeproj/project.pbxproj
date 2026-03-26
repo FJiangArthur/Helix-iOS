@@ -16,6 +16,7 @@
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
 		A49C458AC613ABD101C94280 /* Pods_Even_CompanionTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */; };
 		AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CED14744F5132BCC469A6862 /* EventKit.framework */; };
 		DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */; };
@@ -42,6 +43,10 @@
 		DA91AD902E52F4C500220CE1 /* ltpf.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6F2E52F4C500220CE1 /* ltpf.c */; };
 		DA91AD912E52F4A900220CE1 /* AudioResampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD922E52F4A900220CE1 /* AudioResampler.swift */; };
 		DA91AD932E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */; };
+		DA91ADA02E67000100220CE1 /* WhisperBatchTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */; };
+		DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */; };
+		DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */; };
+		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +74,7 @@
 
 /* Begin PBXFileReference section */
 		03D0ADB91675A65182022D03 /* Pods-Even CompanionTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.release.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.release.xcconfig"; sourceTree = "<group>"; };
+		11CC0A63C39BD8373B703EAE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		17629B3695D154A2389F1285 /* Pods-Even Companion.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.release.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.release.xcconfig"; sourceTree = "<group>"; };
@@ -76,11 +82,13 @@
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* Even CompanionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Even CompanionTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
+		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
 		5950FC57965EA55AA63216AB /* Pods-Even CompanionTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.profile.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.profile.xcconfig"; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
+		7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		8034C7F1D6ABF74B964B667E /* Pods_Even_Companion.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Even_Companion.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		89D74A1D03EFCFA50274BA36 /* Pods-Even CompanionTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.debug.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.debug.xcconfig"; sourceTree = "<group>"; };
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
@@ -93,6 +101,7 @@
 		B37B05956690456612FE562A /* Pods-Even Companion.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.debug.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.debug.xcconfig"; sourceTree = "<group>"; };
 		B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Even_CompanionTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C252E7ECD806343ABD6C09B1 /* Pods-Even Companion.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.profile.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.profile.xcconfig"; sourceTree = "<group>"; };
+		CD0B722ABA2A019672065BD5 /* HelixLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelixLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CED14744F5132BCC469A6862 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		D3B493D75FCAF6B7ADFBD54C /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Profile.xcconfig; sourceTree = "<group>"; };
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
@@ -139,6 +148,11 @@
 		DA91AD812E52F4C500220CE1 /* tns.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = tns.c; sourceTree = "<group>"; };
 		DA91AD922E52F4A900220CE1 /* AudioResampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioResampler.swift; sourceTree = "<group>"; };
 		DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
+		DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperBatchTranscriber.swift; sourceTree = "<group>"; };
+		DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerTurnDetector.swift; sourceTree = "<group>"; };
+		DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNNoiseProcessor.m; sourceTree = "<group>"; };
+		DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNNoiseProcessor.h; sourceTree = "<group>"; };
+		EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */ = {isa = PBXFileReference; includeInIndex = 0; path = HelixLiveActivity; sourceTree = BUILT_PRODUCTS_DIR; };
 		F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventKitChannel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -170,6 +184,7 @@
 				B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */,
 				CED14744F5132BCC469A6862 /* EventKit.framework */,
 				7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */,
+				94291B7A62D2ABF0B851112E /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -180,6 +195,14 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		94291B7A62D2ABF0B851112E /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				11CC0A63C39BD8373B703EAE /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		9740EEB11CF90186004384FC /* Flutter */ = {
@@ -211,6 +234,8 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Even Companion.app */,
 				331C8081294A63A400263BE5 /* Even CompanionTests.xctest */,
+				EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */,
+				CD0B722ABA2A019672065BD5 /* HelixLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -224,6 +249,10 @@
 				DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */,
 				DA91AD502E52F4A900220CE1 /* GattProtocal.swift */,
 				DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */,
+				DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */,
+				DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */,
+				DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */,
+				DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */,
 				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
 				DA91AD522E52F4A900220CE1 /* PcmConverter.m */,
 				DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */,
@@ -239,6 +268,8 @@
 				74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
 				F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */,
 				19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */,
+				49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
+				7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -547,6 +578,9 @@
 				DA91AD912E52F4A900220CE1 /* AudioResampler.swift in Sources */,
 				DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */,
 				DA91AD932E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift in Sources */,
+				DA91ADA02E67000100220CE1 /* WhisperBatchTranscriber.swift in Sources */,
+				DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */,
+				DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */,
 				DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */,
 				DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */,
 				DA91AD5C2E52F4A900220CE1 /* PcmConverter.m in Sources */,
@@ -554,6 +588,8 @@
 				DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */,
 				DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */,
 				DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */,
+				FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */,
+				A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -631,7 +667,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -655,6 +691,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -764,7 +804,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -817,7 +857,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 13.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -844,6 +884,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -867,6 +911,10 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix;
 				PRODUCT_NAME = "$(TARGET_NAME)";

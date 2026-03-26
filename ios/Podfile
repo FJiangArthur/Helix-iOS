@@ -1,5 +1,5 @@
-# Define global platform for iOS 15.0+ (required for JIT compilation compatibility)
-platform :ios, '15.0'
+# Define global platform for iOS 16.2+ (required for Live Activities support)
+platform :ios, '16.2'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'

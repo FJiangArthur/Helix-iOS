@@ -142,6 +142,29 @@ import Speech
             case "resumeEvenAI":
                 SpeechStreamRecognizer.shared.resumeRecognition()
                 result("Resumed Even AI speech recognition")
+            case "startLiveActivity":
+                if #available(iOS 16.2, *) {
+                    let args = call.arguments as? [String: Any]
+                    let mode = args?["mode"] as? String ?? "General"
+                    LiveActivityManager.shared.startActivity(mode: mode)
+                }
+                result(nil)
+            case "updateLiveActivity":
+                if #available(iOS 16.2, *) {
+                    let args = call.arguments as? [String: Any] ?? [:]
+                    LiveActivityManager.shared.updateActivity(
+                        question: args["question"] as? String ?? "",
+                        answer: args["answer"] as? String ?? "",
+                        status: args["status"] as? String ?? "listening",
+                        duration: args["duration"] as? Int ?? 0
+                    )
+                }
+                result(nil)
+            case "stopLiveActivity":
+                if #available(iOS 16.2, *) {
+                    LiveActivityManager.shared.endActivity()
+                }
+                result(nil)
             default:
                 result(FlutterMethodNotImplemented)
             }

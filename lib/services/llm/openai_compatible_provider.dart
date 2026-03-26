@@ -50,9 +50,10 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
   }
 
   /// Allows subclasses to trim unsupported or irrelevant remote model IDs.
+  /// Caps at 10 models to keep the selector manageable.
   List<String> filterQueriedModels(List<String> modelIds) {
     final unique = modelIds.toSet().toList()..sort();
-    return unique;
+    return unique.length > 10 ? unique.sublist(0, 10) : unique;
   }
 
   @override
