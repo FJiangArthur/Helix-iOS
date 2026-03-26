@@ -33,7 +33,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   ConversationMode _currentMode = ConversationMode.general;
   EngineStatus _status = EngineStatus.idle;
-  TranscriptSource _transcriptSource = TranscriptSource.phone;
   String _transcription = '';
   String _aiResponse = '';
   bool _isRecording = false;
@@ -138,7 +137,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (!mounted) return;
           setState(() {
             _transcription = _pendingSnapshot!.fullTranscript;
-            _transcriptSource = _pendingSnapshot!.source;
             _segmentCount = _pendingSnapshot!.finalizedSegments.length;
           });
         });
@@ -153,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         // Update Live Activity with AI response (throttle: only every 20 chars)
         if (text.isNotEmpty && text.length % 20 < 3) {
           final q = _latestQuestionDetection?.question ?? '';
-          _liveActivityChannel.invokeMethod('updateLiveActivity', {
+          _invokeLiveActivity('updateLiveActivity', {
             'question': q,
             'answer': text.length > 200 ? '${text.substring(0, 200)}...' : text,
             'status': 'answered',
@@ -171,7 +169,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         setState(() => _latestQuestionDetection = detection);
         _scrollToBottom();
         // Update Live Activity with detected question
-        _liveActivityChannel.invokeMethod('updateLiveActivity', {
+        _invokeLiveActivity('updateLiveActivity', {
           'question': detection.question,
           'answer': '',
           'status': 'thinking',
@@ -368,11 +366,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   static const _liveActivityChannel = MethodChannel('method.evenai');
 
+  Future<void> _invokeLiveActivity(String method, [Map<String, dynamic>? args]) async {
+    try {
+      await _liveActivityChannel.invokeMethod(method, args);
+    } catch (_) {
+      // Non-fatal: Live Activity is supplementary UX
+    }
+  }
+
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       await _coordinator.toggleRecording(source: TranscriptSource.phone);
       // End Live Activity when recording stops
-      _liveActivityChannel.invokeMethod('stopLiveActivity');
+      _invokeLiveActivity('stopLiveActivity');
     } else {
       setState(() {
         _aiResponse = '';
@@ -383,12 +389,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _listeningError = null;
         _followUpChips = const [];
         _showDetailLink = false;
+        _latestTranslation = '';
+        _sentiment = 0.0;
+        _latestEntity = null;
+        _factCheckAlert = null;
       });
 
       try {
         await _coordinator.toggleRecording(source: TranscriptSource.phone);
         // Start Live Activity when recording begins
-        _liveActivityChannel.invokeMethod('startLiveActivity', {
+        _invokeLiveActivity('startLiveActivity', {
           'mode': _modeName(_engine.mode),
         });
       } catch (error) {
@@ -1781,16 +1791,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!SettingsManager.instance.sentimentMonitorEnabled) {
       return const SizedBox.shrink();
     }
-    final color = _sentiment > 0.3
-        ? Colors.green
-        : _sentiment < -0.3
-            ? Colors.red
-            : Colors.amber;
-    final label = _sentiment > 0.3
-        ? (_isChinese ? '积极' : 'Positive')
-        : _sentiment < -0.3
-            ? (_isChinese ? '消极' : 'Negative')
-            : (_isChinese ? '中性' : 'Neutral');
+
+    final Color color;
+    final String label;
+    if (_sentiment > 0.3) {
+      color = Colors.green;
+      label = _isChinese ? '积极' : 'Positive';
+    } else if (_sentiment < -0.3) {
+      color = Colors.red;
+      label = _isChinese ? '消极' : 'Negative';
+    } else {
+      color = Colors.amber;
+      label = _isChinese ? '中性' : 'Neutral';
+    }
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2555,13 +2568,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
 
-  String _formatDuration(Duration d) {
-    final minutes = d.inMinutes;
-    final seconds = d.inSeconds % 60;
-    return '${minutes}m ${seconds.toString().padLeft(2, '0')}s';
-  }
-
-
   Widget _buildRecordButton() {
     return AnimatedBuilder(
       animation: _pulseAnimation,
@@ -2871,14 +2877,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case ConversationMode.proactive:
         return 'Press Analyze to get insights...';
     }
-  }
-
-  String _singleLine(String text, {required int maxLength}) {
-    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return '${normalized.substring(0, maxLength - 1)}...';
   }
 
   String _getStatusText() {

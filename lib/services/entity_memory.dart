@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/app_logger.dart';
 
 /// Persistent in-memory store for named entities (people, companies) mentioned
 /// during conversations.  Data is serialized to SharedPreferences as JSON.
@@ -22,9 +23,13 @@ class EntityMemory {
 
   /// Persist all entities to SharedPreferences.
   Future<void> save() async {
-    final prefs = await SharedPreferences.getInstance();
-    final json = _entities.values.map((e) => e.toJson()).toList();
-    await prefs.setString(_storageKey, jsonEncode(json));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = _entities.values.map((e) => e.toJson()).toList();
+      await prefs.setString(_storageKey, jsonEncode(json));
+    } catch (e) {
+      appLogger.e('[EntityMemory] Failed to save ${_entities.length} entities: $e');
+    }
   }
 
   /// Load entities from SharedPreferences.
@@ -40,8 +45,9 @@ class EntityMemory {
           _entities[entity.name.toLowerCase()] = entity;
         }
       }
-    } catch (_) {
-      // Ignore corrupt data
+    } catch (e) {
+      appLogger.e('[EntityMemory] Failed to load (${raw.length} bytes): $e');
+      await prefs.remove(_storageKey);
     }
   }
 }

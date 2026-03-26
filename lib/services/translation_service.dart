@@ -14,8 +14,6 @@ class TranslationService {
   static TranslationService? _instance;
   static TranslationService get instance => _instance ??= TranslationService._();
 
-  StreamSubscription<String>? _activeSubscription;
-
   static const Map<String, String> languageNames = {
     'en': 'English',
     'zh': 'Chinese',
@@ -52,17 +50,13 @@ class TranslationService {
         systemPrompt: systemPrompt,
         messages: messages,
         temperature: 0.3,
-      );
+      ).handleError((e) {
+        appLogger.e('[TranslationService] Stream error: $e');
+      });
     } catch (e) {
-      appLogger.e('[TranslationService] Failed to start translation', error: e);
-      return const Stream.empty();
+      appLogger.e('[TranslationService] Failed to start translation: $e');
+      return Stream.value('[Translation unavailable]');
     }
-  }
-
-  /// Cancel any in-flight translation.
-  void cancel() {
-    _activeSubscription?.cancel();
-    _activeSubscription = null;
   }
 
   /// Simple language detection heuristic.
