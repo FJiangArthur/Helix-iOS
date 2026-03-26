@@ -187,7 +187,6 @@ class HudWidgetRegistry {
 
   void _checkRefreshes() {
     final now = DateTime.now();
-    var anyRefreshed = false;
 
     for (final config in enabledConfigs) {
       final widget = _widgets[config.widgetId];
@@ -199,7 +198,6 @@ class HudWidgetRegistry {
         widget.refresh().then((_) {
           _invalidatePages();
         }).catchError((_) {});
-        anyRefreshed = true;
       }
     }
 

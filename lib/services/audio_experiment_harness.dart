@@ -189,8 +189,7 @@ class AudioExperimentHarness {
     await session.startSession(source: TranscriptSource.phone);
 
     // 3. Listen to engine's transcript snapshots (not raw events)
-    StreamSubscription? sub;
-    sub = _engine.transcriptSnapshotStream.listen((snapshot) {
+    final sub = _engine.transcriptSnapshotStream.listen((snapshot) {
       final text = snapshot.partialText.isNotEmpty
           ? snapshot.partialText
           : snapshot.fullTranscript;
@@ -233,7 +232,7 @@ class AudioExperimentHarness {
       });
     } finally {
       completionTimer?.cancel();
-      await sub?.cancel();
+      await sub.cancel();
       stopwatch.stop();
       _engine.stop();
     }
@@ -278,8 +277,7 @@ class AudioExperimentHarness {
     int? firstPartialMs;
 
     // Capture transcript snapshots as events
-    StreamSubscription? sub;
-    sub = _engine.transcriptSnapshotStream.listen((snapshot) {
+    final sub = _engine.transcriptSnapshotStream.listen((snapshot) {
       final text = snapshot.partialText.isNotEmpty
           ? snapshot.partialText
           : snapshot.fullTranscript;
@@ -301,7 +299,7 @@ class AudioExperimentHarness {
         wordDelay: wordDelay,
       );
     } finally {
-      await sub?.cancel();
+      await sub.cancel();
       stopwatch.stop();
       _engine.stop();
     }
