@@ -61,6 +61,7 @@ class ConversationListeningSession {
   int? _latestSegmentId;
   String _lastFinalizedTranscript = '';
   String _lastEmittedPartial = '';
+  String? _latestSpeaker;
   bool _isRunning = false;
   bool _starting = false;
   bool _voiceWasEnabled = false;
@@ -80,7 +81,9 @@ class ConversationListeningSession {
       // Stop native side without tearing down the EventChannel subscription.
       // Full stopSession() cancels the subscription which triggers a
       // detach/attach cycle that races with the new startEvenAI call.
-      await _invokeMethod('stopEvenAI');
+      // Pass emitFinal=false to suppress the empty transcript that would
+      // otherwise be emitted before the new session has any audio.
+      await _invokeMethod('stopEvenAI', {'emitFinal': false});
       _isRunning = false;
     }
 
@@ -106,6 +109,7 @@ class ConversationListeningSession {
         final error = (payload['error'] as String?)?.trim();
         final timestampMs = payload['timestampMs'] as int?;
         final segmentId = payload['segmentId'] as int?;
+        final speaker = payload['speaker'] as String?;
 
         if (kDebugMode && _speechEventCount++ % 10 == 0) {
           appLogger.d('[ListeningSession] Speech event #$_speechEventCount — '
@@ -119,6 +123,7 @@ class ConversationListeningSession {
           _latestTranscript = text;
           _latestTimestampMs = timestampMs;
           _latestSegmentId = segmentId;
+          _latestSpeaker = speaker;
           _publishError(null);
           // Dedup identical partials to avoid redundant UI updates and LLM scheduling
           if (!isFinal && text == _lastEmittedPartial) return;
@@ -187,6 +192,10 @@ class ConversationListeningSession {
         'model': settings.transcriptionModel,
         'systemPrompt': systemPrompt,
         if (voiceEnabled) 'voice': voiceName,
+        if (settings.transcriptionBackend == 'whisper') ...{
+          'enableDiarization': settings.enableDiarization,
+          'whisperChunkDurationSec': settings.whisperChunkDurationSec,
+        },
       });
       _isRunning = true;
 
@@ -251,7 +260,7 @@ class ConversationListeningSession {
     final segmentTimestamp = _latestTimestampMs != null
         ? DateTime.fromMillisecondsSinceEpoch(_latestTimestampMs!)
         : null;
-    _engine.onTranscriptionFinalized(candidate, segmentTimestamp: segmentTimestamp);
+    _engine.onTranscriptionFinalized(candidate, segmentTimestamp: segmentTimestamp, speakerLabel: _latestSpeaker);
     _completeSpeechFinalization();
   }
 

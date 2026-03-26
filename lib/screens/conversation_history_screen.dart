@@ -39,6 +39,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   String _searchQuery = '';
   String _selectedMode = 'All';
   String _selectedLibraryFilter = 'All';
+  bool _searchExpanded = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -197,6 +198,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               ConversationEngine.instance.clearHistory();
               _searchController.clear();
               _searchQuery = '';
+              _searchExpanded = false;
               _selectedMode = 'All';
               _selectedLibraryFilter = 'All';
               _expandedSessionIds.clear();
@@ -332,10 +334,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
-            _buildSearchBar(),
-            _buildModeFilterChips(),
-            _buildLibraryFilterChips(),
+            _buildCompactHeader(),
+            _buildCollapsibleSearchBar(),
+            _buildCombinedFilterChips(),
             Expanded(
               child: _sessions.isEmpty
                   ? _buildEmptyState()
@@ -350,166 +351,112 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     );
   }
 
-  Widget _buildHeader() {
-    final totalTurns = _history.length;
+  Widget _buildCompactHeader() {
     final totalSessions = _sessions.length;
-    final favoriteSessions = _sessions
-        .where((session) => session.isFavorite)
-        .length;
+    final favoriteSessions =
+        _sessions.where((session) => session.isFavorite).length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: GlassCard(
-        borderRadius: 20,
-        borderColor: HelixTheme.cyan.withValues(alpha: 0.16),
-        opacity: 0.08,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Session Library',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.96),
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Browse previous conversations as reusable sessions instead of raw message bubbles.',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.58),
-                fontSize: 13,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildStatTile(
-                    'Sessions',
-                    '$totalSessions',
-                    Icons.layers_outlined,
-                    HelixTheme.cyan,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildStatTile(
-                    'Turns',
-                    '$totalTurns',
-                    Icons.forum_outlined,
-                    HelixTheme.purple,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _buildStatTile(
-                    'Favorites',
-                    '$favoriteSessions',
-                    Icons.star_rounded,
-                    const Color(0xFFFFC857),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatTile(
-    String label,
-    String value,
-    IconData icon,
-    Color color, {
-    double valueFontSize = 18,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
+      child: Row(
         children: [
-          Icon(icon, size: 16, color: color.withValues(alpha: 0.9)),
-          const SizedBox(height: 12),
-          Text(
-            label,
+          const Text(
+            'Sessions',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.48),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(width: 12),
           Text(
-            value,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            '$totalSessions sessions · $favoriteSessions fav',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.92),
-              fontSize: valueFontSize,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
+              color: Colors.white.withValues(alpha: 0.42),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
             ),
+          ),
+          const Spacer(),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _searchExpanded = !_searchExpanded;
+                if (!_searchExpanded) {
+                  _searchController.clear();
+                  _onSearchChanged('');
+                  _searchFocusNode.unfocus();
+                }
+              });
+            },
+            icon: Icon(
+              _searchExpanded
+                  ? Icons.search_off_rounded
+                  : Icons.search_rounded,
+              color: _searchExpanded
+                  ? HelixTheme.cyan
+                  : Colors.white.withValues(alpha: 0.54),
+              size: 22,
+            ),
+            splashRadius: 18,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      child: GlassCard(
-        borderRadius: 16,
-        borderColor: HelixTheme.cyan.withValues(alpha: 0.18),
-        opacity: 0.08,
-        padding: EdgeInsets.zero,
-        child: TextField(
-          controller: _searchController,
-          focusNode: _searchFocusNode,
-          onChanged: _onSearchChanged,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-          cursorColor: HelixTheme.cyan,
-          decoration: InputDecoration(
-            hintText: 'Search sessions, prompts, answers, or action items',
-            hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.34),
-              fontSize: 15,
-            ),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              color: HelixTheme.cyan.withValues(alpha: 0.68),
-              size: 22,
-            ),
-            suffixIcon: _searchQuery.isNotEmpty
-                ? IconButton(
-                    icon: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withValues(alpha: 0.48),
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      _searchController.clear();
-                      _onSearchChanged('');
-                      _searchFocusNode.unfocus();
-                    },
-                  )
-                : null,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 15,
+  Widget _buildCollapsibleSearchBar() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      height: _searchExpanded ? 52 : 0,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+        child: GlassCard(
+          borderRadius: 16,
+          borderColor: HelixTheme.cyan.withValues(alpha: 0.18),
+          opacity: 0.08,
+          padding: EdgeInsets.zero,
+          child: TextField(
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            onChanged: _onSearchChanged,
+            style: const TextStyle(color: Colors.white, fontSize: 15),
+            cursorColor: HelixTheme.cyan,
+            decoration: InputDecoration(
+              hintText: 'Search sessions, prompts, answers...',
+              hintStyle: TextStyle(
+                color: Colors.white.withValues(alpha: 0.34),
+                fontSize: 15,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: HelixTheme.cyan.withValues(alpha: 0.68),
+                size: 22,
+              ),
+              suffixIcon: _searchQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white.withValues(alpha: 0.48),
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        _searchController.clear();
+                        _onSearchChanged('');
+                        _searchFocusNode.unfocus();
+                      },
+                    )
+                  : null,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 15,
+              ),
             ),
           ),
         ),
@@ -517,102 +464,86 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     );
   }
 
-  Widget _buildModeFilterChips() {
+  Widget _buildCombinedFilterChips() {
     return SizedBox(
       height: 44,
-      child: ListView.separated(
+      child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _modeFilters.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final mode = _modeFilters[index];
-          final isSelected = _selectedMode == mode;
-          final color = mode == 'All'
-              ? HelixTheme.cyan
-              : _modeColor(mode.toLowerCase());
-
-          return GestureDetector(
-            onTap: () => _onModeSelected(mode),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? color.withValues(alpha: 0.18)
-                    : Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected
-                      ? color.withValues(alpha: 0.56)
-                      : Colors.white.withValues(alpha: 0.12),
-                ),
-              ),
-              child: Text(
-                mode,
-                style: TextStyle(
-                  color: isSelected
-                      ? color
-                      : Colors.white.withValues(alpha: 0.54),
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  letterSpacing: 0.2,
-                ),
+        children: [
+          // Mode filter chips
+          for (var i = 0; i < _modeFilters.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            _buildChip(
+              label: _modeFilters[i],
+              isSelected: _selectedMode == _modeFilters[i],
+              color: _modeFilters[i] == 'All'
+                  ? HelixTheme.cyan
+                  : _modeColor(_modeFilters[i].toLowerCase()),
+              onTap: () => _onModeSelected(_modeFilters[i]),
+            ),
+          ],
+          // Divider
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Center(
+              child: Container(
+                width: 1,
+                height: 20,
+                color: Colors.white.withValues(alpha: 0.12),
               ),
             ),
-          );
-        },
+          ),
+          // Library filter chips
+          for (var i = 0; i < _libraryFilters.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            _buildChip(
+              label: _libraryFilters[i],
+              isSelected: _selectedLibraryFilter == _libraryFilters[i],
+              color: switch (_libraryFilters[i]) {
+                'Favorites' => const Color(0xFFFFC857),
+                'Action Items' => const Color(0xFF7CFFB2),
+                'Fact-check Flags' => const Color(0xFFFFA726),
+                _ => HelixTheme.cyan,
+              },
+              onTap: () => _onLibraryFilterSelected(_libraryFilters[i]),
+            ),
+          ],
+        ],
       ),
     );
   }
 
-  Widget _buildLibraryFilterChips() {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-        itemCount: _libraryFilters.length,
-        separatorBuilder: (_, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final filter = _libraryFilters[index];
-          final isSelected = _selectedLibraryFilter == filter;
-          final color = switch (filter) {
-            'Favorites' => const Color(0xFFFFC857),
-            'Action Items' => const Color(0xFF7CFFB2),
-            'Fact-check Flags' => const Color(0xFFFFA726),
-            _ => HelixTheme.cyan,
-          };
-
-          return GestureDetector(
-            onTap: () => _onLibraryFilterSelected(filter),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? color.withValues(alpha: 0.18)
-                    : Colors.white.withValues(alpha: 0.04),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isSelected
-                      ? color.withValues(alpha: 0.56)
-                      : Colors.white.withValues(alpha: 0.1),
-                ),
-              ),
-              child: Text(
-                filter,
-                style: TextStyle(
-                  color: isSelected
-                      ? color
-                      : Colors.white.withValues(alpha: 0.54),
-                  fontSize: 12,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        },
+  Widget _buildChip({
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color.withValues(alpha: 0.18)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? color.withValues(alpha: 0.56)
+                : Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? color : Colors.white.withValues(alpha: 0.54),
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
       ),
     );
   }

@@ -61,17 +61,29 @@ import Speech
                 let realtimeConversation =
                     sessionMode == "realtime" || backendStr == "openaiRealtime"
 
+                let enableDiarization = args["enableDiarization"] as? Bool ?? false
+                let noiseReduction = args["noiseReduction"] as? Bool ?? false
+                let chunkDurationSec = args["chunkDurationSec"] as? Double ?? 5.0
+
                 let backend: TranscriptionBackend
                 switch backendStr {
                 case "openai", "openaiRealtime":
                     backend = .openai
                 case "appleOnDevice":
                     backend = .appleOnDevice
+                case "whisper":
+                    backend = .whisper
                 default:
                     backend = .appleCloud
                 }
 
-                SpeechStreamRecognizer.shared.startRecognition(
+                // Configure Whisper-specific settings before starting
+                let recognizer = SpeechStreamRecognizer.shared
+                recognizer.enableDiarization = enableDiarization
+                recognizer.noiseReductionEnabled = noiseReduction
+                recognizer.whisperTranscriber.chunkDurationSec = chunkDurationSec
+
+                recognizer.startRecognition(
                     identifier: lang,
                     source: source,
                     backend: backend,
@@ -120,7 +132,9 @@ import Speech
                     }
                 }
             case "stopEvenAI":
-                SpeechStreamRecognizer.shared.stopRecognition()
+                let args = call.arguments as? [String: Any]
+                let emitFinal = args?["emitFinal"] as? Bool ?? true
+                SpeechStreamRecognizer.shared.stopRecognition(emitFinal: emitFinal)
                 result("Stopped Even AI speech recognition")
             case "pauseEvenAI":
                 SpeechStreamRecognizer.shared.pauseRecognition()

@@ -912,9 +912,9 @@ class SpeechStreamRecognizer {
         log("Recognition resumed")
     }
 
-    func stopRecognition() {
+    func stopRecognition(emitFinal: Bool = true) {
         isPaused = false
-        stopRecognition(emitFinal: true)
+        _stopRecognition(emitFinal: emitFinal)
     }
 
     func appendPCMData(_ pcmData: Data) {
@@ -1000,7 +1000,7 @@ class SpeechStreamRecognizer {
         try audioEngine.start()
     }
 
-    private func stopRecognition(emitFinal: Bool) {
+    private func _stopRecognition(emitFinal: Bool) {
         segmentRestartTimer?.invalidate()
         segmentRestartTimer = nil
         log("Stopping recognition emitFinal=\(emitFinal) backend=\(activeBackend.rawValue)")
