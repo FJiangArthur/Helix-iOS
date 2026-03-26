@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../models/assistant_profile.dart';
 import '../services/conversation_listening_session.dart';
 import '../services/conversation_engine.dart';
+import '../services/entity_memory.dart';
 import '../services/recording_coordinator.dart';
 import '../services/glasses_answer_presenter.dart';
 import '../services/llm/llm_service.dart';
@@ -54,6 +55,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
   List<String> _followUpChips = const [];
+  String _latestTranslation = '';
+  double _sentiment = 0.0;
+  EntityInfo? _latestEntity;
   Timer? _transcriptDebounce;
   TranscriptSnapshot? _pendingSnapshot;
 
@@ -215,6 +219,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _isRecording = false;
           }
         });
+      }),
+      _engine.translationStream.listen((translation) {
+        if (!mounted) return;
+        setState(() => _latestTranslation = translation);
+        if (translation.isNotEmpty) _scrollToBottom();
+      }),
+      _engine.sentimentStream.listen((value) {
+        if (!mounted) return;
+        setState(() => _sentiment = value);
+      }),
+      _engine.entityStream.listen((entity) {
+        if (!mounted) return;
+        setState(() => _latestEntity = entity);
+        _scrollToBottom();
       }),
     ]);
   }
@@ -1265,6 +1283,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ));
     }
 
+    // Live translation bubble (shown after user transcript)
+    if (_latestTranslation.isNotEmpty &&
+        SettingsManager.instance.translationEnabled) {
+      items.add(_ChatItem(
+        type: _ChatItemType.translation,
+        content: _latestTranslation,
+      ));
+    }
+
     // Listening error
     if (_listeningError?.isNotEmpty ?? false) {
       items.add(_ChatItem(type: _ChatItemType.error, content: _listeningError!));
@@ -1310,6 +1337,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _followUpChips.isNotEmpty;
     if (showFollowUps) {
       items.add(_ChatItem(type: _ChatItemType.followUpChips));
+    }
+
+    // Sentiment strip
+    if (SettingsManager.instance.sentimentMonitorEnabled) {
+      items.add(_ChatItem(type: _ChatItemType.sentimentStrip));
+    }
+
+    // Entity memory card
+    if (_latestEntity != null && SettingsManager.instance.entityMemoryEnabled) {
+      items.add(_ChatItem(type: _ChatItemType.entityCard));
     }
 
     // Glasses delivery status
@@ -1373,6 +1410,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       case _ChatItemType.factCheck:
         return _buildFactCheckBubble(item.content!);
+      case _ChatItemType.translation:
+        return _buildTranslationBubble(item.content!);
       case _ChatItemType.responseActions:
         return _buildResponseActionsRow();
       case _ChatItemType.followUpChips:
@@ -1384,6 +1423,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         );
       case _ChatItemType.detailLink:
         return _buildDetailAnalysisLink();
+      case _ChatItemType.sentimentStrip:
+        return _buildSentimentStrip();
+      case _ChatItemType.entityCard:
+        return _buildEntityCard(_latestEntity!);
     }
   }
 
@@ -1573,6 +1616,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildTranslationBubble(String translation) {
+    return Container(
+      margin: const EdgeInsets.only(left: 16, right: 48, bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A4E).withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(0xFF6E86FF).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.translate, color: Color(0xFF6E86FF), size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              translation,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildResponseActionsRow() {
     final showFollowUps =
         _assistantProfile.showFollowUps &&
@@ -1702,6 +1776,100 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+
+  Widget _buildSentimentStrip() {
+    if (!SettingsManager.instance.sentimentMonitorEnabled) {
+      return const SizedBox.shrink();
+    }
+    final color = _sentiment > 0.3
+        ? Colors.green
+        : _sentiment < -0.3
+            ? Colors.red
+            : Colors.amber;
+    final label = _sentiment > 0.3
+        ? (_isChinese ? '积极' : 'Positive')
+        : _sentiment < -0.3
+            ? (_isChinese ? '消极' : 'Negative')
+            : (_isChinese ? '中性' : 'Neutral');
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          ...List.generate(5, (i) {
+            final threshold = -0.6 + i * 0.3;
+            return Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(right: 3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _sentiment >= threshold
+                    ? color
+                    : color.withValues(alpha: 0.2),
+              ),
+            );
+          }),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEntityCard(EntityInfo entity) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_pin, color: Colors.amber, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  entity.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                if (entity.title != null || entity.company != null)
+                  Text(
+                    '${entity.title ?? ''} ${entity.company != null ? '@ ${entity.company}' : ''}'
+                        .trim(),
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildDetailAnalysisLink() {
     return Center(
@@ -2841,8 +3009,11 @@ enum _ChatItemType {
   error,
   providerError,
   factCheck,
+  translation,
   responseActions,
   followUpChips,
+  sentimentStrip,
+  entityCard,
   glassesDelivery,
   detailLink,
 }

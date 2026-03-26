@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/answered_question.dart';
 import '../models/assistant_profile.dart';
 import '../utils/app_logger.dart';
+import 'bitmap_hud/bitmap_hud_service.dart';
+import 'session_context_manager.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
 import 'provider_error_state.dart';
@@ -13,7 +16,9 @@ import 'llm/llm_provider.dart';
 import 'tools/tool_executor.dart';
 import 'tools/web_search_tool.dart';
 import 'conversation_listening_session.dart';
+import 'entity_memory.dart';
 import 'settings_manager.dart';
+import 'translation_service.dart';
 import 'text_service.dart';
 import 'evenai.dart';
 import '../ble_manager.dart';
@@ -49,6 +54,13 @@ class ConversationEngine {
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
+
+  // Proactive mode context manager
+  final SessionContextManager _sessionContextManager = SessionContextManager();
+
+  // Persist debounce
+  DateTime? _lastPersistTime;
+  static const _persistDebounce = Duration(seconds: 30);
 
   // Silence detection state
   Timer? _silenceTimer;
@@ -95,6 +107,13 @@ class ConversationEngine {
   final _postConversationController =
       StreamController<Map<String, dynamic>?>.broadcast();
   final _factCheckAlertController = StreamController<String>.broadcast();
+  final _translationController = StreamController<String>.broadcast();
+  StreamSubscription<String>? _translationSubscription;
+  final _sentimentController = StreamController<double>.broadcast();
+  final _entityController = StreamController<EntityInfo>.broadcast();
+  double _lastSentiment = 0.0;
+  int _sentimentSegmentCounter = 0;
+  int _entitySegmentCounter = 0;
   ProviderErrorState? _lastProviderError;
 
   /// System prompt for the current mode and language, used by realtime sessions.
@@ -121,10 +140,17 @@ class ConversationEngine {
       _postConversationController.stream;
   Stream<String> get factCheckAlertStream =>
       _factCheckAlertController.stream;
+  Stream<String> get translationStream => _translationController.stream;
+  Stream<double> get sentimentStream => _sentimentController.stream;
+  Stream<EntityInfo> get entityStream => _entityController.stream;
 
   ConversationMode get mode => _mode;
   bool get isActive => _isActive;
   String get currentTranscription => _currentTranscription;
+
+  /// Answered questions tracked during the current proactive session.
+  List<AnsweredQuestion> get answeredQuestions =>
+      _sessionContextManager.answeredQuestions;
   TranscriptSnapshot get currentTranscriptSnapshot => TranscriptSnapshot(
     source: _transcriptSource,
     partialText: _partialTranscription,
@@ -181,11 +207,20 @@ class ConversationEngine {
     _lastEmittedSnapshot = '';
     _lastEmittedPartial = '';
     _segmentSentencesFinalized = 0;
+    _sentimentSegmentCounter = 0;
+    _entitySegmentCounter = 0;
     _finalizedSegments.clear();
     _clearProviderError();
     if (mode != null) setMode(mode);
+    if (_mode == ConversationMode.proactive) {
+      _sessionContextManager.startSession();
+    }
     _emitTranscriptSnapshot();
     _statusController.add(EngineStatus.listening);
+    // Suppress heartbeat during active conversation (BLE mic data is enough).
+    BleManager.get().updateHeartbeatMode(true);
+    // Pause bitmap HUD refresh during conversation (text HUD takes precedence).
+    BitmapHudService.instance.setConversationActive(true);
     appLogger.i('ConversationEngine started in ${_mode.name} mode');
   }
 
@@ -200,6 +235,14 @@ class ConversationEngine {
     _lastEmittedSnapshot = '';
     _lastEmittedPartial = '';
     _clearProviderError();
+    _sessionContextManager.reset();
+    // Force-persist on stop regardless of debounce
+    _lastPersistTime = null;
+    _persistHistory();
+    // Restore idle heartbeat now that conversation ended.
+    BleManager.get().updateHeartbeatMode(false);
+    // Resume bitmap HUD refresh.
+    BitmapHudService.instance.setConversationActive(false);
     _statusController.add(EngineStatus.idle);
     appLogger.i('ConversationEngine stopped');
 
@@ -255,7 +298,7 @@ class ConversationEngine {
     _silenceSuggestionSent = false;
     _resetSilenceTimer();
 
-    if (autoDetectQuestions) {
+    if (autoDetectQuestions && _mode != ConversationMode.proactive) {
       _scheduleTranscriptAnalysis();
     }
     if (_mode == ConversationMode.interview &&
@@ -287,9 +330,32 @@ class ConversationEngine {
       _segmentSentencesFinalized = completeCount;
     }
 
+    // Cap finalized segments at 200 to bound memory for long sessions.
+    if (_finalizedSegments.length > 200) {
+      _compactAndCapSegments();
+    }
+
     // The last part is the in-progress sentence.
     _partialTranscription = parts.last.trim();
     _emitTranscriptSnapshot();
+  }
+
+  /// Archives the oldest 100 segments via [SessionContextManager] and removes
+  /// them from [_finalizedSegments] to bound memory during long sessions.
+  void _compactAndCapSegments() {
+    final toArchive = _finalizedSegments.sublist(0, 100);
+    // Fire-and-forget: summarization runs in the background.
+    final llmService = _getLlmService();
+    if (llmService != null) {
+      _sessionContextManager
+          .compactOldSegments(toArchive, llmService)
+          .catchError((e) {
+        appLogger.w('[Engine] Background segment compaction failed: $e');
+      });
+    }
+    _finalizedSegments.removeRange(0, 100);
+    appLogger.d('[Engine] Capped segments: archived 100, '
+        '${_finalizedSegments.length} remaining');
   }
 
   /// Called when transcription is finalized (segment ends or recording stops).
@@ -297,7 +363,7 @@ class ConversationEngine {
   /// Complete sentences have already been finalized progressively by
   /// [onTranscriptionUpdate]. This only needs to finalize the trailing
   /// incomplete sentence (the current partial).
-  void onTranscriptionFinalized(String text, {DateTime? segmentTimestamp}) {
+  void onTranscriptionFinalized(String text, {DateTime? segmentTimestamp, String? speakerLabel}) {
     if (!_isActive) return;
 
     // Finalize the trailing partial sentence, not the full buffer text
@@ -312,6 +378,7 @@ class ConversationEngine {
       _finalizedSegments.add(TranscriptSegment(
         text: toFinalize,
         timestamp: segmentTimestamp ?? DateTime.now(),
+        speakerLabel: speakerLabel,
       ));
     }
     _partialTranscription = '';
@@ -323,10 +390,47 @@ class ConversationEngine {
       _checkForBehavioralQuestion(toFinalize);
     }
 
+    // Live translation of finalized segment
+    if (SettingsManager.instance.translationEnabled && toFinalize.isNotEmpty) {
+      _translateSegment(toFinalize);
+    }
+
+    // Sentiment and entity analysis (fire-and-forget, non-blocking)
+    _maybeTriggerSentimentAnalysis();
+    _maybeTriggerEntityExtraction();
+
     // Analyze finalized text immediately.
-    if (autoDetectQuestions) {
+    if (autoDetectQuestions && _mode != ConversationMode.proactive) {
       _scheduleTranscriptAnalysis(immediate: true);
     }
+  }
+
+  /// Translate a finalized transcript segment and emit results to [translationStream].
+  void _translateSegment(String text) {
+    final targetLang = SettingsManager.instance.translationTargetLanguage;
+    _translationSubscription?.cancel();
+
+    final buffer = StringBuffer();
+    _translationController.add(''); // signal start
+    _translationSubscription = TranslationService.instance
+        .translate(text, targetLang)
+        .listen(
+      (chunk) {
+        buffer.write(chunk);
+        _translationController.add(buffer.toString());
+      },
+      onDone: () {
+        final result = buffer.toString().trim();
+        if (result.isNotEmpty) {
+          _translationController.add(result);
+          // Push translation to glasses HUD
+          HudController.instance.updateDisplay(result);
+        }
+      },
+      onError: (e) {
+        appLogger.e('[Engine] Translation error', error: e);
+      },
+    );
   }
 
   /// Handle AI response text from the OpenAI Realtime API conversation mode.
@@ -418,6 +522,8 @@ class ConversationEngine {
   void _onSilenceDetected() {
     if (!_isActive || _silenceSuggestionSent) return;
     if (_currentTranscription.trim().isEmpty) return;
+    // In proactive mode, silence does NOT trigger automatic suggestions.
+    if (_mode == ConversationMode.proactive) return;
 
     _silenceSuggestionSent = true;
     _generateProactiveSuggestion();
@@ -703,6 +809,88 @@ Return format (no markdown code blocks):
   }
 
   // ---------------------------------------------------------------------------
+  // Proactive Mode: Manual trigger analysis
+  // ---------------------------------------------------------------------------
+
+  /// Trigger a full-session proactive analysis.
+  ///
+  /// Called from [forceQuestionAnalysis] when in proactive mode or directly
+  /// from the app UI "Analyze" button.
+  Future<void> triggerProactiveAnalysis() async {
+    if (!_isActive || _mode != ConversationMode.proactive) return;
+
+    _cancelInFlightResponse();
+    _clearProviderError();
+    _statusController.add(EngineStatus.thinking);
+
+    final settings = SettingsManager.instance;
+    final context = _sessionContextManager.buildContextWindow(
+      recentSegments: _finalizedSegments,
+      partialTranscription: _partialTranscription,
+      providerId: settings.activeProviderId,
+    );
+
+    if (context.trim().isEmpty) {
+      _statusController.add(EngineStatus.listening);
+      return;
+    }
+
+    final answeredSummary =
+        _sessionContextManager.buildAnsweredQuestionsSummary();
+    final proactiveSystemPrompt = _getSystemPrompt();
+
+    final messages = [
+      ChatMessage(
+        role: 'user',
+        content: '''$context
+
+${answeredSummary.isNotEmpty ? 'PREVIOUSLY ANSWERED:\n$answeredSummary\n' : ''}
+Analyze this conversation. Identify unanswered questions, factual claims to verify, or provide contextual insights. Do NOT repeat previously answered questions.
+Respond with a JSON preamble on the first line: {"action": "answer"|"fact_check"|"insight", "target": "the question or claim"}
+Then your response text.''',
+      ),
+    ];
+
+    final responseToken = _beginResponseCycle();
+    await _generateResponse(
+      'proactive analysis',
+      overrideMessages: messages,
+      overrideSystemPrompt: proactiveSystemPrompt,
+      responseToken: responseToken,
+    );
+  }
+
+  /// Parse the JSON preamble from a proactive response and record it
+  /// as an answered question so it won't be repeated.
+  void _trackProactiveAnswer(String response) {
+    String? parsedAction;
+    String? parsedTarget;
+
+    // Try to extract JSON preamble from first line
+    final firstNewline = response.indexOf('\n');
+    final firstLine = firstNewline > 0
+        ? response.substring(0, firstNewline).trim()
+        : response.trim();
+
+    try {
+      if (firstLine.startsWith('{')) {
+        final preamble = jsonDecode(firstLine) as Map<String, dynamic>;
+        parsedAction = preamble['action'] as String?;
+        parsedTarget = preamble['target'] as String?;
+      }
+    } catch (_) {
+      // Preamble parsing is best-effort.
+    }
+
+    _sessionContextManager.addAnsweredQuestion(AnsweredQuestion(
+      question: parsedTarget ?? 'proactive analysis',
+      answer: response,
+      timestamp: DateTime.now(),
+      action: parsedAction ?? 'insight',
+    ));
+  }
+
+  // ---------------------------------------------------------------------------
   // Feature 4: Smart Follow-up Chips
   // ---------------------------------------------------------------------------
 
@@ -792,6 +980,83 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       }
     } catch (e) {
       appLogger.d('Background fact-check failed: $e');
+    }
+  }
+
+  /// Merged post-response analysis: generates follow-up chips and runs a
+  /// fact-check in a single LLM call instead of two separate calls.
+  Future<void> _postResponseAnalysis(
+    String question,
+    String response,
+  ) async {
+    if (response.trim().length < 20) return;
+
+    final llmService = _getLlmService();
+    if (llmService == null) return;
+
+    final isChinese = _language == 'zh';
+
+    final prompt = isChinese
+        ? '''给定以下问答：
+Q: $question
+A: $response
+
+返回JSON（不要markdown代码块）：
+{"chips": ["建议1", "建议2"], "factCheck": "如果有错误写纠正内容，否则写null"}
+
+chips: 2-3个简短后续建议（每个不超过10字）
+factCheck: 检查回答中的事实，如果正确写null，如果有错写一句纠正'''
+        : '''Given this Q&A:
+Q: $question
+A: $response
+
+Return JSON (no markdown code blocks):
+{"chips": ["suggestion1", "suggestion2"], "factCheck": "any corrections or null"}
+
+chips: 2-3 short follow-up suggestions (under 8 words each)
+factCheck: check answer for factual accuracy — "null" if correct, one-sentence correction if wrong''';
+
+    try {
+      final result = await llmService.getResponse(
+        systemPrompt: isChinese
+            ? '只输出JSON，不要其他内容。'
+            : 'Output only JSON, nothing else.',
+        messages: [ChatMessage(role: 'user', content: prompt)],
+      );
+
+      final cleaned = _stripMarkdownCodeFence(result);
+      final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
+
+      // Emit follow-up chips
+      final rawChips = decoded['chips'];
+      if (rawChips is List) {
+        final chips = rawChips
+            .whereType<String>()
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .take(3)
+            .toList();
+        if (chips.isNotEmpty) {
+          _followUpChipsController.add(chips);
+        }
+      }
+
+      // Emit fact-check alert if needed
+      final factCheck = decoded['factCheck'];
+      if (factCheck is String) {
+        final trimmed = factCheck.trim();
+        if (trimmed.isNotEmpty &&
+            trimmed.toLowerCase() != 'null' &&
+            trimmed.toUpperCase() != 'OK') {
+          appLogger.d('[FactCheck] Correction: $trimmed');
+          _factCheckAlertController.add(trimmed);
+        }
+      }
+    } catch (e) {
+      appLogger.d('Post-response analysis failed, falling back: $e');
+      // Fallback: run the original separate calls
+      _generateFollowUpChips(response);
+      unawaited(_backgroundFactCheck(response));
     }
   }
 
@@ -1144,10 +1409,16 @@ $profileInstruction''';
   // Core response generation
   // ---------------------------------------------------------------------------
 
-  /// Generate AI response and stream to glasses
+  /// Generate AI response and stream to glasses.
+  ///
+  /// When [overrideMessages] and [overrideSystemPrompt] are provided, they
+  /// are used instead of the default context-building logic. This allows
+  /// proactive mode to supply its own full-session context.
   Future<void> _generateResponse(
     String question, {
     required int responseToken,
+    List<ChatMessage>? overrideMessages,
+    String? overrideSystemPrompt,
   }) async {
     if (SettingsManager.instance.usesOpenAIRealtimeSession) {
       return;
@@ -1174,8 +1445,8 @@ $profileInstruction''';
         return;
       }
 
-      final systemPrompt = _getSystemPrompt();
-      final messages = _buildContextMessages(question);
+      final systemPrompt = overrideSystemPrompt ?? _getSystemPrompt();
+      final messages = overrideMessages ?? _buildContextMessages(question);
 
       var responseText = '';
       var pendingDelta = '';
@@ -1277,6 +1548,11 @@ $profileInstruction''';
 
       final finalResponse = responseText;
 
+      // In proactive mode, parse the JSON preamble and track the answered Q.
+      if (_mode == ConversationMode.proactive) {
+        _trackProactiveAnswer(finalResponse);
+      }
+
       // Save AI response to history
       _history.add(
         ConversationTurn(
@@ -1295,11 +1571,8 @@ $profileInstruction''';
         );
       }
 
-      // Generate smart follow-up chips after response completes
-      _generateFollowUpChips(finalResponse);
-
-      // Background fact-check (non-blocking)
-      unawaited(_backgroundFactCheck(finalResponse));
+      // Merged post-response analysis: follow-up chips + fact-check in one call
+      unawaited(_postResponseAnalysis(question, finalResponse));
     } catch (e) {
       if (!_isResponseCurrent(responseToken)) {
         return;
@@ -1428,6 +1701,39 @@ Rules: Max $maxSentences sentences. State facts or corrections directly. Never w
 Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here's a suggestion". Use natural spoken language, no lists or formatting.''';
         }
         break;
+
+      case ConversationMode.proactive:
+        if (isChinese) {
+          basePrompt = '''你是智能眼镜上的主动对话智能助手。
+你正在监听一场实时对话，并在用户请求时提供分析。
+
+你的任务（选择最合适的一个）：
+1. ANSWER：如果有未解答的问题需要帮助回答
+2. FACT_CHECK：如果有可能不正确的事实性声明
+3. INSIGHT：如果你能提供有帮助的背景信息或知识
+
+规则：
+- 简洁明了（最多$maxSentences句话）
+- 不要重复已经回答过的问题
+- 聚焦于对话中最近和最相关的部分
+- 用JSON前缀开头：{"action": "answer"|"fact_check"|"insight", "target": "..."}''';
+        } else {
+          basePrompt =
+              '''You are a proactive conversation intelligence assistant on smart glasses.
+You are listening to a live conversation and providing analysis when the user requests it.
+
+Your tasks (pick the most appropriate):
+1. ANSWER: If there are unanswered questions the wearer needs help with
+2. FACT_CHECK: If there are factual claims that may be incorrect
+3. INSIGHT: If you can provide helpful context or information
+
+Rules:
+- Be concise (max $maxSentences sentences)
+- Do NOT repeat previously answered questions
+- Focus on the most recent and relevant parts of the conversation
+- Start your response with a JSON preamble: {"action": "answer"|"fact_check"|"insight", "target": "..."}''';
+        }
+        break;
     }
 
     return '$basePrompt$langInstruction\n\n$profileInstruction';
@@ -1510,8 +1816,19 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
     }
   }
 
-  /// Persist current history to SharedPreferences
+  /// Persist current history to SharedPreferences.
+  ///
+  /// Debounced to at most once per 30 seconds to avoid excessive disk I/O
+  /// during active conversations. [stop()] resets the debounce so the final
+  /// state is always persisted.
   Future<void> _persistHistory() async {
+    final now = DateTime.now();
+    if (_lastPersistTime != null &&
+        now.difference(_lastPersistTime!) < _persistDebounce) {
+      return;
+    }
+    _lastPersistTime = now;
+
     try {
       final prefs = await SharedPreferences.getInstance();
       // Keep only the last _maxStoredTurns
@@ -1538,6 +1855,7 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
     _lastHandledQuestionKey = '';
     _latestQuestionDetection = null;
     _emitTranscriptSnapshot();
+    _lastPersistTime = null; // bypass debounce for clearHistory
     _persistHistory();
   }
 
@@ -1566,6 +1884,116 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
     _providerErrorController.add(null);
   }
 
+  // ---------------------------------------------------------------------------
+  // Sentiment Analysis
+  // ---------------------------------------------------------------------------
+
+  /// Analyze the sentiment of recent conversation segments.
+  /// Called every 3rd finalized segment when sentimentMonitorEnabled is true.
+  void _maybeTriggerSentimentAnalysis() {
+    if (!SettingsManager.instance.sentimentMonitorEnabled) return;
+
+    _sentimentSegmentCounter++;
+    if (_sentimentSegmentCounter % 3 != 0) return;
+
+    // Gather the last 3 segments
+    final segments = _finalizedSegments;
+    if (segments.length < 3) return;
+    final recentText = segments
+        .skip(segments.length - 3)
+        .map((s) => s.text)
+        .join(' ');
+
+    _runSentimentAnalysis(recentText);
+  }
+
+  Future<void> _runSentimentAnalysis(String text) async {
+    try {
+      final llm = LlmService.instance;
+      final response = await llm.getResponse(
+        systemPrompt:
+            'You are a sentiment analyzer. Rate the sentiment of the given text '
+            'from -1.0 (very negative) to 1.0 (very positive). '
+            'Reply with ONLY a single number, nothing else.',
+        messages: [ChatMessage(role: 'user', content: text)],
+      );
+
+      final parsed = double.tryParse(response.trim());
+      if (parsed != null && parsed >= -1.0 && parsed <= 1.0) {
+        _lastSentiment = parsed;
+        _sentimentController.add(parsed);
+      }
+    } catch (e) {
+      appLogger.w('[Engine] Sentiment analysis failed: $e');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Entity Extraction
+  // ---------------------------------------------------------------------------
+
+  /// Extract entities from recent conversation segments.
+  /// Called every 2nd finalized segment when entityMemoryEnabled is true.
+  void _maybeTriggerEntityExtraction() {
+    if (!SettingsManager.instance.entityMemoryEnabled) return;
+
+    _entitySegmentCounter++;
+    if (_entitySegmentCounter % 2 != 0) return;
+
+    // Gather the last 2 segments
+    final segments = _finalizedSegments;
+    if (segments.length < 2) return;
+    final recentText = segments
+        .skip(segments.length - 2)
+        .map((s) => s.text)
+        .join(' ');
+
+    _runEntityExtraction(recentText);
+  }
+
+  Future<void> _runEntityExtraction(String text) async {
+    try {
+      final llm = LlmService.instance;
+      final response = await llm.getResponse(
+        systemPrompt:
+            'Extract any person or company names from the given text. '
+            'For each, provide: name, title (if mentioned), company (if mentioned). '
+            'Reply as a JSON array: [{"name":"...","title":"...","company":"..."}]. '
+            'If no entities are found, reply with an empty array: []',
+        messages: [ChatMessage(role: 'user', content: text)],
+      );
+
+      final trimmed = response.trim();
+      // Find the JSON array in the response
+      final startIndex = trimmed.indexOf('[');
+      final endIndex = trimmed.lastIndexOf(']');
+      if (startIndex == -1 || endIndex == -1 || endIndex <= startIndex) return;
+
+      final jsonStr = trimmed.substring(startIndex, endIndex + 1);
+      final decoded = jsonDecode(jsonStr) as List<dynamic>;
+
+      final memory = EntityMemory.instance;
+      for (final item in decoded) {
+        if (item is Map<String, dynamic>) {
+          final name = (item['name'] as String?)?.trim();
+          if (name == null || name.isEmpty) continue;
+
+          final entity = EntityInfo(
+            name: name,
+            title: (item['title'] as String?)?.trim(),
+            company: (item['company'] as String?)?.trim(),
+            lastMentioned: DateTime.now(),
+          );
+          memory.addEntity(entity);
+          _entityController.add(entity);
+        }
+      }
+      await memory.save();
+    } catch (e) {
+      appLogger.w('[Engine] Entity extraction failed: $e');
+    }
+  }
+
   /// Dispose resources
   void dispose() {
     _analysisTimer?.cancel();
@@ -1582,14 +2010,24 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
     _followUpChipsController.close();
     _providerErrorController.close();
     _postConversationController.close();
+    _translationSubscription?.cancel();
+    _translationController.close();
+    _sentimentController.close();
+    _entityController.close();
   }
 
   /// Manually trigger question analysis from glasses button press.
   /// Bypasses the realtime-session guard in [_scheduleTranscriptAnalysis] so
   /// that the user can still request a local LLM analysis even when using
   /// OpenAI Realtime mode.
+  ///
+  /// In proactive mode, routes to [triggerProactiveAnalysis] instead.
   void forceQuestionAnalysis() {
     if (!_isActive) return;
+    if (_mode == ConversationMode.proactive) {
+      triggerProactiveAnalysis();
+      return;
+    }
     final token = ++_analysisToken;
     _analyzeRecentTranscriptWindow(token);
   }
@@ -1638,7 +2076,7 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
 }
 
 /// Conversation modes
-enum ConversationMode { general, interview, passive }
+enum ConversationMode { general, interview, passive, proactive }
 
 enum TranscriptSource { phone, glasses }
 

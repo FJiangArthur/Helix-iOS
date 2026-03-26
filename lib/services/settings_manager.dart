@@ -143,8 +143,20 @@ class SettingsManager {
   /// Ordered list of widget configurations for the HUD dashboard.
   List<HudWidgetConfig> hudWidgetConfigs = HudWidgetConfig.defaults;
 
+  /// Whether real-time sentiment monitoring is enabled.
+  bool sentimentMonitorEnabled = false;
+
+  /// Whether entity memory cards are enabled.
+  bool entityMemoryEnabled = false;
+
   /// Whether AI responses can use web search for fact-checking.
   bool webSearchEnabled = true;
+
+  /// Whether live translation is enabled for foreign-language transcripts.
+  bool translationEnabled = false;
+
+  /// ISO language code for translation target (e.g. 'en', 'zh', 'ja').
+  String translationTargetLanguage = 'en';
 
   /// Whether voice responses are enabled (OpenAI Realtime audio output).
   bool voiceResponseEnabled = false;
@@ -236,7 +248,11 @@ class SettingsManager {
 
     // HUD Widgets
     hudWidgetConfigs = _restoreWidgetConfigs(prefs.getString('hudWidgetConfigs'));
+    sentimentMonitorEnabled = prefs.getBool('sentimentMonitorEnabled') ?? false;
+    entityMemoryEnabled = prefs.getBool('entityMemoryEnabled') ?? false;
     webSearchEnabled = prefs.getBool('webSearchEnabled') ?? true;
+    translationEnabled = prefs.getBool('translationEnabled') ?? false;
+    translationTargetLanguage = prefs.getString('translationTargetLanguage') ?? 'en';
     voiceResponseEnabled = prefs.getBool('voiceResponseEnabled') ?? false;
     voiceAssistantVoice = prefs.getString('voiceAssistantVoice') ?? 'alloy';
 
@@ -312,7 +328,11 @@ class SettingsManager {
       'hudWidgetConfigs',
       jsonEncode(hudWidgetConfigs.map((c) => c.toMap()).toList()),
     );
+    await prefs.setBool('sentimentMonitorEnabled', sentimentMonitorEnabled);
+    await prefs.setBool('entityMemoryEnabled', entityMemoryEnabled);
     await prefs.setBool('webSearchEnabled', webSearchEnabled);
+    await prefs.setBool('translationEnabled', translationEnabled);
+    await prefs.setString('translationTargetLanguage', translationTargetLanguage);
     await prefs.setBool('voiceResponseEnabled', voiceResponseEnabled);
     await prefs.setString('voiceAssistantVoice', voiceAssistantVoice);
 

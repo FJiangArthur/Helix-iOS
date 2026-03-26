@@ -643,6 +643,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ]),
             const SizedBox(height: 20),
+            _buildSection('Features', Icons.auto_awesome, [
+              _buildToggle(
+                'Sentiment Monitor',
+                'Analyze conversation tone in real time',
+                _settings.sentimentMonitorEnabled,
+                (v) => _settings.update((s) => s.sentimentMonitorEnabled = v),
+              ),
+              const SizedBox(height: 8),
+              _buildToggle(
+                'Entity Memory',
+                'Detect and remember people and companies mentioned',
+                _settings.entityMemoryEnabled,
+                (v) => _settings.update((s) => s.entityMemoryEnabled = v),
+              ),
+            ]),
+            const SizedBox(height: 20),
+            _buildSection('Translation', Icons.translate, [
+              _buildToggle(
+                'Live Translation',
+                'Translate foreign-language speech in real time',
+                _settings.translationEnabled,
+                (v) => _settings.update((s) => s.translationEnabled = v),
+              ),
+              if (_settings.translationEnabled) ...[
+                const SizedBox(height: 12),
+                _buildTranslationTargetSelector(),
+              ],
+            ]),
+            const SizedBox(height: 20),
             _buildSection('About', Icons.info_outline, [
               _buildInfoTile('Version', '1.0.0'),
               _buildInfoTile('Build', '1'),
@@ -1151,6 +1180,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                   ],
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTranslationTargetSelector() {
+    const languages = [
+      ('en', 'English'),
+      ('zh', 'Chinese'),
+      ('ja', 'Japanese'),
+      ('ko', 'Korean'),
+      ('es', 'Spanish'),
+      ('fr', 'French'),
+      ('de', 'German'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Translate To',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: languages.map((lang) {
+            final (code, label) = lang;
+            final isSelected = code == _settings.translationTargetLanguage;
+
+            return GestureDetector(
+              onTap: () async {
+                await _settings.update(
+                  (s) => s.translationTargetLanguage = code,
+                );
+                setState(() {});
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? const Color(0xFF6E86FF).withValues(alpha: 0.15)
+                      : Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFF6E86FF).withValues(alpha: 0.4)
+                        : Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: isSelected
+                        ? const Color(0xFF6E86FF)
+                        : Colors.white.withValues(alpha: 0.6),
+                    fontSize: 13,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.w400,
+                  ),
                 ),
               ),
             );
