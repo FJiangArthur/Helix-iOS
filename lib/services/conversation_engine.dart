@@ -111,7 +111,6 @@ class ConversationEngine {
   StreamSubscription<String>? _translationSubscription;
   final _sentimentController = StreamController<double>.broadcast();
   final _entityController = StreamController<EntityInfo>.broadcast();
-  double _lastSentiment = 0.0;
   int _sentimentSegmentCounter = 0;
   int _entitySegmentCounter = 0;
   ProviderErrorState? _lastProviderError;
@@ -209,6 +208,7 @@ class ConversationEngine {
     _segmentSentencesFinalized = 0;
     _sentimentSegmentCounter = 0;
     _entitySegmentCounter = 0;
+    _analyticsRunning = false;
     _finalizedSegments.clear();
     _clearProviderError();
     if (mode != null) setMode(mode);
@@ -231,6 +231,8 @@ class ConversationEngine {
     _analysisToken++;
     _analysisTimer?.cancel();
     _silenceTimer?.cancel();
+    _translationSubscription?.cancel();
+    _translationSubscription = null;
     _segmentSentencesFinalized = 0;
     _lastEmittedSnapshot = '';
     _lastEmittedPartial = '';
@@ -395,9 +397,10 @@ class ConversationEngine {
       _translateSegment(toFinalize);
     }
 
-    // Sentiment and entity analysis (fire-and-forget, non-blocking)
-    _maybeTriggerSentimentAnalysis();
-    _maybeTriggerEntityExtraction();
+    // Sentiment and entity analysis (serialized, non-blocking).
+    // These run sequentially to avoid overwhelming the LLM API with parallel
+    // requests alongside translation and question analysis.
+    _runBackgroundAnalytics();
 
     // Analyze finalized text immediately.
     if (autoDetectQuestions && _mode != ConversationMode.proactive) {
@@ -1885,31 +1888,57 @@ Rules:
   }
 
   // ---------------------------------------------------------------------------
+  // Periodic Analysis Helpers
+  // ---------------------------------------------------------------------------
+
+  bool _analyticsRunning = false;
+
+  /// Runs sentiment analysis then entity extraction sequentially so they
+  /// never overlap with each other. Skips if a prior run is still in-flight.
+  Future<void> _runBackgroundAnalytics() async {
+    if (_analyticsRunning) return;
+    _analyticsRunning = true;
+    try {
+      await _maybeTriggerSentimentAnalysis();
+      await _maybeTriggerEntityExtraction();
+    } finally {
+      _analyticsRunning = false;
+    }
+  }
+
+  /// Joins the last [count] finalized segment texts, or returns null if
+  /// there are fewer than [count] segments available.
+  String? _recentSegmentText(int count) {
+    if (_finalizedSegments.length < count) return null;
+    return _finalizedSegments
+        .skip(_finalizedSegments.length - count)
+        .map((s) => s.text)
+        .join(' ');
+  }
+
+  // ---------------------------------------------------------------------------
   // Sentiment Analysis
   // ---------------------------------------------------------------------------
 
   /// Analyze the sentiment of recent conversation segments.
   /// Called every 3rd finalized segment when sentimentMonitorEnabled is true.
-  void _maybeTriggerSentimentAnalysis() {
+  Future<void> _maybeTriggerSentimentAnalysis() async {
     if (!SettingsManager.instance.sentimentMonitorEnabled) return;
 
     _sentimentSegmentCounter++;
     if (_sentimentSegmentCounter % 3 != 0) return;
 
-    // Gather the last 3 segments
-    final segments = _finalizedSegments;
-    if (segments.length < 3) return;
-    final recentText = segments
-        .skip(segments.length - 3)
-        .map((s) => s.text)
-        .join(' ');
+    final recentText = _recentSegmentText(3);
+    if (recentText == null) return;
 
-    _runSentimentAnalysis(recentText);
+    await _runSentimentAnalysis(recentText);
   }
 
   Future<void> _runSentimentAnalysis(String text) async {
+    final llm = _getLlmService();
+    if (llm == null) return;
+
     try {
-      final llm = LlmService.instance;
       final response = await llm.getResponse(
         systemPrompt:
             'You are a sentiment analyzer. Rate the sentiment of the given text '
@@ -1918,9 +1947,11 @@ Rules:
         messages: [ChatMessage(role: 'user', content: text)],
       );
 
+      // Guard: engine may have stopped while awaiting the LLM response.
+      if (!_isActive) return;
+
       final parsed = double.tryParse(response.trim());
       if (parsed != null && parsed >= -1.0 && parsed <= 1.0) {
-        _lastSentiment = parsed;
         _sentimentController.add(parsed);
       }
     } catch (e) {
@@ -1934,26 +1965,23 @@ Rules:
 
   /// Extract entities from recent conversation segments.
   /// Called every 2nd finalized segment when entityMemoryEnabled is true.
-  void _maybeTriggerEntityExtraction() {
+  Future<void> _maybeTriggerEntityExtraction() async {
     if (!SettingsManager.instance.entityMemoryEnabled) return;
 
     _entitySegmentCounter++;
     if (_entitySegmentCounter % 2 != 0) return;
 
-    // Gather the last 2 segments
-    final segments = _finalizedSegments;
-    if (segments.length < 2) return;
-    final recentText = segments
-        .skip(segments.length - 2)
-        .map((s) => s.text)
-        .join(' ');
+    final recentText = _recentSegmentText(2);
+    if (recentText == null) return;
 
-    _runEntityExtraction(recentText);
+    await _runEntityExtraction(recentText);
   }
 
   Future<void> _runEntityExtraction(String text) async {
+    final llm = _getLlmService();
+    if (llm == null) return;
+
     try {
-      final llm = LlmService.instance;
       final response = await llm.getResponse(
         systemPrompt:
             'Extract any person or company names from the given text. '
@@ -1962,6 +1990,9 @@ Rules:
             'If no entities are found, reply with an empty array: []',
         messages: [ChatMessage(role: 'user', content: text)],
       );
+
+      // Guard: engine may have stopped while awaiting the LLM response.
+      if (!_isActive) return;
 
       final trimmed = response.trim();
       // Find the JSON array in the response
@@ -2010,6 +2041,7 @@ Rules:
     _followUpChipsController.close();
     _providerErrorController.close();
     _postConversationController.close();
+    _factCheckAlertController.close();
     _translationSubscription?.cancel();
     _translationController.close();
     _sentimentController.close();

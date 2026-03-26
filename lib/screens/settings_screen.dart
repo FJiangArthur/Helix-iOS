@@ -1784,53 +1784,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSlider(
-    String title,
-    double value,
-    ValueChanged<double> onChanged,
-  ) {
-    return StatefulBuilder(
-      builder: (context, setSliderState) {
-        var currentValue = value;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  '${(currentValue * 100).round()}%',
-                  style: TextStyle(color: HelixTheme.cyan, fontSize: 13),
-                ),
-              ],
-            ),
-            SliderTheme(
-              data: SliderThemeData(
-                activeTrackColor: HelixTheme.cyan,
-                inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
-                thumbColor: HelixTheme.cyan,
-                trackHeight: 2,
-              ),
-              child: Slider(
-                value: currentValue,
-                onChanged: (v) => setSliderState(() => currentValue = v),
-                onChangeEnd: onChanged,
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildInfoTile(String title, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
