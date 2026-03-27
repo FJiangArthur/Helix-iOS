@@ -313,6 +313,11 @@ import NaturalLanguage
             binaryMessenger: controller.binaryMessenger)
         passiveEventChannel.setStreamHandler(PassiveAudioEventHandler())
 
+        let glassesMicHealthChannel = FlutterEventChannel(
+            name: "eventGlassesMicHealth",
+            binaryMessenger: controller.binaryMessenger)
+        glassesMicHealthChannel.setStreamHandler(GlassesMicHealthEventHandler())
+
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)

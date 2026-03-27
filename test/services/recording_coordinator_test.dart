@@ -51,6 +51,14 @@ void main() {
         },
       );
 
+      // Stub the passive audio channel so PassiveListeningService.pause()
+      // does not throw MissingPluginException.
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('method.passiveAudio'),
+        (MethodCall methodCall) async => null,
+      );
+
       // Configure settings for phone-based transcription so we don't need BLE.
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
@@ -60,6 +68,11 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
         const MethodChannel('method.bluetooth'),
+        null,
+      );
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('method.passiveAudio'),
         null,
       );
     });

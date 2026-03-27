@@ -917,6 +917,12 @@ class SpeechStreamRecognizer {
         _stopRecognition(emitFinal: emitFinal)
     }
 
+    /// Restart the current recognition session with the same parameters.
+    /// Used by GlassesMicSessionManager for continuous glasses mic sessions.
+    func restartCurrentSession() {
+        restartRecognitionSegment()
+    }
+
     func appendPCMData(_ pcmData: Data) {
         guard activeInputSource == .glassesPcm else { return }
         guard !isPaused else { return }

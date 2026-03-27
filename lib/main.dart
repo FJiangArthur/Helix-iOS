@@ -15,7 +15,12 @@ import 'services/settings_manager.dart';
 import 'services/conversation_engine.dart';
 import 'services/bitmap_hud/bitmap_hud_service.dart';
 import 'services/dashboard_service.dart';
+import 'services/button_gesture_detector.dart';
+import 'services/database/helix_database.dart';
+import 'services/database/migration_service.dart';
 import 'services/entity_memory.dart';
+import 'services/gesture_action_router.dart';
+import 'services/passive_listening_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,8 +28,16 @@ void main() async {
   // Initialize settings first (loads persisted preferences)
   await SettingsManager.instance.initialize();
 
+  // Initialize SQLite database and run one-time migration (V2.2)
+  // ignore: unnecessary_statements
+  HelixDatabase.instance; // triggers LazyDatabase creation
+  await MigrationService.migrateIfNeeded();
+
   // Initialize BLE manager
   _initializeBleManager();
+
+  // Initialize gesture detection pipeline (V2.2)
+  _initializeGestureSystem();
 
   // Initialize HUD widget registry (before dashboard service)
   await _initializeHudWidgets();
@@ -32,8 +45,13 @@ void main() async {
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
 
-  // Load persisted entity memory (people/companies from past conversations)
+  // Load persisted entity memory from SQLite (people/companies)
   await EntityMemory.instance.load();
+
+  // Start all-day passive listening if enabled
+  if (SettingsManager.instance.allDayModeEnabled) {
+    PassiveListeningService.instance.start();
+  }
 
   // Initialize bitmap HUD service (registers bitmap widgets, starts timers)
   await BitmapHudService.instance.initialize();
@@ -60,6 +78,15 @@ void _initializeBleManager() {
   final bleManager = BleManager.get();
   bleManager.setMethodCallHandler();
   bleManager.startListening();
+}
+
+void _initializeGestureSystem() {
+  final bleManager = BleManager.get();
+  ButtonGestureDetector.instance.initialize(
+    bleManager.deviceEventStream,
+    connectionStateStream: bleManager.connectionStateStream,
+  );
+  GestureActionRouter.instance.initialize();
 }
 
 Future<void> _initializeLlmService() async {

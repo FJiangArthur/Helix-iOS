@@ -54,6 +54,9 @@ class EvenAI {
   final int startTimeGap = 500;
   final int stopTimeGap = 500;
 
+  /// Whether a continuous (all-day) glasses session is active.
+  bool continuousMode = false;
+
   /// Pause/resume state for live listening
   static bool _isPaused = false;
 
@@ -92,6 +95,43 @@ class EvenAI {
     await _hudController.beginLiveListening(source: 'EvenAI.toStartEvenAIByOS');
 
     _startRecordingTimer();
+  }
+
+  /// Start a continuous glasses session (no 30-second auto-stop).
+  ///
+  /// The native [GlassesMicSessionManager] handles periodic mic restarts;
+  /// Dart side simply keeps the session open.
+  Future<void> startContinuousSession() async {
+    int currentTime = DateTime.now().millisecondsSinceEpoch;
+    if (currentTime - _lastStartTime < startTimeGap) return;
+    _lastStartTime = currentTime;
+
+    BleManager.get().startSendBeatHeart();
+    clear();
+    _audioBuffer.startReceiving();
+
+    continuousMode = true;
+    isRunning = true;
+    _isPaused = false;
+
+    await ConversationListeningSession.instance.startSession(
+      source: TranscriptSource.glasses,
+    );
+    await _hudController.beginLiveListening(
+        source: 'EvenAI.continuousSession');
+    // NO _startRecordingTimer() — native GlassesMicSessionManager handles restarts
+  }
+
+  /// Stop a continuous glasses session.
+  Future<void> stopContinuousSession() async {
+    continuousMode = false;
+    isRunning = false;
+    _isPaused = false;
+    _stopRecordingTimer();
+    _audioBuffer.stopReceiving();
+    await ConversationListeningSession.instance.stopSession();
+    await _hudController.resetToIdle(
+        source: 'EvenAI.stopContinuousSession');
   }
 
   /// Stop Even AI by OS command
@@ -213,10 +253,16 @@ class EvenAI {
     }
   }
 
-  /// Manually trigger question detection from glasses button press
+  /// Manually trigger question detection from glasses button press.
+  /// In proactive mode, shows session-appropriate feedback.
   static void _triggerManualQuestionDetection() {
+    final mode = ConversationEngine.instance.mode;
+    if (mode == ConversationMode.proactive) {
+      _flashFeedback('ANALYZING SESSION...');
+    } else {
+      _flashFeedback('ANALYZING...');
+    }
     ConversationEngine.instance.forceQuestionAnalysis();
-    _flashFeedback('ANALYZING...');
   }
 
   /// Show brief feedback text on glasses display, auto-clears after 500ms

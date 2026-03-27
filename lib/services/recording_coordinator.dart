@@ -1,5 +1,6 @@
 // ABOUTME: Unified recording coordinator that manages both conversation
 // ABOUTME: listening (transcription) and audio file recording in a single toggle.
+// ABOUTME: Supports multiple recording modes: conversation, voiceNote, walkieTalkieChat.
 
 import 'dart:async';
 
@@ -8,11 +9,25 @@ import 'package:flutter/foundation.dart';
 import 'conversation_engine.dart';
 import 'conversation_listening_session.dart';
 import 'implementations/audio_service_impl.dart';
+import 'passive_listening_service.dart';
+import 'voice_note_service.dart';
 import '../models/audio_configuration.dart';
 import '../services/evenai.dart';
 import '../services/settings_manager.dart';
 import '../ble_manager.dart';
 import '../utils/app_logger.dart';
+
+/// The type of recording session.
+enum RecordingMode {
+  /// Full ConversationEngine pipeline (transcription + AI processing).
+  conversation,
+
+  /// Short capture, transcribe only (voice memo).
+  voiceNote,
+
+  /// Push-to-talk AI chat.
+  walkieTalkieChat,
+}
 
 /// Singleton that coordinates recording across both the conversation
 /// listening session (transcription) and the audio file recorder.
@@ -29,6 +44,9 @@ class RecordingCoordinator {
   // ── State ──────────────────────────────────────────────────────────
 
   final ValueNotifier<bool> isRecording = ValueNotifier<bool>(false);
+
+  /// The active recording mode, or null when not recording.
+  RecordingMode? _currentMode;
 
   final StreamController<bool> _recordingStateController =
       StreamController<bool>.broadcast();
@@ -50,20 +68,44 @@ class RecordingCoordinator {
 
   // ── Public API ─────────────────────────────────────────────────────
 
-  /// Toggle recording on/off.
+  /// The active recording mode, or null when not recording.
+  RecordingMode? get currentMode => _currentMode;
+
+  /// Toggle recording on/off using [RecordingMode.conversation] (default).
   ///
   /// When starting, both the conversation listening session AND the audio
   /// file recorder are started. When stopping, both are stopped and the
   /// audio file path is returned.
   Future<String?> toggleRecording({
     required TranscriptSource source,
+    RecordingMode mode = RecordingMode.conversation,
   }) async {
     if (isRecording.value) {
       return _stopAll();
     } else {
-      await _startAll(source: source);
+      await _startAll(source: source, mode: mode);
       return null;
     }
+  }
+
+  /// Start a voice note recording session.
+  ///
+  /// Uses [RecordingMode.voiceNote] — transcription only, no full pipeline.
+  Future<void> startVoiceNote({
+    TranscriptSource source = TranscriptSource.glasses,
+  }) async {
+    if (isRecording.value) return;
+    await VoiceNoteService.instance.startRecording();
+    await _startAll(source: source, mode: RecordingMode.voiceNote);
+  }
+
+  /// Stop the current voice note recording session.
+  Future<String?> stopVoiceNote() async {
+    if (!isRecording.value || _currentMode != RecordingMode.voiceNote) {
+      return null;
+    }
+    await VoiceNoteService.instance.stopRecording();
+    return _stopAll();
   }
 
   // ── Internals ──────────────────────────────────────────────────────
@@ -91,7 +133,15 @@ class RecordingCoordinator {
     }
   }
 
-  Future<void> _startAll({required TranscriptSource source}) async {
+  Future<void> _startAll({
+    required TranscriptSource source,
+    RecordingMode mode = RecordingMode.conversation,
+  }) async {
+    // Pause passive listening during active session
+    PassiveListeningService.instance.pause();
+
+    _currentMode = mode;
+
     // 1. Start conversation listening session (transcription).
     final settings = SettingsManager.instance;
     final useGlasses = switch (settings.preferredMicSource) {
@@ -102,7 +152,11 @@ class RecordingCoordinator {
 
     _startedViaEvenAI = useGlasses;
     if (useGlasses) {
-      await EvenAI.get.toStartEvenAIByOS();
+      if (mode == RecordingMode.conversation) {
+        await EvenAI.get.startContinuousSession();
+      } else {
+        await EvenAI.get.toStartEvenAIByOS();
+      }
     } else {
       await ConversationListeningSession.instance.startSession(
         source: source,
@@ -148,7 +202,11 @@ class RecordingCoordinator {
     // Use the saved flag rather than EvenAI.isRunning, which may have been
     // reset by the 30-second timer (recordOverByOS) before we get here.
     if (_startedViaEvenAI) {
-      await EvenAI.get.stopEvenAIByOS();
+      if (EvenAI.get.continuousMode) {
+        await EvenAI.get.stopContinuousSession();
+      } else {
+        await EvenAI.get.stopEvenAIByOS();
+      }
     } else {
       await ConversationListeningSession.instance.stopSession();
     }
@@ -174,9 +232,15 @@ class RecordingCoordinator {
     _recordingStartTime = null;
 
     // 4. Publish state.
+    _currentMode = null;
     isRecording.value = false;
     _recordingStateController.add(false);
     appLogger.i('[RecordingCoordinator] Recording stopped — file: $filePath');
+
+    // Resume passive listening after active session
+    if (SettingsManager.instance.allDayModeEnabled) {
+      PassiveListeningService.instance.resume();
+    }
 
     return filePath;
   }
