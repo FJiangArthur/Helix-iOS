@@ -53,6 +53,7 @@
 		DA91ADA02E67000100220CE1 /* WhisperBatchTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */; };
 		DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */; };
 		DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */; };
+		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
 		EED5A342696AD13438FAF847 /* celt_lpc.c in Sources */ = {isa = PBXBuildFile; fileRef = 7E45706BC0C7E568EDE86C9B /* celt_lpc.c */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
 /* End PBXBuildFile section */
@@ -167,6 +168,7 @@
 		DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerTurnDetector.swift; sourceTree = "<group>"; };
 		DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNNoiseProcessor.m; sourceTree = "<group>"; };
 		DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNNoiseProcessor.h; sourceTree = "<group>"; };
+		DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveAudioMonitor.swift; sourceTree = "<group>"; };
 		EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */ = {isa = PBXFileReference; includeInIndex = 0; path = HelixLiveActivity; sourceTree = BUILT_PRODUCTS_DIR; };
 		F015F1CCE5630A769DFFAEDA /* nnet.c */ = {isa = PBXFileReference; includeInIndex = 1; path = nnet.c; sourceTree = "<group>"; };
 		F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventKitChannel.swift; sourceTree = "<group>"; };
@@ -267,6 +269,7 @@
 				DA91AD942E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift */,
 				DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */,
 				DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */,
+				DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */,
 				DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */,
 				DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */,
 				DA91AD512E52F4A900220CE1 /* PcmConverter.h */,
@@ -596,6 +599,7 @@
 				DA91AD932E52F4A900220CE1 /* OpenAIRealtimeTranscriber.swift in Sources */,
 				DA91ADA02E67000100220CE1 /* WhisperBatchTranscriber.swift in Sources */,
 				DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */,
+				DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */,
 				DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */,
 				DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */,
 				DA91AD5B2E52F4A900220CE1 /* GattProtocal.swift in Sources */,

@@ -275,6 +275,44 @@ import NaturalLanguage
             EventKitChannel.shared.handle(call, result: result)
         }
 
+        // Passive Audio Monitor channels
+        let passiveAudioChannel = FlutterMethodChannel(
+            name: "method.passiveAudio",
+            binaryMessenger: controller.binaryMessenger)
+        passiveAudioChannel.setMethodCallHandler { (call, result) in
+            let monitor = PassiveAudioMonitor.shared
+            switch call.method {
+            case "startPassiveListening":
+                let args = call.arguments as? [String: Any] ?? [:]
+                let language = args["language"] as? String ?? "en"
+                let threshold = (args["vadThreshold"] as? NSNumber)?.floatValue ?? 0.01
+                monitor.start(language: language, vadThreshold: threshold)
+                result(nil)
+            case "stopPassiveListening":
+                monitor.stop()
+                result(nil)
+            case "pausePassiveListening":
+                monitor.pause()
+                result(nil)
+            case "resumePassiveListening":
+                monitor.resume()
+                result(nil)
+            case "getPassiveStatus":
+                result([
+                    "isActive": monitor.isActive,
+                    "state": monitor.state.rawValue,
+                    "segmentCount": monitor.segmentCount,
+                ])
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
+        let passiveEventChannel = FlutterEventChannel(
+            name: "eventPassiveTranscription",
+            binaryMessenger: controller.binaryMessenger)
+        passiveEventChannel.setStreamHandler(PassiveAudioEventHandler())
+
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
