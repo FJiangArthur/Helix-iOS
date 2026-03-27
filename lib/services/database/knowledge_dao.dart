@@ -19,25 +19,29 @@ class KnowledgeDao extends DatabaseAccessor<HelixDatabase>
   // Knowledge Entities
   // ---------------------------------------------------------------------------
 
-  /// Insert or update an entity. On conflict, increments mentionCount and
-  /// updates lastSeen / confidence.
+  /// Insert or update an entity atomically. On conflict, increments
+  /// mentionCount and updates lastSeen / confidence / metadata.
   Future<void> upsertEntity(KnowledgeEntitiesCompanion entry) async {
-    final existing = await (select(knowledgeEntities)
-          ..where((e) => e.id.equals(entry.id.value)))
-        .getSingleOrNull();
-
-    if (existing != null) {
-      await (update(knowledgeEntities)
-            ..where((e) => e.id.equals(entry.id.value)))
-          .write(KnowledgeEntitiesCompanion(
-        mentionCount: Value(existing.mentionCount + 1),
-        lastSeen: entry.lastSeen,
-        confidence: entry.confidence,
-        metadata: entry.metadata,
-      ));
-    } else {
-      await into(knowledgeEntities).insert(entry);
-    }
+    await customStatement(
+      'INSERT INTO knowledge_entities '
+      '(id, name, type, metadata, first_seen, last_seen, mention_count, confidence, source) '
+      'VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8) '
+      'ON CONFLICT(id) DO UPDATE SET '
+      'mention_count = mention_count + 1, '
+      'last_seen = ?6, '
+      'confidence = MIN(1.0, confidence + 0.1), '
+      'metadata = COALESCE(?4, metadata)',
+      [
+        entry.id.value,
+        entry.name.value,
+        entry.type.value,
+        entry.metadata.value,
+        entry.firstSeen.value,
+        entry.lastSeen.value,
+        entry.confidence.value,
+        entry.source.value,
+      ],
+    );
   }
 
   /// Find a single entity by exact name (case-insensitive).
@@ -49,12 +53,17 @@ class KnowledgeDao extends DatabaseAccessor<HelixDatabase>
   }
 
   /// Search entities whose name contains [query], ordered by mention count.
-  Future<List<KnowledgeEntity>> searchEntities(String query) {
-    return (select(knowledgeEntities)
-          ..where((e) => e.name.like('%$query%'))
-          ..orderBy([(e) => OrderingTerm.desc(e.mentionCount)])
-          ..limit(20))
-        .get();
+  /// Uses parameterized query to prevent SQL injection.
+  Future<List<KnowledgeEntity>> searchEntities(String query) async {
+    final results = await customSelect(
+      'SELECT * FROM knowledge_entities '
+      'WHERE name LIKE ?1 '
+      'ORDER BY mention_count DESC '
+      'LIMIT 20',
+      variables: [Variable.withString('%$query%')],
+      readsFrom: {knowledgeEntities},
+    ).get();
+    return results.map((row) => knowledgeEntities.map(row.data)).toList();
   }
 
   /// Top entities ordered by mention count descending.
@@ -87,48 +96,54 @@ class KnowledgeDao extends DatabaseAccessor<HelixDatabase>
   // ---------------------------------------------------------------------------
 
   /// Get the user profile. If none exists, inserts a default and returns it.
+  /// Wrapped in a transaction to prevent race conditions.
   Future<UserProfile> getProfile() async {
-    final existing = await (select(userProfiles)
-          ..where((p) => p.id.equals(1)))
-        .getSingleOrNull();
+    return transaction(() async {
+      final existing = await (select(userProfiles)
+            ..where((p) => p.id.equals(1)))
+          .getSingleOrNull();
 
-    if (existing != null) return existing;
+      if (existing != null) return existing;
 
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final companion = UserProfilesCompanion(
-      id: const Value(1),
-      profileJson: const Value(_defaultProfileJson),
-      lastUpdated: Value(now),
-      version: const Value(1),
-    );
-    await into(userProfiles).insert(companion);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final companion = UserProfilesCompanion(
+        id: const Value(1),
+        profileJson: const Value(_defaultProfileJson),
+        lastUpdated: Value(now),
+        version: const Value(1),
+      );
+      await into(userProfiles).insert(companion);
 
-    return (select(userProfiles)..where((p) => p.id.equals(1))).getSingle();
+      return (select(userProfiles)..where((p) => p.id.equals(1))).getSingle();
+    });
   }
 
   /// Update the profile JSON, incrementing the version.
+  /// Wrapped in a transaction to prevent race conditions.
   Future<void> updateProfile(String profileJson) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
+    return transaction(() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
 
-    final existing = await (select(userProfiles)
-          ..where((p) => p.id.equals(1)))
-        .getSingleOrNull();
+      final existing = await (select(userProfiles)
+            ..where((p) => p.id.equals(1)))
+          .getSingleOrNull();
 
-    if (existing != null) {
-      await (update(userProfiles)..where((p) => p.id.equals(1))).write(
-        UserProfilesCompanion(
+      if (existing != null) {
+        await (update(userProfiles)..where((p) => p.id.equals(1))).write(
+          UserProfilesCompanion(
+            profileJson: Value(profileJson),
+            lastUpdated: Value(now),
+            version: Value(existing.version + 1),
+          ),
+        );
+      } else {
+        await into(userProfiles).insert(UserProfilesCompanion(
+          id: const Value(1),
           profileJson: Value(profileJson),
           lastUpdated: Value(now),
-          version: Value(existing.version + 1),
-        ),
-      );
-    } else {
-      await into(userProfiles).insert(UserProfilesCompanion(
-        id: const Value(1),
-        profileJson: Value(profileJson),
-        lastUpdated: Value(now),
-        version: const Value(1),
-      ));
-    }
+          version: const Value(1),
+        ));
+      }
+    });
   }
 }
