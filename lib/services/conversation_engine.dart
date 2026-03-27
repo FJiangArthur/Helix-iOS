@@ -1,10 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:drift/drift.dart' as drift;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import '../models/answered_question.dart';
 import '../models/assistant_profile.dart';
 import '../utils/app_logger.dart';
 import 'bitmap_hud/bitmap_hud_service.dart';
+import 'cloud_pipeline_service.dart';
+import 'database/helix_database.dart' as database_pkg;
 import 'session_context_manager.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
@@ -17,6 +21,7 @@ import 'tools/tool_executor.dart';
 import 'tools/web_search_tool.dart';
 import 'conversation_listening_session.dart';
 import 'entity_memory.dart';
+import 'knowledge_base.dart';
 import 'settings_manager.dart';
 import 'translation_service.dart';
 import 'text_service.dart';
@@ -54,6 +59,10 @@ class ConversationEngine {
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
+
+  // Knowledge Base context cache
+  String _cachedKbContext = '';
+  DateTime? _lastKbContextRefresh;
 
   // Proactive mode context manager
   final SessionContextManager _sessionContextManager = SessionContextManager();
@@ -262,6 +271,51 @@ class ConversationEngine {
           _postConversationController.add(null);
         }
       });
+
+      // V2.2: Save conversation to SQLite and trigger cloud pipeline
+      _saveAndProcessConversation();
+    }
+  }
+
+  /// Save the current conversation to the database and trigger the cloud pipeline.
+  Future<void> _saveAndProcessConversation() async {
+    try {
+      final db = database_pkg.HelixDatabase.instance;
+      final conversationId = const Uuid().v4();
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Save conversation record
+      await db.conversationDao.insertConversation(
+        database_pkg.ConversationsCompanion.insert(
+          id: conversationId,
+          startedAt: now - (_finalizedSegments.length * 5000),
+          endedAt: drift.Value(now),
+          mode: drift.Value(_mode.name),
+          source: drift.Value('glasses'),
+        ),
+      );
+
+      // Save segments
+      for (int i = 0; i < _finalizedSegments.length; i++) {
+        final seg = _finalizedSegments[i];
+        await db.conversationDao.insertSegment(
+          database_pkg.ConversationSegmentsCompanion.insert(
+            id: const Uuid().v4(),
+            conversationId: conversationId,
+            segmentIndex: i,
+            text_: seg.text,
+            speakerLabel: drift.Value(seg.speakerLabel),
+            startedAt: seg.timestamp.millisecondsSinceEpoch,
+          ),
+        );
+      }
+
+      appLogger.i('Saved conversation $conversationId with ${_finalizedSegments.length} segments');
+
+      // Trigger cloud pipeline asynchronously
+      CloudPipelineService.instance.processConversation(conversationId);
+    } catch (e) {
+      appLogger.e('Failed to save conversation to database', error: e);
     }
   }
 
@@ -1656,6 +1710,19 @@ $profileInstruction''';
   String get _language => SettingsManager.instance.language;
 
   /// Get system prompt for current mode, localized to selected language
+  /// Returns cached KB context, refreshing asynchronously every 60 seconds.
+  String _getKbContext() {
+    final now = DateTime.now();
+    if (_lastKbContextRefresh == null ||
+        now.difference(_lastKbContextRefresh!).inSeconds > 60) {
+      _lastKbContextRefresh = now;
+      UserKnowledgeBase.instance.buildContextSummary().then((ctx) {
+        _cachedKbContext = ctx;
+      }).catchError((_) {});
+    }
+    return _cachedKbContext;
+  }
+
   String _getSystemPrompt() {
     final isChinese = _language == 'zh';
     final langInstruction = isChinese
@@ -1741,7 +1808,9 @@ Rules:
         break;
     }
 
-    return '$basePrompt$langInstruction\n\n$profileInstruction';
+    final kbContext = _getKbContext();
+    final contextBlock = kbContext.isNotEmpty ? '\n\n$kbContext' : '';
+    return '$basePrompt$langInstruction\n\n$profileInstruction$contextBlock';
   }
 
   /// Send text to glasses HUD with proper pagination

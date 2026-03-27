@@ -128,7 +128,7 @@ class SettingsManager {
   bool dashboardTiltEnabled = true;
 
   /// HUD render path: 'text' (fallback) or 'bitmap' (full bitmap HUD).
-  String hudRenderPath = 'text';
+  String hudRenderPath = 'bitmap';
 
   /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
   String bitmapLayoutPreset = 'classic';
@@ -163,6 +163,53 @@ class SettingsManager {
 
   /// Voice for OpenAI Realtime audio output.
   String voiceAssistantVoice = 'alloy';
+
+  // ---------------------------------------------------------------------------
+  // V2.2 Offline Assistant Settings
+  // ---------------------------------------------------------------------------
+
+  /// Silence timeout in minutes before auto-stopping recording (5-30).
+  int silenceTimeoutMinutes = 15;
+
+  /// Double press action: 'bookmark' or 'force_process'.
+  String doublePressAction = 'bookmark';
+
+  /// Long press mode: 'voice_note' or 'walkie_talkie'.
+  String longPressMode = 'voice_note';
+
+  /// Whether cloud processing pipeline runs automatically after each conversation.
+  bool cloudProcessingEnabled = true;
+
+  /// Whether daily memory generation is enabled.
+  bool dailyMemoryEnabled = true;
+
+  /// Whether facts extraction is enabled.
+  bool factsExtractionEnabled = true;
+
+  // ---------------------------------------------------------------------------
+  // All-Day Mode & Knowledge Base
+  // ---------------------------------------------------------------------------
+
+  /// Whether all-day continuous recording mode is enabled.
+  bool allDayModeEnabled = false;
+
+  /// Analysis backend: 'cloud', 'llama', or 'foundation'.
+  String analysisBackend = 'cloud';
+
+  /// Cloud provider for analysis when backend is 'cloud'.
+  String analysisCloudProvider = 'openai';
+
+  /// Local LLaMA model identifier for on-device analysis.
+  String llamaModelId = 'qwen2.5-1.5b-q4km';
+
+  /// Voice activity detection energy threshold in dB.
+  double vadThreshold = -40.0;
+
+  /// Interval in minutes between batch analysis passes.
+  int batchAnalysisIntervalMinutes = 5;
+
+  /// Whether the user profile auto-updates from conversations.
+  bool profileAutoUpdateEnabled = true;
 
   // ---------------------------------------------------------------------------
   // UI Settings
@@ -242,7 +289,7 @@ class SettingsManager {
     hudBrightness = prefs.getDouble('hudBrightness') ?? 0.7;
     displayMode = prefs.getString('displayMode') ?? 'standard';
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
-    hudRenderPath = prefs.getString('hudRenderPath') ?? 'text';
+    hudRenderPath = prefs.getString('hudRenderPath') ?? 'bitmap';
     bitmapLayoutPreset = prefs.getString('bitmapLayoutPreset') ?? 'classic';
     stockTicker = prefs.getString('stockTicker') ?? '^DJI';
 
@@ -255,6 +302,23 @@ class SettingsManager {
     translationTargetLanguage = prefs.getString('translationTargetLanguage') ?? 'en';
     voiceResponseEnabled = prefs.getBool('voiceResponseEnabled') ?? false;
     voiceAssistantVoice = prefs.getString('voiceAssistantVoice') ?? 'alloy';
+
+    // V2.2 Offline Assistant
+    silenceTimeoutMinutes = prefs.getInt('silenceTimeoutMinutes') ?? 15;
+    doublePressAction = prefs.getString('doublePressAction') ?? 'bookmark';
+    longPressMode = prefs.getString('longPressMode') ?? 'voice_note';
+    cloudProcessingEnabled = prefs.getBool('cloudProcessingEnabled') ?? true;
+    dailyMemoryEnabled = prefs.getBool('dailyMemoryEnabled') ?? true;
+    factsExtractionEnabled = prefs.getBool('factsExtractionEnabled') ?? true;
+
+    // All-Day Mode & Knowledge Base
+    allDayModeEnabled = prefs.getBool('allDayModeEnabled') ?? false;
+    analysisBackend = prefs.getString('analysisBackend') ?? 'cloud';
+    analysisCloudProvider = prefs.getString('analysisCloudProvider') ?? 'openai';
+    llamaModelId = prefs.getString('llamaModelId') ?? 'qwen2.5-1.5b-q4km';
+    vadThreshold = prefs.getDouble('vadThreshold') ?? -40.0;
+    batchAnalysisIntervalMinutes = prefs.getInt('batchAnalysisIntervalMinutes') ?? 5;
+    profileAutoUpdateEnabled = prefs.getBool('profileAutoUpdateEnabled') ?? true;
 
     // UI
     theme = prefs.getString('theme') ?? 'dark';
@@ -335,6 +399,23 @@ class SettingsManager {
     await prefs.setString('translationTargetLanguage', translationTargetLanguage);
     await prefs.setBool('voiceResponseEnabled', voiceResponseEnabled);
     await prefs.setString('voiceAssistantVoice', voiceAssistantVoice);
+
+    // V2.2 Offline Assistant
+    await prefs.setInt('silenceTimeoutMinutes', silenceTimeoutMinutes);
+    await prefs.setString('doublePressAction', doublePressAction);
+    await prefs.setString('longPressMode', longPressMode);
+    await prefs.setBool('cloudProcessingEnabled', cloudProcessingEnabled);
+    await prefs.setBool('dailyMemoryEnabled', dailyMemoryEnabled);
+    await prefs.setBool('factsExtractionEnabled', factsExtractionEnabled);
+
+    // All-Day Mode & Knowledge Base
+    await prefs.setBool('allDayModeEnabled', allDayModeEnabled);
+    await prefs.setString('analysisBackend', analysisBackend);
+    await prefs.setString('analysisCloudProvider', analysisCloudProvider);
+    await prefs.setString('llamaModelId', llamaModelId);
+    await prefs.setDouble('vadThreshold', vadThreshold);
+    await prefs.setInt('batchAnalysisIntervalMinutes', batchAnalysisIntervalMinutes);
+    await prefs.setBool('profileAutoUpdateEnabled', profileAutoUpdateEnabled);
 
     // UI
     await prefs.setString('theme', theme);
