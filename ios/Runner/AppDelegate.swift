@@ -3,6 +3,7 @@ import Flutter
 import AVFoundation
 import CoreBluetooth
 import Speech
+import NaturalLanguage
 
 @main
 @objc class AppDelegate: FlutterAppDelegate {
@@ -185,6 +186,87 @@ import Speech
         }
         SpeechStreamRecognizer.shared.onRealtimeAudioDone = { [weak self] in
             self?.realtimeAudioEventSink?(["event": "done"])
+        }
+
+        // NaturalLanguage channel (NLTagger NER, nouns, language detection)
+        let nlChannel = FlutterMethodChannel(name: "method.naturalLanguage", binaryMessenger: controller.binaryMessenger)
+        nlChannel.setMethodCallHandler { (call, result) in
+            guard call.method == "analyzeText" else {
+                result(FlutterMethodNotImplemented)
+                return
+            }
+            guard let args = call.arguments as? [String: Any],
+                  let text = args["text"] as? String,
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                result(["language": "", "entities": [], "nouns": []] as [String: Any])
+                return
+            }
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                // 1. Language detection
+                let language = NLLanguageRecognizer.dominantLanguage(for: text)?.rawValue ?? ""
+
+                // 2. Named Entity Recognition
+                var entities: [[String: Any]] = []
+                let nerTagger = NLTagger(tagSchemes: [.nameType])
+                nerTagger.string = text
+                let allowedTags: [NLTag] = [.personalName, .placeName, .organizationName]
+                nerTagger.enumerateTags(
+                    in: text.startIndex..<text.endIndex,
+                    unit: .word,
+                    scheme: .nameType,
+                    options: [.omitWhitespace, .omitPunctuation, .joinNames]
+                ) { tag, range in
+                    if let tag = tag, allowedTags.contains(tag) {
+                        let name = String(text[range])
+                        let start = text.distance(from: text.startIndex, to: range.lowerBound)
+                        let length = text.distance(from: range.lowerBound, to: range.upperBound)
+                        let typeStr: String
+                        switch tag {
+                        case .personalName: typeStr = "PersonalName"
+                        case .placeName: typeStr = "PlaceName"
+                        case .organizationName: typeStr = "OrganizationName"
+                        default: typeStr = tag.rawValue
+                        }
+                        entities.append([
+                            "name": name,
+                            "type": typeStr,
+                            "start": start,
+                            "length": length,
+                        ])
+                    }
+                    return true
+                }
+
+                // 3. Noun extraction (deduplicated)
+                var nouns: [String] = []
+                var seenNouns = Set<String>()
+                let lexTagger = NLTagger(tagSchemes: [.lexicalClass])
+                lexTagger.string = text
+                lexTagger.enumerateTags(
+                    in: text.startIndex..<text.endIndex,
+                    unit: .word,
+                    scheme: .lexicalClass,
+                    options: [.omitWhitespace, .omitPunctuation]
+                ) { tag, range in
+                    if tag == .noun {
+                        let word = String(text[range]).lowercased()
+                        if !seenNouns.contains(word) {
+                            seenNouns.insert(word)
+                            nouns.append(word)
+                        }
+                    }
+                    return true
+                }
+
+                DispatchQueue.main.async {
+                    result([
+                        "language": language,
+                        "entities": entities,
+                        "nouns": nouns,
+                    ] as [String: Any])
+                }
+            }
         }
 
         // EventKit channel (Calendar + Reminders)
