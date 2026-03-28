@@ -2524,8 +2524,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 : _buildQuickAskField(),
           ),
           const SizedBox(width: 6),
+          _buildMicSourceChip(),
+          const SizedBox(width: 4),
           _buildRecordButton(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMicSourceChip() {
+    final settings = SettingsManager.instance;
+    final source = settings.preferredMicSource;
+    final icon = source == 'glasses'
+        ? Icons.bluetooth_rounded
+        : source == 'phone'
+            ? Icons.phone_iphone_rounded
+            : Icons.auto_awesome_rounded;
+    final label = source == 'glasses'
+        ? 'G1'
+        : source == 'phone'
+            ? 'Phone'
+            : 'Auto';
+
+    return GestureDetector(
+      onTap: () {
+        final next = switch (source) {
+          'auto' => 'phone',
+          'phone' => 'glasses',
+          _ => 'auto',
+        };
+        settings.update((s) => s.preferredMicSource = next);
+        setState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.7)),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 9,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

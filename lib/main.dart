@@ -12,6 +12,7 @@ import 'services/hud_widgets/todos_widget.dart';
 import 'services/hud_widgets/weather_widget.dart';
 import 'services/llm/llm_service.dart';
 import 'services/settings_manager.dart';
+import 'utils/app_logger.dart';
 import 'services/conversation_engine.dart';
 import 'services/bitmap_hud/bitmap_hud_service.dart';
 import 'services/dashboard_service.dart';
@@ -95,7 +96,8 @@ Future<void> _initializeLlmService() async {
 
   final settings = SettingsManager.instance;
 
-  // Load API keys from secure storage and configure providers
+  // Load API keys from secure storage and configure providers.
+  // SecureStorage may throw on simulator (missing keychain entitlements).
   for (final providerId in [
     'openai',
     'anthropic',
@@ -103,9 +105,13 @@ Future<void> _initializeLlmService() async {
     'qwen',
     'zhipu',
   ]) {
-    final apiKey = await settings.getApiKey(providerId);
-    if (apiKey != null && apiKey.isNotEmpty) {
-      llmService.setApiKey(providerId, apiKey);
+    try {
+      final apiKey = await settings.getApiKey(providerId);
+      if (apiKey != null && apiKey.isNotEmpty) {
+        llmService.setApiKey(providerId, apiKey);
+      }
+    } catch (e) {
+      appLogger.w('[main] Failed to load API key for $providerId: $e');
     }
   }
 

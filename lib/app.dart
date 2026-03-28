@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'screens/conversation_history_screen.dart';
+import 'screens/detail_analysis_screen.dart';
+import 'screens/g1_test_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/memories_screen.dart';
-import 'screens/facts_screen.dart';
-import 'screens/buzz_screen.dart';
+import 'screens/insights_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
@@ -88,18 +89,18 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const MemoriesScreen(),
-    const FactsScreen(),
-    const BuzzScreen(),
-    const SettingsScreen(),
+    const G1TestScreen(),
+    const ConversationHistoryScreen(),
+    const DetailAnalysisScreen(),
+    const InsightsScreen(),
   ];
 
   final List<String> _titles = [
     'Home',
-    'Memories',
-    'Facts',
-    'Buzz',
-    'Settings',
+    'Glasses',
+    'History',
+    'Live',
+    'Insights',
   ];
 
   @override
@@ -122,7 +123,8 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final showAppBar = _currentIndex != 0;
+    // Hide AppBar for Home (0) and Insights (4) — Insights has its own with TabBar
+    final showAppBar = _currentIndex != 0 && _currentIndex != 4;
 
     return Scaffold(
       appBar: showAppBar
@@ -130,6 +132,18 @@ class _MainScreenState extends State<MainScreen> {
               title: Text(_titles[_currentIndex]),
               backgroundColor: Colors.transparent,
               elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings_outlined),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             )
           : null,
       body: IndexedStack(index: _currentIndex, children: _screens),
@@ -156,24 +170,24 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.auto_stories_outlined),
-              selectedIcon: Icon(Icons.auto_stories),
-              label: 'Memories',
+              icon: Icon(Icons.bluetooth_rounded),
+              selectedIcon: Icon(Icons.bluetooth_connected_rounded),
+              label: 'Glasses',
             ),
             NavigationDestination(
-              icon: Icon(Icons.psychology_outlined),
-              selectedIcon: Icon(Icons.psychology),
-              label: 'Facts',
+              icon: Icon(Icons.history_rounded),
+              selectedIcon: Icon(Icons.history_rounded),
+              label: 'History',
             ),
             NavigationDestination(
-              icon: Icon(Icons.search_rounded),
-              selectedIcon: Icon(Icons.search_rounded),
-              label: 'Buzz',
+              icon: Icon(Icons.radio_button_checked_rounded),
+              selectedIcon: Icon(Icons.radio_button_checked_rounded),
+              label: 'Live',
             ),
             NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Settings',
+              icon: Icon(Icons.lightbulb_outline_rounded),
+              selectedIcon: Icon(Icons.lightbulb_rounded),
+              label: 'Insights',
             ),
           ],
         ),

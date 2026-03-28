@@ -151,6 +151,9 @@ class RecordingCoordinator {
     };
 
     _startedViaEvenAI = useGlasses;
+    appLogger.d('[RecordingCoordinator] micPref=${settings.preferredMicSource} '
+        'bleConnected=${BleManager.isBothConnected()} '
+        'useGlasses=$useGlasses source=$source mode=$mode');
     if (useGlasses) {
       if (mode == RecordingMode.conversation) {
         await EvenAI.get.startContinuousSession();
@@ -158,8 +161,9 @@ class RecordingCoordinator {
         await EvenAI.get.toStartEvenAIByOS();
       }
     } else {
+      // Force phone source when not using glasses
       await ConversationListeningSession.instance.startSession(
-        source: source,
+        source: TranscriptSource.phone,
       );
     }
 

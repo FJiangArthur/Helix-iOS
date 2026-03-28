@@ -434,6 +434,41 @@ class SpeechStreamRecognizer {
         didLogFinalEmission = false
         activeInputSource = source.lowercased() == "microphone" ? .microphone : .glassesPcm
 
+        // Ensure mic permission before proceeding (phone mic path)
+        if activeInputSource == .microphone {
+            Task { @MainActor in
+                let micAuthorized = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+                self.log("OpenAI mic permission granted=\(micAuthorized)")
+                guard micAuthorized else {
+                    self.failToStart(RecognizerError.notPermittedToRecord)
+                    return
+                }
+                self._continueOpenAIRecognition(
+                    identifier: identifier, source: source, apiKey: apiKey,
+                    model: model, realtimeConversation: realtimeConversation,
+                    systemPrompt: systemPrompt, voice: voice, completion: completion
+                )
+            }
+            return
+        }
+
+        _continueOpenAIRecognition(
+            identifier: identifier, source: source, apiKey: apiKey,
+            model: model, realtimeConversation: realtimeConversation,
+            systemPrompt: systemPrompt, voice: voice, completion: completion
+        )
+    }
+
+    private func _continueOpenAIRecognition(
+        identifier: String,
+        source: String,
+        apiKey: String,
+        model: String,
+        realtimeConversation: Bool = false,
+        systemPrompt: String? = nil,
+        voice: String = "alloy",
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
         openaiTranscriber.onTranscript = { [weak self] text, isFinal in
             guard let self = self else { return }
             if !text.isEmpty {
@@ -989,6 +1024,11 @@ class SpeechStreamRecognizer {
     private func startMicrophoneCapture() throws {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
+        log("Mic capture format: sampleRate=\(recordingFormat.sampleRate) channels=\(recordingFormat.channelCount)")
+
+        guard recordingFormat.sampleRate > 0 else {
+            throw RecognizerError.notPermittedToRecord
+        }
 
         removeInputTapIfNeeded()
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) {
@@ -1004,6 +1044,7 @@ class SpeechStreamRecognizer {
 
         audioEngine.prepare()
         try audioEngine.start()
+        log("Audio engine started for microphone capture")
     }
 
     private func _stopRecognition(emitFinal: Bool) {
@@ -1299,9 +1340,13 @@ extension SFSpeechRecognizer {
 
 extension AVAudioSession {
     func hasPermissionToRecord() async -> Bool {
-        await withCheckedContinuation { continuation in
-            requestRecordPermission { authorized in
-                continuation.resume(returning: authorized)
+        if #available(iOS 17.0, *) {
+            return await AVAudioApplication.requestRecordPermission()
+        } else {
+            return await withCheckedContinuation { continuation in
+                requestRecordPermission { authorized in
+                    continuation.resume(returning: authorized)
+                }
             }
         }
     }
