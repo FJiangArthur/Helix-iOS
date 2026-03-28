@@ -659,6 +659,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ]),
             const SizedBox(height: 20),
+            _buildSection('All-Day Mode', Icons.hearing, [
+              _buildToggle(
+                'All-Day Listening',
+                'Always-on phone mic with on-device transcription',
+                _settings.allDayModeEnabled,
+                (v) => _settings.update((s) => s.allDayModeEnabled = v),
+              ),
+              if (_settings.allDayModeEnabled) ...[
+                const SizedBox(height: 12),
+                _buildAnalysisBackendSelector(),
+                const SizedBox(height: 8),
+                _buildToggle(
+                  'Auto-Update Profile',
+                  'Let AI learn your preferences and contacts over time',
+                  _settings.profileAutoUpdateEnabled,
+                  (v) => _settings.update(
+                      (s) => s.profileAutoUpdateEnabled = v),
+                ),
+              ],
+            ]),
+            const SizedBox(height: 20),
             _buildSection('Translation', Icons.translate, [
               _buildToggle(
                 'Live Translation',
@@ -1109,6 +1130,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildAnalysisBackendSelector() {
+    const backends = [
+      ('cloud', 'Cloud LLM', 'Uses your configured API provider'),
+      ('llama', 'On-Device LLM', 'Offline via llama.cpp (coming soon)'),
+      ('foundation', 'Apple AI', 'Foundation Models, iPhone 16 Pro+'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Analysis Backend',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: backends.map((b) {
+            final isSelected = _settings.analysisBackend == b.$1;
+            return _buildSelectionChip(
+              label: b.$2,
+              subtitle: b.$3,
+              isSelected: isSelected,
+              onTap: () =>
+                  _settings.update((s) => s.analysisBackend = b.$1),
+            );
+          }).toList(),
+        ),
+      ],
     );
   }
 
