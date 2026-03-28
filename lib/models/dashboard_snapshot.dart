@@ -134,6 +134,7 @@ class DashboardSnapshot {
       ConversationMode.general => 'GENERAL',
       ConversationMode.interview => 'INTERVIEW',
       ConversationMode.passive => 'PASSIVE',
+      ConversationMode.proactive => 'PROACTIVE',
     };
   }
 

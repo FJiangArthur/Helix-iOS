@@ -20,7 +20,17 @@ abstract class BmpWidget {
   /// When data was last successfully refreshed.
   DateTime? lastRefreshed;
 
+  /// Whether this widget's data has changed since the last render.
+  ///
+  /// Set to `true` by [refresh] when new data differs from the previous
+  /// state. The HUD service checks this to skip rendering when nothing
+  /// has changed.
+  bool isDirty = true;
+
   /// Fetch fresh data from the source. Implementations must not throw.
+  ///
+  /// Subclasses should set [isDirty] to `true` when the fetched data
+  /// differs from the previously cached data.
   Future<void> refresh();
 
   /// Render this widget's content onto [canvas] within the given [zone].

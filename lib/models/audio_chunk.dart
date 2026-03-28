@@ -6,7 +6,7 @@ part 'audio_chunk.freezed.dart';
 /// Represents a chunk of audio data
 /// NOTE: No JSON serialization - audio data is binary, not meant for JSON
 @freezed
-class AudioChunk with _$AudioChunk {
+sealed class AudioChunk with _$AudioChunk {
   const factory AudioChunk({
     required Uint8List data,
     required DateTime timestamp,

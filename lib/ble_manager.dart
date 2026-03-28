@@ -205,25 +205,75 @@ class BleManager {
   }
 
   int tryTime = 0;
+  bool _conversationActive = false;
+  int _heartbeatIntervalSeconds = 8;
+  static const int _idleHeartbeatInterval = 30;
+  static const int _failureHeartbeatInterval = 8;
+
+  /// Update heartbeat mode based on conversation state.
+  ///
+  /// During active conversation, heartbeat is suppressed entirely because
+  /// BLE mic data proves the connection is alive. During idle, the interval
+  /// is increased to 30 seconds to save battery.
+  void updateHeartbeatMode(bool isConversationActive) {
+    _conversationActive = isConversationActive;
+    if (isConversationActive) {
+      // Suppress heartbeat during conversation — BLE mic data is enough.
+      beatHeartTimer?.cancel();
+      beatHeartTimer = null;
+    } else {
+      // Switch to idle heartbeat interval.
+      _heartbeatIntervalSeconds = _idleHeartbeatInterval;
+      _restartHeartbeatTimer();
+    }
+  }
+
   void startSendBeatHeart() async {
     beatHeartTimer?.cancel();
     beatHeartTimer = null;
 
-    beatHeartTimer = Timer.periodic(Duration(seconds: 8), (timer) async {
-      bool isSuccess = await Proto.sendHeartBeat();
-      if (!isSuccess && tryTime < 2) {
-        tryTime++;
-        await Proto.sendHeartBeat();
-      } else {
-        tryTime = 0;
-      }
-    });
+    // Use the adaptive interval (default 8s on fresh connect).
+    _heartbeatIntervalSeconds = _failureHeartbeatInterval;
+    _restartHeartbeatTimer();
+  }
+
+  void _restartHeartbeatTimer() {
+    beatHeartTimer?.cancel();
+    beatHeartTimer = null;
+    // Don't start heartbeat during active conversation.
+    if (_conversationActive) return;
+
+    beatHeartTimer = Timer.periodic(
+      Duration(seconds: _heartbeatIntervalSeconds),
+      (timer) async {
+        bool isSuccess = await Proto.sendHeartBeat();
+        if (!isSuccess && tryTime < 2) {
+          tryTime++;
+          await Proto.sendHeartBeat();
+          // On failure, ramp back to fast interval.
+          if (_heartbeatIntervalSeconds != _failureHeartbeatInterval) {
+            _heartbeatIntervalSeconds = _failureHeartbeatInterval;
+            _restartHeartbeatTimer();
+          }
+        } else {
+          tryTime = 0;
+          // On success in idle mode, use the slower interval.
+          if (!_conversationActive &&
+              _heartbeatIntervalSeconds != _idleHeartbeatInterval) {
+            _heartbeatIntervalSeconds = _idleHeartbeatInterval;
+            _restartHeartbeatTimer();
+          }
+        }
+      },
+    );
   }
 
   void stopSendBeatHeart() {
     beatHeartTimer?.cancel();
     beatHeartTimer = null;
     tryTime = 0;
+    _conversationActive = false;
+    _heartbeatIntervalSeconds = _failureHeartbeatInterval;
   }
 
   void _onGlassesConnecting() {
@@ -305,10 +355,11 @@ class BleManager {
           EvenAI.get.nextPageByTouchpad();
           break;
         case BleDeviceEventKind.evenaiStart:
-          EvenAI.get.toStartEvenAIByOS();
-          break;
         case BleDeviceEventKind.evenaiRecordOver:
-          EvenAI.get.recordOverByOS();
+          // V2.2: Raw button events are now routed through ButtonGestureDetector
+          // which interprets them into compound gestures (single/double/long/5x press).
+          // The GestureActionRouter then dispatches the appropriate actions.
+          // No direct EvenAI calls here — the gesture detector handles it.
           break;
         case BleDeviceEventKind.headUp:
         case BleDeviceEventKind.headDown:

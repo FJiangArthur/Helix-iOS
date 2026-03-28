@@ -23,7 +23,7 @@ enum AudioFormat {
 
 /// Audio configuration for recording and processing
 @freezed
-class AudioConfiguration with _$AudioConfiguration {
+sealed class AudioConfiguration with _$AudioConfiguration {
   const factory AudioConfiguration({
     /// Sample rate in Hz (e.g., 16000 for 16kHz)
     @Default(16000) int sampleRate,
@@ -116,7 +116,7 @@ class AudioConfiguration with _$AudioConfiguration {
 
 /// Audio processing capabilities of the device
 @freezed
-class AudioCapabilities with _$AudioCapabilities {
+sealed class AudioCapabilities with _$AudioCapabilities {
   const factory AudioCapabilities({
     /// Supported sample rates
     required List<int> supportedSampleRates,

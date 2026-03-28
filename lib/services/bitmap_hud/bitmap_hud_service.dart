@@ -43,6 +43,15 @@ class BitmapHudService {
   bool _initialized = false;
   bool _sending = false;
 
+  /// Adaptive refresh interval: starts at 60s, doubles on no-change deltas
+  /// (up to 300s), resets to 60s when a widget reports dirty.
+  int _currentRefreshIntervalSeconds = 60;
+  static const int _minRefreshInterval = 60;
+  static const int _maxRefreshInterval = 300;
+
+  /// Whether bitmap refresh is paused during active conversation.
+  bool _conversationPaused = false;
+
   /// Whether bitmap HUD mode is active (vs text HUD).
   bool get isEnabled =>
       SettingsManager.instance.hudRenderPath == 'bitmap';
@@ -86,12 +95,35 @@ class BitmapHudService {
       _onSettingsChanged();
     });
 
-    // Periodic refresh timer (every 60 seconds)
-    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) {
-      if (isEnabled && BleManager.get().isConnected) {
-        pushDelta();
-      }
-    });
+    // Adaptive periodic refresh timer
+    _startAdaptiveRefreshTimer();
+  }
+
+  void _startAdaptiveRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer(
+      Duration(seconds: _currentRefreshIntervalSeconds),
+      () {
+        if (isEnabled && BleManager.get().isConnected && !_conversationPaused) {
+          pushDelta();
+        }
+        // Re-schedule (interval may have changed after pushDelta).
+        _startAdaptiveRefreshTimer();
+      },
+    );
+  }
+
+  /// Pause bitmap refresh during active conversation (text HUD takes
+  /// precedence). Call with `true` when conversation starts, `false` when
+  /// it stops.
+  void setConversationActive(bool active) {
+    _conversationPaused = active;
+    if (!active && isEnabled && BleManager.get().isConnected) {
+      // Reset to base interval and push immediately on resume.
+      _currentRefreshIntervalSeconds = _minRefreshInterval;
+      _startAdaptiveRefreshTimer();
+      pushDelta();
+    }
   }
 
   void _registerWidget(BmpWidget widget) {
@@ -148,9 +180,11 @@ class BitmapHudService {
   }
 
   /// Refresh only stale widgets (past their refresh interval).
+  ///
+  /// Returns `true` if any widget reports [isDirty] after refresh.
   Future<bool> _refreshStaleWidgets() async {
     final now = DateTime.now();
-    bool anyRefreshed = false;
+    bool anyDirty = false;
 
     for (final entry in _zoneWidgets.entries) {
       final widget = entry.value;
@@ -158,14 +192,14 @@ class BitmapHudService {
       if (last == null || now.difference(last) >= widget.refreshInterval) {
         try {
           await widget.refresh();
-          anyRefreshed = true;
+          if (widget.isDirty) anyDirty = true;
         } catch (e) {
           appLogger.w('BitmapHud: widget "${entry.key}" refresh failed: $e');
         }
       }
     }
 
-    return anyRefreshed;
+    return anyDirty;
   }
 
   /// Render the current dashboard to BMP bytes.
@@ -204,6 +238,9 @@ class BitmapHudService {
   /// Delta BMP send: refresh stale widgets, render, diff, send changed chunks.
   ///
   /// Falls back to full send if no previous frame is cached or if delta fails.
+  /// Uses dirty-flag rendering: if no widget reports dirty after refresh,
+  /// [renderDashboard] is skipped entirely and the refresh interval is doubled
+  /// (up to [_maxRefreshInterval]).
   Future<bool> pushDelta() async {
     if (_sending) return false;
     if (_lastSentBmp == null) return _pushFullLocked();
@@ -211,12 +248,30 @@ class BitmapHudService {
     _sending = true;
 
     try {
-      await _refreshStaleWidgets();
+      final anyDirty = await _refreshStaleWidgets();
+
+      // If no widget changed, skip rendering entirely and back off.
+      if (!anyDirty) {
+        appLogger.d('BitmapHud: no widget dirty, skipping render');
+        _currentRefreshIntervalSeconds = (_currentRefreshIntervalSeconds * 2)
+            .clamp(_minRefreshInterval, _maxRefreshInterval);
+        return true;
+      }
+
+      // At least one widget changed — reset to base interval.
+      _currentRefreshIntervalSeconds = _minRefreshInterval;
+
       final newBmp = await renderDashboard();
+
+      // Clear dirty flags after render.
+      for (final w in _zoneWidgets.values) {
+        w.isDirty = false;
+      }
+
       final changedIndices = DeltaEncoder.diff(_lastSentBmp!, newBmp);
 
       if (changedIndices.isEmpty) {
-        appLogger.d('BitmapHud: no changes, skipping send');
+        appLogger.d('BitmapHud: no pixel changes, skipping send');
         return true;
       }
 

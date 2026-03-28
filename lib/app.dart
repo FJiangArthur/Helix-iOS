@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/home_screen.dart';
-import 'screens/g1_test_screen.dart';
-import 'screens/conversation_history_screen.dart';
+import 'screens/memories_screen.dart';
+import 'screens/facts_screen.dart';
+import 'screens/buzz_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/detail_analysis_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
 
@@ -88,17 +88,17 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const G1TestScreen(),
-    const ConversationHistoryScreen(),
-    const DetailAnalysisScreen(),
+    const MemoriesScreen(),
+    const FactsScreen(),
+    const BuzzScreen(),
     const SettingsScreen(),
   ];
 
   final List<String> _titles = [
-    'Assistant',
-    'Glasses',
-    'History',
-    'Detail',
+    'Home',
+    'Memories',
+    'Facts',
+    'Buzz',
     'Settings',
   ];
 
@@ -153,22 +153,22 @@ class _MainScreenState extends State<MainScreen> {
             NavigationDestination(
               icon: Icon(Icons.chat_bubble_outline_rounded),
               selectedIcon: Icon(Icons.chat_bubble_rounded),
-              label: 'Assistant',
+              label: 'Home',
             ),
             NavigationDestination(
-              icon: Icon(Icons.visibility_outlined),
-              selectedIcon: Icon(Icons.visibility),
-              label: 'Glasses',
+              icon: Icon(Icons.auto_stories_outlined),
+              selectedIcon: Icon(Icons.auto_stories),
+              label: 'Memories',
             ),
             NavigationDestination(
-              icon: Icon(Icons.history),
-              selectedIcon: Icon(Icons.history),
-              label: 'History',
+              icon: Icon(Icons.psychology_outlined),
+              selectedIcon: Icon(Icons.psychology),
+              label: 'Facts',
             ),
             NavigationDestination(
-              icon: Icon(Icons.analytics_outlined),
-              selectedIcon: Icon(Icons.analytics_rounded),
-              label: 'Detail',
+              icon: Icon(Icons.search_rounded),
+              selectedIcon: Icon(Icons.search_rounded),
+              label: 'Buzz',
             ),
             NavigationDestination(
               icon: Icon(Icons.settings_outlined),

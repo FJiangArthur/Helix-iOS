@@ -2812,6 +2812,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 textInputAction: TextInputAction.send,
+                onTapOutside: (_) =>
+                    FocusScope.of(context).unfocus(),
                 onSubmitted: (_) {
                   if (!_isRecording) {
                     _submitQuestion();

@@ -33,6 +33,19 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     private var deviceNameByPeripheralId: [UUID: String] = [:]
     private var sideByPeripheralId: [UUID: String] = [:]
     private lazy var pcmConverter = PcmConverter()
+    private lazy var rnnoiseProcessor = RNNoiseProcessor()
+    /// Whether noise reduction is applied to incoming glasses audio.
+    var noiseReductionEnabled = false
+
+    // MARK: - Write Coalescing
+    /// Buffered outgoing BLE writes, keyed by destination ("L", "R", or "both").
+    private var writeCoalesceBuffer: [String: Data] = [:]
+    /// Timer that fires to flush the coalesced write buffer.
+    private var writeCoalesceTimer: Timer?
+    /// Coalescing interval in seconds.
+    private static let writeCoalesceInterval: TimeInterval = 0.2  // 200ms
+    /// Maximum coalesced payload size before forced flush (aligned to typical BLE MTU).
+    private static let writeCoalesceMaxBytes = 182  // conservative MTU minus headers
 
     var leftPeripheral: CBPeripheral?
     var leftUUIDStr: String?
@@ -110,6 +123,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     func disconnectFromGlasses(result: @escaping FlutterResult) {
         userInitiatedDisconnect = true
         clearStoredConnection()
+        flushAllCoalescedWrites()
 
         for (_, devices) in connectedDevices {
             if let leftPeripheral = devices.0 {
@@ -279,30 +293,73 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func writeData(writeData: Data, cbPeripheral: CBPeripheral? = nil, lr: String? = nil) {
+        let key: String
         if lr == "L" {
+            key = "L"
+        } else if lr == "R" {
+            key = "R"
+        } else {
+            key = "both"
+        }
+
+        // Append to coalescing buffer
+        if writeCoalesceBuffer[key] == nil {
+            writeCoalesceBuffer[key] = Data()
+        }
+        writeCoalesceBuffer[key]!.append(writeData)
+
+        // Flush immediately if buffer exceeds MTU size
+        if writeCoalesceBuffer[key]!.count >= Self.writeCoalesceMaxBytes {
+            flushCoalescedWrite(for: key)
+        } else {
+            // Start coalescing timer if not already running
+            if writeCoalesceTimer == nil {
+                writeCoalesceTimer = Timer.scheduledTimer(
+                    withTimeInterval: Self.writeCoalesceInterval,
+                    repeats: false
+                ) { [weak self] _ in
+                    self?.flushAllCoalescedWrites()
+                }
+            }
+        }
+    }
+
+    /// Flush all pending coalesced writes.
+    private func flushAllCoalescedWrites() {
+        writeCoalesceTimer?.invalidate()
+        writeCoalesceTimer = nil
+        let keys = Array(writeCoalesceBuffer.keys)
+        for key in keys {
+            flushCoalescedWrite(for: key)
+        }
+    }
+
+    /// Flush a single coalesced write buffer for the given destination key.
+    private func flushCoalescedWrite(for key: String) {
+        guard let data = writeCoalesceBuffer[key], !data.isEmpty else { return }
+        writeCoalesceBuffer.removeValue(forKey: key)
+
+        switch key {
+        case "L":
             if let leftWChar = leftWChar {
-                leftPeripheral?.writeValue(writeData, for: leftWChar, type: .withoutResponse)
+                leftPeripheral?.writeValue(data, for: leftWChar, type: .withoutResponse)
             }
-            return
-        }
-
-        if lr == "R" {
+        case "R":
             if let rightWChar = rightWChar {
-                rightPeripheral?.writeValue(writeData, for: rightWChar, type: .withoutResponse)
+                rightPeripheral?.writeValue(data, for: rightWChar, type: .withoutResponse)
             }
-            return
-        }
-
-        if let leftWChar = leftWChar {
-            leftPeripheral?.writeValue(writeData, for: leftWChar, type: .withoutResponse)
-        } else {
-            print("writeData leftWChar is nil, cannot write data to left peripheral.")
-        }
-
-        if let rightWChar = rightWChar {
-            rightPeripheral?.writeValue(writeData, for: rightWChar, type: .withoutResponse)
-        } else {
-            print("writeData rightWChar is nil, cannot write data to right peripheral.")
+        default:
+            // Write to both peripherals
+            if let leftWChar = leftWChar {
+                leftPeripheral?.writeValue(data, for: leftWChar, type: .withoutResponse)
+            } else {
+                print("writeData leftWChar is nil, cannot write data to left peripheral.")
+            }
+            if let rightWChar = rightWChar {
+                rightPeripheral?.writeValue(data, for: rightWChar, type: .withoutResponse)
+            } else {
+                print("writeData rightWChar is nil, cannot write data to right peripheral.")
+            }
         }
     }
 
@@ -339,8 +396,15 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 break
             }
             let effectiveData = data.subdata(in: 2..<data.count)
-            let pcmData = pcmConverter.decode(effectiveData)
-            SpeechStreamRecognizer.shared.appendPCMData(pcmData as Data)
+            let decodedPcm = pcmConverter.decode(effectiveData) as Data
+            // Apply noise reduction if enabled and RNNoise is available
+            let pcmData: Data
+            if noiseReductionEnabled, rnnoiseProcessor.isAvailable {
+                pcmData = rnnoiseProcessor.processPCM16(decodedPcm) as Data
+            } else {
+                pcmData = decodedPcm
+            }
+            SpeechStreamRecognizer.shared.appendPCMData(pcmData)
         default:
             let legStr = sideByPeripheralId[cbPeripheral?.identifier ?? UUID()] ?? "L"
             let hexString = data.map { String(format: "%02x", $0) }.joined(separator: " ")

@@ -9,7 +9,7 @@ part 'ble_transaction.freezed.dart';
 /// BLE transaction model for managing request/response/timeout
 /// Note: JSON serialization disabled due to complex types (Uint8List, BleReceive)
 @Freezed(toJson: false, fromJson: false)
-class BleTransaction with _$BleTransaction {
+sealed class BleTransaction with _$BleTransaction {
   const factory BleTransaction({
     required String id,
     required Uint8List command,
@@ -63,7 +63,7 @@ class BleTransaction with _$BleTransaction {
 
 /// Result of a BLE transaction
 @Freezed(toJson: false, fromJson: false)
-class BleTransactionResult with _$BleTransactionResult {
+sealed class BleTransactionResult with _$BleTransactionResult {
   const factory BleTransactionResult.success({
     required BleTransaction transaction,
     required BleReceive response,

@@ -5,7 +5,7 @@ part 'ble_health_metrics.g.dart';
 
 /// BLE connection health metrics
 @freezed
-class BleHealthMetrics with _$BleHealthMetrics {
+sealed class BleHealthMetrics with _$BleHealthMetrics {
   const factory BleHealthMetrics({
     @Default(0) int successCount,
     @Default(0) int timeoutCount,
