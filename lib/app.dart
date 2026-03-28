@@ -135,6 +135,7 @@ class _MainScreenState extends State<MainScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Settings',
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(

@@ -373,6 +373,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Settings',
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
