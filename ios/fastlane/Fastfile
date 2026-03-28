@@ -1,0 +1,131 @@
+default_platform(:ios)
+
+PROJECT_DIR = File.expand_path("../..", __dir__)
+XCODEPROJ = "Even Companion.xcodeproj"
+SCHEME = "Runner"
+BUNDLE_ID = "com.artjiang.helix"
+PROJECT_NAME = "Helix"
+IPA_NAME = "Even Companion"  # CFBundleDisplayName — Flutter uses this for IPA filename
+
+platform :ios do
+  before_all do
+    @api_key = app_store_connect_api_key(
+      key_id: "334J623VNU",
+      issuer_id: "201a71fb-11b4-406e-b857-5908f129d99e",
+      key_filepath: "/Users/artjiang/.appstoreconnect/admin-AuthKey_334J623VNU.p8",
+      in_house: false
+    )
+  end
+
+  # ─── TestFlight ────────────────────────────────────────────────────
+
+  desc "Build Flutter app and upload to TestFlight"
+  lane :testflight_release do
+    ensure_git_status_clean
+
+    get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
+    get_provisioning_profile(
+      api_key: @api_key,
+      app_identifier: BUNDLE_ID,
+      team_id: "4SA9UFLZMT"
+    )
+
+    build_number = Time.now.strftime("%Y%m%d%H%M")
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: XCODEPROJ
+    )
+
+    # Flutter build produces the archive + IPA
+    sh("cd #{PROJECT_DIR} && flutter build ipa --release --build-number=#{build_number} --export-options-plist=ios/fastlane/ExportOptions.plist")
+
+    upload_to_testflight(
+      api_key: @api_key,
+      ipa: "#{PROJECT_DIR}/build/ios/ipa/#{IPA_NAME}.ipa",
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+
+    version = get_version_number(xcodeproj: XCODEPROJ, target: "Even Companion")
+    UI.success("Uploaded #{PROJECT_NAME} v#{version} (#{build_number}) to TestFlight")
+  end
+
+  # ─── App Store Release ─────────────────────────────────────────────
+
+  desc "Build Flutter app and submit to App Store Connect"
+  lane :release do
+    ensure_git_status_clean
+
+    get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
+    get_provisioning_profile(
+      api_key: @api_key,
+      app_identifier: BUNDLE_ID,
+      team_id: "4SA9UFLZMT"
+    )
+
+    build_number = Time.now.strftime("%Y%m%d%H%M")
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: XCODEPROJ
+    )
+
+    sh("cd #{PROJECT_DIR} && flutter build ipa --release --build-number=#{build_number} --export-options-plist=ios/fastlane/ExportOptions.plist")
+
+    upload_to_app_store(
+      api_key: @api_key,
+      ipa: "#{PROJECT_DIR}/build/ios/ipa/#{IPA_NAME}.ipa",
+      skip_metadata: true,
+      skip_screenshots: true,
+      force: true,
+      submit_for_review: false,
+      automatic_release: false
+    )
+
+    version = get_version_number(xcodeproj: XCODEPROJ, target: "Even Companion")
+    UI.success("Uploaded #{PROJECT_NAME} v#{version} (#{build_number}) to App Store Connect")
+  end
+
+  # ─── Full Pipeline: TestFlight + App Store ─────────────────────────
+
+  desc "Build once, upload to both TestFlight and App Store Connect"
+  lane :ship do
+    ensure_git_status_clean
+
+    get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
+    get_provisioning_profile(
+      api_key: @api_key,
+      app_identifier: BUNDLE_ID,
+      team_id: "4SA9UFLZMT"
+    )
+
+    build_number = Time.now.strftime("%Y%m%d%H%M")
+    increment_build_number(
+      build_number: build_number,
+      xcodeproj: XCODEPROJ
+    )
+
+    sh("cd #{PROJECT_DIR} && flutter build ipa --release --build-number=#{build_number} --export-options-plist=ios/fastlane/ExportOptions.plist")
+
+    ipa_path = "#{PROJECT_DIR}/build/ios/ipa/#{IPA_NAME}.ipa"
+
+    upload_to_testflight(
+      api_key: @api_key,
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+
+    upload_to_app_store(
+      api_key: @api_key,
+      ipa: ipa_path,
+      skip_metadata: true,
+      skip_screenshots: true,
+      force: true,
+      submit_for_review: false,
+      automatic_release: false
+    )
+
+    version = get_version_number(xcodeproj: XCODEPROJ, target: "Even Companion")
+    UI.success("Shipped #{PROJECT_NAME} v#{version} (#{build_number}) to TestFlight + App Store Connect")
+  end
+end

@@ -1,0 +1,6 @@
+app_identifier("com.artjiang.helix")
+team_id("4SA9UFLZMT")
+
+for_platform :ios do
+  app_identifier("com.artjiang.helix")
+end
