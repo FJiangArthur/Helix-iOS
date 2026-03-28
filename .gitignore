@@ -49,7 +49,11 @@ app.*.map.json
 
 # Fastlane
 ios/fastlane/api_key.json
+ios/fastlane/README.md
+ios/fastlane/report.xml
 ios/Gemfile.lock
+ios/*.cer
+ios/*.mobileprovision
 
 # Other
 .mcp.json

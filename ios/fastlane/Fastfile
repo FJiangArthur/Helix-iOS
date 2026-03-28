@@ -21,8 +21,6 @@ platform :ios do
 
   desc "Build Flutter app and upload to TestFlight"
   lane :testflight_release do
-    ensure_git_status_clean
-
     get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
     get_provisioning_profile(
       api_key: @api_key,
@@ -54,8 +52,6 @@ platform :ios do
 
   desc "Build Flutter app and submit to App Store Connect"
   lane :release do
-    ensure_git_status_clean
-
     get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
     get_provisioning_profile(
       api_key: @api_key,
@@ -89,8 +85,6 @@ platform :ios do
 
   desc "Build once, upload to both TestFlight and App Store Connect"
   lane :ship do
-    ensure_git_status_clean
-
     get_certificates(api_key: @api_key, team_id: "4SA9UFLZMT")
     get_provisioning_profile(
       api_key: @api_key,
