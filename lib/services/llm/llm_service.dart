@@ -80,11 +80,12 @@ class LlmService {
     required String systemPrompt,
     required List<ChatMessage> messages,
     double temperature = 0.7,
+    String? model,
   }) {
     return activeProvider.streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
-      model: _activeModel,
+      model: model ?? _activeModel,
       temperature: temperature,
     );
   }
@@ -95,12 +96,13 @@ class LlmService {
     required List<ChatMessage> messages,
     List<ToolDefinition>? tools,
     double temperature = 0.7,
+    String? model,
   }) {
     return activeProvider.streamWithTools(
       systemPrompt: systemPrompt,
       messages: messages,
       tools: tools,
-      model: _activeModel,
+      model: model ?? _activeModel,
       temperature: temperature,
     );
   }
@@ -109,11 +111,12 @@ class LlmService {
   Future<String> getResponse({
     required String systemPrompt,
     required List<ChatMessage> messages,
+    String? model,
   }) {
     return activeProvider.getResponse(
       systemPrompt: systemPrompt,
       messages: messages,
-      model: _activeModel,
+      model: model ?? _activeModel,
     );
   }
 

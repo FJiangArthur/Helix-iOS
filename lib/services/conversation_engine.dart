@@ -635,6 +635,7 @@ Current topic: $_currentTranscription''';
             ? '你是一个对话助手。只用JSON格式回复。'
             : 'You are a conversation assistant. Reply only in JSON format.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       final parsed = _parseProactiveSuggestion(response);
@@ -809,6 +810,7 @@ Format:
             ? '你是一个简洁的对话总结助手。用要点格式总结。'
             : 'You are a concise conversation summarizer. Use bullet points.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
       return response;
     } catch (e) {
@@ -854,6 +856,7 @@ Return format (no markdown code blocks):
             ? '你是一个对话分析助手。只用JSON格式回复。'
             : 'You are a conversation analysis assistant. Reply only in JSON format.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       final cleaned = _stripMarkdownCodeFence(response);
@@ -981,6 +984,7 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
             ? '你只输出JSON数组，不要其他内容。'
             : 'Output only a JSON array, nothing else.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       final chips = _parseFollowUpChips(response);
@@ -1030,6 +1034,7 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
             ? '你是事实核查员。只回复"OK"或一句纠正。'
             : 'You are a fact checker. Reply only with "OK" or a one-sentence correction.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       final trimmed = response.trim();
@@ -1081,6 +1086,7 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
             ? '只输出JSON，不要其他内容。'
             : 'Output only JSON, nothing else.',
         messages: [ChatMessage(role: 'user', content: prompt)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       final cleaned = _stripMarkdownCodeFence(result);
@@ -1230,6 +1236,7 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
             content: _buildListeningAnalysisPrompt(window),
           ),
         ],
+        model: SettingsManager.instance.resolvedLightModel,
       );
       if (!_isActive || token != _analysisToken) return;
 
@@ -1554,6 +1561,7 @@ $profileInstruction''';
           messages: toolMessages,
           tools: tools.isEmpty ? null : tools,
           temperature: SettingsManager.instance.temperature,
+          model: SettingsManager.instance.resolvedSmartModel,
         )) {
           if (!_isResponseCurrent(responseToken)) return;
 
@@ -2030,6 +2038,7 @@ Rules:
             'from -1.0 (very negative) to 1.0 (very positive). '
             'Reply with ONLY a single number, nothing else.',
         messages: [ChatMessage(role: 'user', content: text)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       // Guard: engine may have stopped while awaiting the LLM response.
@@ -2080,6 +2089,7 @@ Rules:
             'Reply as a JSON array: [{"name":"...","title":"...","company":"..."}]. '
             'If no entities are found, reply with an empty array: []',
         messages: [ChatMessage(role: 'user', content: text)],
+        model: SettingsManager.instance.resolvedLightModel,
       );
 
       // Guard: engine may have stopped while awaiting the LLM response.

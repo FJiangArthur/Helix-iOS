@@ -39,6 +39,12 @@ class SettingsManager {
   /// Sampling temperature, 0.0 - 1.0.
   double temperature = 0.7;
 
+  /// Model for background tasks (detection, analysis). Null = use provider default.
+  String? lightModel;
+
+  /// Model for user-facing responses. Null = use provider default.
+  String? smartModel;
+
   // ---------------------------------------------------------------------------
   // Conversation Settings
   // ---------------------------------------------------------------------------
@@ -233,6 +239,9 @@ class SettingsManager {
     );
   }
 
+  String? get resolvedLightModel => lightModel;
+  String? get resolvedSmartModel => smartModel;
+
   bool get usesOpenAIRealtimeSession =>
       transcriptionBackend == 'openai' && openAISessionMode == 'realtime';
 
@@ -246,6 +255,8 @@ class SettingsManager {
     // LLM
     activeProviderId = prefs.getString('activeProviderId') ?? 'openai';
     activeModel = prefs.getString('activeModel');
+    lightModel = prefs.getString('lightModel');
+    smartModel = prefs.getString('smartModel');
     temperature = prefs.getDouble('temperature') ?? 0.7;
 
     // Conversation
@@ -342,6 +353,16 @@ class SettingsManager {
       await prefs.setString('activeModel', activeModel!);
     } else {
       await prefs.remove('activeModel');
+    }
+    if (lightModel != null) {
+      await prefs.setString('lightModel', lightModel!);
+    } else {
+      await prefs.remove('lightModel');
+    }
+    if (smartModel != null) {
+      await prefs.setString('smartModel', smartModel!);
+    } else {
+      await prefs.remove('smartModel');
     }
     await prefs.setDouble('temperature', temperature);
 

@@ -4,6 +4,7 @@ import 'dart:developer' as dev;
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
 import 'package:flutter_helix/services/llm/llm_service.dart';
+import 'package:flutter_helix/services/settings_manager.dart';
 
 // ---------------------------------------------------------------------------
 // Models
@@ -214,6 +215,7 @@ $transcript
     final response = await LlmService.instance.getResponse(
       systemPrompt: _systemPrompt,
       messages: [ChatMessage(role: 'user', content: userMessage)],
+      model: SettingsManager.instance.resolvedLightModel,
     );
 
     return BatchAnalysisResult.fromJson(response);
