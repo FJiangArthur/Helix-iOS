@@ -384,6 +384,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 12),
               _buildModelSelector(),
               const SizedBox(height: 12),
+              _buildModelTierSelectors(),
+              const SizedBox(height: 12),
               _buildTemperatureSlider(),
             ]),
             const SizedBox(height: 20),
@@ -1721,6 +1723,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
             color: Colors.white.withValues(alpha: 0.52),
             fontSize: 12,
             height: 1.45,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModelTierSelectors() {
+    final provider = _llmService.providers[_settings.activeProviderId];
+    if (provider == null) return const SizedBox.shrink();
+
+    final models =
+        _queriedModelsByProvider[_settings.activeProviderId] ??
+        provider.availableModels;
+    final accent = _providerPresentation(_settings.activeProviderId).accent;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Model Tiers',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Use a fast model for detection and a smart model for answers',
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.4),
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildTierDropdown(
+          label: 'Light Model',
+          subtitle: 'detection, analysis',
+          value: _settings.lightModel,
+          models: models,
+          accent: accent,
+          providerDefault: provider.defaultModel,
+          onChanged: (v) => _settings.update((s) => s.lightModel = v),
+        ),
+        const SizedBox(height: 8),
+        _buildTierDropdown(
+          label: 'Smart Model',
+          subtitle: 'responses, Q&A',
+          value: _settings.smartModel,
+          models: models,
+          accent: accent,
+          providerDefault: provider.defaultModel,
+          onChanged: (v) => _settings.update((s) => s.smartModel = v),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTierDropdown({
+    required String label,
+    required String subtitle,
+    required String? value,
+    required List<String> models,
+    required Color accent,
+    required String providerDefault,
+    required ValueChanged<String?> onChanged,
+  }) {
+    final isAutomatic = value == null || value.trim().isEmpty;
+    final selectedValue = isAutomatic ? _automaticModelSelection : value;
+
+    final items = <DropdownMenuItem<String>>[
+      DropdownMenuItem(
+        value: _automaticModelSelection,
+        child: Text('Automatic ($providerDefault)'),
+      ),
+      ...models.map(
+        (m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)),
+      ),
+    ];
+
+    if (!isAutomatic && !models.contains(value)) {
+      items.add(DropdownMenuItem(value: value, child: Text('Custom: $value')));
+    }
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 110,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: 12, fontWeight: FontWeight.w500,
+              )),
+              Text(subtitle, style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.38),
+                fontSize: 10,
+              )),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: accent.withValues(alpha: 0.15)),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedValue,
+                isExpanded: true,
+                dropdownColor: HelixTheme.surfaceRaised,
+                borderRadius: BorderRadius.circular(12),
+                iconEnabledColor: accent.withValues(alpha: 0.7),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 12,
+                ),
+                onChanged: (v) {
+                  onChanged(v == _automaticModelSelection ? null : v);
+                  setState(() {});
+                },
+                items: items,
+              ),
+            ),
           ),
         ),
       ],
