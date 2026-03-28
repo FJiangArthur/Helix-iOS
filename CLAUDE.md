@@ -174,3 +174,5 @@ See `docs/TEST_BUG_REPORT.md` for full details:
 | `docs/learning.md` | Technical findings: BLE protocol, transcription, LLM providers |
 | `docs/TEST_BUG_REPORT.md` | Documented bugs with file/line references |
 | `docs/appstore-metadata.md` | App Store submission copy |
+| `docs/SIMULATOR_VALIDATION_PROTOCOL.md` | 6-gate simulator validation with real API testing |
+| `docs/AGENT_TEAM_CONFIG.md` | 6-role agent team config for validation |
