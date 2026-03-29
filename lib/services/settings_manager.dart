@@ -74,8 +74,11 @@ class SettingsManager {
   /// Whether Home should auto-expand follow-up tools.
   bool autoShowFollowUps = true;
 
-  /// Language code: 'en', 'zh', etc.
+  /// Transcription language code: 'en', 'zh', etc.
   String language = 'en';
+
+  /// UI display language code (separate from transcription language).
+  String uiLanguage = 'en';
 
   List<AssistantProfile> _assistantProfiles = AssistantProfile.defaults;
 
@@ -271,6 +274,7 @@ class SettingsManager {
     autoShowFollowUps = prefs.getBool('autoShowFollowUps') ?? true;
     maxResponseSentences = prefs.getInt('maxResponseSentences') ?? 3;
     language = prefs.getString('language') ?? 'en';
+    uiLanguage = prefs.getString('uiLanguage') ?? 'en';
     _assistantProfiles = _restoreAssistantProfiles(
       prefs.getString('assistantProfiles'),
     );
@@ -377,6 +381,7 @@ class SettingsManager {
     await prefs.setBool('autoShowFollowUps', autoShowFollowUps);
     await prefs.setInt('maxResponseSentences', maxResponseSentences);
     await prefs.setString('language', language);
+    await prefs.setString('uiLanguage', uiLanguage);
     await prefs.setString(
       'assistantProfiles',
       jsonEncode(_assistantProfiles.map((profile) => profile.toMap()).toList()),

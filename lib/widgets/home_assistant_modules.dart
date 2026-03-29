@@ -464,12 +464,14 @@ class AssistantProfileStrip extends StatelessWidget {
     required this.selectedProfileId,
     required this.onSelected,
     required this.isChinese,
+    this.onEdit,
   });
 
   final List<AssistantProfile> profiles;
   final String selectedProfileId;
   final ValueChanged<AssistantProfile> onSelected;
   final bool isChinese;
+  final ValueChanged<AssistantProfile>? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -510,13 +512,30 @@ class AssistantProfileStrip extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          profile.name,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.94),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                profile.name,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.94),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            if (isSelected && onEdit != null)
+                              GestureDetector(
+                                onTap: () => onEdit!(profile),
+                                child: Icon(
+                                  Icons.edit_outlined,
+                                  size: 14,
+                                  color: HelixTheme.purple.withValues(
+                                    alpha: 0.72,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(

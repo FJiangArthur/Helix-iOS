@@ -6,6 +6,7 @@ import '../models/assistant_session_meta.dart';
 import '../services/conversation_engine.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
+import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
 
 class ConversationHistoryScreen extends StatefulWidget {
@@ -17,18 +18,34 @@ class ConversationHistoryScreen extends StatefulWidget {
 }
 
 class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
-  static const List<String> _modeFilters = [
+  static const List<String> _modeFilterKeys = [
     'All',
     'General',
     'Interview',
     'Passive',
   ];
-  static const List<String> _libraryFilters = [
+  static const List<String> _libraryFilterKeys = [
     'All',
     'Favorites',
     'Action Items',
     'Fact-check Flags',
   ];
+
+  static String _modeFilterLabel(String key) => switch (key) {
+        'All' => tr('All', '全部'),
+        'General' => tr('General', '通用'),
+        'Interview' => tr('Interview', '面试'),
+        'Passive' => tr('Passive', '被动'),
+        _ => key,
+      };
+
+  static String _libraryFilterLabel(String key) => switch (key) {
+        'All' => tr('All', '全部'),
+        'Favorites' => tr('Favorites', '收藏'),
+        'Action Items' => tr('Action Items', '待办事项'),
+        'Fact-check Flags' => tr('Fact-check Flags', '事实核查'),
+        _ => key,
+      };
   static const String _favoriteKey = 'historyFavoriteSessionIds';
 
   List<ConversationTurn> _history = [];
@@ -131,7 +148,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('$label copied'),
+        content: Text(tr('$label copied', '$label 已复制')),
         backgroundColor: HelixTheme.surface,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -177,20 +194,23 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: HelixTheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Clear History',
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          tr('Clear History', '清除历史'),
+          style: const TextStyle(color: Colors.white),
         ),
-        content: const Text(
-          'Are you sure you want to clear all conversation history? This cannot be undone.',
-          style: TextStyle(color: Colors.white70),
+        content: Text(
+          tr(
+            'Are you sure you want to clear all conversation history? This cannot be undone.',
+            '确定要清除所有对话历史吗？此操作无法撤销。',
+          ),
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white54),
+            child: Text(
+              tr('Cancel', '取消'),
+              style: const TextStyle(color: Colors.white54),
             ),
           ),
           TextButton(
@@ -205,9 +225,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               _loadHistory();
               Navigator.of(context).pop();
             },
-            child: const Text(
-              'Clear',
-              style: TextStyle(color: Colors.redAccent),
+            child: Text(
+              tr('Clear', '清除'),
+              style: const TextStyle(color: Colors.redAccent),
             ),
           ),
         ],
@@ -360,9 +380,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
       child: Row(
         children: [
-          const Text(
-            'Sessions',
-            style: TextStyle(
+          Text(
+            tr('Sessions', '会话'),
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
               fontWeight: FontWeight.w700,
@@ -370,7 +390,10 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           ),
           const SizedBox(width: 12),
           Text(
-            '$totalSessions sessions · $favoriteSessions fav',
+            tr(
+              '$totalSessions sessions · $favoriteSessions fav',
+              '$totalSessions 个会话 · $favoriteSessions 收藏',
+            ),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.42),
               fontSize: 13,
@@ -426,7 +449,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
             style: const TextStyle(color: Colors.white, fontSize: 15),
             cursorColor: HelixTheme.cyan,
             decoration: InputDecoration(
-              hintText: 'Search sessions, prompts, answers...',
+              hintText: tr('Search sessions, prompts, answers...', '搜索会话、提示、回答...'),
               hintStyle: TextStyle(
                 color: Colors.white.withValues(alpha: 0.34),
                 fontSize: 15,
@@ -472,15 +495,15 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
           // Mode filter chips
-          for (var i = 0; i < _modeFilters.length; i++) ...[
+          for (var i = 0; i < _modeFilterKeys.length; i++) ...[
             if (i > 0) const SizedBox(width: 8),
             _buildChip(
-              label: _modeFilters[i],
-              isSelected: _selectedMode == _modeFilters[i],
-              color: _modeFilters[i] == 'All'
+              label: _modeFilterLabel(_modeFilterKeys[i]),
+              isSelected: _selectedMode == _modeFilterKeys[i],
+              color: _modeFilterKeys[i] == 'All'
                   ? HelixTheme.cyan
-                  : _modeColor(_modeFilters[i].toLowerCase()),
-              onTap: () => _onModeSelected(_modeFilters[i]),
+                  : _modeColor(_modeFilterKeys[i].toLowerCase()),
+              onTap: () => _onModeSelected(_modeFilterKeys[i]),
             ),
           ],
           // Divider
@@ -495,18 +518,18 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
             ),
           ),
           // Library filter chips
-          for (var i = 0; i < _libraryFilters.length; i++) ...[
+          for (var i = 0; i < _libraryFilterKeys.length; i++) ...[
             if (i > 0) const SizedBox(width: 8),
             _buildChip(
-              label: _libraryFilters[i],
-              isSelected: _selectedLibraryFilter == _libraryFilters[i],
-              color: switch (_libraryFilters[i]) {
+              label: _libraryFilterLabel(_libraryFilterKeys[i]),
+              isSelected: _selectedLibraryFilter == _libraryFilterKeys[i],
+              color: switch (_libraryFilterKeys[i]) {
                 'Favorites' => const Color(0xFFFFC857),
                 'Action Items' => const Color(0xFF7CFFB2),
                 'Fact-check Flags' => const Color(0xFFFFA726),
                 _ => HelixTheme.cyan,
               },
-              onTap: () => _onLibraryFilterSelected(_libraryFilters[i]),
+              onTap: () => _onLibraryFilterSelected(_libraryFilterKeys[i]),
             ),
           ],
         ],
@@ -579,9 +602,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            const Text(
-              'No Sessions Yet',
-              style: TextStyle(
+            Text(
+              tr('No Sessions Yet', '暂无会话'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
@@ -589,7 +612,10 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              'Your assistant sessions will collect here as reusable conversation snapshots.',
+              tr(
+                'Your assistant sessions will collect here as reusable conversation snapshots.',
+                '您的助手会话将收集在此处，作为可复用的对话快照。',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.54),
@@ -607,17 +633,26 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 children: [
                   _buildSuggestionRow(
                     Icons.mic_rounded,
-                    'Start listening with the glasses connected.',
+                    tr(
+                      'Start listening with the glasses connected.',
+                      '连接眼镜后开始收听。',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildSuggestionRow(
                     Icons.bolt_rounded,
-                    'Use Quick Ask to generate a focused answer session.',
+                    tr(
+                      'Use Quick Ask to generate a focused answer session.',
+                      '使用快速提问生成专注的回答会话。',
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _buildSuggestionRow(
                     Icons.insights_outlined,
-                    'Come back here to search and reuse past answers.',
+                    tr(
+                      'Come back here to search and reuse past answers.',
+                      '返回此处搜索和复用过去的回答。',
+                    ),
                   ),
                 ],
               ),
@@ -659,7 +694,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No matching sessions',
+            tr('No matching sessions', '没有匹配的会话'),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.58),
               fontSize: 16,
@@ -668,7 +703,10 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Try a different search term or library filter.',
+            tr(
+              'Try a different search term or library filter.',
+              '尝试不同的搜索词或筛选条件。',
+            ),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.38),
               fontSize: 14,
@@ -804,7 +842,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               children: [
                 Expanded(
                   child: _buildPreviewBlock(
-                    label: 'Prompt',
+                    label: tr('Prompt', '提问'),
                     icon: Icons.person_outline_rounded,
                     text: session.promptPreview,
                     accent: HelixTheme.cyan,
@@ -813,7 +851,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _buildPreviewBlock(
-                    label: 'Answer',
+                    label: tr('Answer', '回答'),
                     icon: Icons.auto_awesome_outlined,
                     text: session.answerPreview,
                     accent: HelixTheme.purple,
@@ -828,7 +866,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               children: [
                 _buildMetaChip(
                   Icons.forum_outlined,
-                  '${session.turnCount} turns',
+                  '${session.turnCount} ${tr('turns', '轮')}',
                 ),
                 _buildMetaChip(
                   Icons.schedule_outlined,
@@ -836,24 +874,24 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 ),
                 _buildMetaChip(
                   Icons.bolt_outlined,
-                  '${session.assistantCount} AI replies',
+                  '${session.assistantCount} ${tr('AI replies', 'AI 回复')}',
                 ),
                 if (session.reviewSignalCount > 0)
                   _buildMetaChip(
                     Icons.description_outlined,
-                    '${session.reviewSignalCount} review signals',
+                    '${session.reviewSignalCount} ${tr('review signals', '审查信号')}',
                     accent: HelixTheme.purple,
                   ),
                 if (session.hasActionItems)
                   _buildMetaChip(
                     Icons.task_alt_rounded,
-                    '${session.actionItems.length} action items',
+                    '${session.actionItems.length} ${tr('action items', '待办事项')}',
                     accent: const Color(0xFF7CFFB2),
                   ),
                 if (session.hasFactCheckFlags)
                   _buildMetaChip(
                     Icons.fact_check_outlined,
-                    '${session.verificationCandidates.length} fact-check flags',
+                    '${session.verificationCandidates.length} ${tr('fact-check flags', '事实核查')}',
                     accent: const Color(0xFFFFA726),
                   ),
               ],
@@ -865,45 +903,45 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               children: [
                 _buildActionButton(
                   icon: Icons.short_text_rounded,
-                  label: 'Copy summary',
+                  label: tr('Copy summary', '复制摘要'),
                   onTap: () => _copyToClipboard(
                     '${session.summaryTitle}\n\n${session.summaryBody}',
-                    'Session summary',
+                    tr('Session summary', '会话摘要'),
                   ),
                 ),
                 _buildActionButton(
                   icon: Icons.note_alt_outlined,
-                  label: 'Copy brief',
+                  label: tr('Copy brief', '复制简报'),
                   onTap: session.reviewBrief.trim().isNotEmpty
                       ? () => _copyToClipboard(
                           session.reviewBrief,
-                          'Review brief',
+                          tr('Review brief', '审查简报'),
                         )
                       : null,
                 ),
                 _buildActionButton(
                   icon: Icons.task_alt_rounded,
-                  label: 'Copy action items',
+                  label: tr('Copy action items', '复制待办事项'),
                   onTap: session.hasActionItems
                       ? () => _copyToClipboard(
                           session.actionItems.join('\n'),
-                          'Action items',
+                          tr('Action items', '待办事项'),
                         )
                       : null,
                 ),
                 _buildActionButton(
                   icon: Icons.ios_share_rounded,
-                  label: 'Export text',
+                  label: tr('Export text', '导出文本'),
                   onTap: () => _copyToClipboard(
                     session.fullTranscript,
-                    'Session export',
+                    tr('Session export', '会话导出'),
                   ),
                 ),
                 _buildActionButton(
                   icon: isExpanded
                       ? Icons.unfold_less_rounded
                       : Icons.unfold_more_rounded,
-                  label: isExpanded ? 'Collapse' : 'Details',
+                  label: isExpanded ? tr('Collapse', '收起') : tr('Details', '详情'),
                   onTap: () => _toggleExpanded(session),
                 ),
               ],
@@ -912,7 +950,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               const SizedBox(height: 16),
               if (session.hasActionItems)
                 _buildInsightBlock(
-                  title: 'Action Items',
+                  title: tr('Action Items', '待办事项'),
                   icon: Icons.task_alt_rounded,
                   accent: const Color(0xFF7CFFB2),
                   items: session.actionItems,
@@ -921,7 +959,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 const SizedBox(height: 12),
               if (session.hasFactCheckFlags)
                 _buildInsightBlock(
-                  title: 'Verification Candidates',
+                  title: tr('Verification Candidates', '待验证项'),
                   icon: Icons.fact_check_outlined,
                   accent: const Color(0xFFFFA726),
                   items: session.verificationCandidates,
@@ -1135,7 +1173,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   Widget _buildDetailRow(ConversationTurn turn) {
     final isUser = turn.role == 'user';
     final accent = isUser ? HelixTheme.cyan : HelixTheme.purple;
-    final label = isUser ? 'You' : 'Even AI';
+    final label = isUser ? tr('You', '你') : 'Even AI';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1226,7 +1264,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Clear History',
+                      tr('Clear History', '清除历史'),
                       style: TextStyle(
                         color: Colors.redAccent.withValues(alpha: 0.82),
                         fontSize: 15,

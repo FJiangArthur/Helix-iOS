@@ -10,6 +10,7 @@ import '../services/hud_widget_registry.dart';
 import '../services/settings_manager.dart';
 import '../services/text_service.dart';
 import '../theme/helix_theme.dart';
+import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glow_button.dart';
 import 'even_features_screen.dart';
@@ -79,7 +80,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Last handoff sent to the glasses.')),
+      SnackBar(content: Text(tr('Last handoff sent to the glasses.', '上次交接已发送到眼镜。'))),
     );
   }
 
@@ -155,7 +156,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isConnected ? 'G1 Ready' : 'Waiting for Glasses',
+                      isConnected ? tr('G1 Ready', 'G1 就绪') : tr('Waiting for Glasses', '等待眼镜连接'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -185,7 +186,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
                   border: Border.all(color: accent.withValues(alpha: 0.22)),
                 ),
                 child: Text(
-                  isConnected ? 'ONLINE' : 'OFFLINE',
+                  isConnected ? tr('ONLINE', '在线') : tr('OFFLINE', '离线'),
                   style: TextStyle(
                     color: accent,
                     fontSize: 11,
@@ -199,8 +200,10 @@ class _G1TestScreenState extends State<G1TestScreen> {
           const SizedBox(height: 16),
           Text(
             isConnected
-                ? 'The glasses are available for HUD utilities and cockpit handoff. Open Utilities to push text, notifications, or display tests.'
-                : 'Scan for nearby glasses, pick a pair, and return here once the hardware channel is ready for utility workflows.',
+                ? tr('The glasses are available for HUD utilities and cockpit handoff. Open Utilities to push text, notifications, or display tests.',
+                     '眼镜已就绪，可用于 HUD 工具和座舱交接。打开工具集可推送文本、通知或显示测试。')
+                : tr('Scan for nearby glasses, pick a pair, and return here once the hardware channel is ready for utility workflows.',
+                     '扫描附近的眼镜，选择一对，待硬件通道就绪后返回此处进行工具操作。'),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 14,
@@ -218,14 +221,14 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('MIC SOURCE'),
+          _buildSectionLabel(tr('MIC SOURCE', '麦克风源')),
           const SizedBox(height: 12),
           ...['phone', 'glasses', 'auto'].map((source) {
             final isSelected = SettingsManager.instance.preferredMicSource == source;
             final label = switch (source) {
-              'phone' => 'Phone only',
-              'glasses' => 'Glasses mic',
-              'auto' => 'Auto (glasses when connected)',
+              'phone' => tr('Phone only', '仅手机'),
+              'glasses' => tr('Glasses mic', '眼镜麦克风'),
+              'auto' => tr('Auto (glasses when connected)', '自动（连接时用眼镜）'),
               _ => source,
             };
             final icon = switch (source) {
@@ -260,9 +263,9 @@ class _G1TestScreenState extends State<G1TestScreen> {
           const Divider(color: Colors.white12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Noise reduction', style: TextStyle(color: Colors.white, fontSize: 14)),
+            title: Text(tr('Noise reduction', '降噪'), style: const TextStyle(color: Colors.white, fontSize: 14)),
             subtitle: Text(
-              'RNNoise denoising for glasses mic',
+              tr('RNNoise denoising for glasses mic', '眼镜麦克风 RNNoise 降噪'),
               style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
             ),
             value: SettingsManager.instance.noiseReduction,
@@ -283,16 +286,16 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('GLASSES SETTINGS'),
+          _buildSectionLabel(tr('GLASSES SETTINGS', '眼镜设置')),
           const SizedBox(height: 12),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text(
-              'Auto-connect',
-              style: TextStyle(color: Colors.white, fontSize: 14),
+            title: Text(
+              tr('Auto-connect', '自动连接'),
+              style: const TextStyle(color: Colors.white, fontSize: 14),
             ),
             subtitle: Text(
-              'Connect when glasses are in range',
+              tr('Connect when glasses are in range', '眼镜在范围内时自动连接'),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 12,
@@ -309,9 +312,9 @@ class _G1TestScreenState extends State<G1TestScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'HUD Brightness',
-                style: TextStyle(color: Colors.white, fontSize: 14),
+              Text(
+                tr('HUD Brightness', 'HUD 亮度'),
+                style: const TextStyle(color: Colors.white, fontSize: 14),
               ),
               Slider(
                 value: SettingsManager.instance.hudBrightness,
@@ -333,9 +336,9 @@ class _G1TestScreenState extends State<G1TestScreen> {
               color: HelixTheme.cyan,
               size: 20,
             ),
-            title: const Text(
-              'HUD Widgets',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              tr('HUD Widgets', 'HUD 小组件'),
+              style: const TextStyle(color: Colors.white),
             ),
             subtitle: Text(
               '${SettingsManager.instance.hudWidgetConfigs.where((c) => c.enabled).length} widgets · ${HudWidgetRegistry.instance.pageCount} pages',
@@ -364,12 +367,14 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('CONNECTION FLOW'),
+          _buildSectionLabel(tr('CONNECTION FLOW', '连接流程')),
           const SizedBox(height: 12),
           Text(
             isScanning
-                ? 'Scanning now. Nearby pairs will appear below as soon as the BLE discovery stream reports them.'
-                : 'Start a scan to discover available left/right G1 pairs and connect directly into the utilities deck.',
+                ? tr('Scanning now. Nearby pairs will appear below as soon as the BLE discovery stream reports them.',
+                     '正在扫描。附近的配对设备将在 BLE 发现流报告后立即显示在下方。')
+                : tr('Start a scan to discover available left/right G1 pairs and connect directly into the utilities deck.',
+                     '开始扫描以发现可用的左/右 G1 配对，并直接连接到工具面板。'),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.66),
               fontSize: 13,
@@ -391,16 +396,16 @@ class _G1TestScreenState extends State<G1TestScreen> {
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: _stopScan,
-                  child: const Text(
-                    'Stop Scan',
-                    style: TextStyle(color: HelixTheme.cyan),
+                  child: Text(
+                    tr('Stop Scan', '停止扫描'),
+                    style: const TextStyle(color: HelixTheme.cyan),
                   ),
                 ),
               ],
             )
           else
             GlowButton(
-              label: 'Scan for Glasses',
+              label: tr('Scan for Glasses', '扫描眼镜'),
               icon: Icons.bluetooth_searching_rounded,
               onPressed: _startScan,
             ),
@@ -423,9 +428,9 @@ class _G1TestScreenState extends State<G1TestScreen> {
               color: Colors.white.withValues(alpha: 0.28),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'No pairs discovered yet',
-              style: TextStyle(
+            Text(
+              tr('No pairs discovered yet', '尚未发现配对设备'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -433,7 +438,8 @@ class _G1TestScreenState extends State<G1TestScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Run a scan and stay close to the glasses. Paired channels will show up here when both sides are visible.',
+              tr('Run a scan and stay close to the glasses. Paired channels will show up here when both sides are visible.',
+                 '运行扫描并靠近眼镜。当两侧都可见时，配对通道将显示在此处。'),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.58),
@@ -449,7 +455,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionLabel('AVAILABLE PAIRS'),
+        _buildSectionLabel(tr('AVAILABLE PAIRS', '可用配对')),
         const SizedBox(height: 10),
         ...glasses.map(
           (g) => Padding(
@@ -539,17 +545,17 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('SYSTEM SNAPSHOT'),
+          _buildSectionLabel(tr('SYSTEM SNAPSHOT', '系统快照')),
           const SizedBox(height: 14),
           _buildInfoRow(
             Icons.battery_full_rounded,
-            'Battery path',
-            'Connected',
+            tr('Battery path', '电池路径'),
+            tr('Connected', '已连接'),
           ),
           const Divider(color: Colors.white12, height: 24),
-          _buildInfoRow(Icons.bluetooth_rounded, 'BLE channel', 'Active'),
+          _buildInfoRow(Icons.bluetooth_rounded, tr('BLE channel', 'BLE 通道'), tr('Active', '活跃')),
           const Divider(color: Colors.white12, height: 24),
-          _buildInfoRow(Icons.hearing_rounded, 'Microphone route', 'Ready'),
+          _buildInfoRow(Icons.hearing_rounded, tr('Microphone route', '麦克风路由'), tr('Ready', '就绪')),
         ],
       ),
     );
@@ -558,14 +564,14 @@ class _G1TestScreenState extends State<G1TestScreen> {
   Widget _buildDashboardDebugCard() {
     final lastTriggeredAt = _dashboardState.lastTriggeredAt;
     final lastTrigger =
-        _dashboardState.lastTriggerLabel ?? 'No tilt trigger yet';
+        _dashboardState.lastTriggerLabel ?? tr('No tilt trigger yet', '尚无倾斜触发');
     final lastObserved =
         _dashboardState.lastObservedEventLabel ??
-        'No device-order event observed';
+        tr('No device-order event observed', '未观察到设备顺序事件');
     final lastObservedHex =
-        _dashboardState.lastObservedEventHex ?? 'Waiting for hardware event';
+        _dashboardState.lastObservedEventHex ?? tr('Waiting for hardware event', '等待硬件事件');
     final snapshotText = _dashboardState.lastSnapshotText.trim().isEmpty
-        ? 'Snapshot not resolved yet.'
+        ? tr('Snapshot not resolved yet.', '快照尚未解析。')
         : _dashboardState.lastSnapshotText.trim();
 
     return GlassCard(
@@ -575,7 +581,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
         children: [
           Row(
             children: [
-              _buildSectionLabel('TILT DASHBOARD'),
+              _buildSectionLabel(tr('TILT DASHBOARD', '倾斜仪表板')),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -604,13 +610,13 @@ class _G1TestScreenState extends State<G1TestScreen> {
           const SizedBox(height: 14),
           _buildInfoRow(
             Icons.gesture_rounded,
-            'Last trigger',
+            tr('Last trigger', '上次触发'),
             lastTriggeredAt == null
                 ? lastTrigger
                 : '${_formatTime(lastTriggeredAt)} • $lastTrigger',
           ),
           const Divider(color: Colors.white12, height: 24),
-          _buildInfoRow(Icons.sensors_rounded, 'Observed event', lastObserved),
+          _buildInfoRow(Icons.sensors_rounded, tr('Observed event', '观察到的事件'), lastObserved),
           const SizedBox(height: 10),
           Text(
             lastObservedHex,
@@ -634,7 +640,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
           ],
           const SizedBox(height: 14),
           Text(
-            'Last resolved snapshot',
+            tr('Last resolved snapshot', '上次解析的快照'),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.72),
               fontSize: 13,
@@ -661,7 +667,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
           ),
           const SizedBox(height: 16),
           GlowButton(
-            label: 'Preview Dashboard',
+            label: tr('Preview Dashboard', '预览仪表板'),
             icon: Icons.dashboard_customize_outlined,
             color: HelixTheme.cyan,
             onPressed: () async {
@@ -682,10 +688,10 @@ class _G1TestScreenState extends State<G1TestScreen> {
       null => Colors.white54,
     };
     final statusLabel = switch (record?.status) {
-      HandoffStatus.delivered => 'DELIVERED',
-      HandoffStatus.failed => 'FAILED',
-      HandoffStatus.pending => 'IN FLIGHT',
-      null => 'NO HANDOFF YET',
+      HandoffStatus.delivered => tr('DELIVERED', '已送达'),
+      HandoffStatus.failed => tr('FAILED', '失败'),
+      HandoffStatus.pending => tr('IN FLIGHT', '传输中'),
+      null => tr('NO HANDOFF YET', '暂无交接'),
     };
 
     return GlassCard(
@@ -695,7 +701,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
         children: [
           Row(
             children: [
-              _buildSectionLabel('LAST HANDOFF'),
+              _buildSectionLabel(tr('LAST HANDOFF', '上次交接')),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -722,7 +728,8 @@ class _G1TestScreenState extends State<G1TestScreen> {
           const SizedBox(height: 12),
           if (record == null)
             Text(
-              'No HUD handoff has been recorded in this session yet. Send a response or open HUD Text to stage one.',
+              tr('No HUD handoff has been recorded in this session yet. Send a response or open HUD Text to stage one.',
+                 '本次会话尚未记录 HUD 交接。发送响应或打开 HUD 文本以准备一个。'),
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.66),
                 fontSize: 13,
@@ -757,7 +764,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
                     child: Opacity(
                       opacity: _isConnected ? 1 : 0.48,
                       child: GlowButton(
-                        label: 'Push Last Handoff',
+                        label: tr('Push Last Handoff', '推送上次交接'),
                         icon: Icons.playlist_add_check_circle_outlined,
                         color: HelixTheme.cyan,
                         onPressed: () {
@@ -806,10 +813,11 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabel('UTILITY DECK'),
+          _buildSectionLabel(tr('UTILITY DECK', '工具面板')),
           const SizedBox(height: 12),
           Text(
-            'Launch focused tools for HUD text, notifications, and display-level testing without leaving the device console.',
+            tr('Launch focused tools for HUD text, notifications, and display-level testing without leaving the device console.',
+               '启动专用工具进行 HUD 文本、通知和显示级测试，无需离开设备控制台。'),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.66),
               fontSize: 13,
@@ -828,7 +836,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
           ),
           const SizedBox(height: 16),
           GlowButton(
-            label: 'Open Utilities',
+            label: tr('Open Utilities', '打开工具'),
             icon: Icons.auto_awesome_rounded,
             onPressed: () {
               Navigator.push(
@@ -851,7 +859,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
           _refreshPage();
         },
         icon: const Icon(Icons.bluetooth_disabled_rounded, size: 18),
-        label: const Text('Disconnect'),
+        label: Text(tr('Disconnect', '断开连接')),
         style: TextButton.styleFrom(
           foregroundColor: Colors.redAccent.withValues(alpha: 0.9),
           padding: const EdgeInsets.symmetric(vertical: 12),

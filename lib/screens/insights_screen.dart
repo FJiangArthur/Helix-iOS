@@ -14,6 +14,7 @@ import '../services/daily_memory_service.dart';
 import '../services/database/helix_database.dart';
 import '../services/facts/fact_service.dart';
 import '../theme/helix_theme.dart';
+import '../utils/i18n.dart';
 import '../widgets/fact_card.dart';
 import '../widgets/glass_card.dart';
 import 'conversation_detail_screen.dart';
@@ -92,10 +93,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
   bool _isProcessing = false;
   StreamSubscription<BuzzResponseEvent>? _activeSub;
 
-  static const _starterChips = [
-    'What topics came up this week?',
-    'Summarize my last conversation',
-    'What do I know about...',
+  static final _starterChips = [
+    tr('What topics came up this week?', '这周讨论了哪些话题？'),
+    tr('Summarize my last conversation', '总结我的上一次对话'),
+    tr('What do I know about...', '我了解到关于...'),
   ];
 
   // =========================================================================
@@ -367,13 +368,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
       child: Scaffold(
         backgroundColor: HelixTheme.background,
         appBar: AppBar(
-          title: const Text('Insights'),
+          title: Text(tr('Insights', '洞察')),
           backgroundColor: Colors.transparent,
           elevation: 0,
           actions: [
             IconButton(
               icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Settings',
+              tooltip: tr('Settings', '设置'),
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(
@@ -397,10 +398,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
               fontWeight: FontWeight.w500,
             ),
             dividerColor: Colors.transparent,
-            tabs: const [
-              Tab(text: 'Facts'),
-              Tab(text: 'Memories'),
-              Tab(text: 'Ask Buzz'),
+            tabs: [
+              Tab(text: tr('Facts', '事实')),
+              Tab(text: tr('Memories', '记忆')),
+              Tab(text: tr('Ask Buzz', '问问 Buzz')),
             ],
           ),
         ),
@@ -485,10 +486,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
         controller: _searchController,
         autofocus: true,
         style: const TextStyle(color: HelixTheme.textPrimary, fontSize: 14),
-        decoration: const InputDecoration(
-          hintText: 'Search facts...',
+        decoration: InputDecoration(
+          hintText: tr('Search facts...', '搜索事实...'),
           prefixIcon:
-              Icon(Icons.search, color: HelixTheme.textMuted, size: 20),
+              const Icon(Icons.search, color: HelixTheme.textMuted, size: 20),
         ),
         onChanged: _onSearch,
       ),
@@ -544,13 +545,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 alignment: Alignment.centerLeft,
                 color: HelixTheme.lime,
                 icon: Icons.check_rounded,
-                label: 'Confirm',
+                label: tr('Confirm', '确认'),
               ),
               secondaryBackground: _buildSwipeBackground(
                 alignment: Alignment.centerRight,
                 color: HelixTheme.error,
                 icon: Icons.close_rounded,
-                label: 'Reject',
+                label: tr('Reject', '拒绝'),
               ),
               child: SizedBox(
                 width: double.infinity,
@@ -623,14 +624,14 @@ class _InsightsScreenState extends State<InsightsScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'All caught up!',
+                tr('All caught up!', '已全部查看！'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: HelixTheme.textSecondary,
                     ),
               ),
               const SizedBox(height: 4),
               Text(
-                'New facts will appear here after conversations.',
+                tr('New facts will appear here after conversations.', '对话后新发现的事实将出现在这里。'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -646,7 +647,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
       child: Row(
         children: [
           Text(
-            'Knowledge Graph',
+            tr('Knowledge Graph', '知识图谱'),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const Spacer(),
@@ -666,7 +667,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         child: Text(
           _searchQuery.isNotEmpty
               ? 'No facts match "$_searchQuery"'
-              : 'Confirmed facts will appear here.',
+              : tr('Confirmed facts will appear here.', '已确认的事实将显示在这里。'),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ),
@@ -839,12 +840,12 @@ class _InsightsScreenState extends State<InsightsScreen> {
             ),
             const SizedBox(height: 16),
             Text(
-              'No conversations yet',
+              tr('No conversations yet', '暂无对话'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             Text(
-              'Your daily memories and conversation history will appear here after you start recording.',
+              tr('Your daily memories and conversation history will appear here after you start recording.', '开始录音后，你的每日记忆和对话历史将显示在这里。'),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
@@ -893,7 +894,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'Daily Memory',
+                  tr('Daily Memory', '每日记忆'),
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: HelixTheme.purple,
                       ),
@@ -1104,7 +1105,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 child: IconButton(
                   icon: const Icon(Icons.delete_outline,
                       color: HelixTheme.textMuted),
-                  tooltip: 'Clear history',
+                  tooltip: tr('Clear history', '清除历史'),
                   onPressed: _clearBuzzHistory,
                 ),
               ),
@@ -1129,7 +1130,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 size: 48, color: HelixTheme.cyan.withValues(alpha: 0.6)),
             const SizedBox(height: 16),
             Text(
-              'Ask Buzz anything about your conversations',
+              tr('Ask Buzz anything about your conversations', '向 Buzz 询问关于你对话的任何问题'),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: HelixTheme.textSecondary,
                   ),
@@ -1237,7 +1238,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         ),
         const SizedBox(width: 10),
         Text(
-          'Searching your conversations...',
+          tr('Searching your conversations...', '搜索对话中...'),
           style: TextStyle(
             color: HelixTheme.textSecondary,
             fontSize: 14,
@@ -1304,7 +1305,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               style: const TextStyle(
                   color: HelixTheme.textPrimary, fontSize: 15),
               decoration: InputDecoration(
-                hintText: 'Ask Buzz a question...',
+                hintText: tr('Ask Buzz a question...', '向 Buzz 提问...'),
                 filled: true,
                 fillColor: HelixTheme.surfaceInteractive,
                 contentPadding: const EdgeInsets.symmetric(

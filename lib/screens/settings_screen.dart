@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../models/assistant_profile.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
+import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
 
 const _automaticModelSelection = '__provider_default__';
@@ -37,6 +37,20 @@ class _ProviderPresentation {
   });
 }
 
+class _TranscriptionPresentation {
+  final Color accent;
+  final IconData icon;
+  final String label;
+  final String subtitle;
+
+  const _TranscriptionPresentation({
+    required this.accent,
+    required this.icon,
+    required this.label,
+    required this.subtitle,
+  });
+}
+
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -45,13 +59,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const List<({String id, String label})> _presetOptions = [
-    (id: 'concise', label: 'Concise'),
-    (id: 'speakForMe', label: 'Speak For Me'),
-    (id: 'interview', label: 'Interview'),
-    (id: 'factCheck', label: 'Fact Check'),
-  ];
-
   final _settings = SettingsManager.instance;
   final _llmService = LlmService.instance;
   Map<String, bool> _configuredProviders = {};
@@ -59,6 +66,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   StreamSubscription? _settingsSub;
   bool _isLoadingModels = false;
   String? _modelQueryError;
+  bool _isProviderExpanded = false;
+  bool _isTranscriptionExpanded = false;
 
   // Connection test state
   bool _isTestingConnection = false;
@@ -237,6 +246,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  _TranscriptionPresentation _transcriptionPresentation(String backendId) {
+    switch (backendId) {
+      case 'appleCloud':
+        return const _TranscriptionPresentation(
+          accent: HelixTheme.purple,
+          icon: Icons.cloud_rounded,
+          label: 'Apple Cloud',
+          subtitle: 'Server-side speech recognition',
+        );
+      case 'appleOnDevice':
+        return const _TranscriptionPresentation(
+          accent: HelixTheme.lime,
+          icon: Icons.phone_iphone_rounded,
+          label: 'On-Device',
+          subtitle: 'Offline speech recognition',
+        );
+      case 'whisper':
+        return const _TranscriptionPresentation(
+          accent: HelixTheme.amber,
+          icon: Icons.graphic_eq_rounded,
+          label: 'Whisper',
+          subtitle: 'Batch processing with diarization',
+        );
+      case 'openai':
+      default:
+        return const _TranscriptionPresentation(
+          accent: HelixTheme.cyan,
+          icon: Icons.bolt_rounded,
+          label: 'OpenAI',
+          subtitle: 'Transcription & realtime modes',
+        );
+    }
+  }
+
   Future<void> _showCustomModelDialog() async {
     final controller = TextEditingController(text: _settings.activeModel ?? '');
     final provider =
@@ -373,7 +416,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(tr('Settings', '设置')),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -383,7 +426,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSection('AI Provider', Icons.psychology, [
+            _buildSection(tr('AI Provider', 'AI 服务商'), Icons.psychology, [
               _buildProviderSelector(),
               const SizedBox(height: 12),
               _buildApiKeyTile(),
@@ -395,50 +438,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildTemperatureSlider(),
             ]),
             const SizedBox(height: 20),
-            _buildSection('Conversation', Icons.chat, [
-              _buildLanguageSelector(),
-              const SizedBox(height: 12),
+            _buildSection(tr('Conversation', '对话'), Icons.chat, [
               _buildToggle(
-                'Auto-detect Questions',
-                'Listen for questions in conversations',
+                tr('Auto-detect Questions', '自动检测问题'),
+                tr('Listen for questions in conversations', '在对话中监听问题'),
                 _settings.autoDetectQuestions,
                 (v) => _settings.update((s) => s.autoDetectQuestions = v),
               ),
               const SizedBox(height: 8),
               _buildToggle(
-                'Auto-answer',
-                'Answer detected questions automatically',
+                tr('Auto-answer', '自动回答'),
+                tr('Answer detected questions automatically', '自动回答检测到的问题'),
                 _settings.autoAnswerQuestions,
                 (v) => _settings.update((s) => s.autoAnswerQuestions = v),
               ),
             ]),
             const SizedBox(height: 20),
-            _buildSection('Transcription', Icons.record_voice_over, [
-              ListTile(
-                title: const Text('Backend'),
-                subtitle: Text(_transcriptionBackendLabel(_settings.transcriptionBackend)),
-                trailing: DropdownButton<String>(
-                  value: _settings.transcriptionBackend,
-                  dropdownColor: const Color(0xFF1A1F35),
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
-                    DropdownMenuItem(value: 'appleCloud', child: Text('Apple Cloud')),
-                    DropdownMenuItem(value: 'appleOnDevice', child: Text('On-Device')),
-                    DropdownMenuItem(value: 'whisper', child: Text('Whisper')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      _settings.update((s) {
-                        s.transcriptionBackend = value;
-                        if (value != 'openai') {
-                          s.openAISessionMode = 'transcription';
-                        }
-                      });
-                    }
-                  },
-                ),
-              ),
+            _buildSection(tr('Transcription', '语音转写'), Icons.record_voice_over, [
+              _buildTranscriptionBackendSelector(),
+              const SizedBox(height: 12),
               if (_settings.transcriptionBackend == 'openai')
                 ListTile(
                   title: const Text('OpenAI Session'),
@@ -522,8 +540,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _settings.transcriptionBackend == 'appleCloud' ||
                   _settings.transcriptionBackend == 'appleOnDevice')
                 _buildToggle(
-                  'Speaker Diarization',
-                  'Identify different speakers in conversations (experimental)',
+                  tr('Speaker Diarization', '说话人分离'),
+                  tr('Identify different speakers in conversations (experimental)', '识别对话中的不同说话人（实验性）'),
                   _settings.enableDiarization,
                   (v) => _settings.update((s) => s.enableDiarization = v),
                 ),
@@ -548,100 +566,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-              ListTile(
-                title: const Text('Microphone'),
-                subtitle: Text(_micSourceLabel(_settings.preferredMicSource)),
-                trailing: DropdownButton<String>(
-                  value: _settings.preferredMicSource,
-                  dropdownColor: const Color(0xFF1A1F35),
-                  underline: const SizedBox.shrink(),
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
-                    DropdownMenuItem(value: 'glasses', child: Text('Glasses')),
-                    DropdownMenuItem(value: 'phone', child: Text('Phone')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      _settings.update((s) => s.preferredMicSource = value);
-                    }
-                  },
-                ),
-              ),
+
+
             ]),
             const SizedBox(height: 20),
-            _buildSection('Assistant Defaults', Icons.tune_rounded, [
-              _buildAssistantProfileSelector(),
-              const SizedBox(height: 12),
-              _buildDefaultPresetSelector(),
-              const SizedBox(height: 12),
+            _buildSection(tr('AI Tools', 'AI 工具'), Icons.build_circle_outlined, [
               _buildToggle(
-                'Auto-show Summary',
-                'Expand summary tools after a completed answer',
-                _settings.autoShowSummary,
-                (v) => _settings.update((s) => s.autoShowSummary = v),
-              ),
-              const SizedBox(height: 8),
-              _buildToggle(
-                'Auto-show Follow-ups',
-                'Open follow-up suggestions when the answer settles',
-                _settings.autoShowFollowUps,
-                (v) => _settings.update((s) => s.autoShowFollowUps = v),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                title: const Text('Max Response Sentences'),
-                subtitle: Text(
-                  '${_settings.maxResponseSentences} sentences per answer on glasses',
-                ),
-                trailing: SizedBox(
-                  width: 160,
-                  child: Slider(
-                    value: _settings.maxResponseSentences.toDouble(),
-                    min: 1,
-                    max: 10,
-                    divisions: 9,
-                    label: '${_settings.maxResponseSentences}',
-                    onChanged: (v) {
-                      setState(() {
-                        _settings.update(
-                          (s) => s.maxResponseSentences = v.round(),
-                        );
-                      });
-                    },
-                  ),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection('Assistant Profiles', Icons.badge_outlined, [
-              Text(
-                'Profiles stay lightweight and prompt-driven. Edit the built-in profiles to tune tone, focus, and visible tools without introducing custom prompt plumbing.',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.56),
-                  fontSize: 12,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 14),
-              ..._settings.assistantProfiles.map(
-                (profile) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: _buildAssistantProfileCard(profile),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection('AI Tools', Icons.build_circle_outlined, [
-              _buildToggle(
-                'Web Search',
-                'Allow AI to search the web for fact-checking',
+                tr('Web Search', '网络搜索'),
+                tr('Allow AI to search the web for fact-checking', '允许 AI 搜索网络进行事实核查'),
                 _settings.webSearchEnabled,
                 (v) => _settings.update((s) => s.webSearchEnabled = v),
               ),
               const SizedBox(height: 8),
               _buildToggle(
-                'Voice Responses',
-                'AI speaks answers through phone speaker',
+                tr('Voice Responses', '语音回复'),
+                tr('AI speaks answers through phone speaker', 'AI 通过手机扬声器朗读答案'),
                 _settings.voiceResponseEnabled,
                 (v) => _settings.update((s) => s.voiceResponseEnabled = v),
               ),
@@ -651,26 +590,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ]),
             const SizedBox(height: 20),
-            _buildSection('Features', Icons.auto_awesome, [
+            _buildSection(tr('Features', '功能'), Icons.auto_awesome, [
               _buildToggle(
-                'Sentiment Monitor',
-                'Analyze conversation tone in real time',
+                tr('Sentiment Monitor', '情感监测'),
+                tr('Analyze conversation tone in real time', '实时分析对话语气'),
                 _settings.sentimentMonitorEnabled,
                 (v) => _settings.update((s) => s.sentimentMonitorEnabled = v),
               ),
               const SizedBox(height: 8),
               _buildToggle(
-                'Entity Memory',
-                'Detect and remember people and companies mentioned',
+                tr('Entity Memory', '实体记忆'),
+                tr('Detect and remember people and companies mentioned', '检测并记住提到的人物和公司'),
                 _settings.entityMemoryEnabled,
                 (v) => _settings.update((s) => s.entityMemoryEnabled = v),
               ),
             ]),
             const SizedBox(height: 20),
-            _buildSection('All-Day Mode', Icons.hearing, [
+            _buildSection(tr('All-Day Mode', '全天模式'), Icons.hearing, [
               _buildToggle(
-                'All-Day Listening',
-                'Always-on phone mic with on-device transcription',
+                tr('All-Day Listening', '全天监听'),
+                tr('Always-on phone mic with on-device transcription', '始终开启手机麦克风并使用设备端转写'),
                 _settings.allDayModeEnabled,
                 (v) => _settings.update((s) => s.allDayModeEnabled = v),
               ),
@@ -679,8 +618,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildAnalysisBackendSelector(),
                 const SizedBox(height: 8),
                 _buildToggle(
-                  'Auto-Update Profile',
-                  'Let AI learn your preferences and contacts over time',
+                  tr('Auto-Update Profile', '自动更新档案'),
+                  tr('Let AI learn your preferences and contacts over time', '让 AI 随时间学习你的偏好和联系人'),
                   _settings.profileAutoUpdateEnabled,
                   (v) => _settings.update(
                       (s) => s.profileAutoUpdateEnabled = v),
@@ -688,10 +627,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ]),
             const SizedBox(height: 20),
-            _buildSection('Translation', Icons.translate, [
+            _buildSection(tr('Translation', '翻译'), Icons.translate, [
               _buildToggle(
-                'Live Translation',
-                'Translate foreign-language speech in real time',
+                tr('Live Translation', '实时翻译'),
+                tr('Translate foreign-language speech in real time', '实时翻译外语语音'),
                 _settings.translationEnabled,
                 (v) => _settings.update((s) => s.translationEnabled = v),
               ),
@@ -701,9 +640,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ]),
             const SizedBox(height: 20),
-            _buildSection('About', Icons.info_outline, [
-              _buildInfoTile('Version', '1.0.0'),
-              _buildInfoTile('Build', '1'),
+            _buildSection(
+                tr('Internationalization', '国际化'), Icons.translate, [
+              _buildUiLanguageSelector(),
+            ]),
+            const SizedBox(height: 20),
+            _buildSection(tr('About', '关于'), Icons.info_outline, [
+              _buildInfoTile(tr('Version', '版本'), '1.0.0'),
+              _buildInfoTile(tr('Build', '构建'), '1'),
             ]),
             const SizedBox(height: 80),
           ],
@@ -749,33 +693,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildCollapsibleCardSelector({
+    required bool isExpanded,
+    required VoidCallback onToggle,
+    required Widget selectedCard,
+    required List<Widget> allCards,
+    String? helperText,
+  }) {
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+      alignment: Alignment.topCenter,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: isExpanded
+            ? [
+                ...allCards,
+                if (helperText != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    helperText,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 12,
+                      height: 1.45,
+                    ),
+                  ),
+                ],
+              ]
+            : [
+                selectedCard,
+              ],
+      ),
+    );
+  }
+
   Widget _buildProviderSelector() {
     final providerEntries = _orderedProviderEntries();
+    final activeId = _settings.activeProviderId;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ...providerEntries.map(
-          (entry) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _buildProviderCard(entry.key),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
+    return _buildCollapsibleCardSelector(
+      isExpanded: _isProviderExpanded,
+      onToggle: () => setState(() => _isProviderExpanded = true),
+      selectedCard: _buildProviderCard(activeId, showChevron: true),
+      allCards: providerEntries
+          .map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildProviderCard(entry.key),
+            ),
+          )
+          .toList(),
+      helperText:
           'Each provider keeps its own API key. Anthropic uses its native API, while DeepSeek, Qwen, and Zhipu follow OpenAI-style request formats.',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
-            fontSize: 12,
-            height: 1.45,
-          ),
-        ),
-      ],
     );
   }
 
 
-  Widget _buildProviderCard(String providerId) {
+  Widget _buildProviderCard(String providerId, {bool showChevron = false}) {
     final provider = _llmService.providers[providerId];
     if (provider == null) return const SizedBox.shrink();
 
@@ -784,7 +759,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isConfigured = _configuredProviders[providerId] ?? false;
 
     return GestureDetector(
-      onTap: () => _setActiveProvider(providerId),
+      onTap: showChevron
+          ? () => setState(() => _isProviderExpanded = !_isProviderExpanded)
+          : () {
+              setState(() => _isProviderExpanded = false);
+              _setActiveProvider(providerId);
+            },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -828,19 +808,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: [
-                      _buildProviderTag(
-                        label: provider.defaultModel,
-                        color: Colors.white,
-                      ),
-                      _buildProviderTag(
-                        label: isConfigured ? 'Configured' : 'Add key',
-                        color: isConfigured ? Colors.green : Colors.orange,
-                      ),
-                    ],
+                  _buildProviderTag(
+                    label: provider.defaultModel,
+                    color: Colors.white,
                   ),
                 ],
               ),
@@ -861,6 +831,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : Colors.white.withValues(alpha: 0.28),
               size: 20,
             ),
+            if (showChevron && isActive)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(
+                  _isProviderExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  color: Colors.white.withValues(alpha: 0.4),
+                  size: 18,
+                ),
+              ),
           ],
         ),
       ),
@@ -888,201 +869,115 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildAssistantProfileSelector() {
-    final currentProfile = _settings.resolveAssistantProfile();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Default Assistant Profile',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _settings.assistantProfiles.map((profile) {
-            final isSelected = profile.id == currentProfile.id;
-            return _buildSelectionChip(
-              label: profile.name,
-              isSelected: isSelected,
-              onTap: () async {
-                await _settings.update(
-                  (s) => s.assistantProfileId = profile.id,
-                );
-                setState(() {});
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
+  Widget _buildTranscriptionBackendCard(String backendId,
+      {bool showChevron = false}) {
+    final presentation = _transcriptionPresentation(backendId);
+    final isActive = backendId == _settings.transcriptionBackend;
 
-  Widget _buildDefaultPresetSelector() {
-    final selectedPreset = _settings.defaultQuickAskPreset;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Default Quick Ask Preset',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: showChevron
+          ? () => setState(
+              () => _isTranscriptionExpanded = !_isTranscriptionExpanded)
+          : () {
+              setState(() => _isTranscriptionExpanded = false);
+              _settings.update((s) {
+                s.transcriptionBackend = backendId;
+                if (backendId != 'openai') {
+                  s.openAISessionMode = 'transcription';
+                }
+              });
+            },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive
+              ? presentation.accent.withValues(alpha: 0.11)
+              : Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isActive
+                ? presentation.accent.withValues(alpha: 0.38)
+                : Colors.white.withValues(alpha: 0.08),
           ),
         ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _presetOptions.map((preset) {
-            final isSelected = preset.id == selectedPreset;
-            return _buildSelectionChip(
-              label: preset.label,
-              isSelected: isSelected,
-              onTap: () async {
-                await _settings.update(
-                  (s) => s.defaultQuickAskPreset = preset.id,
-                );
-                setState(() {});
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAssistantProfileCard(AssistantProfile profile) {
-    final isDefault = profile.id == _settings.assistantProfileId;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDefault
-              ? HelixTheme.cyan.withValues(alpha: 0.24)
-              : Colors.white.withValues(alpha: 0.08),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  profile.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              if (isDefault)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: HelixTheme.cyan.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: HelixTheme.cyan.withValues(alpha: 0.22),
-                    ),
-                  ),
-                  child: const Text(
-                    'DEFAULT',
-                    style: TextStyle(
-                      color: HelixTheme.cyan,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            profile.description,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.50),
-              fontSize: 11,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _buildMiniBadge('Style', profile.answerStyle),
-              if (profile.showSummaryTool) _buildMiniBadge('Summary', 'On'),
-              if (profile.showFollowUps) _buildMiniBadge('Follow-ups', 'On'),
-              if (profile.showFactCheck) _buildMiniBadge('Fact Check', 'On'),
-              if (profile.showActionItems)
-                _buildMiniBadge('Action Items', 'On'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => _showProfileEditor(profile),
-              icon: const Icon(Icons.edit_outlined, size: 14),
-              label: const Text('Edit', style: TextStyle(fontSize: 12)),
-              style: TextButton.styleFrom(
-                foregroundColor: HelixTheme.cyan,
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(0, 28),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniBadge(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: RichText(
-        text: TextSpan(
+        child: Row(
           children: [
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.42),
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: presentation.accent.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                presentation.icon,
+                color: presentation.accent,
+                size: 18,
               ),
             ),
-            TextSpan(
-              text: value,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.78),
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    presentation.label,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.92),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _buildProviderTag(
+                    label: presentation.subtitle,
+                    color: Colors.white,
+                  ),
+                ],
               ),
             ),
+            Icon(
+              isActive ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: isActive
+                  ? presentation.accent
+                  : Colors.white.withValues(alpha: 0.28),
+              size: 20,
+            ),
+            if (showChevron && isActive)
+              Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(
+                  _isTranscriptionExpanded
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                  color: Colors.white.withValues(alpha: 0.4),
+                  size: 18,
+                ),
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildTranscriptionBackendSelector() {
+    const backends = ['openai', 'appleCloud', 'appleOnDevice', 'whisper'];
+    final activeBackend = _settings.transcriptionBackend;
+
+    return _buildCollapsibleCardSelector(
+      isExpanded: _isTranscriptionExpanded,
+      onToggle: () => setState(() => _isTranscriptionExpanded = true),
+      selectedCard:
+          _buildTranscriptionBackendCard(activeBackend, showChevron: true),
+      allCards: backends
+          .map(
+            (id) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildTranscriptionBackendCard(id),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -1178,21 +1073,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildLanguageSelector() {
+  Widget _buildUiLanguageSelector() {
     const languages = [
       ('en', 'English', '🇺🇸'),
       ('zh', '中文', '🇨🇳'),
-      ('ja', '日本語', '🇯🇵'),
-      ('ko', '한국어', '🇰🇷'),
-      ('es', 'Español', '🇪🇸'),
-      ('ru', 'Русский', '🇷🇺'),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Language',
+          tr('UI Language', '界面语言'),
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.7),
             fontSize: 13,
@@ -1201,27 +1092,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         const SizedBox(height: 8),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 6,
+          runSpacing: 6,
           children: languages.map((lang) {
             final (code, label, flag) = lang;
-            final isSelected = code == _settings.language;
+            final isSelected = code == _settings.uiLanguage;
 
             return GestureDetector(
               onTap: () async {
-                await _settings.update((s) => s.language = code);
-                setState(() {});
+                if (code == _settings.uiLanguage) return;
+                await _settings.update((s) => s.uiLanguage = code);
+                if (mounted) {
+                  Navigator.of(context).pop();
+                }
               },
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
+                  horizontal: 8,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? HelixTheme.cyan.withValues(alpha: 0.15)
                       : Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: isSelected
                         ? HelixTheme.cyan.withValues(alpha: 0.4)
@@ -1231,15 +1125,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(flag, style: const TextStyle(fontSize: 16)),
-                    const SizedBox(width: 6),
+                    Text(flag, style: const TextStyle(fontSize: 13)),
+                    const SizedBox(width: 4),
                     Text(
                       label,
                       style: TextStyle(
                         color: isSelected
                             ? HelixTheme.cyan
                             : Colors.white.withValues(alpha: 0.6),
-                        fontSize: 13,
+                        fontSize: 11,
                         fontWeight: isSelected
                             ? FontWeight.w600
                             : FontWeight.w400,
@@ -1534,15 +1428,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-        const SizedBox(height: 6),
-        Text(
-          'Switch providers at any time. Keys are stored separately, so you can keep Anthropic and Chinese provider credentials ready in parallel.',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.48),
-            fontSize: 11,
-            height: 1.45,
-          ),
-        ),
       ],
     );
   }
@@ -1719,19 +1604,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
-        const SizedBox(height: 6),
-        Text(
-          isUsingProviderDefault
-              ? 'Automatic follows ${provider.name} default model: ${provider.defaultModel}.'
-              : models.contains(currentModel)
-              ? 'Selected from the ${provider.name} model catalog.'
-              : 'Using a custom model override: $currentModel',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.52),
-            fontSize: 12,
-            height: 1.45,
-          ),
-        ),
       ],
     );
   }
@@ -2004,208 +1876,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showProfileEditor(AssistantProfile profile) {
-    final nameController = TextEditingController(text: profile.name);
-    final descriptionController = TextEditingController(
-      text: profile.description,
-    );
-    final answerStyleController = TextEditingController(
-      text: profile.answerStyle,
-    );
-    var showSummaryTool = profile.showSummaryTool;
-    var showFollowUps = profile.showFollowUps;
-    var showFactCheck = profile.showFactCheck;
-    var showActionItems = profile.showActionItems;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: HelixTheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Edit ${profile.name}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Keep the profile small and operational. This editor only tunes tone, purpose, and which assistant tools should be emphasized.',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.56),
-                        fontSize: 12,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    _buildProfileField('Profile Name', nameController),
-                    const SizedBox(height: 12),
-                    _buildProfileField(
-                      'Short Description',
-                      descriptionController,
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildProfileField(
-                      'Answer Style',
-                      answerStyleController,
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildToggle(
-                      'Summary Tool',
-                      'Show summary actions for this profile',
-                      showSummaryTool,
-                      (v) => setSheetState(() => showSummaryTool = v),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildToggle(
-                      'Follow-up Suggestions',
-                      'Keep follow-up chips visible when useful',
-                      showFollowUps,
-                      (v) => setSheetState(() => showFollowUps = v),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildToggle(
-                      'Fact Check',
-                      'Surface verification actions by default',
-                      showFactCheck,
-                      (v) => setSheetState(() => showFactCheck = v),
-                    ),
-                    const SizedBox(height: 8),
-                    _buildToggle(
-                      'Action Items',
-                      'Highlight action-item extraction on Home',
-                      showActionItems,
-                      (v) => setSheetState(() => showActionItems = v),
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
-                            style: OutlinedButton.styleFrom(
-                              side: BorderSide(
-                                color: Colors.white.withValues(alpha: 0.16),
-                              ),
-                            ),
-                            child: const Text('Cancel'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: () async {
-                              final updated = profile.copyWith(
-                                name: nameController.text.trim().isEmpty
-                                    ? profile.name
-                                    : nameController.text.trim(),
-                                description:
-                                    descriptionController.text.trim().isEmpty
-                                    ? profile.description
-                                    : descriptionController.text.trim(),
-                                answerStyle:
-                                    answerStyleController.text.trim().isEmpty
-                                    ? profile.answerStyle
-                                    : answerStyleController.text.trim(),
-                                showSummaryTool: showSummaryTool,
-                                showFollowUps: showFollowUps,
-                                showFactCheck: showFactCheck,
-                                showActionItems: showActionItems,
-                              );
-                              await _settings.saveAssistantProfile(updated);
-                              if (mounted) {
-                                setState(() {});
-                              }
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: HelixTheme.cyan,
-                            ),
-                            child: const Text(
-                              'Save',
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildProfileField(
-    String label,
-    TextEditingController controller, {
-    int maxLines = 1,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.68),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          minLines: maxLines,
-          maxLines: maxLines,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-          decoration: InputDecoration(
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.05),
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.34)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: Colors.white.withValues(alpha: 0.08),
-              ),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                color: HelixTheme.cyan.withValues(alpha: 0.32),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
   void _showApiKeyDialog(String providerId) {
     final controller = TextEditingController();
     final providerName = _llmService.providers[providerId]?.name ?? providerId;
@@ -2379,21 +2049,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  String _transcriptionBackendLabel(String backend) {
-    switch (backend) {
-      case 'openai':
-        return 'OpenAI speech with selectable transcription or realtime session';
-      case 'appleCloud':
-        return 'Apple cloud speech (free, ~1min limit)';
-      case 'appleOnDevice':
-        return 'On-device (works offline, lower accuracy)';
-      case 'whisper':
-        return 'Whisper batch API (chunked, with optional diarization)';
-      default:
-        return backend;
-    }
-  }
-
   String _openAISessionModeLabel(String mode) {
     switch (mode) {
       case 'realtime':
@@ -2404,16 +2059,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  String _micSourceLabel(String source) {
-    switch (source) {
-      case 'auto':
-        return 'Glasses when connected, phone otherwise';
-      case 'glasses':
-        return 'Always use glasses microphone';
-      case 'phone':
-        return 'Always use phone microphone';
-      default:
-        return source;
-    }
-  }
 }

@@ -48,8 +48,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   AssistantQuickAskPreset _selectedPreset = AssistantQuickAskPreset.concise;
   ProviderErrorState? _providerError;
   String _assistantProfileId = 'general';
-  bool _isOverviewExpanded = false;
-
   QuestionDetectionResult? _latestQuestionDetection;
   GlassesAnswerDeliveryState _glassesDeliveryState =
       GlassesAnswerPresenter.instance.currentState;
@@ -237,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() {
       _followUpChips = const [];
       _providerError = null;
-      _isOverviewExpanded = false;
+
       if (previewText != null && previewText.trim().isNotEmpty) {
         _transcription = previewText.trim();
       }
@@ -332,7 +330,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _providerError = null;
         _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
         _listeningError = null;
-        _isOverviewExpanded = false;
+  
         _followUpChips = const [];
         _showDetailLink = false;
       });
@@ -429,7 +427,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildOverviewCard() {
     final modeColor = _modeColor(_currentMode);
-    final profile = _assistantProfile;
 
     return GlassCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -450,38 +447,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Text(
                       _isChinese ? '控制台' : 'CONTROL DECK',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.62),
-                        fontSize: 10,
+                        color: Colors.white.withValues(alpha: 0.72),
+                        fontSize: 13,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _isChinese ? '对话中心' : 'Conversation Hub',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              _buildOverviewActionButton(
-                icon: _isOverviewExpanded
-                    ? Icons.unfold_less_rounded
-                    : Icons.unfold_more_rounded,
-                label: _isOverviewExpanded
-                    ? (_isChinese ? '折叠' : 'Collapse')
-                    : (_isChinese ? '展开' : 'Expand'),
-                color: Colors.white,
-                onTap: () {
-                  setState(() => _isOverviewExpanded = !_isOverviewExpanded);
-                },
-              ),
-              const SizedBox(width: 8),
               _buildOverviewActionButton(
                 icon: Icons.tune_rounded,
                 label: _isChinese ? '调整' : 'Tune',
@@ -490,76 +465,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _buildOverviewMetaChip(
-                icon: _modeIcon(_currentMode),
-                value: _modeName(_currentMode),
-                accent: modeColor,
-              ),
-              _buildOverviewMetaChip(
-                icon: Icons.badge_outlined,
-                value: profile.name,
-                accent: HelixTheme.purple,
-              ),
-              _buildOverviewMetaChip(
-                icon: Icons.bolt_rounded,
-                value: _selectedPreset.label(_isChinese),
-                accent: HelixTheme.cyan,
-              ),
-            ],
-          ),
           if (_aiResponse.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             _buildOverviewReplyStrip(),
           ],
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 220),
-            firstCurve: Curves.easeOutCubic,
-            secondCurve: Curves.easeOutCubic,
-            sizeCurve: Curves.easeOutCubic,
-            crossFadeState: _isOverviewExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: _buildModeSelector(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOverviewMetaChip({
-    required IconData icon,
-    required String value,
-    required Color accent,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: accent.withValues(alpha: 0.9)),
-          const SizedBox(width: 5),
-          Text(
-            value,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.82),
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ],
       ),
     );
@@ -649,11 +558,253 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showProfileEditor(
+    AssistantProfile profile, {
+    VoidCallback? onSaved,
+  }) {
+    final nameController = TextEditingController(text: profile.name);
+    final descriptionController = TextEditingController(
+      text: profile.description,
+    );
+    final answerStyleController = TextEditingController(
+      text: profile.answerStyle,
+    );
+    var showSummaryTool = profile.showSummaryTool;
+    var showFollowUps = profile.showFollowUps;
+    var showFactCheck = profile.showFactCheck;
+    var showActionItems = profile.showActionItems;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: HelixTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            Widget buildField(
+              String label,
+              TextEditingController controller, {
+              int maxLines = 1,
+            }) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: controller,
+                    maxLines: maxLines,
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.06),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.12),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: BorderSide(
+                          color: HelixTheme.cyan.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            Widget buildToggle(
+              String title,
+              String subtitle,
+              bool value,
+              ValueChanged<bool> onChanged,
+            ) {
+              return Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.88),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.48),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: value,
+                    onChanged: onChanged,
+                    activeTrackColor: HelixTheme.cyan,
+                  ),
+                ],
+              );
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit ${profile.name}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    buildField('Profile Name', nameController),
+                    const SizedBox(height: 12),
+                    buildField(
+                      'Short Description',
+                      descriptionController,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 12),
+                    buildField(
+                      'Answer Style',
+                      answerStyleController,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    buildToggle(
+                      'Summary Tool',
+                      'Show summary actions',
+                      showSummaryTool,
+                      (v) => setSheetState(() => showSummaryTool = v),
+                    ),
+                    const SizedBox(height: 8),
+                    buildToggle(
+                      'Follow-ups',
+                      'Keep follow-up chips visible',
+                      showFollowUps,
+                      (v) => setSheetState(() => showFollowUps = v),
+                    ),
+                    const SizedBox(height: 8),
+                    buildToggle(
+                      'Fact Check',
+                      'Surface verification actions',
+                      showFactCheck,
+                      (v) => setSheetState(() => showFactCheck = v),
+                    ),
+                    const SizedBox(height: 8),
+                    buildToggle(
+                      'Action Items',
+                      'Highlight extracted tasks',
+                      showActionItems,
+                      (v) => setSheetState(() => showActionItems = v),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: Colors.white.withValues(alpha: 0.16),
+                              ),
+                            ),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              final updated = profile.copyWith(
+                                name: nameController.text.trim().isEmpty
+                                    ? profile.name
+                                    : nameController.text.trim(),
+                                description:
+                                    descriptionController.text.trim().isEmpty
+                                    ? profile.description
+                                    : descriptionController.text.trim(),
+                                answerStyle:
+                                    answerStyleController.text.trim().isEmpty
+                                    ? profile.answerStyle
+                                    : answerStyleController.text.trim(),
+                                showSummaryTool: showSummaryTool,
+                                showFollowUps: showFollowUps,
+                                showFactCheck: showFactCheck,
+                                showActionItems: showActionItems,
+                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
+                              if (mounted) setState(() {});
+                              onSaved?.call();
+                              if (ctx.mounted) Navigator.pop(ctx);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: HelixTheme.cyan,
+                            ),
+                            child: const Text(
+                              'Save',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _openAssistantSetupSheet() {
     var sheetProfile = _assistantProfile;
     var sheetPreset = _selectedPreset;
     var sheetAutoShowSummary = SettingsManager.instance.autoShowSummary;
     var sheetAutoShowFollowUps = SettingsManager.instance.autoShowFollowUps;
+    var sheetMaxSentences = SettingsManager.instance.maxResponseSentences;
 
     showModalBottomSheet<void>(
       context: context,
@@ -746,6 +897,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             sheetProfile = profile;
                             _selectAssistantProfile(profile);
                             setSheetState(() {});
+                          },
+                          onEdit: (profile) {
+                            _showProfileEditor(profile, onSaved: () {
+                              setSheetState(() {});
+                            });
                           },
                           isChinese: _isChinese,
                         ),
@@ -988,6 +1144,94 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             });
                           },
                         ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _tr(
+                            en: 'RESPONSE LENGTH',
+                            zh: '回复长度',
+                            ja: '応答の長さ',
+                            ko: '응답 길이',
+                            es: 'LONGITUD DE RESPUESTA',
+                            ru: 'ДЛИНА ОТВЕТА',
+                          ),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.04),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _tr(
+                                        en: 'Max Sentences',
+                                        zh: '最大句数',
+                                        ja: '最大文数',
+                                        ko: '최대 문장 수',
+                                        es: 'Máximo de oraciones',
+                                        ru: 'Макс. предложений',
+                                      ),
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.88,
+                                        ),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '$sheetMaxSentences per answer on glasses',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.48,
+                                        ),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: 140,
+                                child: Slider(
+                                  value: sheetMaxSentences.toDouble(),
+                                  min: 1,
+                                  max: 10,
+                                  divisions: 9,
+                                  label: '$sheetMaxSentences',
+                                  onChanged: (v) {
+                                    final val = v.round();
+                                    setSheetState(
+                                      () => sheetMaxSentences = val,
+                                    );
+                                    SettingsManager.instance.update(
+                                      (s) => s.maxResponseSentences = val,
+                                    );
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1010,11 +1254,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ?.name ??
         '';
 
+    final micSource = SettingsManager.instance.preferredMicSource;
+    final micLabel = micSource == 'glasses'
+        ? 'G1'
+        : micSource == 'phone'
+            ? 'Phone'
+            : 'Auto';
+
     return Row(
       children: [
-        StatusIndicator(
-          isActive: isConnected,
-          label: isConnected ? 'G1' : 'Phone',
+        GestureDetector(
+          onTap: () {
+            final next = switch (micSource) {
+              'auto' => 'phone',
+              'phone' => 'glasses',
+              _ => 'auto',
+            };
+            SettingsManager.instance.update(
+              (s) => s.preferredMicSource = next,
+            );
+            setState(() {});
+          },
+          child: StatusIndicator(
+            isActive: isConnected,
+            label: micLabel,
+          ),
         ),
         if (_hasApiKey && providerName.isNotEmpty) ...[
           const SizedBox(width: 8),
@@ -1134,92 +1398,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildModeSelector() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: ConversationMode.values.map((mode) {
-          final isSelected = mode == _currentMode;
-          final label = _modeName(mode);
-          final icon = _modeIcon(mode);
-          final modeColor = _modeColor(mode);
-          final chipKey = Key('home-mode-${mode.name}');
-
-          return Semantics(
-            button: true,
-            label: 'Switch to $label mode',
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () => _setMode(mode),
-                borderRadius: BorderRadius.circular(14),
-                child: AnimatedContainer(
-                  key: chipKey,
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? modeColor.withValues(alpha: 0.15)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSelected
-                          ? modeColor.withValues(alpha: 0.3)
-                          : Colors.white.withValues(alpha: 0.06),
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: modeColor.withValues(alpha: 0.1),
-                              blurRadius: 8,
-                            ),
-                          ]
-                        : null,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        icon,
-                        size: 16,
-                        color: isSelected
-                            ? modeColor
-                            : Colors.white.withValues(alpha: 0.45),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: isSelected
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.66),
-                          fontSize: 12,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
 
   Widget _buildHomeBody({required double bottomPadding}) {
     return SingleChildScrollView(
@@ -2061,7 +2239,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  String get _languageCode => SettingsManager.instance.language;
+  String get _languageCode => SettingsManager.instance.uiLanguage;
 
   bool get _isChinese => _languageCode == 'zh';
 
@@ -2372,58 +2550,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           Expanded(child: _buildQuickAskField()),
           const SizedBox(width: 6),
-          _buildMicSourceChip(),
-          const SizedBox(width: 4),
           _buildRecordButton(),
         ],
-      ),
-    );
-  }
-
-  Widget _buildMicSourceChip() {
-    final settings = SettingsManager.instance;
-    final source = settings.preferredMicSource;
-    final icon = source == 'glasses'
-        ? Icons.bluetooth_rounded
-        : source == 'phone'
-            ? Icons.phone_iphone_rounded
-            : Icons.auto_awesome_rounded;
-    final label = source == 'glasses'
-        ? 'G1'
-        : source == 'phone'
-            ? 'Phone'
-            : 'Auto';
-
-    return GestureDetector(
-      onTap: () {
-        final next = switch (source) {
-          'auto' => 'phone',
-          'phone' => 'glasses',
-          _ => 'auto',
-        };
-        settings.update((s) => s.preferredMicSource = next);
-        setState(() {});
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.7)),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 9,
-                color: Colors.white.withValues(alpha: 0.6),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -2519,7 +2647,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _engine.askQuestion(_questionForPreset(text));
       _askController.clear();
       setState(() {
-        _isOverviewExpanded = false;
+  
         _aiResponse = '';
         _providerError = null;
         _transcription = text;
@@ -2757,6 +2885,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ru: 'Ошибка',
       );
     }
+    if (!_hasApiKey) {
+      return _tr(
+        en: 'Not Ready',
+        zh: '未就绪',
+        ja: '未準備',
+        ko: '준비 안됨',
+        es: 'No listo',
+        ru: 'Не готово',
+      );
+    }
+    final micSource = SettingsManager.instance.preferredMicSource;
+    if (micSource == 'glasses' && !BleManager.isBothConnected()) {
+      return _tr(
+        en: 'Not Ready',
+        zh: '未就绪',
+        ja: '未準備',
+        ko: '준비 안됨',
+        es: 'No listo',
+        ru: 'Не готово',
+      );
+    }
     switch (_status) {
       case EngineStatus.idle:
         return _tr(
@@ -2809,6 +2958,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Color _getStatusColor() {
     if (_providerError != null) {
       return HelixTheme.error;
+    }
+    if (!_hasApiKey) {
+      return HelixTheme.amber;
+    }
+    final micSource = SettingsManager.instance.preferredMicSource;
+    if (micSource == 'glasses' && !BleManager.isBothConnected()) {
+      return HelixTheme.amber;
     }
     switch (_status) {
       case EngineStatus.idle:

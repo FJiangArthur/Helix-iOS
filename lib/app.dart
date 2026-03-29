@@ -9,6 +9,7 @@ import 'screens/insights_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
+import 'utils/i18n.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -95,12 +96,12 @@ class _MainScreenState extends State<MainScreen> {
     const InsightsScreen(),
   ];
 
-  final List<String> _titles = [
-    'Home',
-    'Glasses',
-    'History',
-    'Live',
-    'Insights',
+  List<String> get _titles => [
+    tr('Home', '首页'),
+    tr('Glasses', '眼镜'),
+    tr('History', '历史'),
+    tr('Live', '实时'),
+    tr('Insights', '洞察'),
   ];
 
   @override
@@ -135,7 +136,7 @@ class _MainScreenState extends State<MainScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Settings',
+                  tooltip: tr('Settings', '设置'),
                   onPressed: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -164,31 +165,31 @@ class _MainScreenState extends State<MainScreen> {
               _currentIndex = index;
             });
           },
-          destinations: const [
+          destinations: [
             NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline_rounded),
-              selectedIcon: Icon(Icons.chat_bubble_rounded),
-              label: 'Home',
+              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              selectedIcon: const Icon(Icons.chat_bubble_rounded),
+              label: tr('Home', '首页'),
             ),
             NavigationDestination(
-              icon: Icon(Icons.bluetooth_rounded),
-              selectedIcon: Icon(Icons.bluetooth_connected_rounded),
-              label: 'Glasses',
+              icon: const Icon(Icons.bluetooth_rounded),
+              selectedIcon: const Icon(Icons.bluetooth_connected_rounded),
+              label: tr('Glasses', '眼镜'),
             ),
             NavigationDestination(
-              icon: Icon(Icons.history_rounded),
-              selectedIcon: Icon(Icons.history_rounded),
-              label: 'History',
+              icon: const Icon(Icons.history_rounded),
+              selectedIcon: const Icon(Icons.history_rounded),
+              label: tr('History', '历史'),
             ),
             NavigationDestination(
-              icon: Icon(Icons.radio_button_checked_rounded),
-              selectedIcon: Icon(Icons.radio_button_checked_rounded),
-              label: 'Live',
+              icon: const Icon(Icons.radio_button_checked_rounded),
+              selectedIcon: const Icon(Icons.radio_button_checked_rounded),
+              label: tr('Live', '实时'),
             ),
             NavigationDestination(
-              icon: Icon(Icons.lightbulb_outline_rounded),
-              selectedIcon: Icon(Icons.lightbulb_rounded),
-              label: 'Insights',
+              icon: const Icon(Icons.lightbulb_outline_rounded),
+              selectedIcon: const Icon(Icons.lightbulb_rounded),
+              label: tr('Insights', '洞察'),
             ),
           ],
         ),
