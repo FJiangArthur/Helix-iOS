@@ -157,6 +157,11 @@ class ConversationListeningSession {
       },
     );
 
+    // Allow the EventChannel subscription to complete its onListen callback
+    // in the native layer. Without this, the speech event sink may not be
+    // attached when recognition starts, causing early events to be dropped.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
     final langCode = _getLanguageCode();
     final sourceStr =
         source == TranscriptSource.glasses ? 'glasses' : 'microphone';
@@ -164,7 +169,11 @@ class ConversationListeningSession {
     String? apiKey;
     String? systemPrompt;
     if (settings.transcriptionBackend == 'openai') {
-      apiKey = await settings.getApiKey('openai');
+      try {
+        apiKey = await settings.getApiKey('openai');
+      } catch (e) {
+        appLogger.w('[ListeningSession] Failed to load OpenAI key: $e');
+      }
     }
     if (settings.usesOpenAIRealtimeSession) {
       systemPrompt =

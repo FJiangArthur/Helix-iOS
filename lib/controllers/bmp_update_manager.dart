@@ -16,7 +16,8 @@ class BmpUpdateManager {
   static const int _cmdBmpComplete = 0x20;
 
   /// Default timeout per chunk for dashboard transfers (ms).
-  static const int _dashboardTimeoutMs = 200;
+  /// 500ms allows for BLE write coalescing (200ms buffer) + transmission time.
+  static const int _dashboardTimeoutMs = 500;
 
   /// Send BMP data to one side of the glasses (full send).
   /// Fragments into 194-byte chunks, sends CRC32 checksum, then completion signal.
@@ -51,7 +52,7 @@ class BmpUpdateManager {
     return _sendCrcAndComplete(lr, fullBmpData);
   }
 
-  /// Build and send a single data chunk packet.
+  /// Build and send a single data chunk packet with one retry on timeout.
   static Future<bool> _sendChunk(
       String lr, int index, Uint8List data, int timeoutMs) async {
     final packet = Uint8List(data.length + 3);
@@ -59,8 +60,11 @@ class BmpUpdateManager {
     packet[1] = (index >> 8) & 0xff;
     packet[2] = index & 0xff;
     packet.setRange(3, 3 + data.length, data);
-    final resp =
-        await BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
+    var resp = await BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
+    if (resp.isTimeout) {
+      // Retry once on timeout
+      resp = await BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
+    }
     return !resp.isTimeout;
   }
 

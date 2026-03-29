@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../ble_manager.dart';
+import '../utils/app_logger.dart';
 import '../models/dashboard_snapshot.dart';
 import 'ble.dart';
 import 'conversation_engine.dart';
@@ -383,7 +384,14 @@ class DashboardService {
     // Bitmap HUD mode: delegate to BitmapHudService for delta push
     if (_isBitmapMode) {
       final bitmapService = BitmapHudService.instance;
-      final renderOk = await bitmapService.pushDelta();
+      var renderOk = await bitmapService.pushDelta();
+
+      // Retry with full send if delta failed
+      if (!renderOk) {
+        appLogger.w('[DashboardService] Delta push failed, retrying with full send');
+        bitmapService.invalidateCache();
+        renderOk = await bitmapService.pushFull();
+      }
 
       if (!renderOk) {
         _updateSnapshotState(blockedReason: 'Bitmap dashboard render failed');
