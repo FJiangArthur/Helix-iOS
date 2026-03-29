@@ -134,7 +134,8 @@ class SettingsManager {
   bool dashboardTiltEnabled = true;
 
   /// HUD render path: 'text' (fallback) or 'bitmap' (full bitmap HUD).
-  String hudRenderPath = 'bitmap';
+  /// Default to text until bitmap BLE reliability is resolved.
+  String hudRenderPath = 'text';
 
   /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
   String bitmapLayoutPreset = 'classic';
