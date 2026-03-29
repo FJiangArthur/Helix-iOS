@@ -29,6 +29,7 @@ class _G1TestScreenState extends State<G1TestScreen> {
   StreamSubscription<HandoffRecord?>? _handoffSub;
   StreamSubscription<DashboardDebugState>? _dashboardSub;
   bool isScanning = false;
+  bool _hasScannedOnce = false;
   HandoffRecord? _lastHandoff;
   DashboardDebugState _dashboardState = DashboardService.instance.state;
 
@@ -63,7 +64,10 @@ class _G1TestScreenState extends State<G1TestScreen> {
   Future<void> _stopScan() async {
     if (isScanning) {
       await BleManager.get().stopScan();
-      setState(() => isScanning = false);
+      setState(() {
+        isScanning = false;
+        _hasScannedOnce = true;
+      });
     }
   }
 
@@ -418,37 +422,91 @@ class _G1TestScreenState extends State<G1TestScreen> {
     final glasses = BleManager.get().getPairedGlasses();
 
     if (glasses.isEmpty) {
-      return GlassCard(
-        padding: const EdgeInsets.all(22),
-        child: Column(
-          children: [
-            Icon(
-              Icons.bluetooth_disabled_rounded,
-              size: 42,
-              color: Colors.white.withValues(alpha: 0.28),
+      return Column(
+        children: [
+          GlassCard(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.bluetooth_disabled_rounded,
+                  size: 42,
+                  color: Colors.white.withValues(alpha: 0.28),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  tr('No pairs discovered yet', '尚未发现配对设备'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tr('Run a scan and stay close to the glasses. Paired channels will show up here when both sides are visible.',
+                     '运行扫描并靠近眼镜。当两侧都可见时，配对通道将显示在此处。'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.58),
+                    fontSize: 13,
+                    height: 1.45,
+                  ),
+                ),
+              ],
             ),
+          ),
+          if (_hasScannedOnce) ...[
             const SizedBox(height: 12),
-            Text(
-              tr('No pairs discovered yet', '尚未发现配对设备'),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: HelixTheme.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: HelixTheme.amber.withValues(alpha: 0.24),
+                ),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              tr('Run a scan and stay close to the glasses. Paired channels will show up here when both sides are visible.',
-                 '运行扫描并靠近眼镜。当两侧都可见时，配对通道将显示在此处。'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.58),
-                fontSize: 13,
-                height: 1.45,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: HelixTheme.amber.withValues(alpha: 0.9),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tr("Can't find your glasses?",
+                             '找不到你的眼镜？'),
+                          style: TextStyle(
+                            color: HelixTheme.amber,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          tr('If your G1 is connected to the Even official app, close it first. Only one app can connect to the glasses at a time.',
+                             '如果你的 G1 已连接到 Even 官方应用，请先关闭该应用。同一时间只能有一个应用连接眼镜。'),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.62),
+                            fontSize: 12,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
-        ),
+        ],
       );
     }
 
