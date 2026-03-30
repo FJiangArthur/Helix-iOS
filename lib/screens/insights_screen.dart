@@ -364,7 +364,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 2,
       child: Scaffold(
         backgroundColor: HelixTheme.background,
         appBar: AppBar(
@@ -401,7 +401,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
             tabs: [
               Tab(text: tr('Facts', '事实')),
               Tab(text: tr('Memories', '记忆')),
-              Tab(text: tr('Ask Buzz', '问问 Buzz')),
             ],
           ),
         ),
@@ -409,7 +408,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
           children: [
             _buildFactsTab(),
             _buildMemoriesTab(),
-            _buildBuzzTab(),
           ],
         ),
       ),
@@ -453,16 +451,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
               // Search bar
               if (_searchExpanded)
                 SliverToBoxAdapter(child: _buildSearchBar()),
-
-              // Pending section
-              if (_pendingFacts.isNotEmpty) ...[
-                SliverToBoxAdapter(child: _buildPendingHeader()),
-                SliverToBoxAdapter(child: _buildPendingCards()),
-              ],
-
-              // Empty pending state
-              if (_pendingFacts.isEmpty)
-                SliverToBoxAdapter(child: _buildAllCaughtUp()),
 
               // Confirmed section header
               SliverToBoxAdapter(child: _buildConfirmedHeader()),

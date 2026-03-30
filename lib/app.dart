@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'screens/conversation_history_screen.dart';
-import 'screens/detail_analysis_screen.dart';
+import 'screens/ask_ai_screen.dart';
 import 'screens/g1_test_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/insights_screen.dart';
+import 'screens/live_history_screen.dart';
 import 'screens/onboarding_screen.dart';
-import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
 import 'utils/i18n.dart';
 
@@ -88,26 +87,23 @@ class _MainScreenState extends State<MainScreen> {
   static _MainScreenState? _instance;
   int _currentIndex = 0;
 
-  final List<Widget> _screens = [
-    const HomeScreen(),
-    const G1TestScreen(),
-    const ConversationHistoryScreen(),
-    const DetailAnalysisScreen(),
-    const InsightsScreen(),
+  late final List<WidgetBuilder> _screenBuilders = [
+    (_) => const HomeScreen(),
+    (_) => const G1TestScreen(),
+    (_) => const LiveHistoryScreen(),
+    (_) => const AskAiScreen(),
+    (_) => const InsightsScreen(),
   ];
-
-  List<String> get _titles => [
-    tr('Home', '首页'),
-    tr('Glasses', '眼镜'),
-    tr('History', '历史'),
-    tr('Live', '实时'),
-    tr('Insights', '洞察'),
-  ];
+  late final List<Widget?> _loadedScreens = List<Widget?>.filled(
+    _screenBuilders.length,
+    null,
+  );
 
   @override
   void initState() {
     super.initState();
     _instance = this;
+    _ensureScreenLoaded(_currentIndex);
   }
 
   @override
@@ -117,38 +113,29 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _switchTab(int index) {
-    if (index >= 0 && index < _screens.length) {
-      setState(() => _currentIndex = index);
+    if (index >= 0 && index < _loadedScreens.length) {
+      setState(() {
+        _ensureScreenLoaded(index);
+        _currentIndex = index;
+      });
     }
+  }
+
+  void _ensureScreenLoaded(int index) {
+    _loadedScreens[index] ??= _screenBuilders[index](context);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Hide AppBar for Home (0) and Insights (4) — Insights has its own with TabBar
-    final showAppBar = _currentIndex != 0 && _currentIndex != 4;
-
+    // All tabs manage their own AppBar (Home=0 has none, tabs 1-3 have TabBars)
     return Scaffold(
-      appBar: showAppBar
-          ? AppBar(
-              title: Text(_titles[_currentIndex]),
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: tr('Settings', '设置'),
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const SettingsScreen(),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            )
-          : null,
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: List<Widget>.generate(
+          _loadedScreens.length,
+          (index) => _loadedScreens[index] ?? const SizedBox.shrink(),
+        ),
+      ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           border: Border(
@@ -162,6 +149,7 @@ class _MainScreenState extends State<MainScreen> {
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
             setState(() {
+              _ensureScreenLoaded(index);
               _currentIndex = index;
             });
           },
@@ -177,14 +165,14 @@ class _MainScreenState extends State<MainScreen> {
               label: tr('Glasses', '眼镜'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.history_rounded),
-              selectedIcon: const Icon(Icons.history_rounded),
-              label: tr('History', '历史'),
-            ),
-            NavigationDestination(
               icon: const Icon(Icons.radio_button_checked_rounded),
               selectedIcon: const Icon(Icons.radio_button_checked_rounded),
               label: tr('Live', '实时'),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.auto_awesome_outlined),
+              selectedIcon: const Icon(Icons.auto_awesome),
+              label: tr('Ask AI', '问 AI'),
             ),
             NavigationDestination(
               icon: const Icon(Icons.lightbulb_outline_rounded),

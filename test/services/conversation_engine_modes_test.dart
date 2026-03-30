@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
-import 'package:flutter_helix/services/hud_controller.dart';
-import 'package:flutter_helix/services/settings_manager.dart';
 
 import '../helpers/test_helpers.dart';
 import '../helpers/stream_recorder.dart';

@@ -88,6 +88,7 @@ void main() {
       ..assistantProfileId = 'general'
       ..defaultQuickAskPreset = 'concise'
       ..language = 'en'
+      ..uiLanguage = 'en'
       ..autoDetectQuestions = true
       ..autoAnswerQuestions = true
       ..autoShowFollowUps = true
@@ -106,13 +107,16 @@ void main() {
       expect(find.byType(HomeScreen), findsOneWidget);
     });
 
-    testWidgets('displays Conversation Hub header', (tester) async {
+    testWidgets('displays control deck and conversation hub headers', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: HomeScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Conversation Hub'), findsOneWidget);
+      expect(find.text('CONTROL DECK'), findsOneWidget);
+      expect(find.text('CONVERSATION HUB'), findsOneWidget);
     });
 
     testWidgets('composer dock with text field is present', (tester) async {
@@ -185,24 +189,35 @@ void main() {
       expect(find.text('READY STACK'), findsOneWidget);
     });
 
-    testWidgets('Expand and Tune controls are visible', (tester) async {
+    testWidgets('Tune control is visible and Expand is absent', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: HomeScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Expand'), findsOneWidget);
       expect(find.text('Tune'), findsOneWidget);
+      expect(find.text('Expand'), findsNothing);
     });
 
-    testWidgets('mode chips for general and interview exist', (tester) async {
+    testWidgets('quick-start suggestions follow the current mode', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: HomeScreen())),
       );
       await tester.pump();
 
-      expect(find.byKey(const Key('home-mode-general')), findsOneWidget);
-      expect(find.byKey(const Key('home-mode-interview')), findsOneWidget);
+      expect(
+        find.text('How do I start a good conversation?'),
+        findsOneWidget,
+      );
+      expect(find.text('Tell me about yourself'), findsNothing);
+
+      ConversationEngine.instance.setMode(ConversationMode.interview);
+      await tester.pumpAndSettle();
+
+      expect(find.text('How do I start a good conversation?'), findsNothing);
+      expect(find.text('Tell me about yourself'), findsOneWidget);
     });
 
     testWidgets(

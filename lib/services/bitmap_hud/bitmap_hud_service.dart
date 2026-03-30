@@ -10,6 +10,15 @@ import 'bitmap_renderer.dart';
 import 'bmp_widget.dart';
 import 'delta_encoder.dart';
 import 'display_constants.dart';
+import 'enhanced_layout_presets.dart';
+import 'enhanced_widgets/bmp_activity_widget.dart';
+import 'enhanced_widgets/bmp_enhanced_calendar_widget.dart';
+import 'enhanced_widgets/bmp_enhanced_footer_widget.dart';
+import 'enhanced_widgets/bmp_enhanced_header_widget.dart';
+import 'enhanced_widgets/bmp_enhanced_stock_widget.dart';
+import 'enhanced_widgets/bmp_news_widget.dart';
+import 'enhanced_widgets/bmp_system_widget.dart';
+import 'enhanced_widgets/bmp_todos_widget.dart';
 import 'hud_layout_presets.dart';
 import 'widgets/bmp_battery_widget.dart';
 import 'widgets/bmp_calendar_widget.dart';
@@ -52,23 +61,23 @@ class BitmapHudService {
   /// Whether bitmap refresh is paused during active conversation.
   bool _conversationPaused = false;
 
-  /// Whether bitmap HUD mode is active (vs text HUD).
-  bool get isEnabled =>
-      SettingsManager.instance.hudRenderPath == 'bitmap';
+  /// Whether bitmap HUD mode is active (bitmap or enhanced).
+  bool get isEnabled {
+    final path = SettingsManager.instance.hudRenderPath;
+    return path == 'bitmap' || path == 'enhanced';
+  }
+
+  /// Whether the enhanced HUD variant is active.
+  bool get _isEnhancedMode =>
+      SettingsManager.instance.hudRenderPath == 'enhanced';
 
   /// Initialize the bitmap HUD service. Registers widgets and starts timers.
   Future<void> initialize() async {
     if (_initialized) return;
     _initialized = true;
 
-    // Register all bitmap widgets
-    _registerWidget(BmpClockWidget());
-    _registerWidget(BmpWeatherWidget());
-    _registerWidget(BmpCalendarWidget());
-    _registerWidget(BmpStockWidget(
-        symbol: SettingsManager.instance.stockTicker));
-    _registerWidget(BmpNotificationWidget());
-    _registerWidget(BmpBatteryWidget());
+    // Register widgets based on render mode
+    _registerAllWidgets();
 
     // Load active layout
     _loadLayout();
@@ -130,9 +139,39 @@ class BitmapHudService {
     _widgets[widget.id] = widget;
   }
 
+  void _registerAllWidgets() {
+    _widgets.clear();
+    // Always register basic bitmap widgets
+    _registerWidget(BmpClockWidget());
+    _registerWidget(BmpWeatherWidget());
+    _registerWidget(BmpCalendarWidget());
+    _registerWidget(
+      BmpStockWidget(symbol: SettingsManager.instance.stockTicker),
+    );
+    _registerWidget(BmpNotificationWidget());
+    _registerWidget(BmpBatteryWidget());
+
+    // Register enhanced widgets (available in both modes for flexibility)
+    _registerWidget(BmpEnhancedHeaderWidget());
+    _registerWidget(BmpEnhancedFooterWidget());
+    _registerWidget(
+      BmpEnhancedStockWidget(symbol: SettingsManager.instance.stockTicker),
+    );
+    _registerWidget(BmpEnhancedCalendarWidget());
+    _registerWidget(BmpActivityWidget());
+    _registerWidget(BmpNewsWidget());
+    _registerWidget(BmpTodosWidget());
+    _registerWidget(BmpSystemWidget());
+  }
+
   void _loadLayout() {
-    final presetId = SettingsManager.instance.bitmapLayoutPreset;
-    _activeLayout = HudLayoutPresets.byId(presetId);
+    if (_isEnhancedMode) {
+      final presetId = SettingsManager.instance.enhancedLayoutPreset;
+      _activeLayout = EnhancedLayoutPresets.byId(presetId);
+    } else {
+      final presetId = SettingsManager.instance.bitmapLayoutPreset;
+      _activeLayout = HudLayoutPresets.byId(presetId);
+    }
     _rebuildZoneWidgets();
   }
 
@@ -151,15 +190,31 @@ class BitmapHudService {
     final settings = SettingsManager.instance;
 
     // Update stock ticker if changed
+    bool stockUpdated = false;
     final stockWidget = _widgets['bmp_stock'];
     if (stockWidget is BmpStockWidget &&
         stockWidget.symbol != settings.stockTicker) {
       _widgets['bmp_stock'] = BmpStockWidget(symbol: settings.stockTicker);
+      stockUpdated = true;
+    }
+    final enhStockWidget = _widgets['enh_stock'];
+    if (enhStockWidget is BmpEnhancedStockWidget &&
+        enhStockWidget.symbol != settings.stockTicker) {
+      _widgets['enh_stock'] = BmpEnhancedStockWidget(
+        symbol: settings.stockTicker,
+      );
+      stockUpdated = true;
+    }
+    if (stockUpdated) {
+      _rebuildZoneWidgets();
     }
 
-    // Reload layout if changed
+    // Reload layout if changed (check both bitmap and enhanced presets)
     final currentPreset = _activeLayout.id;
-    if (settings.bitmapLayoutPreset != currentPreset) {
+    final targetPreset = _isEnhancedMode
+        ? settings.enhancedLayoutPreset
+        : settings.bitmapLayoutPreset;
+    if (targetPreset != currentPreset) {
       _loadLayout();
       // Force full re-push on layout change
       if (isEnabled && BleManager.get().isConnected) {
@@ -223,8 +278,10 @@ class BitmapHudService {
       final success = await BmpUpdateManager.sendBitmapHud(bmpData);
       if (success) {
         _lastSentBmp = bmpData;
-        appLogger.d('BitmapHud: full push complete '
-            '(${bmpData.length} bytes)');
+        appLogger.d(
+          'BitmapHud: full push complete '
+          '(${bmpData.length} bytes)',
+        );
       }
       return success;
     } catch (e) {
@@ -276,11 +333,14 @@ class BitmapHudService {
       }
 
       final total =
-          (newBmp.length + DeltaEncoder.chunkSize - 1) ~/ DeltaEncoder.chunkSize;
+          (newBmp.length + DeltaEncoder.chunkSize - 1) ~/
+          DeltaEncoder.chunkSize;
       appLogger.d('BitmapHud: delta ${changedIndices.length}/$total chunks');
 
-      final success =
-          await BmpUpdateManager.sendBitmapHudDelta(newBmp, changedIndices);
+      final success = await BmpUpdateManager.sendBitmapHudDelta(
+        newBmp,
+        changedIndices,
+      );
 
       if (success) {
         _lastSentBmp = newBmp;

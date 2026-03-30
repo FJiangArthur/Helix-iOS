@@ -8,6 +8,7 @@ import 'package:flutter_helix/services/dashboard_service.dart';
 import 'package:flutter_helix/services/handoff_memory.dart';
 import 'package:flutter_helix/services/hud_controller.dart';
 import 'package:flutter_helix/services/hud_intent.dart';
+import 'package:flutter_helix/services/hud_widget_registry.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -106,6 +107,7 @@ void main() {
     });
 
     test('restores quick ask text after the dashboard auto-hides', () async {
+      BleManager.get().isConnected = true;
       HudController.instance.updateDisplay('Saved quick ask answer');
       await HudController.instance.beginQuickAsk(source: 'test.quickAskSetup');
 
@@ -139,31 +141,36 @@ void main() {
 
       expect(dashboardRenders, hasLength(1));
       final text = dashboardRenders.first;
-      final lines = text.split('\n');
-      expect(lines, hasLength(5));
-
-      // When idle with no conversation, should show standard layout
-      expect(lines[0], '10:00');
-      expect(lines[1], 'Thu Mar 12');
-      expect(lines[2], 'GLASSES OFFLINE');
-      expect(lines[3], 'Tap mic to start');
+      expect(text, HudWidgetRegistry.instance.pageText(0));
     });
 
-    test('contextual status shows Ready when idle with no data', () async {
-      await service.handleDeviceEvent(headUpEvent());
+    test(
+      'idle dashboard shows the widget placeholder when nothing is configured',
+      () async {
+        await service.handleDeviceEvent(headUpEvent());
 
-      final text = dashboardRenders.first;
-      final lines = text.split('\n');
-      expect(lines[4], 'Ready');
-    });
+        final text = dashboardRenders.first;
+        final lines = text.split('\n');
+        expect(lines, [
+          'No widgets enabled',
+          '',
+          'Go to Settings >',
+          'HUD Widgets',
+          'to add some',
+        ]);
+      },
+    );
 
     test('all rendered lines fit in 24 chars', () async {
       await service.handleDeviceEvent(headUpEvent());
 
       final text = dashboardRenders.first;
       for (final line in text.split('\n')) {
-        expect(line.length, lessThanOrEqualTo(24),
-            reason: 'Line "$line" exceeds 24 chars');
+        expect(
+          line.length,
+          lessThanOrEqualTo(24),
+          reason: 'Line "$line" exceeds 24 chars',
+        );
       }
     });
 

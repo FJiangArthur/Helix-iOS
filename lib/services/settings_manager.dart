@@ -143,6 +143,9 @@ class SettingsManager {
   /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
   String bitmapLayoutPreset = 'classic';
 
+  /// Active enhanced layout preset ID: 'command_center', 'cockpit', 'focus'.
+  String enhancedLayoutPreset = 'command_center';
+
   /// Stock ticker symbol for the bitmap HUD stock widget.
   String stockTicker = '^DJI';
 
@@ -307,6 +310,7 @@ class SettingsManager {
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
     hudRenderPath = prefs.getString('hudRenderPath') ?? 'bitmap';
     bitmapLayoutPreset = prefs.getString('bitmapLayoutPreset') ?? 'classic';
+    enhancedLayoutPreset = prefs.getString('enhancedLayoutPreset') ?? 'command_center';
     stockTicker = prefs.getString('stockTicker') ?? '^DJI';
 
     // HUD Widgets
@@ -412,6 +416,7 @@ class SettingsManager {
     await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
     await prefs.setString('hudRenderPath', hudRenderPath);
     await prefs.setString('bitmapLayoutPreset', bitmapLayoutPreset);
+    await prefs.setString('enhancedLayoutPreset', enhancedLayoutPreset);
     await prefs.setString('stockTicker', stockTicker);
 
     // HUD Widgets

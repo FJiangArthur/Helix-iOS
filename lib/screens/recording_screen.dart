@@ -99,6 +99,17 @@ class _RecordingScreenState extends State<RecordingScreen> {
             SnackBar(
               content: Text('Recording saved: ${filePath ?? 'Unknown path'}'),
               duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Export',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FileManagementScreen(),
+                    ),
+                  );
+                },
+              ),
             ),
           );
         }
@@ -307,7 +318,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
                 );
               },
               icon: const Icon(Icons.folder),
-              label: const Text('View Recordings'),
+              label: const Text('View & Export Recordings'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),

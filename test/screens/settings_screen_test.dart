@@ -19,8 +19,7 @@ void main() {
   final secureStorageValues = <String, String>{};
 
   Future<Object?> secureStorageHandler(MethodCall call) async {
-    final arguments =
-        (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+    final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
     final key = arguments['key'] as String?;
 
     switch (call.method) {
@@ -52,15 +51,15 @@ void main() {
         .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(bluetoothChannel, (call) async {
-      switch (call.method) {
-        case 'startEvenAI':
-          return 'started';
-        case 'stopEvenAI':
-          return 'stopped';
-        default:
-          return null;
-      }
-    });
+          switch (call.method) {
+            case 'startEvenAI':
+              return 'started';
+            case 'stopEvenAI':
+              return 'stopped';
+            default:
+              return null;
+          }
+        });
     SharedPreferences.setMockInitialValues({});
     await SettingsManager.instance.initialize();
     LlmService.instance.initializeDefaults();
@@ -140,7 +139,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('ASSISTANT DEFAULTS'), findsOneWidget);
+      expect(find.text('AI TOOLS'), findsOneWidget);
     });
 
     testWidgets('Auto-detect Questions toggle exists', (tester) async {
@@ -167,45 +166,56 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('UI Language'), findsOneWidget);
     });
 
-    testWidgets('Microphone setting is present', (tester) async {
+    testWidgets('OpenAI Session setting is present', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Microphone'), findsOneWidget);
+      expect(find.text('OpenAI Session'), findsOneWidget);
     });
 
-    testWidgets('Backend dropdown is present in Transcription section', (
+    testWidgets('transcription backend cards are present in the section', (
       tester,
     ) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Backend'), findsOneWidget);
+      expect(find.text('OpenAI'), findsWidgets);
+      expect(find.text('Apple Cloud'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.expand_more).last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Apple Cloud'), findsOneWidget);
+      expect(find.text('On-Device'), findsOneWidget);
+      expect(find.text('Whisper'), findsOneWidget);
     });
 
-    testWidgets('Auto-show Summary toggle exists', (tester) async {
+    testWidgets('Sentiment Monitor toggle exists', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Auto-show Summary'), findsOneWidget);
+      expect(find.text('Sentiment Monitor'), findsOneWidget);
     });
 
-    testWidgets('Auto-show Follow-ups toggle exists', (tester) async {
+    testWidgets('Entity Memory toggle exists', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Auto-show Follow-ups'), findsOneWidget);
+      expect(find.text('Entity Memory'), findsOneWidget);
     });
 
     testWidgets('settings screen is scrollable', (tester) async {
@@ -217,16 +227,16 @@ void main() {
       expect(find.byType(SingleChildScrollView), findsOneWidget);
     });
 
-    testWidgets('Assistant Profiles section is present', (tester) async {
+    testWidgets('All-Day Mode section is present', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('ASSISTANT PROFILES'), findsOneWidget);
+      expect(find.text('ALL-DAY MODE'), findsOneWidget);
     });
 
-    testWidgets('Glasses section is present', (tester) async {
+    testWidgets('Translation section is present', (tester) async {
       await tester.binding.setSurfaceSize(const Size(800, 2400));
       addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -235,13 +245,13 @@ void main() {
       );
       await tester.pump();
 
-      // Scroll down to find the Glasses section
+      // Scroll down to find the Translation section
       await tester.dragUntilVisible(
-        find.text('GLASSES'),
+        find.text('TRANSLATION'),
         find.byType(SingleChildScrollView),
         const Offset(0, -300),
       );
-      expect(find.text('GLASSES'), findsOneWidget);
+      expect(find.text('TRANSLATION'), findsOneWidget);
     });
 
     testWidgets('About section is present', (tester) async {
@@ -262,23 +272,24 @@ void main() {
       expect(find.text('ABOUT'), findsOneWidget);
     });
 
-    testWidgets('Active Provider spotlight is shown', (tester) async {
+    testWidgets('active provider card shows OpenAI by default', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Active Provider'), findsOneWidget);
+      expect(find.text('OpenAI'), findsWidgets);
     });
 
-    testWidgets('Frontier Providers group is shown', (tester) async {
+    testWidgets('model selector is shown for the active provider', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      // May appear in both the spotlight card and group header
-      expect(find.text('Frontier Providers'), findsWidgets);
+      expect(find.text('Model'), findsOneWidget);
     });
   });
 }

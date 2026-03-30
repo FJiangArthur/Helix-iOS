@@ -187,6 +187,7 @@ void main() {
       ..assistantProfileId = 'general'
       ..defaultQuickAskPreset = 'concise'
       ..language = 'en'
+      ..uiLanguage = 'en'
       ..autoDetectQuestions = true
       ..autoAnswerQuestions = true
       ..autoShowFollowUps = true
@@ -203,8 +204,9 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Conversation Hub'), findsOneWidget);
-    expect(find.text('Expand'), findsOneWidget);
+    expect(find.text('CONTROL DECK'), findsOneWidget);
+    expect(find.text('CONVERSATION HUB'), findsOneWidget);
+    expect(find.text('Expand'), findsNothing);
     expect(find.text('Tune'), findsOneWidget);
     expect(
       find.text('Keep the prompt, answer, and voice controls in one place'),
@@ -309,7 +311,7 @@ void main() {
         _FakeJsonProvider(
           responses: [
             '{"shouldRespond": true, "question": "Can you explain the plan?", "questionExcerpt": "Can you explain the plan?"}',
-            '["Tell me more"]',
+            '{"chips": ["Tell me more"], "factCheck": "OK"}',
           ],
           streamResponses: const [
             _FakeStreamResponse(['Here is ', 'the concise answer.']),
@@ -344,6 +346,7 @@ void main() {
       expect(find.text('Tell me more'), findsOneWidget);
 
       engine.stop();
+      BleManager.get().stopSendBeatHeart();
       await tester.pump();
     },
   );
@@ -370,13 +373,15 @@ void main() {
       expect(find.text('PHONE INPUT'), findsWidgets);
       expect(find.text('G1 OUTPUT ONLY'), findsWidgets);
 
+      BleManager.get().isConnected = false;
       engine.stop();
+      BleManager.get().stopSendBeatHeart();
       await tester.pump();
     },
   );
 
   testWidgets(
-    'home screen mode selector switches between interview and general',
+    'home screen updates quick-start suggestions when the mode changes',
     (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: HomeScreen())),
@@ -384,26 +389,26 @@ void main() {
       await tester.pump();
 
       expect(ConversationEngine.instance.mode, ConversationMode.general);
-
-      final interviewChip = tester.widget<InkWell>(
-        find.ancestor(
-          of: find.byKey(const Key('home-mode-interview')),
-          matching: find.byType(InkWell),
-        ),
+      expect(
+        find.text('How do I start a good conversation?'),
+        findsOneWidget,
       );
-      interviewChip.onTap?.call();
+      expect(find.text('Tell me about yourself'), findsNothing);
+
+      ConversationEngine.instance.setMode(ConversationMode.interview);
       await tester.pumpAndSettle();
       expect(ConversationEngine.instance.mode, ConversationMode.interview);
+      expect(find.text('How do I start a good conversation?'), findsNothing);
+      expect(find.text('Tell me about yourself'), findsOneWidget);
 
-      final generalChip = tester.widget<InkWell>(
-        find.ancestor(
-          of: find.byKey(const Key('home-mode-general')),
-          matching: find.byType(InkWell),
-        ),
-      );
-      generalChip.onTap?.call();
+      ConversationEngine.instance.setMode(ConversationMode.general);
       await tester.pumpAndSettle();
       expect(ConversationEngine.instance.mode, ConversationMode.general);
+      expect(
+        find.text('How do I start a good conversation?'),
+        findsOneWidget,
+      );
+      expect(find.text('Tell me about yourself'), findsNothing);
     },
   );
 
@@ -411,6 +416,7 @@ void main() {
     tester,
   ) async {
     SettingsManager.instance.language = 'ja';
+    SettingsManager.instance.uiLanguage = 'ja';
     SettingsManager.instance.autoDetectQuestions = false;
 
     await tester.pumpWidget(
@@ -426,10 +432,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 30));
 
-    expect(find.text('ライブ文字起こし'), findsOneWidget);
-    expect(find.text('スマホ入力'), findsWidgets);
+      expect(find.text('ライブ文字起こし'), findsOneWidget);
+      expect(find.text('スマホ入力'), findsWidgets);
 
-    engine.stop();
-    await tester.pump();
+      engine.stop();
+      BleManager.get().stopSendBeatHeart();
+      await tester.pump();
   });
 }

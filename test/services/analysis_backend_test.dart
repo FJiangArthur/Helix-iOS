@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/services/analysis_backend.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
-import 'package:flutter_helix/services/llm/llm_service.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -10,9 +9,10 @@ void main() {
   // ---------- BatchAnalysisResult.fromJson ----------
 
   group('BatchAnalysisResult.fromJson', () {
-    test('parses valid JSON with facts, relationships, profileUpdates, topics',
-        () {
-      const raw = '''
+    test(
+      'parses valid JSON with facts, relationships, profileUpdates, topics',
+      () {
+        const raw = '''
 {
   "facts": [
     {
@@ -37,23 +37,24 @@ void main() {
 }
 ''';
 
-      final result = BatchAnalysisResult.fromJson(raw);
+        final result = BatchAnalysisResult.fromJson(raw);
 
-      expect(result.facts, hasLength(1));
-      expect(result.facts.first.category, 'preference');
-      expect(result.facts.first.content, 'Prefers dark mode');
-      expect(result.facts.first.sourceQuote, 'I always use dark mode');
-      expect(result.facts.first.confidence, 0.9);
+        expect(result.facts, hasLength(1));
+        expect(result.facts.first.category, 'preference');
+        expect(result.facts.first.content, 'Prefers dark mode');
+        expect(result.facts.first.sourceQuote, 'I always use dark mode');
+        expect(result.facts.first.confidence, 0.9);
 
-      expect(result.relationships, hasLength(1));
-      expect(result.relationships.first.entityA, 'Alice');
-      expect(result.relationships.first.entityB, 'Acme Corp');
-      expect(result.relationships.first.type, 'works_at');
-      expect(result.relationships.first.description, 'Senior engineer');
+        expect(result.relationships, hasLength(1));
+        expect(result.relationships.first.entityA, 'Alice');
+        expect(result.relationships.first.entityB, 'Acme Corp');
+        expect(result.relationships.first.type, 'works_at');
+        expect(result.relationships.first.description, 'Senior engineer');
 
-      expect(result.profileUpdates, {'preferredTheme': 'dark'});
-      expect(result.topics, ['UI preferences', 'workplace']);
-    });
+        expect(result.profileUpdates, {'preferredTheme': 'dark'});
+        expect(result.topics, ['UI preferences', 'workplace']);
+      },
+    );
 
     test('handles malformed JSON gracefully (returns empty result)', () {
       final result = BatchAnalysisResult.fromJson('not valid json {{{');
@@ -112,8 +113,7 @@ void main() {
   "topics": ["location"]
 }
 ''';
-      fakeProvider =
-          await configureFakeLlm(responses: [responseJson]);
+      fakeProvider = await configureFakeLlm(responses: [responseJson]);
 
       final provider = CloudAnalysisProvider();
       final segments = [
@@ -136,10 +136,14 @@ void main() {
 
       // Verify LLM was called
       expect(fakeProvider.getResponseCallCount, 1);
-      expect(fakeProvider.capturedSystemPrompts.first,
-          contains('knowledge extraction engine'));
-      expect(fakeProvider.capturedMessages.first.first.content,
-          contains('San Francisco'));
+      expect(
+        fakeProvider.capturedSystemPrompts.first,
+        contains('knowledge extraction engine'),
+      );
+      expect(
+        fakeProvider.capturedMessages.first.first.content,
+        contains('San Francisco'),
+      );
     });
 
     test('isAvailable returns true when provider is registered', () async {
@@ -149,20 +153,24 @@ void main() {
       expect(provider.isAvailable, isTrue);
     });
 
-    test('empty segments list returns empty result without calling LLM',
-        () async {
-      fakeProvider = await configureFakeLlm(responses: ['should not be used']);
+    test(
+      'empty segments list returns empty result without calling LLM',
+      () async {
+        fakeProvider = await configureFakeLlm(
+          responses: ['should not be used'],
+        );
 
-      final provider = CloudAnalysisProvider();
-      final result = await provider.analyze(
-        segments: [],
-        userProfileJson: '{}',
-      );
+        final provider = CloudAnalysisProvider();
+        final result = await provider.analyze(
+          segments: [],
+          userProfileJson: '{}',
+        );
 
-      expect(result.facts, isEmpty);
-      expect(result.relationships, isEmpty);
-      expect(result.topics, isEmpty);
-      expect(fakeProvider.getResponseCallCount, 0);
-    });
+        expect(result.facts, isEmpty);
+        expect(result.relationships, isEmpty);
+        expect(result.topics, isEmpty);
+        expect(fakeProvider.getResponseCallCount, 0);
+      },
+    );
   });
 }

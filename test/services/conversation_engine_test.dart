@@ -505,33 +505,37 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false; // Don't auto-answer so we can isolate detection
+      SettingsManager.instance.autoAnswerQuestions =
+          false; // Don't auto-answer so we can isolate detection
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
     });
 
-    test('parses JSON with shouldRespond=true and returns a QuestionDetectionResult', () async {
-      // The LLM returns a valid detection JSON; engine should emit a result.
-      await configureFakeLlm(
-        responses: [
-          '{"shouldRespond": true, "question": "What is the deadline?", "questionExcerpt": "What is the deadline?"}',
-        ],
-      );
+    test(
+      'parses JSON with shouldRespond=true and returns a QuestionDetectionResult',
+      () async {
+        // The LLM returns a valid detection JSON; engine should emit a result.
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": true, "question": "What is the deadline?", "questionExcerpt": "What is the deadline?"}',
+          ],
+        );
 
-      final results = <QuestionDetectionResult>[];
-      final sub = engine.questionDetectionStream.listen(results.add);
+        final results = <QuestionDetectionResult>[];
+        final sub = engine.questionDetectionStream.listen(results.add);
 
-      engine.start(source: TranscriptSource.phone);
-      engine.onTranscriptionFinalized('What is the deadline?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('What is the deadline?');
+        await Future<void>.delayed(const Duration(milliseconds: 30));
 
-      await sub.cancel();
+        await sub.cancel();
 
-      expect(results, hasLength(1));
-      expect(results.single.question, 'What is the deadline?');
-      expect(results.single.questionExcerpt, 'What is the deadline?');
-    });
+        expect(results, hasLength(1));
+        expect(results.single.question, 'What is the deadline?');
+        expect(results.single.questionExcerpt, 'What is the deadline?');
+      },
+    );
 
     test('returns null when shouldRespond=false', () async {
       // Standard case: LLM decides no question was detected.
@@ -579,11 +583,7 @@ void main() {
 
     test('handles malformed JSON gracefully', () async {
       // Invalid JSON should not throw; it should silently return null.
-      await configureFakeLlm(
-        responses: [
-          'This is not valid JSON at all {{{',
-        ],
-      );
+      await configureFakeLlm(responses: ['This is not valid JSON at all {{{']);
 
       final results = <QuestionDetectionResult>[];
       final sub = engine.questionDetectionStream.listen(results.add);
@@ -599,52 +599,58 @@ void main() {
       expect(engine.history, isEmpty);
     });
 
-    test('returns null when question field is empty despite shouldRespond=true', () async {
-      // Edge case: shouldRespond is true but question string is empty.
-      await configureFakeLlm(
-        responses: [
-          '{"shouldRespond": true, "question": "", "questionExcerpt": ""}',
-        ],
-      );
+    test(
+      'returns null when question field is empty despite shouldRespond=true',
+      () async {
+        // Edge case: shouldRespond is true but question string is empty.
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": true, "question": "", "questionExcerpt": ""}',
+          ],
+        );
 
-      final results = <QuestionDetectionResult>[];
-      final sub = engine.questionDetectionStream.listen(results.add);
+        final results = <QuestionDetectionResult>[];
+        final sub = engine.questionDetectionStream.listen(results.add);
 
-      engine.start(source: TranscriptSource.phone);
-      engine.onTranscriptionFinalized('Hmm let me think about it.');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Hmm let me think about it.');
+        await Future<void>.delayed(const Duration(milliseconds: 30));
 
-      await sub.cancel();
+        await sub.cancel();
 
-      // Empty question should not produce a detection result.
-      expect(results, isEmpty);
-    });
+        // Empty question should not produce a detection result.
+        expect(results, isEmpty);
+      },
+    );
 
-    test('defaults questionExcerpt via fallback resolution when field missing', () async {
-      // Backward compat: old JSON without questionExcerpt field.
-      // _resolveQuestionExcerpt should fall back to the question text if it
-      // appears in the transcript window.
-      await configureFakeLlm(
-        responses: [
-          '{"shouldRespond": true, "question": "Where is the report?"}',
-        ],
-      );
+    test(
+      'defaults questionExcerpt via fallback resolution when field missing',
+      () async {
+        // Backward compat: old JSON without questionExcerpt field.
+        // _resolveQuestionExcerpt should fall back to the question text if it
+        // appears in the transcript window.
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": true, "question": "Where is the report?"}',
+          ],
+        );
 
-      final results = <QuestionDetectionResult>[];
-      final sub = engine.questionDetectionStream.listen(results.add);
+        final results = <QuestionDetectionResult>[];
+        final sub = engine.questionDetectionStream.listen(results.add);
 
-      engine.start(source: TranscriptSource.phone);
-      engine.onTranscriptionFinalized('Where is the report?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Where is the report?');
+        await Future<void>.delayed(const Duration(milliseconds: 30));
 
-      await sub.cancel();
+        await sub.cancel();
 
-      expect(results, hasLength(1));
-      expect(results.single.question, 'Where is the report?');
-      // questionExcerpt should be resolved from the transcript window since the
-      // question text "Where is the report?" appears verbatim in the window.
-      expect(results.single.questionExcerpt, 'Where is the report?');
-    });
+        expect(results, hasLength(1));
+        expect(results.single.question, 'Where is the report?');
+        // questionExcerpt should be resolved from the transcript window since the
+        // question text "Where is the report?" appears verbatim in the window.
+        expect(results.single.questionExcerpt, 'Where is the report?');
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -747,7 +753,9 @@ void main() {
       engine.start(source: TranscriptSource.phone);
       // Add 12 segments — more than the 8-segment window limit.
       for (var i = 1; i <= 12; i++) {
-        engine.onTranscriptionFinalized('Segment number $i with some filler text.');
+        engine.onTranscriptionFinalized(
+          'Segment number $i with some filler text.',
+        );
       }
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
@@ -757,8 +765,14 @@ void main() {
       // All 12 segments should be in the snapshot (the 8-segment limit applies
       // only to the internal analysis window, not the snapshot output).
       expect(lastSnapshot.finalizedSegments, hasLength(12));
-      expect(lastSnapshot.finalizedSegments.first, 'Segment number 1 with some filler text.');
-      expect(lastSnapshot.finalizedSegments.last, 'Segment number 12 with some filler text.');
+      expect(
+        lastSnapshot.finalizedSegments.first,
+        'Segment number 1 with some filler text.',
+      );
+      expect(
+        lastSnapshot.finalizedSegments.last,
+        'Segment number 12 with some filler text.',
+      );
     });
   });
 
@@ -1016,13 +1030,18 @@ void main() {
       final sub = engine.questionDetectionStream.listen(results.add);
 
       engine.start(source: TranscriptSource.phone);
-      engine.onTranscriptionFinalized('Can you walk me through the architecture?');
+      engine.onTranscriptionFinalized(
+        'Can you walk me through the architecture?',
+      );
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       await sub.cancel();
 
       expect(results, hasLength(1));
-      expect(results.single.question, 'Can you walk me through the architecture?');
+      expect(
+        results.single.question,
+        'Can you walk me through the architecture?',
+      );
       expect(results.single.askedBy, 'other');
     });
 
@@ -1103,52 +1122,55 @@ void main() {
       expect(lastSnapshot.finalizedSegments[2], 'Fine thanks.');
     });
 
-    test('timing gaps > 1s trigger analysis with pause markers in window', () async {
-      // We verify indirectly: the LLM receives a prompt that includes
-      // timing gap markers like "[3.0s pause]". We capture what the LLM
-      // receives via the FakeJsonProvider.
-      final prompts = <String>[];
-      final provider = FakeJsonProvider(
-        responses: [
-          // First analysis (triggered by first segment) — no question
-          '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
-          // Second analysis (triggered by second segment) — no question
-          '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
-        ],
-      );
-      final llm = LlmService.instance;
-      llm.registerProvider(provider);
-      llm.setActiveProvider('fake');
+    test(
+      'timing gaps > 1s trigger analysis with pause markers in window',
+      () async {
+        // We verify indirectly: the LLM receives a prompt that includes
+        // timing gap markers like "[3.0s pause]". We capture what the LLM
+        // receives via the FakeJsonProvider.
+        final prompts = <String>[];
+        final provider = FakeJsonProvider(
+          responses: [
+            // First analysis (triggered by first segment) — no question
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+            // Second analysis (triggered by second segment) — no question
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+          ],
+        );
+        final llm = LlmService.instance;
+        llm.registerProvider(provider);
+        llm.setActiveProvider('fake');
 
-      // Override getResponse to capture the prompt
-      final captureProvider = _PromptCapturingProvider(
-        delegate: provider,
-        onPrompt: (prompt) => prompts.add(prompt),
-      );
-      llm.registerProvider(captureProvider);
-      llm.setActiveProvider('capture');
-      ConversationEngine.setLlmServiceGetter(() => llm);
+        // Override getResponse to capture the prompt
+        final captureProvider = _PromptCapturingProvider(
+          delegate: provider,
+          onPrompt: (prompt) => prompts.add(prompt),
+        );
+        llm.registerProvider(captureProvider);
+        llm.setActiveProvider('capture');
+        ConversationEngine.setLlmServiceGetter(() => llm);
 
-      engine.start(source: TranscriptSource.phone);
+        engine.start(source: TranscriptSource.phone);
 
-      final t0 = DateTime(2026, 3, 19, 10, 0, 0);
-      engine.onTranscriptionFinalized('First segment', segmentTimestamp: t0);
-      await Future<void>.delayed(const Duration(milliseconds: 30));
-      // 3-second gap — should produce a [3.0s pause] marker
-      engine.onTranscriptionFinalized(
-        'Second segment after pause',
-        segmentTimestamp: t0.add(const Duration(seconds: 3)),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        final t0 = DateTime(2026, 3, 19, 10, 0, 0);
+        engine.onTranscriptionFinalized('First segment', segmentTimestamp: t0);
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+        // 3-second gap — should produce a [3.0s pause] marker
+        engine.onTranscriptionFinalized(
+          'Second segment after pause',
+          segmentTimestamp: t0.add(const Duration(seconds: 3)),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      // The second analysis prompt (which has both segments) should contain
-      // a pause marker between them.
-      expect(prompts.length, greaterThanOrEqualTo(2));
-      final secondPrompt = prompts[1];
-      expect(secondPrompt, contains('[3.0s pause]'));
-      expect(secondPrompt, contains('First segment'));
-      expect(secondPrompt, contains('Second segment after pause'));
-    });
+        // The second analysis prompt (which has both segments) should contain
+        // a pause marker between them.
+        expect(prompts.length, greaterThanOrEqualTo(2));
+        final secondPrompt = prompts[1];
+        expect(secondPrompt, contains('[3.0s pause]'));
+        expect(secondPrompt, contains('First segment'));
+        expect(secondPrompt, contains('Second segment after pause'));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -1180,8 +1202,8 @@ void main() {
         responses: [
           // First response: question detection
           '{"shouldRespond": true, "question": "What is the plan?", "questionExcerpt": "What is the plan?", "askedBy": "other"}',
-          // Second response: follow-up chips
-          '["Tell me more", "Details please"]',
+          // Second response: merged post-response analysis
+          '{"chips": ["Tell me more", "Details please"], "factCheck": "null"}',
           // Third response: post-conversation analysis
           '{"summary": "Discussed project plan", "topics": ["planning", "architecture"], "actionItems": ["Create roadmap"], "sentiment": "positive"}',
         ],
@@ -1449,8 +1471,8 @@ void main() {
         responses: [
           // 1st: question detection for "What next?"
           '{"shouldRespond": true, "question": "What next?", "questionExcerpt": "What next?", "askedBy": "other"}',
-          // 2nd: follow-up chips after answer
-          '["More info"]',
+          // 2nd: merged post-response analysis after answer
+          '{"chips": ["More info"], "factCheck": "null"}',
           // 3rd: question detection for "Sounds good." — no question
           '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
           // 4th: post-conversation analysis (triggered on stop)
@@ -1504,10 +1526,7 @@ void main() {
 
 /// A provider that captures the user prompt sent to getResponse.
 class _PromptCapturingProvider implements LlmProvider {
-  _PromptCapturingProvider({
-    required this.delegate,
-    required this.onPrompt,
-  });
+  _PromptCapturingProvider({required this.delegate, required this.onPrompt});
 
   final LlmProvider delegate;
   final void Function(String prompt) onPrompt;

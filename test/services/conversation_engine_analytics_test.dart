@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
-import 'package:flutter_helix/services/entity_memory.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
 
 import '../helpers/test_helpers.dart';

@@ -223,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _navigateToDetail() {
-    MainScreen.switchToTab(3);
+    MainScreen.switchToTab(2); // Live tab
   }
 
   Future<void> _runResponseToolPrompt(
@@ -318,7 +318,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       await _coordinator.toggleRecording(source: TranscriptSource.phone);
@@ -330,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _providerError = null;
         _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
         _listeningError = null;
-  
+
         _followUpChips = const [];
         _showDetailLink = false;
       });
@@ -361,12 +360,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
 
     return _localizeListeningErrorMessage(text);
-  }
-
-  void _setMode(ConversationMode mode) {
-    _engine.setMode(mode);
-    _modeSwitchController.forward(from: 0.0);
-    setState(() => _currentMode = mode);
   }
 
   @override
@@ -558,10 +551,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _showProfileEditor(
-    AssistantProfile profile, {
-    VoidCallback? onSaved,
-  }) {
+  void _showProfileEditor(AssistantProfile profile, {VoidCallback? onSaved}) {
     final nameController = TextEditingController(text: profile.name);
     final descriptionController = TextEditingController(
       text: profile.description,
@@ -899,9 +889,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             setSheetState(() {});
                           },
                           onEdit: (profile) {
-                            _showProfileEditor(profile, onSaved: () {
-                              setSheetState(() {});
-                            });
+                            _showProfileEditor(
+                              profile,
+                              onSaved: () {
+                                setSheetState(() {});
+                              },
+                            );
                           },
                           isChinese: _isChinese,
                         ),
@@ -1258,8 +1251,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final micLabel = micSource == 'glasses'
         ? 'G1'
         : micSource == 'phone'
-            ? 'Phone'
-            : 'Auto';
+        ? 'Phone'
+        : 'Auto';
 
     return Row(
       children: [
@@ -1270,15 +1263,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               'phone' => 'glasses',
               _ => 'auto',
             };
-            SettingsManager.instance.update(
-              (s) => s.preferredMicSource = next,
-            );
+            SettingsManager.instance.update((s) => s.preferredMicSource = next);
             setState(() {});
           },
-          child: StatusIndicator(
-            isActive: isConnected,
-            label: micLabel,
-          ),
+          child: StatusIndicator(isActive: isConnected, label: micLabel),
         ),
         if (_hasApiKey && providerName.isNotEmpty) ...[
           const SizedBox(width: 8),
@@ -1336,7 +1324,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildSetupBanner() {
     return GestureDetector(
       onTap: () {
-        MainScreen.switchToTab(4);
+        MainScreen.switchToTab(4); // Insights tab
       },
       child: GlassCard(
         opacity: 0.08,
@@ -1397,7 +1385,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-
 
   Widget _buildHomeBody({required double bottomPadding}) {
     return SingleChildScrollView(
@@ -1568,11 +1555,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Center(
       child: TextButton.icon(
         onPressed: _navigateToDetail,
-        icon: Icon(
-          Icons.analytics_rounded,
-          size: 16,
-          color: HelixTheme.cyan,
-        ),
+        icon: Icon(Icons.analytics_rounded, size: 16, color: HelixTheme.cyan),
         label: Text(
           _tr(
             en: 'View detailed analysis \u2192',
@@ -1734,7 +1717,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (errorState.actionLabel != null) ...[
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: () => MainScreen.switchToTab(4),
+              onTap: () => MainScreen.switchToTab(3), // Insights tab
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -2064,7 +2047,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 10),
-          Text.rich(_buildHighlightedTranscriptSpan(_transcription, _latestQuestionDetection?.questionExcerpt ?? '')),
+          Text.rich(
+            _buildHighlightedTranscriptSpan(
+              _transcription,
+              _latestQuestionDetection?.questionExcerpt ?? '',
+            ),
+          ),
         ],
       ),
     );
@@ -2647,7 +2635,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _engine.askQuestion(_questionForPreset(text));
       _askController.clear();
       setState(() {
-  
         _aiResponse = '';
         _providerError = null;
         _transcription = text;
@@ -2980,32 +2967,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  String _modeName(ConversationMode mode) {
-    switch (mode) {
-      case ConversationMode.general:
-        return 'General';
-      case ConversationMode.interview:
-        return 'Interview';
-      case ConversationMode.passive:
-        return 'Passive';
-      case ConversationMode.proactive:
-        return 'Proactive';
-    }
-  }
-
-  IconData _modeIcon(ConversationMode mode) {
-    switch (mode) {
-      case ConversationMode.general:
-        return Icons.chat_bubble_outline;
-      case ConversationMode.interview:
-        return Icons.work_outline;
-      case ConversationMode.passive:
-        return Icons.hearing;
-      case ConversationMode.proactive:
-        return Icons.psychology;
-    }
-  }
-
   Color _modeColor(ConversationMode mode) {
     switch (mode) {
       case ConversationMode.general:
@@ -3018,5 +2979,4 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return HelixTheme.amber;
     }
   }
-
 }

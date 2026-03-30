@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,8 +29,8 @@ class FakeJsonProvider implements LlmProvider {
   FakeJsonProvider({
     List<String> responses = const [],
     List<FakeStreamResponse> streamResponses = const [],
-  })  : _responses = Queue<String>.from(responses),
-        _streamResponses = Queue<FakeStreamResponse>.from(streamResponses);
+  }) : _responses = Queue<String>.from(responses),
+       _streamResponses = Queue<FakeStreamResponse>.from(streamResponses);
 
   final Queue<String> _responses;
   final Queue<FakeStreamResponse> _streamResponses;
@@ -134,11 +135,14 @@ class FakeJsonProvider implements LlmProvider {
 const secureStorageChannel = MethodChannel(
   'plugins.it_nomads.com/flutter_secure_storage',
 );
+const pathProviderChannel = MethodChannel('plugins.flutter.io/path_provider');
 final secureStorageValues = <String, String>{};
+final _testDocumentsDirectory = Directory(
+  '${Directory.systemTemp.path}/helix_test_documents',
+);
 
 Future<Object?> secureStorageHandler(MethodCall call) async {
-  final arguments =
-      (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+  final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
   final key = arguments['key'] as String?;
 
   switch (call.method) {
@@ -165,6 +169,21 @@ Future<Object?> secureStorageHandler(MethodCall call) async {
   }
 }
 
+Future<Object?> pathProviderHandler(MethodCall call) async {
+  if (!_testDocumentsDirectory.existsSync()) {
+    _testDocumentsDirectory.createSync(recursive: true);
+  }
+
+  switch (call.method) {
+    case 'getApplicationDocumentsDirectory':
+    case 'getApplicationSupportDirectory':
+    case 'getTemporaryDirectory':
+      return _testDocumentsDirectory.path;
+    default:
+      return null;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Setup helpers
 // ---------------------------------------------------------------------------
@@ -173,6 +192,8 @@ Future<Object?> secureStorageHandler(MethodCall call) async {
 void installPlatformMocks() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(pathProviderChannel, pathProviderHandler);
 
   // BLE method channel stub
   const bleChannel = MethodChannel('method.bluetooth');
@@ -185,6 +206,8 @@ void removePlatformMocks() {
   secureStorageValues.clear();
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(secureStorageChannel, null);
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(pathProviderChannel, null);
   const bleChannel = MethodChannel('method.bluetooth');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(bleChannel, null);
@@ -218,7 +241,8 @@ Future<FakeJsonProvider> configureFakeLlm({
 }
 
 /// Full engine setup: platform mocks, settings, LLM, cleared history.
-Future<({ConversationEngine engine, FakeJsonProvider provider})> setupTestEngine({
+Future<({ConversationEngine engine, FakeJsonProvider provider})>
+setupTestEngine({
   List<String> responses = const [],
   List<FakeStreamResponse> streamResponses = const [],
   Map<String, Object> settingsOverrides = const {},
@@ -264,12 +288,15 @@ Future<T> waitForStream<T>(
       }
     }
   });
-  return completer.future.timeout(timeout, onTimeout: () {
-    sub.cancel();
-    throw TimeoutException(
-      'Stream did not emit matching event within $timeout',
-    );
-  });
+  return completer.future.timeout(
+    timeout,
+    onTimeout: () {
+      sub.cancel();
+      throw TimeoutException(
+        'Stream did not emit matching event within $timeout',
+      );
+    },
+  );
 }
 
 /// Collect N events from a broadcast stream.
@@ -288,10 +315,13 @@ Future<List<T>> collectStreamEvents<T>(
       sub.cancel();
     }
   });
-  return completer.future.timeout(timeout, onTimeout: () {
-    sub.cancel();
-    throw TimeoutException(
-      'collectStreamEvents: only collected ${events.length}/$count events within $timeout',
-    );
-  });
+  return completer.future.timeout(
+    timeout,
+    onTimeout: () {
+      sub.cancel();
+      throw TimeoutException(
+        'collectStreamEvents: only collected ${events.length}/$count events within $timeout',
+      );
+    },
+  );
 }

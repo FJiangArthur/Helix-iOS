@@ -11,7 +11,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late ConversationEngine engine;
-  late FakeJsonProvider provider;
 
   setUpAll(() {
     installPlatformMocks();
@@ -24,7 +23,6 @@ void main() {
   setUp(() async {
     final result = await setupTestEngine();
     engine = result.engine;
-    provider = result.provider;
     engine.autoDetectQuestions = false;
   });
 
@@ -36,152 +34,159 @@ void main() {
   // A2 [P0]: Progressive sentence splitting (partial → final)
   // ---------------------------------------------------------------------------
   group('A2 — progressive sentence splitting', () {
-    test('partial updates split sentences and final event finalizes remainder',
-        () async {
-      final emitter = SpeechEventEmitter();
-      final session = ConversationListeningSession.test(
-        speechEvents: emitter.stream,
-        engine: engine,
-        finalizationTimeout: const Duration(milliseconds: 10),
-        invokeMethod: (method, [arguments]) async => null,
-      );
+    test(
+      'partial updates split sentences and final event finalizes remainder',
+      () async {
+        final emitter = SpeechEventEmitter();
+        final session = ConversationListeningSession.test(
+          speechEvents: emitter.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
 
-      final snapshots = <TranscriptSnapshot>[];
-      final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
+        final snapshots = <TranscriptSnapshot>[];
+        final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
 
-      await session.startSession(source: TranscriptSource.phone);
+        await session.startSession(source: TranscriptSource.phone);
 
-      // Feed progressive partials that contain sentence boundaries.
-      // "First sentence." is complete, "Second sentence." is complete,
-      // "Third in progress" is trailing partial.
-      emitter.emitPartial('First sentence.');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+        // Feed progressive partials that contain sentence boundaries.
+        // "First sentence." is complete, "Second sentence." is complete,
+        // "Third in progress" is trailing partial.
+        emitter.emitPartial('First sentence.');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
 
-      emitter.emitPartial('First sentence. Second sentence.');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitPartial('First sentence. Second sentence.');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
 
-      emitter.emitPartial(
-          'First sentence. Second sentence. Third in progress');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitPartial(
+          'First sentence. Second sentence. Third in progress',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 5));
 
-      // At this point the engine should have progressively finalized
-      // "First sentence." and "Second sentence." while "Third in progress"
-      // remains as the partial.
-      final preFinalize = snapshots.last;
-      expect(preFinalize.finalizedSegments, contains('First sentence.'));
-      expect(preFinalize.finalizedSegments, contains('Second sentence.'));
-      expect(preFinalize.partialText, 'Third in progress');
+        // At this point the engine should have progressively finalized
+        // "First sentence." and "Second sentence." while "Third in progress"
+        // remains as the partial.
+        final preFinalize = snapshots.last;
+        expect(preFinalize.finalizedSegments, contains('First sentence.'));
+        expect(preFinalize.finalizedSegments, contains('Second sentence.'));
+        expect(preFinalize.partialText, 'Third in progress');
 
-      // Now finalize the full text — the trailing partial gets finalized.
-      emitter.emitFinal(
-          'First sentence. Second sentence. Third in progress');
-      await Future<void>.delayed(const Duration(milliseconds: 15));
+        // Now finalize the full text — the trailing partial gets finalized.
+        emitter.emitFinal('First sentence. Second sentence. Third in progress');
+        await Future<void>.delayed(const Duration(milliseconds: 15));
 
-      final postFinalize = engine.currentTranscriptSnapshot;
-      expect(postFinalize.partialText, isEmpty);
-      expect(
-        postFinalize.finalizedSegments,
-        containsAll([
-          'First sentence.',
-          'Second sentence.',
-          'Third in progress',
-        ]),
-      );
-      expect(postFinalize.finalizedSegments.length, 3);
+        final postFinalize = engine.currentTranscriptSnapshot;
+        expect(postFinalize.partialText, isEmpty);
+        expect(
+          postFinalize.finalizedSegments,
+          containsAll([
+            'First sentence.',
+            'Second sentence.',
+            'Third in progress',
+          ]),
+        );
+        expect(postFinalize.finalizedSegments.length, 3);
 
-      await session.stopSession();
-      await sub.cancel();
-      emitter.close();
-    });
+        await session.stopSession();
+        await sub.cancel();
+        emitter.close();
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
   // A5 [P1]: Speaker diarization labels propagated through segments
   // ---------------------------------------------------------------------------
   group('A5 — speaker diarization labels', () {
-    test('speaker labels from events are preserved through finalization',
-        () async {
-      final emitter = SpeechEventEmitter();
-      final session = ConversationListeningSession.test(
-        speechEvents: emitter.stream,
-        engine: engine,
-        finalizationTimeout: const Duration(milliseconds: 10),
-        invokeMethod: (method, [arguments]) async => null,
-      );
+    test(
+      'speaker labels from events are preserved through finalization',
+      () async {
+        final emitter = SpeechEventEmitter();
+        final session = ConversationListeningSession.test(
+          speechEvents: emitter.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
 
-      await session.startSession(source: TranscriptSource.phone);
+        await session.startSession(source: TranscriptSource.phone);
 
-      // Speaker 1 says something, then finalize.
-      emitter.emitPartial('Hello from speaker one', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      emitter.emitFinal('Hello from speaker one', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 15));
+        // Speaker 1 says something, then finalize.
+        emitter.emitPartial('Hello from speaker one', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitFinal('Hello from speaker one', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 15));
 
-      // Speaker 2 says something, then finalize.
-      emitter.emitPartial('And hello from speaker two', speaker: 'Speaker_2');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      emitter.emitFinal('And hello from speaker two', speaker: 'Speaker_2');
-      await Future<void>.delayed(const Duration(milliseconds: 15));
+        // Speaker 2 says something, then finalize.
+        emitter.emitPartial('And hello from speaker two', speaker: 'Speaker_2');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitFinal('And hello from speaker two', speaker: 'Speaker_2');
+        await Future<void>.delayed(const Duration(milliseconds: 15));
 
-      final snapshot = engine.currentTranscriptSnapshot;
+        final snapshot = engine.currentTranscriptSnapshot;
 
-      // Both segments should be finalized with their text preserved.
-      expect(snapshot.finalizedSegments, contains('Hello from speaker one'));
-      expect(
-          snapshot.finalizedSegments, contains('And hello from speaker two'));
-      expect(snapshot.finalizedSegments.length, 2);
+        // Both segments should be finalized with their text preserved.
+        expect(snapshot.finalizedSegments, contains('Hello from speaker one'));
+        expect(
+          snapshot.finalizedSegments,
+          contains('And hello from speaker two'),
+        );
+        expect(snapshot.finalizedSegments.length, 2);
 
-      // The full transcript should contain both speakers' text.
-      expect(snapshot.fullTranscript, contains('Hello from speaker one'));
-      expect(
-          snapshot.fullTranscript, contains('And hello from speaker two'));
+        // The full transcript should contain both speakers' text.
+        expect(snapshot.fullTranscript, contains('Hello from speaker one'));
+        expect(snapshot.fullTranscript, contains('And hello from speaker two'));
 
-      // Verify the session did not crash and partial is cleared.
-      expect(snapshot.partialText, isEmpty);
+        // Verify the session did not crash and partial is cleared.
+        expect(snapshot.partialText, isEmpty);
 
-      await session.stopSession();
-      emitter.close();
-    });
+        await session.stopSession();
+        emitter.close();
+      },
+    );
 
-    test('different speakers in rapid succession do not lose segments',
-        () async {
-      final emitter = SpeechEventEmitter();
-      final session = ConversationListeningSession.test(
-        speechEvents: emitter.stream,
-        engine: engine,
-        finalizationTimeout: const Duration(milliseconds: 10),
-        invokeMethod: (method, [arguments]) async => null,
-      );
+    test(
+      'different speakers in rapid succession do not lose segments',
+      () async {
+        final emitter = SpeechEventEmitter();
+        final session = ConversationListeningSession.test(
+          speechEvents: emitter.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
 
-      await session.startSession(source: TranscriptSource.phone);
-      expect(engine.isActive, isTrue);
+        await session.startSession(source: TranscriptSource.phone);
+        expect(engine.isActive, isTrue);
 
-      // Simulate three separate speech segments from alternating speakers.
-      // Use feedTranscript-style partial-then-final for each segment.
-      emitter.emitPartial('Question from interviewer', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      emitter.emitFinal('Question from interviewer', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 25));
+        // Simulate three separate speech segments from alternating speakers.
+        // Use feedTranscript-style partial-then-final for each segment.
+        emitter.emitPartial('Question from interviewer', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitFinal('Question from interviewer', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 25));
 
-      emitter.emitPartial('Answer from candidate', speaker: 'Speaker_2');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      emitter.emitFinal('Answer from candidate', speaker: 'Speaker_2');
-      await Future<void>.delayed(const Duration(milliseconds: 25));
+        emitter.emitPartial('Answer from candidate', speaker: 'Speaker_2');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitFinal('Answer from candidate', speaker: 'Speaker_2');
+        await Future<void>.delayed(const Duration(milliseconds: 25));
 
-      emitter.emitPartial('Follow up question', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      emitter.emitFinal('Follow up question', speaker: 'Speaker_1');
-      await Future<void>.delayed(const Duration(milliseconds: 25));
+        emitter.emitPartial('Follow up question', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        emitter.emitFinal('Follow up question', speaker: 'Speaker_1');
+        await Future<void>.delayed(const Duration(milliseconds: 25));
 
-      final snapshot = engine.currentTranscriptSnapshot;
-      expect(snapshot.finalizedSegments.length, 3);
-      expect(snapshot.finalizedSegments[0], 'Question from interviewer');
-      expect(snapshot.finalizedSegments[1], 'Answer from candidate');
-      expect(snapshot.finalizedSegments[2], 'Follow up question');
+        final snapshot = engine.currentTranscriptSnapshot;
+        expect(snapshot.finalizedSegments.length, 3);
+        expect(snapshot.finalizedSegments[0], 'Question from interviewer');
+        expect(snapshot.finalizedSegments[1], 'Answer from candidate');
+        expect(snapshot.finalizedSegments[2], 'Follow up question');
 
-      await session.stopSession();
-      emitter.close();
-    });
+        await session.stopSession();
+        emitter.close();
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -289,8 +294,10 @@ void main() {
 
       final snapshot = engine.currentTranscriptSnapshot;
       expect(snapshot.partialText, isEmpty);
-      expect(snapshot.finalizedSegments,
-          contains('Hello world from the emitter'));
+      expect(
+        snapshot.finalizedSegments,
+        contains('Hello world from the emitter'),
+      );
 
       await session.stopSession();
       emitter.close();
@@ -382,7 +389,10 @@ void main() {
       await session.startSession(source: TranscriptSource.phone);
 
       // Send partial text, then trigger a stream-level error.
-      speechEvents.add({'script': 'Pending text before crash', 'isFinal': false});
+      speechEvents.add({
+        'script': 'Pending text before crash',
+        'isFinal': false,
+      });
       await Future<void>.delayed(const Duration(milliseconds: 5));
 
       speechEvents.addError(Exception('stream died'));

@@ -275,6 +275,19 @@ import NaturalLanguage
             EventKitChannel.shared.handle(call, result: result)
         }
 
+        // HealthKit channel (Activity data for Enhanced HUD)
+        let healthKitChannel = FlutterMethodChannel(name: "method.healthkit", binaryMessenger: controller.binaryMessenger)
+        healthKitChannel.setMethodCallHandler { (call, result) in
+            switch call.method {
+            case "getActivityData":
+                HealthKitManager.shared.getActivityData { data in
+                    result(data)
+                }
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+
         // Passive Audio Monitor channels
         let passiveAudioChannel = FlutterMethodChannel(
             name: "method.passiveAudio",

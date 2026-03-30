@@ -8,24 +8,19 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
-		1B6250E92A04F67C2C81CFD8 /* nnet.c in Sources */ = {isa = PBXBuildFile; fileRef = F015F1CCE5630A769DFFAEDA /* nnet.c */; };
 		313CFE1CB707644059D86DAF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
-		34C26B4F5283D36E87CE5BAE /* nnet_default.c in Sources */ = {isa = PBXBuildFile; fileRef = 60AFF865BC2FDBB6E2FD6D1A /* nnet_default.c */; };
-		3932A1B77E58FE296AA1C61E /* kiss_fft.c in Sources */ = {isa = PBXBuildFile; fileRef = 391EA1F475E142857E6BB11B /* kiss_fft.c */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
+		45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C897E096773DD7055D211F /* HealthKitManager.swift */; };
 		4B1B0268AACDDD5AD4FFAAA1 /* Pods_Even_Companion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8034C7F1D6ABF74B964B667E /* Pods_Even_Companion.framework */; };
-		5D3CA6730DB6AB81353A00B1 /* denoise.c in Sources */ = {isa = PBXBuildFile; fileRef = 5A1A19BEE8E28BA63DF82295 /* denoise.c */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
-		91F5776F05A894947752055A /* rnn.c in Sources */ = {isa = PBXBuildFile; fileRef = 084554A44F91FF779CA4BCEE /* rnn.c */; };
+		76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
 		A49C458AC613ABD101C94280 /* Pods_Even_CompanionTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */; };
 		AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CED14744F5132BCC469A6862 /* EventKit.framework */; };
-		B68C5ECCD98AB2DC7FE99D20 /* pitch.c in Sources */ = {isa = PBXBuildFile; fileRef = 790566F3FEB237387A7B8B26 /* pitch.c */; };
-		BE9D2966D825728607C31E03 /* rnnoise_tables.c in Sources */ = {isa = PBXBuildFile; fileRef = 4124C39D36226F1C60E49A71 /* rnnoise_tables.c */; };
 		DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */; };
 		DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */; };
 		DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */; };
@@ -34,6 +29,7 @@
 		DA91AD5D2E52F4A900220CE1 /* DebugHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */; };
 		DA91AD5E2E52F4A900220CE1 /* ServiceIdentifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */; };
 		DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD572E52F4A900220CE1 /* TestRecording.swift */; };
+		DA91AD772E67000200220CE1 /* GlassesMicSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */; };
 		DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD722E52F4C500220CE1 /* makefile.mk */; };
 		DA91AD842E52F4C500220CE1 /* meson.build in Resources */ = {isa = PBXBuildFile; fileRef = DA91AD762E52F4C500220CE1 /* meson.build */; };
 		DA91AD852E52F4C500220CE1 /* lc3.c in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD6B2E52F4C500220CE1 /* lc3.c */; };
@@ -53,9 +49,7 @@
 		DA91ADA02E67000100220CE1 /* WhisperBatchTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA12E67000100220CE1 /* WhisperBatchTranscriber.swift */; };
 		DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */; };
 		DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */; };
-		DA91AD772E67000200220CE1 /* GlassesMicSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */; };
 		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
-		EED5A342696AD13438FAF847 /* celt_lpc.c in Sources */ = {isa = PBXBuildFile; fileRef = 7E45706BC0C7E568EDE86C9B /* celt_lpc.c */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -84,7 +78,6 @@
 
 /* Begin PBXFileReference section */
 		03D0ADB91675A65182022D03 /* Pods-Even CompanionTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.release.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.release.xcconfig"; sourceTree = "<group>"; };
-		084554A44F91FF779CA4BCEE /* rnn.c */ = {isa = PBXFileReference; includeInIndex = 1; path = rnn.c; sourceTree = "<group>"; };
 		11CC0A63C39BD8373B703EAE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
@@ -92,19 +85,14 @@
 		19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
 		331C8081294A63A400263BE5 /* Even CompanionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Even CompanionTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		391EA1F475E142857E6BB11B /* kiss_fft.c */ = {isa = PBXFileReference; includeInIndex = 1; path = kiss_fft.c; sourceTree = "<group>"; };
+		39C897E096773DD7055D211F /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
-		4124C39D36226F1C60E49A71 /* rnnoise_tables.c */ = {isa = PBXFileReference; includeInIndex = 1; path = rnnoise_tables.c; sourceTree = "<group>"; };
 		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
 		5950FC57965EA55AA63216AB /* Pods-Even CompanionTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.profile.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.profile.xcconfig"; sourceTree = "<group>"; };
-		5A1A19BEE8E28BA63DF82295 /* denoise.c */ = {isa = PBXFileReference; includeInIndex = 1; path = denoise.c; sourceTree = "<group>"; };
-		60AFF865BC2FDBB6E2FD6D1A /* nnet_default.c */ = {isa = PBXFileReference; includeInIndex = 1; path = nnet_default.c; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		790566F3FEB237387A7B8B26 /* pitch.c */ = {isa = PBXFileReference; includeInIndex = 1; path = pitch.c; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
 		7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
-		7E45706BC0C7E568EDE86C9B /* celt_lpc.c */ = {isa = PBXFileReference; includeInIndex = 1; path = celt_lpc.c; sourceTree = "<group>"; };
 		7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		8034C7F1D6ABF74B964B667E /* Pods_Even_Companion.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Even_Companion.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		89D74A1D03EFCFA50274BA36 /* Pods-Even CompanionTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.debug.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.debug.xcconfig"; sourceTree = "<group>"; };
@@ -121,6 +109,7 @@
 		CD0B722ABA2A019672065BD5 /* HelixLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelixLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CED14744F5132BCC469A6862 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		D3B493D75FCAF6B7ADFBD54C /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Profile.xcconfig; sourceTree = "<group>"; };
+		DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesMicSessionManager.swift; sourceTree = "<group>"; };
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
 		DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHelper.swift; sourceTree = "<group>"; };
 		DA91AD502E52F4A900220CE1 /* GattProtocal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GattProtocal.swift; sourceTree = "<group>"; };
@@ -169,10 +158,8 @@
 		DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeakerTurnDetector.swift; sourceTree = "<group>"; };
 		DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNNoiseProcessor.m; sourceTree = "<group>"; };
 		DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNNoiseProcessor.h; sourceTree = "<group>"; };
-		DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesMicSessionManager.swift; sourceTree = "<group>"; };
 		DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveAudioMonitor.swift; sourceTree = "<group>"; };
 		EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */ = {isa = PBXFileReference; includeInIndex = 0; path = HelixLiveActivity; sourceTree = BUILT_PRODUCTS_DIR; };
-		F015F1CCE5630A769DFFAEDA /* nnet.c */ = {isa = PBXFileReference; includeInIndex = 1; path = nnet.c; sourceTree = "<group>"; };
 		F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventKitChannel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -183,6 +170,7 @@
 			files = (
 				4B1B0268AACDDD5AD4FFAAA1 /* Pods_Even_Companion.framework in Frameworks */,
 				AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */,
+				76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -292,6 +280,7 @@
 				19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */,
 				49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
 				7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
+				39C897E096773DD7055D211F /* HealthKitManager.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -614,6 +603,7 @@
 				DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */,
 				FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */,
 				A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */,
+				45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

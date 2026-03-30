@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/hud_widget_config.dart';
 import '../services/bitmap_hud/bitmap_hud_service.dart';
+import '../services/bitmap_hud/enhanced_layout_presets.dart';
 import '../services/bitmap_hud/hud_layout_presets.dart';
 import '../services/dashboard_service.dart';
 import '../services/hud_widget_registry.dart';
@@ -78,10 +79,12 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
       ),
       body: Column(
         children: [
-          // HUD Mode Toggle
-          _buildHudModeToggle(),
-          // Bitmap layout picker (only when bitmap mode active)
+          // HUD Mode Selector (3-way)
+          _buildHudModeSelector(),
+          // Bitmap layout picker (when bitmap mode active)
           if (_settings.hudRenderPath == 'bitmap') _buildLayoutPicker(),
+          // Enhanced layout picker (when enhanced mode active)
+          if (_settings.hudRenderPath == 'enhanced') _buildEnhancedLayoutPicker(),
           // Summary bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -90,19 +93,21 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                 Icon(Icons.dashboard_customize,
                     color: HelixTheme.cyan, size: 18),
                 const SizedBox(width: 8),
-                Text(
-                  _settings.hudRenderPath == 'bitmap'
-                      ? 'Bitmap HUD · ${_settings.bitmapLayoutPreset} layout'
-                      : '$_enabledCount widgets enabled · ${_registry.pageCount} pages',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 13,
+                Expanded(
+                  child: Text(
+                    _summaryText(),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () {
-                    if (_settings.hudRenderPath == 'bitmap') {
+                    final path = _settings.hudRenderPath;
+                    if (path == 'bitmap' || path == 'enhanced') {
                       BitmapHudService.instance.pushFull();
                     } else {
                       DashboardService.instance.previewDashboard();
@@ -248,51 +253,111 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
     );
   }
 
-  Widget _buildHudModeToggle() {
-    final isBitmap = _settings.hudRenderPath == 'bitmap';
+  String _summaryText() {
+    final path = _settings.hudRenderPath;
+    if (path == 'enhanced') {
+      return 'Enhanced HUD · ${_settings.enhancedLayoutPreset.replaceAll('_', ' ')} layout';
+    } else if (path == 'bitmap') {
+      return 'Bitmap HUD · ${_settings.bitmapLayoutPreset} layout';
+    }
+    return '$_enabledCount widgets enabled · ${_registry.pageCount} pages';
+  }
+
+  Widget _buildHudModeSelector() {
+    final current = _settings.hudRenderPath;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: GlassCard(
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.image, color: HelixTheme.cyan, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Bitmap HUD',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
+            Row(
+              children: [
+                Icon(Icons.display_settings, color: HelixTheme.cyan, size: 20),
+                const SizedBox(width: 12),
+                const Text(
+                  'HUD Display Mode',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
                   ),
-                  Text(
-                    isBitmap
-                        ? 'Rich graphical display with charts & icons'
-                        : 'Text-only display (24 chars × 5 lines)',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-            Switch(
-              value: isBitmap,
-              activeTrackColor: HelixTheme.cyan,
-              onChanged: (value) async {
-                await _settings.update(
-                    (s) => s.hudRenderPath = value ? 'bitmap' : 'text');
-                setState(() {});
-              },
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _buildModeChip('text', 'Text', Icons.text_fields, current),
+                const SizedBox(width: 8),
+                _buildModeChip('bitmap', 'Bitmap', Icons.grid_view, current),
+                const SizedBox(width: 8),
+                _buildModeChip('enhanced', 'Enhanced', Icons.auto_awesome, current),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _modeDescription(current),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.4),
+                fontSize: 11,
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildModeChip(String value, String label, IconData icon, String current) {
+    final selected = current == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () async {
+          await _settings.update((s) => s.hudRenderPath = value);
+          setState(() {});
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? HelixTheme.cyan
+                  : Colors.white.withValues(alpha: 0.15),
+              width: selected ? 2 : 1,
+            ),
+            color: selected
+                ? HelixTheme.cyan.withValues(alpha: 0.15)
+                : Colors.transparent,
+          ),
+          child: Column(
+            children: [
+              Icon(icon,
+                  color: selected ? HelixTheme.cyan : Colors.white54,
+                  size: 20),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? HelixTheme.cyan : Colors.white70,
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _modeDescription(String mode) {
+    return switch (mode) {
+      'text' => 'Text-only display (24 chars × 5 lines)',
+      'bitmap' => 'Graphical dashboard with charts & icons',
+      'enhanced' => 'Data-dense display with progress rings, charts & multi-widget layouts',
+      _ => '',
+    };
   }
 
   Widget _buildLayoutPicker() {
@@ -301,7 +366,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: SizedBox(
-        height: 80,
+        height: 84,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: presets.length,
@@ -366,6 +431,79 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
       'dense' => Icons.dashboard,
       'conversation' => Icons.mic,
       _ => Icons.view_module,
+    };
+  }
+
+  Widget _buildEnhancedLayoutPicker() {
+    final presets = EnhancedLayoutPresets.all();
+    final current = _settings.enhancedLayoutPreset;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SizedBox(
+        height: 84,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: presets.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (context, index) {
+            final preset = presets[index];
+            final selected = preset.id == current;
+            return GestureDetector(
+              onTap: () async {
+                await _settings
+                    .update((s) => s.enhancedLayoutPreset = preset.id);
+                setState(() {});
+              },
+              child: Container(
+                width: 120,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? HelixTheme.cyan
+                        : Colors.white.withValues(alpha: 0.15),
+                    width: selected ? 2 : 1,
+                  ),
+                  color: selected
+                      ? HelixTheme.cyan.withValues(alpha: 0.1)
+                      : Colors.white.withValues(alpha: 0.05),
+                ),
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _enhancedLayoutIcon(preset.id),
+                      color: selected ? HelixTheme.cyan : Colors.white54,
+                      size: 24,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      preset.name,
+                      style: TextStyle(
+                        color: selected ? HelixTheme.cyan : Colors.white70,
+                        fontSize: 11,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  IconData _enhancedLayoutIcon(String presetId) {
+    return switch (presetId) {
+      'command_center' => Icons.space_dashboard,
+      'cockpit' => Icons.flight_takeoff,
+      'focus' => Icons.center_focus_strong,
+      _ => Icons.auto_awesome,
     };
   }
 

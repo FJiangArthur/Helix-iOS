@@ -15,13 +15,14 @@ import 'hud_widget_registry.dart';
 import 'proto.dart';
 import 'settings_manager.dart';
 
-enum DashboardRenderPath { fallbackHud, nativeDashboard, bitmapHud }
+enum DashboardRenderPath { fallbackHud, nativeDashboard, bitmapHud, enhancedHud }
 
 extension DashboardRenderPathLabel on DashboardRenderPath {
   String get label => switch (this) {
     DashboardRenderPath.fallbackHud => 'Fallback HUD',
     DashboardRenderPath.nativeDashboard => 'Native Dashboard',
     DashboardRenderPath.bitmapHud => 'Bitmap HUD',
+    DashboardRenderPath.enhancedHud => 'Enhanced HUD',
   };
 }
 
@@ -354,6 +355,11 @@ class DashboardService {
     }
 
     if (_active) {
+      // In bitmap/enhanced mode, second tilt toggles off
+      if (_isBitmapMode) {
+        await hideDashboard(source: 'DashboardService.bitmapToggleOff');
+        return;
+      }
       _updateSnapshotState(blockedReason: 'Dashboard already visible');
       return;
     }
@@ -374,9 +380,11 @@ class DashboardService {
     await _showDashboard(event);
   }
 
-  /// Whether the bitmap HUD render path is active.
-  bool get _isBitmapMode =>
-      _settingsManager.hudRenderPath == 'bitmap';
+  /// Whether a bitmap-based HUD render path is active (bitmap or enhanced).
+  bool get _isBitmapMode {
+    final path = _settingsManager.hudRenderPath;
+    return path == 'bitmap' || path == 'enhanced';
+  }
 
   Future<void> _showDashboard(BleDeviceEvent event) async {
     _currentPageIndex = 0;

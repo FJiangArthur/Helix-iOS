@@ -21,20 +21,20 @@ void main() {
     // Mock passive audio method channel
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(methodChannel, (call) async {
-      methodCalls.add(call);
-      return null;
-    });
+          methodCalls.add(call);
+          return null;
+        });
 
     // Mock NL channel (used by LocalAnalysisService via _processLocally)
     const nlChannel = MethodChannel('method.naturalLanguage');
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(nlChannel, (call) async {
-      return {
-        'language': 'en',
-        'entities': <Map<String, dynamic>>[],
-        'nouns': <String>[],
-      };
-    });
+          return {
+            'language': 'en',
+            'entities': <Map<String, dynamic>>[],
+            'nouns': <String>[],
+          };
+        });
 
     installPlatformMocks();
     await initTestSettings();
@@ -52,57 +52,66 @@ void main() {
         .setMockMethodCallHandler(methodChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-            const MethodChannel('method.naturalLanguage'), null);
+          const MethodChannel('method.naturalLanguage'),
+          null,
+        );
   });
 
   group('PassiveListeningService', () {
-    test('start() invokes native startPassiveListening with correct args',
-        () async {
-      final service = PassiveListeningService.instance;
-      await service.start();
+    test(
+      'start() invokes native startPassiveListening with correct args',
+      () async {
+        final service = PassiveListeningService.instance;
+        await service.start();
 
-      expect(service.isActive, isTrue);
+        expect(service.isActive, isTrue);
 
-      final startCall = methodCalls.firstWhere(
-        (c) => c.method == 'startPassiveListening',
-        orElse: () => throw TestFailure(
-            'startPassiveListening not invoked. Calls: $methodCalls'),
-      );
-      final args = startCall.arguments as Map;
-      expect(args['language'], isA<String>());
-      expect(args['vadThreshold'], isA<double>());
-      // VAD threshold should be > 0 (linear from negative dB)
-      expect(args['vadThreshold'] as double, greaterThan(0));
+        final startCall = methodCalls.firstWhere(
+          (c) => c.method == 'startPassiveListening',
+          orElse: () => throw TestFailure(
+            'startPassiveListening not invoked. Calls: $methodCalls',
+          ),
+        );
+        final args = startCall.arguments as Map;
+        expect(args['language'], isA<String>());
+        expect(args['vadThreshold'], isA<double>());
+        // VAD threshold should be > 0 (linear from negative dB)
+        expect(args['vadThreshold'] as double, greaterThan(0));
 
-      await service.stop();
-    });
+        await service.stop();
+      },
+    );
 
-    test('start() is idempotent — calling twice does not invoke native twice',
-        () async {
-      final service = PassiveListeningService.instance;
-      await service.start();
-      await service.start(); // second call should be a no-op
+    test(
+      'start() is idempotent — calling twice does not invoke native twice',
+      () async {
+        final service = PassiveListeningService.instance;
+        await service.start();
+        await service.start(); // second call should be a no-op
 
-      final startCalls = methodCalls
-          .where((c) => c.method == 'startPassiveListening')
-          .toList();
-      expect(startCalls, hasLength(1));
+        final startCalls = methodCalls
+            .where((c) => c.method == 'startPassiveListening')
+            .toList();
+        expect(startCalls, hasLength(1));
 
-      await service.stop();
-    });
+        await service.stop();
+      },
+    );
 
-    test('stop() invokes native stopPassiveListening and sets isActive false',
-        () async {
-      final service = PassiveListeningService.instance;
-      await service.start();
-      await service.stop();
+    test(
+      'stop() invokes native stopPassiveListening and sets isActive false',
+      () async {
+        final service = PassiveListeningService.instance;
+        await service.start();
+        await service.stop();
 
-      expect(service.isActive, isFalse);
-      final stopCalls = methodCalls
-          .where((c) => c.method == 'stopPassiveListening')
-          .toList();
-      expect(stopCalls, hasLength(1));
-    });
+        expect(service.isActive, isFalse);
+        final stopCalls = methodCalls
+            .where((c) => c.method == 'stopPassiveListening')
+            .toList();
+        expect(stopCalls, hasLength(1));
+      },
+    );
 
     test('pause() invokes native pausePassiveListening', () async {
       final service = PassiveListeningService.instance;
@@ -137,30 +146,32 @@ void main() {
       await service.stop();
     });
 
-    test('onTranscript parses event and emits PassiveTranscriptEvent',
-        () async {
-      final service = PassiveListeningService.instance;
-      final events = <PassiveTranscriptEvent>[];
-      final sub = service.transcriptStream.listen(events.add);
+    test(
+      'onTranscript parses event and emits PassiveTranscriptEvent',
+      () async {
+        final service = PassiveListeningService.instance;
+        final events = <PassiveTranscriptEvent>[];
+        final sub = service.transcriptStream.listen(events.add);
 
-      service.onTranscriptForTest({
-        'script': 'Hello world',
-        'isFinal': false,
-        'timestampMs': 1000,
-        'language': 'en',
-      });
+        service.onTranscriptForTest({
+          'script': 'Hello world',
+          'isFinal': false,
+          'timestampMs': 1000,
+          'language': 'en',
+        });
 
-      // Let the stream deliver
-      await Future<void>.delayed(Duration.zero);
+        // Let the stream deliver
+        await Future<void>.delayed(Duration.zero);
 
-      expect(events, hasLength(1));
-      expect(events.first.text, 'Hello world');
-      expect(events.first.isFinal, isFalse);
-      expect(events.first.timestampMs, 1000);
-      expect(events.first.language, 'en');
+        expect(events, hasLength(1));
+        expect(events.first.text, 'Hello world');
+        expect(events.first.isFinal, isFalse);
+        expect(events.first.timestampMs, 1000);
+        expect(events.first.language, 'en');
 
-      await sub.cancel();
-    });
+        await sub.cancel();
+      },
+    );
 
     test('onTranscript ignores non-Map events', () async {
       final service = PassiveListeningService.instance;
@@ -293,7 +304,6 @@ void main() {
 
     test('_dbToLinear converts -40 dB correctly', () {
       // -40 dB → 10^(-40/20) = 10^(-2) = 0.01
-      final service = PassiveListeningService.instance;
       // We test indirectly via start() args
       SettingsManager.instance.vadThreshold = -40.0;
       // The start call will have the converted value; tested in the start test

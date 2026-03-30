@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class FileManagementScreen extends StatefulWidget {
   const FileManagementScreen({super.key});
@@ -16,6 +19,7 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
   bool _isInitialized = false;
   String? _currentlyPlayingPath;
   bool _isPlaying = false;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -122,6 +126,87 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
     }
   }
 
+  Rect? _sharePositionOrigin() {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) {
+      return null;
+    }
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _shareFiles(
+    List<File> files, {
+    required String title,
+    required String text,
+  }) async {
+    if (files.isEmpty || _isExporting) return;
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      final shareResult = await SharePlus.instance.share(
+        ShareParams(
+          title: title,
+          subject: title,
+          text: text,
+          files: files
+              .map(
+                (file) => XFile(
+                  file.path,
+                  mimeType: 'audio/wav',
+                  name: p.basename(file.path),
+                ),
+              )
+              .toList(),
+          sharePositionOrigin: _sharePositionOrigin(),
+        ),
+      );
+
+      if (shareResult.status == ShareResultStatus.unavailable) {
+        _showMessage('Export is unavailable on this device.');
+      }
+    } catch (error) {
+      debugPrint('Failed to export recordings: $error');
+      _showMessage('Failed to export recordings: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _shareFile(File file) async {
+    await _shareFiles(
+      [file],
+      title: 'Helix recording export',
+      text: 'Exported recording: ${p.basename(file.path)}',
+    );
+  }
+
+  Future<void> _shareAllFiles() async {
+    await _shareFiles(
+      _audioFiles,
+      title: 'Helix recordings export',
+      text: 'Exported ${_audioFiles.length} recording(s) from Helix.',
+    );
+  }
+
+  Future<void> _copyFilePath(File file) async {
+    await Clipboard.setData(ClipboardData(text: file.path));
+    _showMessage('Recording path copied');
+  }
+
   String _formatFileSize(int bytes) {
     if (bytes < 1024) return '$bytes B';
     if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
@@ -155,6 +240,21 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
+          if (_audioFiles.isNotEmpty)
+            IconButton(
+              icon: _isExporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.ios_share),
+              onPressed: _isExporting ? null : _shareAllFiles,
+              tooltip: 'Export all recordings',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadAudioFiles,
@@ -182,6 +282,33 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
             )
           : Column(
               children: [
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Export WAV recordings',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Share individual files or export the full set to Files, AirDrop, or another transcription tool.',
+                        style: TextStyle(color: Colors.blueGrey.shade700),
+                      ),
+                    ],
+                  ),
+                ),
                 // Playback controls if currently playing
                 if (_isPlaying && _currentlyPlayingPath != null) ...[
                   Container(
@@ -258,15 +385,49 @@ class _FileManagementScreenState extends State<FileManagementScreen> {
                                 'Size: ${_formatFileSize(stat.size)}',
                                 style: TextStyle(color: Colors.grey.shade600),
                               ),
+                              Text(
+                                file.parent.path,
+                                style: TextStyle(color: Colors.grey.shade500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ],
                           ),
                           trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
+                            onSelected: (value) async {
+                              if (value == 'export') {
+                                await _shareFile(file);
+                                return;
+                              }
+                              if (value == 'copy_path') {
+                                await _copyFilePath(file);
+                                return;
+                              }
                               if (value == 'delete') {
-                                _deleteFile(file);
+                                await _deleteFile(file);
                               }
                             },
                             itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'export',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.ios_share, color: Colors.blue),
+                                    SizedBox(width: 8),
+                                    Text('Export'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'copy_path',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.copy, color: Colors.indigo),
+                                    SizedBox(width: 8),
+                                    Text('Copy path'),
+                                  ],
+                                ),
+                              ),
                               const PopupMenuItem(
                                 value: 'delete',
                                 child: Row(
