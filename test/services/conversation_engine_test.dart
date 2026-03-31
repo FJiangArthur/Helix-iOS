@@ -222,6 +222,29 @@ void main() {
       },
     );
 
+    test('starting a new session clears prior in-memory history and live answer', () async {
+      engine.start(source: TranscriptSource.phone);
+      engine.onTranscriptionFinalized('First session transcript');
+      engine.onRealtimeResponse('First session answer', isFinal: false);
+      engine.onRealtimeResponse('', isFinal: true);
+      engine.stop();
+
+      expect(engine.history, isNotEmpty);
+
+      final responseEvents = <String>[];
+      final responseSub = engine.aiResponseStream.listen(responseEvents.add);
+
+      engine.start(source: TranscriptSource.phone);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      await responseSub.cancel();
+
+      expect(engine.history, isEmpty);
+      expect(responseEvents, ['']);
+      expect(engine.currentTranscriptSnapshot.fullTranscript, isEmpty);
+      expect(engine.currentTranscriptSnapshot.finalizedSegments, isEmpty);
+    });
+
     test(
       'openai realtime session skips downstream llm streaming and persists streamed assistant turns',
       () async {

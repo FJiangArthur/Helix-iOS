@@ -426,5 +426,41 @@ void main() {
         await speechEvents.close();
       },
     );
+
+    test(
+      'normal stop and restart keep the speech stream attached for the next session',
+      () async {
+        var listenCount = 0;
+        var cancelCount = 0;
+        final speechEvents = StreamController<dynamic>.broadcast(
+          onListen: () => listenCount++,
+          onCancel: () => cancelCount++,
+        );
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        await session.startSession(source: TranscriptSource.phone);
+        speechEvents.add({'script': 'First run', 'isFinal': false});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        await session.stopSession();
+
+        await session.startSession(source: TranscriptSource.phone);
+        speechEvents.add({'script': 'Second run', 'isFinal': false});
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        await session.stopSession();
+
+        expect(listenCount, 1);
+        expect(cancelCount, 0);
+        expect(engine.currentTranscriptSnapshot.finalizedSegments, [
+          'Second run',
+        ]);
+
+        await speechEvents.close();
+      },
+    );
   });
 }

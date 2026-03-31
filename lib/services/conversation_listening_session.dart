@@ -251,8 +251,6 @@ class ConversationListeningSession {
       _voiceWasEnabled = false;
     }
     await _waitForSpeechFinalization();
-    await _speechSubscription?.cancel();
-    _speechSubscription = null;
     _isRunning = false;
     _engine.stop();
     _publishError(null);
@@ -283,8 +281,6 @@ class ConversationListeningSession {
       await waiter.future.timeout(_finalizationTimeout);
     } catch (_) {
       finalizePendingTranscript();
-      await _speechSubscription?.cancel();
-      _speechSubscription = null;
     }
   }
 

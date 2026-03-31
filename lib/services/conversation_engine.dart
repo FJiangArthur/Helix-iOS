@@ -203,22 +203,15 @@ class ConversationEngine {
     TranscriptSource source = TranscriptSource.phone,
   }) {
     _cancelInFlightResponse();
+    _resetLiveSessionState(clearConversationHistory: true);
     _isActive = true;
     _transcriptSource = source;
     _silenceSuggestionSent = false;
     _analysisToken = 0;
-    _lastHandledQuestionKey = '';
-    _lastHandledQuestionTime = null;
-    _latestQuestionDetection = null;
-    _currentTranscription = '';
-    _partialTranscription = '';
-    _lastEmittedSnapshot = '';
-    _lastEmittedPartial = '';
     _segmentSentencesFinalized = 0;
     _sentimentSegmentCounter = 0;
     _entitySegmentCounter = 0;
     _analyticsRunning = false;
-    _finalizedSegments.clear();
     _clearProviderError();
     if (mode != null) setMode(mode);
     if (_mode == ConversationMode.proactive) {
@@ -1930,17 +1923,32 @@ Rules:
 
   /// Clear all history
   void clearHistory() {
-    _history.clear();
-    _currentTranscription = '';
-    _partialTranscription = '';
-    _lastEmittedSnapshot = '';
-    _lastEmittedPartial = '';
-    _finalizedSegments.clear();
-    _lastHandledQuestionKey = '';
-    _latestQuestionDetection = null;
-    _emitTranscriptSnapshot();
+    _resetLiveSessionState(clearConversationHistory: true);
     _lastPersistTime = null; // bypass debounce for clearHistory
     _persistHistory();
+  }
+
+  void _resetLiveSessionState({required bool clearConversationHistory}) {
+    if (clearConversationHistory) {
+      _history.clear();
+    }
+    _analysisTimer?.cancel();
+    _silenceTimer?.cancel();
+    _translationSubscription?.cancel();
+    _translationSubscription = null;
+    _currentTranscription = '';
+    _partialTranscription = '';
+    _finalizedSegments.clear();
+    _realtimeResponseBuffer = '';
+    _lastHandledQuestionKey = '';
+    _lastHandledQuestionTime = null;
+    _latestQuestionDetection = null;
+    _lastEmittedSnapshot = '__session_reset__';
+    _lastEmittedPartial = '__session_reset__';
+    _followUpChipsController.add(const []);
+    _aiResponseController.add('');
+    _postConversationController.add(null);
+    _emitTranscriptSnapshot();
   }
 
   int _beginResponseCycle() {

@@ -114,9 +114,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _showDetailLink = true;
           }
           if (recording) {
-            _showDetailLink = false;
-            _recordingDuration = Duration.zero;
-            _segmentCount = 0;
+            _resetLiveSessionUiState();
           }
         });
       }),
@@ -323,15 +321,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       await _coordinator.toggleRecording(source: TranscriptSource.phone);
     } else {
       setState(() {
-        _aiResponse = '';
-        _transcription = '';
-        _latestQuestionDetection = null;
-        _providerError = null;
-        _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
-        _listeningError = null;
-
-        _followUpChips = const [];
-        _showDetailLink = false;
+        _resetLiveSessionUiState();
       });
 
       try {
@@ -344,6 +334,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         });
       }
     }
+  }
+
+  void _resetLiveSessionUiState() {
+    _aiResponse = '';
+    _transcription = '';
+    _latestQuestionDetection = null;
+    _providerError = null;
+    _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
+    _listeningError = null;
+    _followUpChips = const [];
+    _showDetailLink = false;
+    _recordingDuration = Duration.zero;
+    _segmentCount = 0;
   }
 
   String _formatListeningError(Object error) {
