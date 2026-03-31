@@ -53,7 +53,7 @@ https://fjiangarthur.github.io/Helix-iOS/
 Even Companion is the AI-powered companion app for Even Realities G1 smart glasses. It transforms your glasses into an intelligent heads-up display with real-time conversation transcription, AI-assisted analysis, and a rich bitmap HUD — all while keeping your data private and under your control.
 
 REAL-TIME CONVERSATION INTELLIGENCE
-Transcribe conversations in real time using Apple's on-device speech recognition. Even Companion listens, transcribes, and streams AI-generated insights directly to your G1 glasses display. Whether you're in a meeting, an interview, or a casual conversation, your AI assistant works quietly in the background.
+Transcribe conversations in real time using either Apple's Speech framework or an optional cloud transcription backend that you explicitly select in Settings. Even Companion listens, transcribes, and streams AI-generated insights directly to your G1 glasses display. Whether you're in a meeting, an interview, or a casual conversation, your AI assistant works quietly in the background.
 
 THREE CONVERSATION MODES
 - General: Summarize discussions, surface key points, and get instant follow-up suggestions.
@@ -75,7 +75,7 @@ Even Companion supports six AI providers so you can pick the model that fits you
 FREE AI OPTIONS — No credit card required. Select Zhipu AI and use GLM-4-Flash, GLM-4.5-Flash, or GLM-4.7-Flash for zero-cost AI assistance. SiliconFlow also offers free-tier models.
 
 PRIVACY FIRST
-Speech recognition runs on-device through Apple's Speech framework — your audio never leaves your phone. API keys are stored in the iOS Secure Enclave via Keychain. No analytics, no tracking, no accounts required.
+Speech recognition can run on-device through Apple's Speech framework, or through the cloud transcription provider you explicitly choose in Settings. API keys are stored locally in iOS Keychain. No analytics, no tracking, no accounts required.
 
 SEAMLESS BLUETOOTH CONNECTION
 Pair your G1 glasses once and Even Companion handles the rest. The app maintains a reliable BLE connection in the background so your HUD stays live and conversation insights keep flowing.
@@ -95,23 +95,20 @@ Character count: 100
 
 ---
 
-## What's New — Version 1.1.0
+## What's New — Version 2.2.6
 
 ```
-NEW: BITMAP HUD SYSTEM
-Your G1 glasses now display rich graphical widgets — clock, weather, stocks, calendar, and notifications rendered as crisp bitmaps directly on the lens.
+MORE RELIABLE CONVERSATION RESTARTS
+Starting a new conversation now clears the previous live transcript and response immediately, and transcription continues correctly after restarting from the Home screen.
 
-SMARTER HUD UPDATES
-Delta encoding transmits only the pixels that change, making HUD refreshes faster and more power-efficient over Bluetooth.
+FASTER MAIN-SCREEN RESET
+Finished-session content no longer lingers on the main screen when you begin a fresh recording session.
 
-NEW AI PROVIDER: SILICONFLOW
-Access additional AI models through SiliconFlow, including free-tier options that require no API key charges.
+STABILITY IMPROVEMENTS
+Improved live-session reset behavior across transcription, answer streaming, and follow-up chips so each conversation starts cleanly.
 
-UPDATED ZHIPU MODELS
-Now supporting GLM-4.5-Flash and GLM-4.7-Flash — both free to use with no API key charges.
-
-HUD LAYOUT PRESETS
-Choose from Classic, Minimal, Dense, and Conversation layouts to customize what you see on your glasses.
+APP STORE SUBMISSION POLISH
+Updated launch assets and review metadata to better match the current app experience and privacy behavior.
 ```
 
 ---
@@ -119,7 +116,7 @@ Choose from Classic, Minimal, Dense, and Conversation layouts to customize what 
 ## App Review Notes
 
 ```
-This app is a companion for Even Realities G1 smart glasses. Full functionality requires paired glasses via Bluetooth. Without glasses, you can still test: (1) Assistant tab — tap the microphone to record and transcribe speech, then receive AI responses; (2) Settings — configure AI providers and enter API keys; (3) HUD Widgets — preview bitmap HUD layouts. No login required. Free AI access: set Zhipu AI as provider and select glm-4-flash model (free, no API key charges).
+This app is a companion for Even Realities G1 smart glasses. Full functionality requires paired glasses via Bluetooth. Without glasses, you can still test: (1) Home tab — tap the microphone to record and transcribe speech, then receive AI responses; (2) Settings — configure AI providers and enter API keys; (3) Glasses tab — preview HUD widgets and layout behavior. No login required. Free AI access: set Zhipu AI as provider and select glm-4-flash model (free, no API key charges).
 ```
 
 ---
@@ -133,7 +130,7 @@ Select the following in App Store Connect under **App Privacy**:
 | Data Type | Category | Purpose | Linked to Identity | Tracking |
 |---|---|---|---|---|
 | Audio Data | User Content | App Functionality | No | No |
-| Speech-to-Text | User Content | App Functionality | No | No |
+| Precise Location | Location | App Functionality | No | No |
 
 ### Data NOT Collected
 
@@ -141,7 +138,6 @@ Check "No" or leave unselected for all of the following:
 - Contact Info (name, email, phone)
 - Health & Fitness
 - Financial Info
-- Location
 - Contacts
 - User Content (photos, videos, gameplay)
 - Browsing History
@@ -155,15 +151,17 @@ Check "No" or leave unselected for all of the following:
 ### Key Declarations
 
 - **Third-party API calls**: The app sends user-composed text to third-party AI APIs (OpenAI, Anthropic, DeepSeek, Qwen, Zhipu, SiliconFlow) based on the user's explicit provider selection. These are functional requests, not tracking.
-- **Speech recognition**: Performed on-device via Apple Speech framework. Audio is not transmitted to external servers.
+- **Speech recognition**: By default this can run through Apple Speech on-device. If the user explicitly selects a cloud transcription backend, audio is sent only to that chosen provider for transcription.
+- **Location**: Precise location is used only to show local weather conditions on the HUD. It is not linked to identity and not used for tracking.
 - **API keys**: Stored locally in iOS Keychain (Secure Enclave). Never transmitted except to the user's chosen AI provider endpoint.
 - **No tracking**: The app does not use any analytics SDKs, advertising identifiers, or cross-app tracking.
 - **No account required**: The app does not require login or collect identity information.
 
 In App Store Connect, you can likely select:
 1. **"Yes, we collect data"** (because audio is processed locally and text is sent to AI APIs)
-2. Under **User Content**: select "Other User Content" with purpose "App Functionality", not linked to identity, not used for tracking
-3. Mark everything else as not collected
+2. Under **User Content**: declare the app's audio usage for "App Functionality", not linked to identity, not used for tracking
+3. Under **Location**: declare precise location for "App Functionality", not linked to identity, not used for tracking
+4. Mark everything else as not collected
 
 ---
 
