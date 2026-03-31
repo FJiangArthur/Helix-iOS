@@ -45,7 +45,9 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Even Companion uses your location to show local weather conditions on your smart glasses HUD.</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Even Companion displays your activity data (steps, exercise, stand hours) on your smart glasses HUD.</string>
+	<string>Even Companion reads your activity data, including steps, active calories, exercise minutes, and stand hours, to show your daily progress on your smart glasses HUD.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Even Companion uses HealthKit activity data, including steps, active calories, exercise minutes, and stand hours, to keep your smart glasses HUD up to date.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
