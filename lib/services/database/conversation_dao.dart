@@ -4,7 +4,14 @@ import 'helix_database.dart';
 
 part 'conversation_dao.g.dart';
 
-@DriftAccessor(tables: [Conversations, ConversationSegments, Topics])
+@DriftAccessor(
+  tables: [
+    Conversations,
+    ConversationSegments,
+    ConversationAiCostEntries,
+    Topics,
+  ],
+)
 class ConversationDao extends DatabaseAccessor<HelixDatabase>
     with _$ConversationDaoMixin {
   ConversationDao(super.db);
@@ -16,28 +23,34 @@ class ConversationDao extends DatabaseAccessor<HelixDatabase>
 
   /// Update an existing conversation.
   Future<bool> updateConversation(ConversationsCompanion entry) {
-    return (update(conversations)
-          ..where((c) => c.id.equals(entry.id.value)))
+    return (update(conversations)..where((c) => c.id.equals(entry.id.value)))
         .write(entry)
         .then((rows) => rows > 0);
   }
 
   /// Watch a single conversation by id.
   Stream<Conversation> watchConversation(String id) {
-    return (select(conversations)..where((c) => c.id.equals(id)))
-        .watchSingle();
+    return (select(conversations)..where((c) => c.id.equals(id))).watchSingle();
   }
 
   /// Get conversations that started on a given calendar date.
   Future<List<Conversation>> getConversationsForDate(DateTime date) {
-    final startOfDay = DateTime(date.year, date.month, date.day)
-        .millisecondsSinceEpoch;
-    final endOfDay = DateTime(date.year, date.month, date.day + 1)
-        .millisecondsSinceEpoch;
+    final startOfDay = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).millisecondsSinceEpoch;
+    final endOfDay = DateTime(
+      date.year,
+      date.month,
+      date.day + 1,
+    ).millisecondsSinceEpoch;
     return (select(conversations)
           ..where(
-              (c) => c.startedAt.isBiggerOrEqualValue(startOfDay) &
-                  c.startedAt.isSmallerThanValue(endOfDay))
+            (c) =>
+                c.startedAt.isBiggerOrEqualValue(startOfDay) &
+                c.startedAt.isSmallerThanValue(endOfDay),
+          )
           ..orderBy([(c) => OrderingTerm.desc(c.startedAt)]))
         .get();
   }
@@ -72,11 +85,53 @@ class ConversationDao extends DatabaseAccessor<HelixDatabase>
 
   /// All segments for a conversation, ordered by index.
   Future<List<ConversationSegment>> getSegmentsForConversation(
-      String conversationId) {
+    String conversationId,
+  ) {
     return (select(conversationSegments)
           ..where((s) => s.conversationId.equals(conversationId))
           ..orderBy([(s) => OrderingTerm.asc(s.segmentIndex)]))
         .get();
+  }
+
+  Future<double> getTotalAiCostUsd(String conversationId) async {
+    final totalExpression = conversationAiCostEntries.costUsd.sum();
+    final row =
+        await (selectOnly(conversationAiCostEntries)
+              ..addColumns([totalExpression])
+              ..where(
+                conversationAiCostEntries.conversationId.equals(conversationId),
+              ))
+            .getSingle();
+    return row.read(totalExpression) ?? 0;
+  }
+
+  Future<Map<String, double>> getAiCostTotalsForConversationIds(
+    List<String> conversationIds,
+  ) async {
+    if (conversationIds.isEmpty) return const {};
+
+    final totalExpression = conversationAiCostEntries.costUsd.sum();
+    final rows =
+        await (selectOnly(conversationAiCostEntries)
+              ..addColumns([
+                conversationAiCostEntries.conversationId,
+                totalExpression,
+              ])
+              ..where(
+                conversationAiCostEntries.conversationId.isIn(conversationIds),
+              )
+              ..groupBy([conversationAiCostEntries.conversationId]))
+            .get();
+
+    final totals = <String, double>{};
+    for (final row in rows) {
+      final conversationId = row.read(conversationAiCostEntries.conversationId);
+      final total = row.read(totalExpression);
+      if (conversationId != null && total != null) {
+        totals[conversationId] = total;
+      }
+    }
+    return totals;
   }
 
   // ---------------------------------------------------------------------------
@@ -111,8 +166,6 @@ class ConversationDao extends DatabaseAccessor<HelixDatabase>
       readsFrom: {conversationSegments},
     ).get();
 
-    return results
-        .map((row) => conversationSegments.map(row.data))
-        .toList();
+    return results.map((row) => conversationSegments.map(row.data)).toList();
   }
 }

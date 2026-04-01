@@ -30,7 +30,7 @@ class SettingsManager {
   // LLM Settings
   // ---------------------------------------------------------------------------
 
-  /// Active LLM provider: 'openai', 'anthropic', 'deepseek', 'qwen', 'zhipu'.
+  /// Active LLM provider: 'openai', 'openrouter', 'anthropic', 'deepseek', 'qwen', 'zhipu'.
   String activeProviderId = 'openai';
 
   /// Active model within the selected provider (null = use provider default).
@@ -246,8 +246,33 @@ class SettingsManager {
     );
   }
 
-  String? get resolvedLightModel => lightModel;
-  String? get resolvedSmartModel => smartModel;
+  String? get resolvedLightModel {
+    final explicit = lightModel?.trim();
+    if (explicit != null && explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    switch (activeProviderId) {
+      case 'openai':
+        return 'gpt-5.4-mini';
+      default:
+        return null;
+    }
+  }
+
+  String? get resolvedSmartModel {
+    final explicit = smartModel?.trim();
+    if (explicit != null && explicit.isNotEmpty) {
+      return explicit;
+    }
+
+    switch (activeProviderId) {
+      case 'openai':
+        return 'gpt-5.4';
+      default:
+        return null;
+    }
+  }
 
   bool get usesOpenAIRealtimeSession =>
       transcriptionBackend == 'openai' && openAISessionMode == 'realtime';
@@ -310,16 +335,20 @@ class SettingsManager {
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
     hudRenderPath = prefs.getString('hudRenderPath') ?? 'bitmap';
     bitmapLayoutPreset = prefs.getString('bitmapLayoutPreset') ?? 'classic';
-    enhancedLayoutPreset = prefs.getString('enhancedLayoutPreset') ?? 'command_center';
+    enhancedLayoutPreset =
+        prefs.getString('enhancedLayoutPreset') ?? 'command_center';
     stockTicker = prefs.getString('stockTicker') ?? '^DJI';
 
     // HUD Widgets
-    hudWidgetConfigs = _restoreWidgetConfigs(prefs.getString('hudWidgetConfigs'));
+    hudWidgetConfigs = _restoreWidgetConfigs(
+      prefs.getString('hudWidgetConfigs'),
+    );
     sentimentMonitorEnabled = prefs.getBool('sentimentMonitorEnabled') ?? false;
     entityMemoryEnabled = prefs.getBool('entityMemoryEnabled') ?? false;
     webSearchEnabled = prefs.getBool('webSearchEnabled') ?? true;
     translationEnabled = prefs.getBool('translationEnabled') ?? false;
-    translationTargetLanguage = prefs.getString('translationTargetLanguage') ?? 'en';
+    translationTargetLanguage =
+        prefs.getString('translationTargetLanguage') ?? 'en';
     voiceResponseEnabled = prefs.getBool('voiceResponseEnabled') ?? false;
     voiceAssistantVoice = prefs.getString('voiceAssistantVoice') ?? 'alloy';
 
@@ -334,11 +363,14 @@ class SettingsManager {
     // All-Day Mode & Knowledge Base
     allDayModeEnabled = prefs.getBool('allDayModeEnabled') ?? false;
     analysisBackend = prefs.getString('analysisBackend') ?? 'cloud';
-    analysisCloudProvider = prefs.getString('analysisCloudProvider') ?? 'openai';
+    analysisCloudProvider =
+        prefs.getString('analysisCloudProvider') ?? 'openai';
     llamaModelId = prefs.getString('llamaModelId') ?? 'qwen2.5-1.5b-q4km';
     vadThreshold = prefs.getDouble('vadThreshold') ?? -40.0;
-    batchAnalysisIntervalMinutes = prefs.getInt('batchAnalysisIntervalMinutes') ?? 5;
-    profileAutoUpdateEnabled = prefs.getBool('profileAutoUpdateEnabled') ?? true;
+    batchAnalysisIntervalMinutes =
+        prefs.getInt('batchAnalysisIntervalMinutes') ?? 5;
+    profileAutoUpdateEnabled =
+        prefs.getBool('profileAutoUpdateEnabled') ?? true;
 
     // UI
     theme = prefs.getString('theme') ?? 'dark';
@@ -400,8 +432,12 @@ class SettingsManager {
     await prefs.setString('transcriptionBackend', transcriptionBackend);
     await prefs.setString('openAISessionMode', openAISessionMode);
     await prefs.setString('transcriptionModel', transcriptionModel);
-    if (openAIRealtimePrompt != null && openAIRealtimePrompt!.trim().isNotEmpty) {
-      await prefs.setString('openAIRealtimePrompt', openAIRealtimePrompt!.trim());
+    if (openAIRealtimePrompt != null &&
+        openAIRealtimePrompt!.trim().isNotEmpty) {
+      await prefs.setString(
+        'openAIRealtimePrompt',
+        openAIRealtimePrompt!.trim(),
+      );
     } else {
       await prefs.remove('openAIRealtimePrompt');
     }
@@ -428,7 +464,10 @@ class SettingsManager {
     await prefs.setBool('entityMemoryEnabled', entityMemoryEnabled);
     await prefs.setBool('webSearchEnabled', webSearchEnabled);
     await prefs.setBool('translationEnabled', translationEnabled);
-    await prefs.setString('translationTargetLanguage', translationTargetLanguage);
+    await prefs.setString(
+      'translationTargetLanguage',
+      translationTargetLanguage,
+    );
     await prefs.setBool('voiceResponseEnabled', voiceResponseEnabled);
     await prefs.setString('voiceAssistantVoice', voiceAssistantVoice);
 
@@ -446,7 +485,10 @@ class SettingsManager {
     await prefs.setString('analysisCloudProvider', analysisCloudProvider);
     await prefs.setString('llamaModelId', llamaModelId);
     await prefs.setDouble('vadThreshold', vadThreshold);
-    await prefs.setInt('batchAnalysisIntervalMinutes', batchAnalysisIntervalMinutes);
+    await prefs.setInt(
+      'batchAnalysisIntervalMinutes',
+      batchAnalysisIntervalMinutes,
+    );
     await prefs.setBool('profileAutoUpdateEnabled', profileAutoUpdateEnabled);
 
     // UI
@@ -536,7 +578,15 @@ class SettingsManager {
 
   /// Returns a map of provider IDs to whether they have an API key configured.
   Future<Map<String, bool>> getConfiguredProviders() async {
-    const providerIds = ['openai', 'anthropic', 'deepseek', 'qwen', 'zhipu', 'siliconflow'];
+    const providerIds = [
+      'openai',
+      'openrouter',
+      'anthropic',
+      'deepseek',
+      'qwen',
+      'zhipu',
+      'siliconflow',
+    ];
 
     final result = <String, bool>{};
     for (final id in providerIds) {

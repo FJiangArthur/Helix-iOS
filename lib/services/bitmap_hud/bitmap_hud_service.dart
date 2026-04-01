@@ -89,10 +89,12 @@ class BitmapHudService {
 
     // Listen for BLE connection to auto-push on connect
     _connectionSub = BleManager.get().connectionStateStream.listen((state) {
-      if (state == BleConnectionState.connected && isEnabled) {
+      if (state == BleConnectionState.connected &&
+          isEnabled &&
+          BleManager.isBothConnected()) {
         // Delay slightly to let glasses initialize
         Future.delayed(const Duration(seconds: 3), () {
-          if (isEnabled && BleManager.get().isConnected) {
+          if (isEnabled && BleManager.isBothConnected()) {
             pushFull();
           }
         });
@@ -113,7 +115,7 @@ class BitmapHudService {
     _refreshTimer = Timer(
       Duration(seconds: _currentRefreshIntervalSeconds),
       () {
-        if (isEnabled && BleManager.get().isConnected && !_conversationPaused) {
+        if (isEnabled && BleManager.isBothConnected() && !_conversationPaused) {
           pushDelta();
         }
         // Re-schedule (interval may have changed after pushDelta).
@@ -127,7 +129,7 @@ class BitmapHudService {
   /// it stops.
   void setConversationActive(bool active) {
     _conversationPaused = active;
-    if (!active && isEnabled && BleManager.get().isConnected) {
+    if (!active && isEnabled && BleManager.isBothConnected()) {
       // Reset to base interval and push immediately on resume.
       _currentRefreshIntervalSeconds = _minRefreshInterval;
       _startAdaptiveRefreshTimer();
@@ -217,7 +219,7 @@ class BitmapHudService {
     if (targetPreset != currentPreset) {
       _loadLayout();
       // Force full re-push on layout change
-      if (isEnabled && BleManager.get().isConnected) {
+      if (isEnabled && BleManager.isBothConnected()) {
         _lastSentBmp = null;
         pushFull();
       }
@@ -264,7 +266,7 @@ class BitmapHudService {
 
   /// Full BMP send: render and push all chunks to both glasses.
   Future<bool> pushFull() async {
-    if (_sending) return false;
+    if (_sending || !BleManager.isBothConnected()) return false;
     return _pushFullLocked();
   }
 
@@ -299,7 +301,7 @@ class BitmapHudService {
   /// [renderDashboard] is skipped entirely and the refresh interval is doubled
   /// (up to [_maxRefreshInterval]).
   Future<bool> pushDelta() async {
-    if (_sending) return false;
+    if (_sending || !BleManager.isBothConnected()) return false;
     if (_lastSentBmp == null) return _pushFullLocked();
 
     _sending = true;

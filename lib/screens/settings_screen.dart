@@ -12,6 +12,7 @@ import '../widgets/glass_card.dart';
 const _automaticModelSelection = '__provider_default__';
 const _providerDisplayOrder = [
   'openai',
+  'openrouter',
   'anthropic',
   'deepseek',
   'qwen',
@@ -182,6 +183,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   _ProviderPresentation _providerPresentation(String providerId) {
     switch (providerId) {
+      case 'openrouter':
+        return const _ProviderPresentation(
+          accent: Color(0xFF7DD3FC),
+          cluster: 'Router Providers',
+          description:
+              'Unified access to many model families behind one API key, with OpenAI-compatible routing.',
+          icon: Icons.route_rounded,
+          protocol: 'OpenAI-compatible',
+          region: 'OpenRouter',
+        );
       case 'anthropic':
         return const _ProviderPresentation(
           accent: Color(0xFFD59B5B),
@@ -423,236 +434,269 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildSection(tr('AI Provider', 'AI 服务商'), Icons.psychology, [
-              _buildProviderSelector(),
-              const SizedBox(height: 12),
-              _buildApiKeyTile(),
-              const SizedBox(height: 12),
-              _buildModelSelector(),
-              const SizedBox(height: 12),
-              _buildModelTierSelectors(),
-              const SizedBox(height: 12),
-              _buildTemperatureSlider(),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('Conversation', '对话'), Icons.chat, [
-              _buildToggle(
-                tr('Auto-detect Questions', '自动检测问题'),
-                tr('Listen for questions in conversations', '在对话中监听问题'),
-                _settings.autoDetectQuestions,
-                (v) => _settings.update((s) => s.autoDetectQuestions = v),
-              ),
-              const SizedBox(height: 8),
-              _buildToggle(
-                tr('Auto-answer', '自动回答'),
-                tr('Answer detected questions automatically', '自动回答检测到的问题'),
-                _settings.autoAnswerQuestions,
-                (v) => _settings.update((s) => s.autoAnswerQuestions = v),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('Transcription', '语音转写'), Icons.record_voice_over, [
-              _buildTranscriptionBackendSelector(),
-              const SizedBox(height: 12),
-              if (_settings.transcriptionBackend == 'openai')
-                ListTile(
-                  title: const Text('OpenAI Session'),
-                  subtitle: Text(
-                    _openAISessionModeLabel(_settings.openAISessionMode),
-                  ),
-                  trailing: DropdownButton<String>(
-                    value: _settings.openAISessionMode,
-                    dropdownColor: const Color(0xFF1A1F35),
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'transcription',
-                        child: Text('Transcription'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'realtime',
-                        child: Text('Realtime'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        _settings.update((s) => s.openAISessionMode = value);
-                      }
-                    },
-                  ),
-                ),
-              if (_settings.transcriptionBackend == 'openai')
-                ListTile(
-                  title: const Text('Model'),
-                  trailing: DropdownButton<String>(
-                    value: _settings.transcriptionModel,
-                    dropdownColor: const Color(0xFF1A1F35),
-                    underline: const SizedBox.shrink(),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'gpt-4o-mini-transcribe',
-                        child: Text('gpt-4o-mini-transcribe'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'gpt-4o-transcribe',
-                        child: Text('gpt-4o-transcribe'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'whisper-1',
-                        child: Text('whisper-1'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'gpt-4o-mini-realtime',
-                        child: Text('gpt-4o-mini-realtime'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'gpt-4o-realtime',
-                        child: Text('gpt-4o-realtime'),
-                      ),
-                    ],
-                    onChanged: (value) {
-                      if (value != null) {
-                        _settings.update((s) => s.transcriptionModel = value);
-                      }
-                    },
-                  ),
-                ),
-              if (_settings.transcriptionBackend == 'openai' &&
-                  _settings.openAISessionMode == 'realtime')
-                ListTile(
-                  title: const Text('Realtime Prompt'),
-                  subtitle: Text(
-                    _settings.openAIRealtimePrompt?.trim().isNotEmpty == true
-                        ? _settings.openAIRealtimePrompt!.trim()
-                        : 'Use generated conversation prompt',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: TextButton(
-                    onPressed: _showRealtimePromptDialog,
-                    child: const Text('Edit'),
-                  ),
-                ),
-              if (_settings.transcriptionBackend == 'whisper' ||
-                  _settings.transcriptionBackend == 'appleCloud' ||
-                  _settings.transcriptionBackend == 'appleOnDevice')
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSection(tr('AI Provider', 'AI 服务商'), Icons.psychology, [
+                _buildProviderSelector(),
+                const SizedBox(height: 12),
+                _buildApiKeyTile(),
+                const SizedBox(height: 12),
+                _buildModelSelector(),
+                const SizedBox(height: 12),
+                _buildModelTierSelectors(),
+                const SizedBox(height: 12),
+                _buildTemperatureSlider(),
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(tr('Conversation', '对话'), Icons.chat, [
                 _buildToggle(
-                  tr('Speaker Diarization', '说话人分离'),
-                  tr('Identify different speakers in conversations (experimental)', '识别对话中的不同说话人（实验性）'),
-                  _settings.enableDiarization,
-                  (v) => _settings.update((s) => s.enableDiarization = v),
+                  tr('Auto-detect Questions', '自动检测问题'),
+                  tr('Listen for questions in conversations', '在对话中监听问题'),
+                  _settings.autoDetectQuestions,
+                  (v) => _settings.update((s) => s.autoDetectQuestions = v),
                 ),
-              if (_settings.transcriptionBackend == 'whisper')
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: ListTile(
-                    title: const Text('Chunk Duration'),
-                    subtitle: Text('${_settings.whisperChunkDurationSec}s audio segments'),
-                    trailing: DropdownButton<int>(
-                      value: _settings.whisperChunkDurationSec,
+                const SizedBox(height: 8),
+                _buildToggle(
+                  tr('Auto-answer', '自动回答'),
+                  tr('Answer detected questions automatically', '自动回答检测到的问题'),
+                  _settings.autoAnswerQuestions,
+                  (v) => _settings.update((s) => s.autoAnswerQuestions = v),
+                ),
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(tr('Transcription', '语音转写'), Icons.record_voice_over, [
+                _buildTranscriptionBackendSelector(),
+                const SizedBox(height: 12),
+                if (_settings.transcriptionBackend == 'openai')
+                  ListTile(
+                    title: const Text('OpenAI Session'),
+                    subtitle: Text(
+                      _openAISessionModeLabel(_settings.openAISessionMode),
+                    ),
+                    trailing: DropdownButton<String>(
+                      value: _settings.openAISessionMode,
                       dropdownColor: const Color(0xFF1A1F35),
                       underline: const SizedBox.shrink(),
-                      items: [3, 5, 10]
-                          .map((v) => DropdownMenuItem(value: v, child: Text('${v}s')))
-                          .toList(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'transcription',
+                          child: Text('Transcription'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'realtime',
+                          child: Text('Realtime'),
+                        ),
+                      ],
                       onChanged: (value) {
                         if (value != null) {
-                          _settings.update((s) => s.whisperChunkDurationSec = value);
+                          _settings.update((s) => s.openAISessionMode = value);
                         }
                       },
                     ),
                   ),
+                if (_settings.transcriptionBackend == 'openai')
+                  ListTile(
+                    title: const Text('Model'),
+                    trailing: DropdownButton<String>(
+                      value: _settings.transcriptionModel,
+                      dropdownColor: const Color(0xFF1A1F35),
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'gpt-4o-mini-transcribe',
+                          child: Text('gpt-4o-mini-transcribe'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'gpt-4o-transcribe',
+                          child: Text('gpt-4o-transcribe'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'whisper-1',
+                          child: Text('whisper-1'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'gpt-4o-mini-realtime',
+                          child: Text('gpt-4o-mini-realtime'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'gpt-4o-realtime',
+                          child: Text('gpt-4o-realtime'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          _settings.update((s) => s.transcriptionModel = value);
+                        }
+                      },
+                    ),
+                  ),
+                if (_settings.transcriptionBackend == 'openai' &&
+                    _settings.openAISessionMode == 'realtime')
+                  ListTile(
+                    title: const Text('Realtime Prompt'),
+                    subtitle: Text(
+                      _settings.openAIRealtimePrompt?.trim().isNotEmpty == true
+                          ? _settings.openAIRealtimePrompt!.trim()
+                          : 'Use generated conversation prompt',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: TextButton(
+                      onPressed: _showRealtimePromptDialog,
+                      child: const Text('Edit'),
+                    ),
+                  ),
+                if (_settings.transcriptionBackend == 'whisper' ||
+                    _settings.transcriptionBackend == 'appleCloud' ||
+                    _settings.transcriptionBackend == 'appleOnDevice')
+                  _buildToggle(
+                    tr('Speaker Diarization', '说话人分离'),
+                    tr(
+                      'Identify different speakers in conversations (experimental)',
+                      '识别对话中的不同说话人（实验性）',
+                    ),
+                    _settings.enableDiarization,
+                    (v) => _settings.update((s) => s.enableDiarization = v),
+                  ),
+                if (_settings.transcriptionBackend == 'whisper')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: ListTile(
+                      title: const Text('Chunk Duration'),
+                      subtitle: Text(
+                        '${_settings.whisperChunkDurationSec}s audio segments',
+                      ),
+                      trailing: DropdownButton<int>(
+                        value: _settings.whisperChunkDurationSec,
+                        dropdownColor: const Color(0xFF1A1F35),
+                        underline: const SizedBox.shrink(),
+                        items: [3, 5, 10]
+                            .map(
+                              (v) => DropdownMenuItem(
+                                value: v,
+                                child: Text('${v}s'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) {
+                            _settings.update(
+                              (s) => s.whisperChunkDurationSec = value,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(
+                tr('AI Tools', 'AI 工具'),
+                Icons.build_circle_outlined,
+                [
+                  _buildToggle(
+                    tr('Web Search', '网络搜索'),
+                    tr(
+                      'Allow AI to search the web for fact-checking',
+                      '允许 AI 搜索网络进行事实核查',
+                    ),
+                    _settings.webSearchEnabled,
+                    (v) => _settings.update((s) => s.webSearchEnabled = v),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildToggle(
+                    tr('Voice Responses', '语音回复'),
+                    tr(
+                      'AI speaks answers through phone speaker',
+                      'AI 通过手机扬声器朗读答案',
+                    ),
+                    _settings.voiceResponseEnabled,
+                    (v) => _settings.update((s) => s.voiceResponseEnabled = v),
+                  ),
+                  if (_settings.voiceResponseEnabled) ...[
+                    const SizedBox(height: 8),
+                    _buildVoiceSelector(),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildSection(tr('Features', '功能'), Icons.auto_awesome, [
+                _buildToggle(
+                  tr('Sentiment Monitor', '情感监测'),
+                  tr('Analyze conversation tone in real time', '实时分析对话语气'),
+                  _settings.sentimentMonitorEnabled,
+                  (v) => _settings.update((s) => s.sentimentMonitorEnabled = v),
                 ),
-
-
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('AI Tools', 'AI 工具'), Icons.build_circle_outlined, [
-              _buildToggle(
-                tr('Web Search', '网络搜索'),
-                tr('Allow AI to search the web for fact-checking', '允许 AI 搜索网络进行事实核查'),
-                _settings.webSearchEnabled,
-                (v) => _settings.update((s) => s.webSearchEnabled = v),
-              ),
-              const SizedBox(height: 8),
-              _buildToggle(
-                tr('Voice Responses', '语音回复'),
-                tr('AI speaks answers through phone speaker', 'AI 通过手机扬声器朗读答案'),
-                _settings.voiceResponseEnabled,
-                (v) => _settings.update((s) => s.voiceResponseEnabled = v),
-              ),
-              if (_settings.voiceResponseEnabled) ...[
-                const SizedBox(height: 8),
-                _buildVoiceSelector(),
-              ],
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('Features', '功能'), Icons.auto_awesome, [
-              _buildToggle(
-                tr('Sentiment Monitor', '情感监测'),
-                tr('Analyze conversation tone in real time', '实时分析对话语气'),
-                _settings.sentimentMonitorEnabled,
-                (v) => _settings.update((s) => s.sentimentMonitorEnabled = v),
-              ),
-              const SizedBox(height: 8),
-              _buildToggle(
-                tr('Entity Memory', '实体记忆'),
-                tr('Detect and remember people and companies mentioned', '检测并记住提到的人物和公司'),
-                _settings.entityMemoryEnabled,
-                (v) => _settings.update((s) => s.entityMemoryEnabled = v),
-              ),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('All-Day Mode', '全天模式'), Icons.hearing, [
-              _buildToggle(
-                tr('All-Day Listening', '全天监听'),
-                tr('Always-on phone mic with on-device transcription', '始终开启手机麦克风并使用设备端转写'),
-                _settings.allDayModeEnabled,
-                (v) => _settings.update((s) => s.allDayModeEnabled = v),
-              ),
-              if (_settings.allDayModeEnabled) ...[
-                const SizedBox(height: 12),
-                _buildAnalysisBackendSelector(),
                 const SizedBox(height: 8),
                 _buildToggle(
-                  tr('Auto-Update Profile', '自动更新档案'),
-                  tr('Let AI learn your preferences and contacts over time', '让 AI 随时间学习你的偏好和联系人'),
-                  _settings.profileAutoUpdateEnabled,
-                  (v) => _settings.update(
-                      (s) => s.profileAutoUpdateEnabled = v),
+                  tr('Entity Memory', '实体记忆'),
+                  tr(
+                    'Detect and remember people and companies mentioned',
+                    '检测并记住提到的人物和公司',
+                  ),
+                  _settings.entityMemoryEnabled,
+                  (v) => _settings.update((s) => s.entityMemoryEnabled = v),
                 ),
-              ],
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('Translation', '翻译'), Icons.translate, [
-              _buildToggle(
-                tr('Live Translation', '实时翻译'),
-                tr('Translate foreign-language speech in real time', '实时翻译外语语音'),
-                _settings.translationEnabled,
-                (v) => _settings.update((s) => s.translationEnabled = v),
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(tr('All-Day Mode', '全天模式'), Icons.hearing, [
+                _buildToggle(
+                  tr('All-Day Listening', '全天监听'),
+                  tr(
+                    'Always-on phone mic with on-device transcription',
+                    '始终开启手机麦克风并使用设备端转写',
+                  ),
+                  _settings.allDayModeEnabled,
+                  (v) => _settings.update((s) => s.allDayModeEnabled = v),
+                ),
+                if (_settings.allDayModeEnabled) ...[
+                  const SizedBox(height: 12),
+                  _buildAnalysisBackendSelector(),
+                  const SizedBox(height: 8),
+                  _buildToggle(
+                    tr('Auto-Update Profile', '自动更新档案'),
+                    tr(
+                      'Let AI learn your preferences and contacts over time',
+                      '让 AI 随时间学习你的偏好和联系人',
+                    ),
+                    _settings.profileAutoUpdateEnabled,
+                    (v) =>
+                        _settings.update((s) => s.profileAutoUpdateEnabled = v),
+                  ),
+                ],
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(tr('Translation', '翻译'), Icons.translate, [
+                _buildToggle(
+                  tr('Live Translation', '实时翻译'),
+                  tr(
+                    'Translate foreign-language speech in real time',
+                    '实时翻译外语语音',
+                  ),
+                  _settings.translationEnabled,
+                  (v) => _settings.update((s) => s.translationEnabled = v),
+                ),
+                if (_settings.translationEnabled) ...[
+                  const SizedBox(height: 12),
+                  _buildTranslationTargetSelector(),
+                ],
+              ]),
+              const SizedBox(height: 20),
+              _buildSection(
+                tr('Internationalization', '国际化'),
+                Icons.translate,
+                [_buildUiLanguageSelector()],
               ),
-              if (_settings.translationEnabled) ...[
-                const SizedBox(height: 12),
-                _buildTranslationTargetSelector(),
-              ],
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(
-                tr('Internationalization', '国际化'), Icons.translate, [
-              _buildUiLanguageSelector(),
-            ]),
-            const SizedBox(height: 20),
-            _buildSection(tr('About', '关于'), Icons.info_outline, [
-              _buildInfoTile(tr('Version', '版本'), '1.0.0'),
-              _buildInfoTile(tr('Build', '构建'), '1'),
-            ]),
-            const SizedBox(height: 80),
-          ],
+              const SizedBox(height: 20),
+              _buildSection(tr('About', '关于'), Icons.info_outline, [
+                _buildInfoTile(tr('Version', '版本'), '1.0.0'),
+                _buildInfoTile(tr('Build', '构建'), '1'),
+              ]),
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -721,9 +765,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ],
               ]
-            : [
-                selectedCard,
-              ],
+            : [selectedCard],
       ),
     );
   }
@@ -745,10 +787,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           )
           .toList(),
       helperText:
-          'Each provider keeps its own API key. Anthropic uses its native API, while DeepSeek, Qwen, and Zhipu follow OpenAI-style request formats.',
+          'Each provider keeps its own API key. Anthropic uses its native API, while OpenRouter, DeepSeek, Qwen, and Zhipu follow OpenAI-style request formats.',
     );
   }
-
 
   Widget _buildProviderCard(String providerId, {bool showChevron = false}) {
     final provider = _llmService.providers[providerId];
@@ -835,9 +876,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Padding(
                 padding: const EdgeInsets.only(left: 4),
                 child: Icon(
-                  _isProviderExpanded
-                      ? Icons.expand_less
-                      : Icons.expand_more,
+                  _isProviderExpanded ? Icons.expand_less : Icons.expand_more,
                   color: Colors.white.withValues(alpha: 0.4),
                   size: 18,
                 ),
@@ -869,15 +908,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildTranscriptionBackendCard(String backendId,
-      {bool showChevron = false}) {
+  Widget _buildTranscriptionBackendCard(
+    String backendId, {
+    bool showChevron = false,
+  }) {
     final presentation = _transcriptionPresentation(backendId);
     final isActive = backendId == _settings.transcriptionBackend;
 
     return GestureDetector(
       onTap: showChevron
           ? () => setState(
-              () => _isTranscriptionExpanded = !_isTranscriptionExpanded)
+              () => _isTranscriptionExpanded = !_isTranscriptionExpanded,
+            )
           : () {
               setState(() => _isTranscriptionExpanded = false);
               _settings.update((s) {
@@ -968,8 +1010,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildCollapsibleCardSelector(
       isExpanded: _isTranscriptionExpanded,
       onToggle: () => setState(() => _isTranscriptionExpanded = true),
-      selectedCard:
-          _buildTranscriptionBackendCard(activeBackend, showChevron: true),
+      selectedCard: _buildTranscriptionBackendCard(
+        activeBackend,
+        showChevron: true,
+      ),
       allCards: backends
           .map(
             (id) => Padding(
@@ -1064,8 +1108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               label: b.$2,
               subtitle: b.$3,
               isSelected: isSelected,
-              onTap: () =>
-                  _settings.update((s) => s.analysisBackend = b.$1),
+              onTap: () => _settings.update((s) => s.analysisBackend = b.$1),
             );
           }).toList(),
         ),
@@ -1074,10 +1117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildUiLanguageSelector() {
-    const languages = [
-      ('en', 'English', '🇺🇸'),
-      ('zh', '中文', '🇨🇳'),
-    ];
+    const languages = [('en', 'English', '🇺🇸'), ('zh', '中文', '🇨🇳')];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1107,10 +1147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 5,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? HelixTheme.cyan.withValues(alpha: 0.15)
@@ -1209,9 +1246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? const Color(0xFF6E86FF)
                         : Colors.white.withValues(alpha: 0.6),
                     fontSize: 13,
-                    fontWeight: isSelected
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   ),
                 ),
               ),
@@ -1678,7 +1713,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Text('Automatic ($providerDefault)'),
       ),
       ...models.map(
-        (m) => DropdownMenuItem(value: m, child: Text(m, overflow: TextOverflow.ellipsis)),
+        (m) => DropdownMenuItem(
+          value: m,
+          child: Text(m, overflow: TextOverflow.ellipsis),
+        ),
       ),
     ];
 
@@ -1693,14 +1731,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label, style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.7),
-                fontSize: 12, fontWeight: FontWeight.w500,
-              )),
-              Text(subtitle, style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.38),
-                fontSize: 10,
-              )),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.38),
+                  fontSize: 10,
+                ),
+              ),
             ],
           ),
         ),
@@ -2058,5 +2103,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return 'Transcription only';
     }
   }
-
 }

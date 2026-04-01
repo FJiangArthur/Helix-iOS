@@ -23,16 +23,15 @@ class Conversations extends Table {
   TextColumn get id => text()();
   IntColumn get startedAt => integer()();
   IntColumn get endedAt => integer().nullable()();
-  TextColumn get mode =>
-      text().withDefault(const Constant('general'))(); // general/interview/passive/proactive
+  TextColumn get mode => text().withDefault(
+    const Constant('general'),
+  )(); // general/interview/passive/proactive
   TextColumn get title => text().nullable()();
   TextColumn get summary => text().nullable()();
   TextColumn get sentiment => text().nullable()();
   TextColumn get toneAnalysis => text().nullable()(); // JSON blob
-  BoolColumn get isProcessed =>
-      boolean().withDefault(const Constant(false))();
-  BoolColumn get silenceEnded =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isProcessed => boolean().withDefault(const Constant(false))();
+  BoolColumn get silenceEnded => boolean().withDefault(const Constant(false))();
   TextColumn get source =>
       text().withDefault(const Constant('phone'))(); // phone/glasses
 
@@ -42,8 +41,7 @@ class Conversations extends Table {
 
 class ConversationSegments extends Table {
   TextColumn get id => text()();
-  TextColumn get conversationId =>
-      text().references(Conversations, #id)();
+  TextColumn get conversationId => text().references(Conversations, #id)();
   IntColumn get segmentIndex => integer()();
   TextColumn get text_ => text().named('text')();
   TextColumn get speakerLabel => text().nullable()();
@@ -55,16 +53,34 @@ class ConversationSegments extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+class ConversationAiCostEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get conversationId => text().references(Conversations, #id)();
+  TextColumn get operationType => text()();
+  TextColumn get providerId => text()();
+  TextColumn get modelId => text()();
+  IntColumn get inputTokens => integer().withDefault(const Constant(0))();
+  IntColumn get outputTokens => integer().withDefault(const Constant(0))();
+  IntColumn get cachedInputTokens => integer().withDefault(const Constant(0))();
+  IntColumn get audioInputTokens => integer().withDefault(const Constant(0))();
+  IntColumn get audioOutputTokens => integer().withDefault(const Constant(0))();
+  RealColumn get costUsd => real().nullable()();
+  TextColumn get currency => text().withDefault(const Constant('USD'))();
+  TextColumn get status => text().withDefault(const Constant('completed'))();
+  IntColumn get startedAt => integer()();
+  IntColumn get completedAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 class Topics extends Table {
   TextColumn get id => text()();
-  TextColumn get conversationId =>
-      text().references(Conversations, #id)();
+  TextColumn get conversationId => text().references(Conversations, #id)();
   TextColumn get label => text()();
   TextColumn get summary => text().withDefault(const Constant(''))();
-  TextColumn get segmentRange =>
-      text().withDefault(const Constant(''))();
-  IntColumn get sortOrder =>
-      integer().withDefault(const Constant(0))();
+  TextColumn get segmentRange => text().withDefault(const Constant(''))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -77,10 +93,10 @@ class Facts extends Table {
       text()(); // preference/relationship/habit/opinion/goal/biographical/skill
   TextColumn get content => text()();
   TextColumn get sourceQuote => text().nullable()();
-  RealColumn get confidence =>
-      real().withDefault(const Constant(0.5))();
-  TextColumn get status =>
-      text().withDefault(const Constant('pending'))(); // pending/confirmed/rejected
+  RealColumn get confidence => real().withDefault(const Constant(0.5))();
+  TextColumn get status => text().withDefault(
+    const Constant('pending'),
+  )(); // pending/confirmed/rejected
   TextColumn get dedupeKey => text().nullable()();
   IntColumn get createdAt => integer()();
   IntColumn get confirmedAt => integer().nullable()();
@@ -106,8 +122,7 @@ class DailyMemories extends Table {
 class VoiceNotes extends Table {
   TextColumn get id => text()();
   IntColumn get createdAt => integer()();
-  IntColumn get durationMs =>
-      integer().withDefault(const Constant(0))();
+  IntColumn get durationMs => integer().withDefault(const Constant(0))();
   TextColumn get transcript => text().nullable()();
   TextColumn get summary => text().nullable()();
   TextColumn get tags =>
@@ -121,8 +136,7 @@ class Todos extends Table {
   TextColumn get id => text()();
   TextColumn get conversationId => text().nullable()();
   TextColumn get content => text()();
-  BoolColumn get isCompleted =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
   IntColumn get dueDate => integer().nullable()();
   IntColumn get createdAt => integer()();
   IntColumn get completedAt => integer().nullable()();
@@ -192,6 +206,7 @@ class UserProfiles extends Table {
   tables: [
     Conversations,
     ConversationSegments,
+    ConversationAiCostEntries,
     Topics,
     Facts,
     DailyMemories,
@@ -226,38 +241,38 @@ class HelixDatabase extends _$HelixDatabase {
   HelixDatabase.testWith(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
+    onCreate: (Migrator m) async {
+      await m.createAll();
 
-          // Create FTS5 virtual tables for full-text search
-          await customStatement('''
+      // Create FTS5 virtual tables for full-text search
+      await customStatement('''
             CREATE VIRTUAL TABLE IF NOT EXISTS conversation_segments_fts
             USING fts5(text, content=conversation_segments, content_rowid=rowid)
           ''');
-          await customStatement('''
+      await customStatement('''
             CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts
             USING fts5(content, category, content=facts, content_rowid=rowid)
           ''');
 
-          // Triggers to keep FTS indices in sync
-          // -- segments
-          await customStatement('''
+      // Triggers to keep FTS indices in sync
+      // -- segments
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS conversation_segments_ai AFTER INSERT ON conversation_segments BEGIN
               INSERT INTO conversation_segments_fts(rowid, text)
               VALUES (new.rowid, new.text);
             END
           ''');
-          await customStatement('''
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS conversation_segments_ad AFTER DELETE ON conversation_segments BEGIN
               INSERT INTO conversation_segments_fts(conversation_segments_fts, rowid, text)
               VALUES ('delete', old.rowid, old.text);
             END
           ''');
-          await customStatement('''
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS conversation_segments_au AFTER UPDATE ON conversation_segments BEGIN
               INSERT INTO conversation_segments_fts(conversation_segments_fts, rowid, text)
               VALUES ('delete', old.rowid, old.text);
@@ -266,20 +281,20 @@ class HelixDatabase extends _$HelixDatabase {
             END
           ''');
 
-          // -- facts
-          await customStatement('''
+      // -- facts
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS facts_ai AFTER INSERT ON facts BEGIN
               INSERT INTO facts_fts(rowid, content, category)
               VALUES (new.rowid, new.content, new.category);
             END
           ''');
-          await customStatement('''
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS facts_ad AFTER DELETE ON facts BEGIN
               INSERT INTO facts_fts(facts_fts, rowid, content, category)
               VALUES ('delete', old.rowid, old.content, old.category);
             END
           ''');
-          await customStatement('''
+      await customStatement('''
             CREATE TRIGGER IF NOT EXISTS facts_au AFTER UPDATE ON facts BEGIN
               INSERT INTO facts_fts(facts_fts, rowid, content, category)
               VALUES ('delete', old.rowid, old.content, old.category);
@@ -287,8 +302,13 @@ class HelixDatabase extends _$HelixDatabase {
               VALUES (new.rowid, new.content, new.category);
             END
           ''');
-        },
-      );
+    },
+    onUpgrade: (Migrator m, from, to) async {
+      if (from < 2) {
+        await m.createTable(conversationAiCostEntries);
+      }
+    },
+  );
 
   static QueryExecutor _openConnection() {
     return LazyDatabase(() async {

@@ -9,7 +9,17 @@ void main() {
 
   group('GlassesAnswerPresenter', () {
     setUp(() {
-      BleManager.get().isConnected = true;
+      BleManager.get().debugSetConnectionState(
+        leftConnected: true,
+        rightConnected: true,
+      );
+    });
+
+    tearDown(() {
+      BleManager.get().debugSetConnectionState(
+        leftConnected: false,
+        rightConnected: false,
+      );
     });
 
     test('short answers send once', () async {

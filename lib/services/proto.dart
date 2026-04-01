@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../ble_manager.dart';
+import 'ble.dart';
 import '../services/evenai_proto.dart';
 import '../services/glasses_protocol.dart';
 import '../utils/app_logger.dart';
@@ -60,31 +61,55 @@ class Proto {
     );
     _evenaiSeq++;
 
+    final leftConnected = BleManager.isConnectedL();
+    final rightConnected = BleManager.isConnectedR();
+    if (!leftConnected && !rightConnected) {
+      appLogger.d('sendEvenAIData skipped: no connected glasses side');
+      return false;
+    }
+
     appLogger.d(
       'proto--sendEvenAIData seq=$_evenaiSeq newScreen=$newScreen page=$current_page_num/$max_page_num textLen=${text.length}',
     );
 
-    // Send to L and R independently - don't abort one if the other fails
-    bool isSuccessL = await BleManager.requestList(
-      dataList,
-      lr: "L",
-      timeoutMs: timeoutMs ?? 2000,
-    );
-    if (!isSuccessL) {
-      appLogger.d("sendEvenAIData failed L (continuing to R)");
+    bool isSuccessL = false;
+    if (leftConnected) {
+      isSuccessL = await BleManager.requestList(
+        dataList,
+        lr: "L",
+        timeoutMs: timeoutMs ?? 2000,
+      );
+      if (!isSuccessL) {
+        appLogger.d('sendEvenAIData failed L');
+      }
     }
 
-    bool isSuccessR = await BleManager.requestList(
-      dataList,
-      lr: "R",
-      timeoutMs: timeoutMs ?? 2000,
-    );
-
-    final anySuccess = isSuccessL || isSuccessR;
-    if (!anySuccess) {
-      appLogger.d('sendEvenAIData failed both L and R');
+    bool isSuccessR = false;
+    if (rightConnected) {
+      isSuccessR = await BleManager.requestList(
+        dataList,
+        lr: "R",
+        timeoutMs: timeoutMs ?? 2000,
+      );
+      if (!isSuccessR) {
+        appLogger.d('sendEvenAIData failed R');
+      }
     }
-    return anySuccess;
+
+    final success = BleTransportPolicy.didAllConnectedTargetsSucceed(
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      leftSuccess: isSuccessL,
+      rightSuccess: isSuccessR,
+    );
+    if (!success) {
+      appLogger.d(
+        'sendEvenAIData failed required targets '
+        '(leftConnected=$leftConnected leftSuccess=$isSuccessL '
+        'rightConnected=$rightConnected rightSuccess=$isSuccessR)',
+      );
+    }
+    return success;
   }
 
   static int _beatHeartSeq = 0;

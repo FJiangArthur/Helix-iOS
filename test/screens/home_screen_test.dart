@@ -49,6 +49,8 @@ class _FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     if (_responses.isEmpty) {
       return '{"shouldRespond": false, "question": "", "questionExcerpt": ""}';
@@ -62,6 +64,8 @@ class _FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     final script = _streamResponses.isEmpty
         ? const _FakeStreamResponse(['stubbed stream response'])
@@ -92,12 +96,16 @@ class _FakeJsonProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }
@@ -178,7 +186,10 @@ void main() {
     ConversationEngine.instance.clearHistory();
     ConversationEngine.instance.stop();
     ConversationEngine.instance.setMode(ConversationMode.general);
-    BleManager.get().isConnected = false;
+    BleManager.get().debugSetConnectionState(
+      leftConnected: false,
+      rightConnected: false,
+    );
     for (final profile in AssistantProfile.defaults) {
       await SettingsManager.instance.saveAssistantProfile(profile);
     }
@@ -354,7 +365,10 @@ void main() {
   testWidgets(
     'home screen mic honors phone override even when glasses are connected',
     (tester) async {
-      BleManager.get().isConnected = true;
+      BleManager.get().debugSetConnectionState(
+        leftConnected: true,
+        rightConnected: true,
+      );
       SettingsManager.instance.preferredMicSource = 'phone';
 
       await tester.pumpWidget(
@@ -373,7 +387,10 @@ void main() {
       expect(find.text('PHONE INPUT'), findsWidgets);
       expect(find.text('G1 OUTPUT ONLY'), findsWidgets);
 
-      BleManager.get().isConnected = false;
+      BleManager.get().debugSetConnectionState(
+        leftConnected: false,
+        rightConnected: false,
+      );
       engine.stop();
       BleManager.get().stopSendBeatHeart();
       await tester.pump();
@@ -389,10 +406,7 @@ void main() {
       await tester.pump();
 
       expect(ConversationEngine.instance.mode, ConversationMode.general);
-      expect(
-        find.text('How do I start a good conversation?'),
-        findsOneWidget,
-      );
+      expect(find.text('How do I start a good conversation?'), findsOneWidget);
       expect(find.text('Tell me about yourself'), findsNothing);
 
       ConversationEngine.instance.setMode(ConversationMode.interview);
@@ -404,10 +418,7 @@ void main() {
       ConversationEngine.instance.setMode(ConversationMode.general);
       await tester.pumpAndSettle();
       expect(ConversationEngine.instance.mode, ConversationMode.general);
-      expect(
-        find.text('How do I start a good conversation?'),
-        findsOneWidget,
-      );
+      expect(find.text('How do I start a good conversation?'), findsOneWidget);
       expect(find.text('Tell me about yourself'), findsNothing);
     },
   );
@@ -432,11 +443,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 30));
 
-      expect(find.text('ライブ文字起こし'), findsOneWidget);
-      expect(find.text('スマホ入力'), findsWidgets);
+    expect(find.text('ライブ文字起こし'), findsOneWidget);
+    expect(find.text('スマホ入力'), findsWidgets);
 
-      engine.stop();
-      BleManager.get().stopSendBeatHeart();
-      await tester.pump();
+    engine.stop();
+    BleManager.get().stopSendBeatHeart();
+    await tester.pump();
   });
 }

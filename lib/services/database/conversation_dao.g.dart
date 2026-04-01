@@ -7,6 +7,8 @@ mixin _$ConversationDaoMixin on DatabaseAccessor<HelixDatabase> {
   $ConversationsTable get conversations => attachedDatabase.conversations;
   $ConversationSegmentsTable get conversationSegments =>
       attachedDatabase.conversationSegments;
+  $ConversationAiCostEntriesTable get conversationAiCostEntries =>
+      attachedDatabase.conversationAiCostEntries;
   $TopicsTable get topics => attachedDatabase.topics;
   ConversationDaoManager get managers => ConversationDaoManager(this);
 }
@@ -20,6 +22,11 @@ class ConversationDaoManager {
       $$ConversationSegmentsTableTableManager(
         _db.attachedDatabase,
         _db.conversationSegments,
+      );
+  $$ConversationAiCostEntriesTableTableManager get conversationAiCostEntries =>
+      $$ConversationAiCostEntriesTableTableManager(
+        _db.attachedDatabase,
+        _db.conversationAiCostEntries,
       );
   $$TopicsTableTableManager get topics =>
       $$TopicsTableTableManager(_db.attachedDatabase, _db.topics);

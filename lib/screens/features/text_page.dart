@@ -31,7 +31,7 @@ You're holding eyewear designed to keep useful information in view without pulli
 
 This page now uses the dedicated text-display state instead of the overview/AI response screen.''';
 
-  bool get _isConnected => BleManager.get().isConnected;
+  bool get _isConnected => BleManager.isBothConnected();
   bool get _hasText => _textController.text.trim().isNotEmpty;
   bool get _canSend => _isConnected && _hasText && !_isSending;
 
@@ -188,7 +188,8 @@ This page now uses the dedicated text-display state instead of the overview/AI r
                         decoration: InputDecoration(
                           isDense: true,
                           filled: false,
-                          hintText: 'Write the text you want to stage on the HUD',
+                          hintText:
+                              'Write the text you want to stage on the HUD',
                           hintStyle: TextStyle(
                             color: Colors.white.withValues(alpha: 0.32),
                           ),
@@ -220,10 +221,10 @@ This page now uses the dedicated text-display state instead of the overview/AI r
                     opacity: _canSend ? 1 : 0.48,
                     child: GlowButton(
                       label: _isSending ? 'Sending...' : 'Send to Glasses',
-                      icon: _isSending ? Icons.schedule_send : Icons.send_outlined,
-                      color: _isConnected
-                          ? HelixTheme.cyan
-                          : Colors.blueGrey,
+                      icon: _isSending
+                          ? Icons.schedule_send
+                          : Icons.send_outlined,
+                      color: _isConnected ? HelixTheme.cyan : Colors.blueGrey,
                       isLoading: _isSending,
                       onPressed: _sendText,
                     ),

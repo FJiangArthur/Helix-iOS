@@ -57,6 +57,29 @@ class BleReceive {
   }
 }
 
+class BleTransportPolicy {
+  BleTransportPolicy._();
+
+  /// Retry counts are expressed as "extra attempts after the first send".
+  static int attemptsForRetryCount(int retryCount) {
+    if (retryCount < 0) return 1;
+    return retryCount + 1;
+  }
+
+  /// A delivery only counts as successful when every connected side succeeds.
+  static bool didAllConnectedTargetsSucceed({
+    required bool leftConnected,
+    required bool rightConnected,
+    required bool leftSuccess,
+    required bool rightSuccess,
+  }) {
+    if (!leftConnected && !rightConnected) {
+      return false;
+    }
+    return (!leftConnected || leftSuccess) && (!rightConnected || rightSuccess);
+  }
+}
+
 enum BleDeviceEventKind {
   exitFunc,
   pageBack,

@@ -18,6 +18,9 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
 
   @override
   List<String> get availableModels => const [
+    'gpt-5.4',
+    'gpt-5.4-mini',
+    'gpt-5.4-nano',
     'gpt-4.1',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
@@ -28,10 +31,52 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
 
   @override
   List<String> filterQueriedModels(List<String> modelIds) {
-    // Only keep exact GPT-4.1 family (no date-suffixed variants)
-    const allowed = {'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano'};
-    final filtered = modelIds.where((id) => allowed.contains(id.toLowerCase())).toSet().toList()..sort();
+    const allowed = {
+      'gpt-5.4',
+      'gpt-5.4-mini',
+      'gpt-5.4-nano',
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
+    };
+    final filtered =
+        modelIds
+            .where((id) => allowed.contains(id.toLowerCase()))
+            .toSet()
+            .toList()
+          ..sort();
     return filtered.isEmpty ? availableModels : filtered;
+  }
+
+  @override
+  Map<String, dynamic> buildRequestBody({
+    required String systemPrompt,
+    required List<ChatMessage> messages,
+    required String model,
+    required double temperature,
+    required bool stream,
+    List<ToolDefinition>? tools,
+    LlmRequestOptions? requestOptions,
+  }) {
+    final body = super.buildRequestBody(
+      systemPrompt: systemPrompt,
+      messages: messages,
+      model: model,
+      temperature: temperature,
+      stream: stream,
+      tools: tools,
+      requestOptions: requestOptions,
+    );
+
+    if (requestOptions?.maxOutputTokens != null) {
+      body['max_completion_tokens'] = requestOptions!.maxOutputTokens;
+    }
+
+    if (stream) {
+      body['stream_options'] = {'include_usage': true};
+    }
+
+    return body;
   }
 
   @override
@@ -45,6 +90,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
     final selectedModel = model ?? defaultModel;
     if (!supportsRealtimeModel(selectedModel)) {
@@ -53,6 +100,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
         messages: messages,
         model: selectedModel,
         temperature: temperature,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
       );
     }
 
@@ -69,6 +118,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     final selectedModel = model ?? defaultModel;
     if (!supportsRealtimeModel(selectedModel)) {
@@ -77,6 +128,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
         messages: messages,
         model: selectedModel,
         temperature: temperature,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
       );
     }
 
@@ -86,6 +139,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
       messages: messages,
       model: selectedModel,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       buffer.write(chunk);
     }

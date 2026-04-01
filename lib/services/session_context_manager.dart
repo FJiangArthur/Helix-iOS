@@ -21,6 +21,7 @@ class SessionContextManager {
   /// Token budget per provider (conservative estimates of context window).
   static const Map<String, int> _providerContextBudgets = {
     'openai': 100000,
+    'openrouter': 100000,
     'anthropic': 150000,
     'deepseek': 50000,
     'qwen': 25000,
@@ -65,8 +66,7 @@ class SessionContextManager {
     required String partialTranscription,
     required String providerId,
   }) {
-    final totalBudget =
-        _providerContextBudgets[providerId] ?? 25000;
+    final totalBudget = _providerContextBudgets[providerId] ?? 25000;
     final usableBudget = totalBudget - _reservedTokens;
     if (usableBudget <= 0) return '';
 
@@ -188,18 +188,15 @@ class SessionContextManager {
       final summary = await llm.getResponse(
         systemPrompt:
             'Summarize this conversation excerpt in 2-3 sentences. Be concise.',
-        messages: [
-          ChatMessage(
-            role: 'user',
-            content: 'Summarize:\n$rawText',
-          ),
-        ],
+        messages: [ChatMessage(role: 'user', content: 'Summarize:\n$rawText')],
       );
-      _archivedChunks.add(_SummarizedChunk(
-        summary: summary.trim(),
-        timestamp: timestamp,
-        segmentCount: segments.length,
-      ));
+      _archivedChunks.add(
+        _SummarizedChunk(
+          summary: summary.trim(),
+          timestamp: timestamp,
+          segmentCount: segments.length,
+        ),
+      );
 
       // Roll the oldest archived chunks into the rolling summary when there
       // are more than 10 archived chunks.
@@ -207,14 +204,18 @@ class SessionContextManager {
         await _rollOldestChunks(llm);
       }
     } catch (e) {
-      appLogger.w('[SessionContextManager] Summarization failed, '
-          'storing raw excerpt: $e');
+      appLogger.w(
+        '[SessionContextManager] Summarization failed, '
+        'storing raw excerpt: $e',
+      );
       // Fallback: store a truncated raw version.
-      _archivedChunks.add(_SummarizedChunk(
-        summary: _truncate(rawText, 500),
-        timestamp: timestamp,
-        segmentCount: segments.length,
-      ));
+      _archivedChunks.add(
+        _SummarizedChunk(
+          summary: _truncate(rawText, 500),
+          timestamp: timestamp,
+          segmentCount: segments.length,
+        ),
+      );
     }
   }
 
@@ -225,8 +226,9 @@ class SessionContextManager {
     final combinedText = toRoll.map((c) => c.summary).join('\n');
 
     try {
-      final existingOverview =
-          _rollingSummary.isNotEmpty ? 'Previous overview:\n$_rollingSummary\n\n' : '';
+      final existingOverview = _rollingSummary.isNotEmpty
+          ? 'Previous overview:\n$_rollingSummary\n\n'
+          : '';
       final summary = await llm.getResponse(
         systemPrompt:
             'Merge these conversation summaries into one concise overview '
@@ -255,15 +257,18 @@ class SessionContextManager {
     if (text.isEmpty) return 0;
 
     // Count CJK characters
-    final cjkCount =
-        RegExp(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]').allMatches(text).length;
+    final cjkCount = RegExp(
+      r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]',
+    ).allMatches(text).length;
     // Count non-CJK words
     final nonCjk = text.replaceAll(
       RegExp(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]'),
       '',
     );
-    final wordCount =
-        nonCjk.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    final wordCount = nonCjk
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .length;
 
     return ((wordCount * 1.3) + (cjkCount * 0.7)).round();
   }

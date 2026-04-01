@@ -8,6 +8,7 @@ import '../models/assistant_profile.dart';
 import '../utils/app_logger.dart';
 import 'bitmap_hud/bitmap_hud_service.dart';
 import 'cloud_pipeline_service.dart';
+import 'cost/conversation_cost_tracker.dart';
 import 'database/helix_database.dart' as database_pkg;
 import 'session_context_manager.dart';
 import 'text_paginator.dart';
@@ -59,6 +60,8 @@ class ConversationEngine {
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
+  final ConversationCostTracker _conversationCostTracker =
+      ConversationCostTracker();
 
   // Knowledge Base context cache
   String _cachedKbContext = '';
@@ -92,9 +95,11 @@ class ConversationEngine {
 
   // Configuration — read through SettingsManager so tests can set values there.
   bool get autoDetectQuestions => SettingsManager.instance.autoDetectQuestions;
-  set autoDetectQuestions(bool v) => SettingsManager.instance.autoDetectQuestions = v;
+  set autoDetectQuestions(bool v) =>
+      SettingsManager.instance.autoDetectQuestions = v;
   bool get autoAnswerQuestions => SettingsManager.instance.autoAnswerQuestions;
-  set autoAnswerQuestions(bool v) => SettingsManager.instance.autoAnswerQuestions = v;
+  set autoAnswerQuestions(bool v) =>
+      SettingsManager.instance.autoAnswerQuestions = v;
 
   // Streams
   final _transcriptionController = StreamController<String>.broadcast();
@@ -146,8 +151,7 @@ class ConversationEngine {
       _providerErrorController.stream;
   Stream<Map<String, dynamic>?> get postConversationAnalysisStream =>
       _postConversationController.stream;
-  Stream<String> get factCheckAlertStream =>
-      _factCheckAlertController.stream;
+  Stream<String> get factCheckAlertStream => _factCheckAlertController.stream;
   Stream<String> get translationStream => _translationController.stream;
   Stream<double> get sentimentStream => _sentimentController.stream;
   Stream<EntityInfo> get entityStream => _entityController.stream;
@@ -212,6 +216,7 @@ class ConversationEngine {
     _sentimentSegmentCounter = 0;
     _entitySegmentCounter = 0;
     _analyticsRunning = false;
+    _conversationCostTracker.reset();
     _clearProviderError();
     if (mode != null) setMode(mode);
     if (_mode == ConversationMode.proactive) {
@@ -254,16 +259,18 @@ class ConversationEngine {
     // meaningful history and the session produced finalized segments.
     if (_history.length > 1 && _finalizedSegments.length > 1) {
       final stopToken = _analysisToken;
-      getPostConversationAnalysis().then((result) {
-        if (stopToken == _analysisToken) {
-          _postConversationController.add(result);
-        }
-      }).catchError((e) {
-        appLogger.e('Post-conversation analysis failed', error: e);
-        if (stopToken == _analysisToken) {
-          _postConversationController.add(null);
-        }
-      });
+      getPostConversationAnalysis()
+          .then((result) {
+            if (stopToken == _analysisToken) {
+              _postConversationController.add(result);
+            }
+          })
+          .catchError((e) {
+            appLogger.e('Post-conversation analysis failed', error: e);
+            if (stopToken == _analysisToken) {
+              _postConversationController.add(null);
+            }
+          });
 
       // V2.2: Save conversation to SQLite and trigger cloud pipeline
       _saveAndProcessConversation();
@@ -303,7 +310,34 @@ class ConversationEngine {
         );
       }
 
-      appLogger.i('Saved conversation $conversationId with ${_finalizedSegments.length} segments');
+      appLogger.i(
+        'Saved conversation $conversationId with ${_finalizedSegments.length} segments',
+      );
+
+      for (final entry in _conversationCostTracker.entries) {
+        await db
+            .into(db.conversationAiCostEntries)
+            .insert(
+              database_pkg.ConversationAiCostEntriesCompanion.insert(
+                id: entry.id,
+                conversationId: conversationId,
+                operationType: entry.operationType.name,
+                providerId: entry.providerId,
+                modelId: entry.modelId,
+                inputTokens: drift.Value(entry.usage.inputTokens),
+                outputTokens: drift.Value(entry.usage.outputTokens),
+                cachedInputTokens: drift.Value(entry.usage.cachedInputTokens),
+                audioInputTokens: drift.Value(entry.usage.audioInputTokens),
+                audioOutputTokens: drift.Value(entry.usage.audioOutputTokens),
+                costUsd: drift.Value(entry.costUsd),
+                status: drift.Value(entry.status),
+                startedAt: entry.startedAt.millisecondsSinceEpoch,
+                completedAt: drift.Value(
+                  entry.completedAt?.millisecondsSinceEpoch,
+                ),
+              ),
+            );
+      }
 
       // Trigger cloud pipeline asynchronously
       CloudPipelineService.instance.processConversation(conversationId);
@@ -356,6 +390,26 @@ class ConversationEngine {
     }
   }
 
+  void onTranscriptionUsage({
+    required String providerId,
+    required String modelId,
+    required LlmUsage usage,
+  }) {
+    if (!usage.hasAnyUsage) return;
+    _conversationCostTracker.recordCompleted(
+      operationType: AiOperationType.transcription,
+      providerId: providerId,
+      modelId: modelId,
+      usage: usage,
+      costUsd: providerId == 'openai'
+          ? OpenAiPricingRegistry.calculateCostUsd(
+              modelId: modelId,
+              usage: usage,
+            )
+          : null,
+    );
+  }
+
   /// Split [trimmed] by sentence boundaries. Complete sentences are finalized,
   /// the trailing incomplete sentence becomes the live partial.
   void _progressiveUpdate(String trimmed) {
@@ -368,10 +422,9 @@ class ConversationEngine {
     for (int i = _segmentSentencesFinalized; i < completeCount; i++) {
       final sentence = parts[i].trim();
       if (sentence.isNotEmpty) {
-        _finalizedSegments.add(TranscriptSegment(
-          text: sentence,
-          timestamp: DateTime.now(),
-        ));
+        _finalizedSegments.add(
+          TranscriptSegment(text: sentence, timestamp: DateTime.now()),
+        );
         appLogger.d('[Engine] Progressive finalize: "$sentence"');
       }
     }
@@ -399,12 +452,14 @@ class ConversationEngine {
       _sessionContextManager
           .compactOldSegments(toArchive, llmService)
           .catchError((e) {
-        appLogger.w('[Engine] Background segment compaction failed: $e');
-      });
+            appLogger.w('[Engine] Background segment compaction failed: $e');
+          });
     }
     _finalizedSegments.removeRange(0, 100);
-    appLogger.d('[Engine] Capped segments: archived 100, '
-        '${_finalizedSegments.length} remaining');
+    appLogger.d(
+      '[Engine] Capped segments: archived 100, '
+      '${_finalizedSegments.length} remaining',
+    );
   }
 
   /// Called when transcription is finalized (segment ends or recording stops).
@@ -412,7 +467,11 @@ class ConversationEngine {
   /// Complete sentences have already been finalized progressively by
   /// [onTranscriptionUpdate]. This only needs to finalize the trailing
   /// incomplete sentence (the current partial).
-  void onTranscriptionFinalized(String text, {DateTime? segmentTimestamp, String? speakerLabel}) {
+  void onTranscriptionFinalized(
+    String text, {
+    DateTime? segmentTimestamp,
+    String? speakerLabel,
+  }) {
     if (!_isActive) return;
 
     // Finalize the trailing partial sentence, not the full buffer text
@@ -424,11 +483,13 @@ class ConversationEngine {
     if (toFinalize.isNotEmpty &&
         (_finalizedSegments.isEmpty ||
             _finalizedSegments.last.text != toFinalize)) {
-      _finalizedSegments.add(TranscriptSegment(
-        text: toFinalize,
-        timestamp: segmentTimestamp ?? DateTime.now(),
-        speakerLabel: speakerLabel,
-      ));
+      _finalizedSegments.add(
+        TranscriptSegment(
+          text: toFinalize,
+          timestamp: segmentTimestamp ?? DateTime.now(),
+          speakerLabel: speakerLabel,
+        ),
+      );
     }
     _partialTranscription = '';
     _segmentSentencesFinalized = 0;
@@ -465,22 +526,22 @@ class ConversationEngine {
     _translationSubscription = TranslationService.instance
         .translate(text, targetLang)
         .listen(
-      (chunk) {
-        buffer.write(chunk);
-        _translationController.add(buffer.toString());
-      },
-      onDone: () {
-        final result = buffer.toString().trim();
-        if (result.isNotEmpty) {
-          _translationController.add(result);
-          // Push translation to glasses HUD
-          HudController.instance.updateDisplay(result);
-        }
-      },
-      onError: (e) {
-        appLogger.e('[Engine] Translation error', error: e);
-      },
-    );
+          (chunk) {
+            buffer.write(chunk);
+            _translationController.add(buffer.toString());
+          },
+          onDone: () {
+            final result = buffer.toString().trim();
+            if (result.isNotEmpty) {
+              _translationController.add(result);
+              // Push translation to glasses HUD
+              HudController.instance.updateDisplay(result);
+            }
+          },
+          onError: (e) {
+            appLogger.e('[Engine] Translation error', error: e);
+          },
+        );
   }
 
   /// Handle AI response text from the OpenAI Realtime API conversation mode.
@@ -888,14 +949,15 @@ Return format (no markdown code blocks):
       return;
     }
 
-    final answeredSummary =
-        _sessionContextManager.buildAnsweredQuestionsSummary();
+    final answeredSummary = _sessionContextManager
+        .buildAnsweredQuestionsSummary();
     final proactiveSystemPrompt = _getSystemPrompt();
 
     final messages = [
       ChatMessage(
         role: 'user',
-        content: '''$context
+        content:
+            '''$context
 
 ${answeredSummary.isNotEmpty ? 'PREVIOUSLY ANSWERED:\n$answeredSummary\n' : ''}
 Analyze this conversation. Identify unanswered questions, factual claims to verify, or provide contextual insights. Do NOT repeat previously answered questions.
@@ -937,12 +999,14 @@ Then your response text.''',
       appLogger.d('[Engine] Proactive preamble type mismatch: $e');
     }
 
-    _sessionContextManager.addAnsweredQuestion(AnsweredQuestion(
-      question: parsedTarget ?? 'proactive analysis',
-      answer: response,
-      timestamp: DateTime.now(),
-      action: parsedAction ?? 'insight',
-    ));
+    _sessionContextManager.addAnsweredQuestion(
+      AnsweredQuestion(
+        question: parsedTarget ?? 'proactive analysis',
+        answer: response,
+        timestamp: DateTime.now(),
+        action: parsedAction ?? 'insight',
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1042,10 +1106,7 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
   /// Merged post-response analysis: generates follow-up chips and runs a
   /// fact-check in a single LLM call instead of two separate calls.
-  Future<void> _postResponseAnalysis(
-    String question,
-    String response,
-  ) async {
+  Future<void> _postResponseAnalysis(String question, String response) async {
     if (response.trim().length < 20) return;
 
     final llmService = _getLlmService();
@@ -1171,7 +1232,10 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
     _analysisTimer = Timer(const Duration(milliseconds: 1500), () {
       final remaining = _analysisTimerTarget!.difference(DateTime.now());
       if (remaining > const Duration(milliseconds: 100)) {
-        _analysisTimer = Timer(remaining, () => _analyzeRecentTranscriptWindow(token));
+        _analysisTimer = Timer(
+          remaining,
+          () => _analyzeRecentTranscriptWindow(token),
+        );
         return;
       }
       _analyzeRecentTranscriptWindow(token);
@@ -1230,6 +1294,12 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
           ),
         ],
         model: SettingsManager.instance.resolvedLightModel,
+        requestOptions: const LlmRequestOptions(
+          operationType: AiOperationType.questionDetection,
+          maxOutputTokens: 120,
+          reasoningEffort: 'low',
+        ),
+        onMetadata: _recordLlmMetadata,
       );
       if (!_isActive || token != _analysisToken) return;
 
@@ -1380,6 +1450,11 @@ Rules:
 
 JSON shape: {"shouldRespond": true/false, "question": "...", "questionExcerpt": "...", "askedBy": "other"|"wearer"}
 
+If the question is just social small talk or does not need AI help, set shouldAnswer=false and category to "social", "phatic", or "small_talk".
+Examples that should NOT be answered: "How are you?", "How's your day going?", "How's your experience?"
+
+Extended JSON shape: {"shouldRespond": true/false, "shouldAnswer": true/false, "category": "...", "reason": "...", "question": "...", "questionExcerpt": "...", "askedBy": "other"|"wearer"}
+
 $profileInstruction''';
   }
 
@@ -1392,6 +1467,11 @@ $profileInstruction''';
       final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
       final shouldRespond = decoded['shouldRespond'] == true;
       if (!shouldRespond) {
+        return null;
+      }
+
+      final shouldAnswer = decoded['shouldAnswer'];
+      if (shouldAnswer == false) {
         return null;
       }
 
@@ -1555,6 +1635,12 @@ $profileInstruction''';
           tools: tools.isEmpty ? null : tools,
           temperature: SettingsManager.instance.temperature,
           model: SettingsManager.instance.resolvedSmartModel,
+          requestOptions: LlmRequestOptions(
+            operationType: AiOperationType.answerGeneration,
+            maxOutputTokens: _answerOutputTokenLimit(),
+            reasoningEffort: 'medium',
+          ),
+          onMetadata: _recordLlmMetadata,
         )) {
           if (!_isResponseCurrent(responseToken)) return;
 
@@ -1564,7 +1650,8 @@ $profileInstruction''';
                 final errorState = ProviderErrorState.fromException(text);
                 _publishProviderError(errorState);
                 _statusController.add(
-                    _isActive ? EngineStatus.listening : EngineStatus.idle);
+                  _isActive ? EngineStatus.listening : EngineStatus.idle,
+                );
                 return;
               }
               responseText += text;
@@ -1576,6 +1663,9 @@ $profileInstruction''';
               }
             case ToolCallRequest():
               pendingToolCall = event;
+            case UsageMetadata():
+              // Usage metadata is delivered through the callback path.
+              break;
           }
         }
 
@@ -1591,7 +1681,12 @@ $profileInstruction''';
         // Add assistant's tool call and tool result to messages for next round
         toolMessages = List.from(toolMessages)
           ..add(ChatMessage(role: 'assistant', content: responseText))
-          ..add(ChatMessage(role: 'user', content: '[Tool result for ${pendingToolCall.name}]: $toolResult'));
+          ..add(
+            ChatMessage(
+              role: 'user',
+              content: '[Tool result for ${pendingToolCall.name}]: $toolResult',
+            ),
+          );
         responseText = ''; // Reset for next round's text
       }
 
@@ -1680,6 +1775,30 @@ $profileInstruction''';
         trimmed.endsWith('？');
   }
 
+  int _answerOutputTokenLimit() {
+    final maxSentences = SettingsManager.instance.maxResponseSentences;
+    return (maxSentences * 120).clamp(120, 720);
+  }
+
+  void _recordLlmMetadata(LlmResponseMetadata metadata) {
+    if (!metadata.usage.hasAnyUsage || metadata.operationType == null) {
+      return;
+    }
+
+    _conversationCostTracker.recordCompleted(
+      operationType: metadata.operationType!,
+      providerId: metadata.providerId,
+      modelId: metadata.modelId,
+      usage: metadata.usage,
+      costUsd: metadata.providerId == 'openai'
+          ? OpenAiPricingRegistry.calculateCostUsd(
+              modelId: metadata.modelId,
+              usage: metadata.usage,
+            )
+          : null,
+    );
+  }
+
   /// Build context messages for the LLM
   List<ChatMessage> _buildContextMessages(String currentQuestion) {
     final messages = <ChatMessage>[];
@@ -1717,9 +1836,12 @@ $profileInstruction''';
     if (_lastKbContextRefresh == null ||
         now.difference(_lastKbContextRefresh!).inSeconds > 60) {
       _lastKbContextRefresh = now;
-      UserKnowledgeBase.instance.buildContextSummary().then((ctx) {
-        _cachedKbContext = ctx;
-      }).catchError((_) {});
+      UserKnowledgeBase.instance
+          .buildContextSummary()
+          .then((ctx) {
+            _cachedKbContext = ctx;
+          })
+          .catchError((_) {});
     }
     return _cachedKbContext;
   }
@@ -1777,7 +1899,8 @@ Rules: Max $maxSentences sentences. Give the answer directly — never write "yo
 
       case ConversationMode.proactive:
         if (isChinese) {
-          basePrompt = '''你是智能眼镜上的主动对话智能助手。
+          basePrompt =
+              '''你是智能眼镜上的主动对话智能助手。
 你正在监听一场实时对话，并在用户请求时提供分析。
 
 你的任务（选择最合适的一个）：
@@ -1994,14 +2117,18 @@ Rules:
     if (_analyticsRunning) return;
     _analyticsRunning = true;
     try {
-      await _maybeTriggerSentimentAnalysis().timeout(_analyticsTimeout,
-          onTimeout: () {
-        appLogger.w('[Engine] Sentiment analysis timed out');
-      });
-      await _maybeTriggerEntityExtraction().timeout(_analyticsTimeout,
-          onTimeout: () {
-        appLogger.w('[Engine] Entity extraction timed out');
-      });
+      await _maybeTriggerSentimentAnalysis().timeout(
+        _analyticsTimeout,
+        onTimeout: () {
+          appLogger.w('[Engine] Sentiment analysis timed out');
+        },
+      );
+      await _maybeTriggerEntityExtraction().timeout(
+        _analyticsTimeout,
+        onTimeout: () {
+          appLogger.w('[Engine] Entity extraction timed out');
+        },
+      );
     } finally {
       _analyticsRunning = false;
     }
@@ -2055,12 +2182,16 @@ Rules:
       // LLMs sometimes wrap the number in text like "The sentiment is 0.5".
       // Extract the first decimal number from the response.
       final numMatch = RegExp(r'-?\d+\.?\d*').firstMatch(response.trim());
-      final parsed = numMatch != null ? double.tryParse(numMatch.group(0)!) : null;
+      final parsed = numMatch != null
+          ? double.tryParse(numMatch.group(0)!)
+          : null;
       if (parsed != null && parsed >= -1.0 && parsed <= 1.0) {
         _sentimentController.add(parsed);
       } else {
-        appLogger.d('[Engine] Sentiment response unparseable: '
-            '"${response.trim().length > 60 ? '${response.trim().substring(0, 60)}...' : response.trim()}"');
+        appLogger.d(
+          '[Engine] Sentiment response unparseable: '
+          '"${response.trim().length > 60 ? '${response.trim().substring(0, 60)}...' : response.trim()}"',
+        );
       }
     } catch (e) {
       appLogger.w('[Engine] Sentiment analysis failed: $e');
@@ -2182,12 +2313,14 @@ Rules:
     Duration segmentDelay = const Duration(milliseconds: 800),
     Duration wordDelay = const Duration(milliseconds: 60),
   }) async {
-    final testSegments = segments ?? const [
-      'So tell me about your experience with distributed systems and how you handled scaling challenges at your previous company.',
-      'That sounds interesting. Can you walk me through a specific example where you had to debug a production issue under pressure?',
-      'What tools and methodologies do you use for monitoring and observability in a microservices architecture?',
-      'How do you approach mentoring junior engineers while still delivering on your own technical work?',
-    ];
+    final testSegments =
+        segments ??
+        const [
+          'So tell me about your experience with distributed systems and how you handled scaling challenges at your previous company.',
+          'That sounds interesting. Can you walk me through a specific example where you had to debug a production issue under pressure?',
+          'What tools and methodologies do you use for monitoring and observability in a microservices architecture?',
+          'How do you approach mentoring junior engineers while still delivering on your own technical work?',
+        ];
 
     if (!_isActive) {
       start(mode: ConversationMode.interview, source: TranscriptSource.phone);
@@ -2207,7 +2340,9 @@ Rules:
 
       // Finalize the segment
       onTranscriptionFinalized(segment, segmentTimestamp: DateTime.now());
-      appLogger.i('[Simulation] Segment ${i + 1}/${testSegments.length} finalized: ${segment.length} chars');
+      appLogger.i(
+        '[Simulation] Segment ${i + 1}/${testSegments.length} finalized: ${segment.length} chars',
+      );
 
       if (i < testSegments.length - 1) {
         await Future<void>.delayed(segmentDelay);
@@ -2245,7 +2380,11 @@ class TranscriptSegment {
   final String text;
   final DateTime timestamp;
   String? speakerLabel; // "me" or "other"
-  TranscriptSegment({required this.text, required this.timestamp, this.speakerLabel});
+  TranscriptSegment({
+    required this.text,
+    required this.timestamp,
+    this.speakerLabel,
+  });
 }
 
 class QuestionDetectionResult {

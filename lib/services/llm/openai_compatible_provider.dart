@@ -104,6 +104,7 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     required double temperature,
     required bool stream,
     List<ToolDefinition>? tools,
+    LlmRequestOptions? requestOptions,
   }) {
     final allMessages = <Map<String, dynamic>>[
       {'role': 'system', 'content': systemPrompt},
@@ -130,6 +131,8 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     if ((apiKey ?? '').trim().isEmpty) {
       yield '[Error] Missing API key for $name';
@@ -143,6 +146,7 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       model: selectedModel,
       temperature: temperature,
       stream: true,
+      requestOptions: requestOptions,
     );
     final headers = buildHeaders();
     final url = '$baseUrl/chat/completions';
@@ -170,7 +174,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       }
 
       // Parse SSE stream
-      yield* _parseSseStream(response);
+      yield* _parseSseStream(
+        response,
+        modelId: selectedModel,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
+      );
     } on SocketException catch (e) {
       yield '[Error] Network error: ${e.message}';
     } on HttpException catch (e) {
@@ -182,8 +191,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     }
   }
 
-  /// Parse the SSE byte stream and yield content deltas.
-  Stream<String> _parseSseStream(HttpClientResponse response) async* {
+  Stream<String> _parseSseStream(
+    HttpClientResponse response, {
+    required String modelId,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
+  }) async* {
     // Buffer for incomplete lines across chunks
     var lineBuffer = '';
 
@@ -204,6 +217,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
 
         try {
           final json = jsonDecode(data) as Map<String, dynamic>;
+          _emitUsageMetadata(
+            json,
+            modelId: modelId,
+            requestOptions: requestOptions,
+            onMetadata: onMetadata,
+          );
           final choices = json['choices'] as List<dynamic>?;
           if (choices == null || choices.isEmpty) continue;
 
@@ -231,6 +250,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
         if (data != '[DONE]') {
           try {
             final json = jsonDecode(data) as Map<String, dynamic>;
+            _emitUsageMetadata(
+              json,
+              modelId: modelId,
+              requestOptions: requestOptions,
+              onMetadata: onMetadata,
+            );
             final choices = json['choices'] as List<dynamic>?;
             if (choices != null && choices.isNotEmpty) {
               final delta =
@@ -255,6 +280,8 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     if ((apiKey ?? '').trim().isEmpty) {
       return '[Error] Missing API key for $name';
@@ -267,6 +294,7 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       model: selectedModel,
       temperature: temperature,
       stream: false,
+      requestOptions: requestOptions,
     );
     final headers = buildHeaders();
     final url = '$baseUrl/chat/completions';
@@ -291,6 +319,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       }
 
       final json = jsonDecode(responseBody) as Map<String, dynamic>;
+      _emitUsageMetadata(
+        json,
+        modelId: selectedModel,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
+      );
       final choices = json['choices'] as List<dynamic>?;
       if (choices == null || choices.isEmpty) {
         return '[Error] No choices in response';
@@ -356,6 +390,8 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     // If no tools provided, fall back to wrapping streamResponse as TextDelta.
     if (tools == null || tools.isEmpty) {
@@ -364,6 +400,8 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
         messages: messages,
         model: model,
         temperature: temperature,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
       )) {
         yield TextDelta(chunk);
       }
@@ -383,6 +421,7 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
       temperature: temperature,
       stream: true,
       tools: tools,
+      requestOptions: requestOptions,
     );
     final headers = buildHeaders();
     final url = '$baseUrl/chat/completions';
@@ -407,7 +446,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
         return;
       }
 
-      yield* _parseSseStreamWithTools(response);
+      yield* _parseSseStreamWithTools(
+        response,
+        modelId: selectedModel,
+        requestOptions: requestOptions,
+        onMetadata: onMetadata,
+      );
     } on SocketException catch (e) {
       yield TextDelta('[Error] Network error: ${e.message}');
     } on HttpException catch (e) {
@@ -421,8 +465,11 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
 
   /// Parse SSE stream, emitting TextDelta and ToolCallRequest events.
   Stream<LlmResponseEvent> _parseSseStreamWithTools(
-    HttpClientResponse response,
-  ) async* {
+    HttpClientResponse response, {
+    required String modelId,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
+  }) async* {
     // Accumulators for tool calls, keyed by index.
     final toolCallIds = <int, String>{};
     final toolCallNames = <int, String>{};
@@ -443,13 +490,21 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
         if (data == '[DONE]') {
           // Emit any accumulated tool calls.
           yield* _emitPendingToolCalls(
-            toolCallIds, toolCallNames, toolCallArgs,
+            toolCallIds,
+            toolCallNames,
+            toolCallArgs,
           );
           return;
         }
 
         try {
           final json = jsonDecode(data) as Map<String, dynamic>;
+          _emitUsageMetadata(
+            json,
+            modelId: modelId,
+            requestOptions: requestOptions,
+            onMetadata: onMetadata,
+          );
           final choices = json['choices'] as List<dynamic>?;
           if (choices == null || choices.isEmpty) continue;
 
@@ -505,6 +560,12 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
         if (data != '[DONE]') {
           try {
             final json = jsonDecode(data) as Map<String, dynamic>;
+            _emitUsageMetadata(
+              json,
+              modelId: modelId,
+              requestOptions: requestOptions,
+              onMetadata: onMetadata,
+            );
             final choices = json['choices'] as List<dynamic>?;
             if (choices != null && choices.isNotEmpty) {
               final delta =
@@ -546,5 +607,29 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
 
       yield ToolCallRequest(id: id, name: name, arguments: parsedArgs);
     }
+  }
+
+  void _emitUsageMetadata(
+    Map<String, dynamic> json, {
+    required String modelId,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
+  }) {
+    if (onMetadata == null) return;
+
+    final usageMap = json['usage'];
+    if (usageMap is! Map) return;
+
+    final usage = LlmUsage.fromJson(usageMap.cast<String, dynamic>());
+    if (!usage.hasAnyUsage) return;
+
+    onMetadata(
+      LlmResponseMetadata(
+        providerId: id,
+        modelId: modelId,
+        usage: usage,
+        operationType: requestOptions?.operationType,
+      ),
+    );
   }
 }

@@ -1204,6 +1204,892 @@ class ConversationSegmentsCompanion
   }
 }
 
+class $ConversationAiCostEntriesTable extends ConversationAiCostEntries
+    with TableInfo<$ConversationAiCostEntriesTable, ConversationAiCostEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConversationAiCostEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _conversationIdMeta = const VerificationMeta(
+    'conversationId',
+  );
+  @override
+  late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
+    'conversation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES conversations (id)',
+    ),
+  );
+  static const VerificationMeta _operationTypeMeta = const VerificationMeta(
+    'operationType',
+  );
+  @override
+  late final GeneratedColumn<String> operationType = GeneratedColumn<String>(
+    'operation_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modelIdMeta = const VerificationMeta(
+    'modelId',
+  );
+  @override
+  late final GeneratedColumn<String> modelId = GeneratedColumn<String>(
+    'model_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _inputTokensMeta = const VerificationMeta(
+    'inputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> inputTokens = GeneratedColumn<int>(
+    'input_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _outputTokensMeta = const VerificationMeta(
+    'outputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> outputTokens = GeneratedColumn<int>(
+    'output_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _cachedInputTokensMeta = const VerificationMeta(
+    'cachedInputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> cachedInputTokens = GeneratedColumn<int>(
+    'cached_input_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _audioInputTokensMeta = const VerificationMeta(
+    'audioInputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> audioInputTokens = GeneratedColumn<int>(
+    'audio_input_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _audioOutputTokensMeta = const VerificationMeta(
+    'audioOutputTokens',
+  );
+  @override
+  late final GeneratedColumn<int> audioOutputTokens = GeneratedColumn<int>(
+    'audio_output_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _costUsdMeta = const VerificationMeta(
+    'costUsd',
+  );
+  @override
+  late final GeneratedColumn<double> costUsd = GeneratedColumn<double>(
+    'cost_usd',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _currencyMeta = const VerificationMeta(
+    'currency',
+  );
+  @override
+  late final GeneratedColumn<String> currency = GeneratedColumn<String>(
+    'currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('USD'),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('completed'),
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<int> startedAt = GeneratedColumn<int>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<int> completedAt = GeneratedColumn<int>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    conversationId,
+    operationType,
+    providerId,
+    modelId,
+    inputTokens,
+    outputTokens,
+    cachedInputTokens,
+    audioInputTokens,
+    audioOutputTokens,
+    costUsd,
+    currency,
+    status,
+    startedAt,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'conversation_ai_cost_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConversationAiCostEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('conversation_id')) {
+      context.handle(
+        _conversationIdMeta,
+        conversationId.isAcceptableOrUnknown(
+          data['conversation_id']!,
+          _conversationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_conversationIdMeta);
+    }
+    if (data.containsKey('operation_type')) {
+      context.handle(
+        _operationTypeMeta,
+        operationType.isAcceptableOrUnknown(
+          data['operation_type']!,
+          _operationTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_operationTypeMeta);
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('model_id')) {
+      context.handle(
+        _modelIdMeta,
+        modelId.isAcceptableOrUnknown(data['model_id']!, _modelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modelIdMeta);
+    }
+    if (data.containsKey('input_tokens')) {
+      context.handle(
+        _inputTokensMeta,
+        inputTokens.isAcceptableOrUnknown(
+          data['input_tokens']!,
+          _inputTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('output_tokens')) {
+      context.handle(
+        _outputTokensMeta,
+        outputTokens.isAcceptableOrUnknown(
+          data['output_tokens']!,
+          _outputTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cached_input_tokens')) {
+      context.handle(
+        _cachedInputTokensMeta,
+        cachedInputTokens.isAcceptableOrUnknown(
+          data['cached_input_tokens']!,
+          _cachedInputTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_input_tokens')) {
+      context.handle(
+        _audioInputTokensMeta,
+        audioInputTokens.isAcceptableOrUnknown(
+          data['audio_input_tokens']!,
+          _audioInputTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('audio_output_tokens')) {
+      context.handle(
+        _audioOutputTokensMeta,
+        audioOutputTokens.isAcceptableOrUnknown(
+          data['audio_output_tokens']!,
+          _audioOutputTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cost_usd')) {
+      context.handle(
+        _costUsdMeta,
+        costUsd.isAcceptableOrUnknown(data['cost_usd']!, _costUsdMeta),
+      );
+    }
+    if (data.containsKey('currency')) {
+      context.handle(
+        _currencyMeta,
+        currency.isAcceptableOrUnknown(data['currency']!, _currencyMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConversationAiCostEntry map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConversationAiCostEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      conversationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      operationType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation_type'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      modelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_id'],
+      )!,
+      inputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}input_tokens'],
+      )!,
+      outputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}output_tokens'],
+      )!,
+      cachedInputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cached_input_tokens'],
+      )!,
+      audioInputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_input_tokens'],
+      )!,
+      audioOutputTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}audio_output_tokens'],
+      )!,
+      costUsd: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}cost_usd'],
+      ),
+      currency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}currency'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}started_at'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}completed_at'],
+      ),
+    );
+  }
+
+  @override
+  $ConversationAiCostEntriesTable createAlias(String alias) {
+    return $ConversationAiCostEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class ConversationAiCostEntry extends DataClass
+    implements Insertable<ConversationAiCostEntry> {
+  final String id;
+  final String conversationId;
+  final String operationType;
+  final String providerId;
+  final String modelId;
+  final int inputTokens;
+  final int outputTokens;
+  final int cachedInputTokens;
+  final int audioInputTokens;
+  final int audioOutputTokens;
+  final double? costUsd;
+  final String currency;
+  final String status;
+  final int startedAt;
+  final int? completedAt;
+  const ConversationAiCostEntry({
+    required this.id,
+    required this.conversationId,
+    required this.operationType,
+    required this.providerId,
+    required this.modelId,
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.cachedInputTokens,
+    required this.audioInputTokens,
+    required this.audioOutputTokens,
+    this.costUsd,
+    required this.currency,
+    required this.status,
+    required this.startedAt,
+    this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['conversation_id'] = Variable<String>(conversationId);
+    map['operation_type'] = Variable<String>(operationType);
+    map['provider_id'] = Variable<String>(providerId);
+    map['model_id'] = Variable<String>(modelId);
+    map['input_tokens'] = Variable<int>(inputTokens);
+    map['output_tokens'] = Variable<int>(outputTokens);
+    map['cached_input_tokens'] = Variable<int>(cachedInputTokens);
+    map['audio_input_tokens'] = Variable<int>(audioInputTokens);
+    map['audio_output_tokens'] = Variable<int>(audioOutputTokens);
+    if (!nullToAbsent || costUsd != null) {
+      map['cost_usd'] = Variable<double>(costUsd);
+    }
+    map['currency'] = Variable<String>(currency);
+    map['status'] = Variable<String>(status);
+    map['started_at'] = Variable<int>(startedAt);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<int>(completedAt);
+    }
+    return map;
+  }
+
+  ConversationAiCostEntriesCompanion toCompanion(bool nullToAbsent) {
+    return ConversationAiCostEntriesCompanion(
+      id: Value(id),
+      conversationId: Value(conversationId),
+      operationType: Value(operationType),
+      providerId: Value(providerId),
+      modelId: Value(modelId),
+      inputTokens: Value(inputTokens),
+      outputTokens: Value(outputTokens),
+      cachedInputTokens: Value(cachedInputTokens),
+      audioInputTokens: Value(audioInputTokens),
+      audioOutputTokens: Value(audioOutputTokens),
+      costUsd: costUsd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costUsd),
+      currency: Value(currency),
+      status: Value(status),
+      startedAt: Value(startedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+    );
+  }
+
+  factory ConversationAiCostEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConversationAiCostEntry(
+      id: serializer.fromJson<String>(json['id']),
+      conversationId: serializer.fromJson<String>(json['conversationId']),
+      operationType: serializer.fromJson<String>(json['operationType']),
+      providerId: serializer.fromJson<String>(json['providerId']),
+      modelId: serializer.fromJson<String>(json['modelId']),
+      inputTokens: serializer.fromJson<int>(json['inputTokens']),
+      outputTokens: serializer.fromJson<int>(json['outputTokens']),
+      cachedInputTokens: serializer.fromJson<int>(json['cachedInputTokens']),
+      audioInputTokens: serializer.fromJson<int>(json['audioInputTokens']),
+      audioOutputTokens: serializer.fromJson<int>(json['audioOutputTokens']),
+      costUsd: serializer.fromJson<double?>(json['costUsd']),
+      currency: serializer.fromJson<String>(json['currency']),
+      status: serializer.fromJson<String>(json['status']),
+      startedAt: serializer.fromJson<int>(json['startedAt']),
+      completedAt: serializer.fromJson<int?>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'conversationId': serializer.toJson<String>(conversationId),
+      'operationType': serializer.toJson<String>(operationType),
+      'providerId': serializer.toJson<String>(providerId),
+      'modelId': serializer.toJson<String>(modelId),
+      'inputTokens': serializer.toJson<int>(inputTokens),
+      'outputTokens': serializer.toJson<int>(outputTokens),
+      'cachedInputTokens': serializer.toJson<int>(cachedInputTokens),
+      'audioInputTokens': serializer.toJson<int>(audioInputTokens),
+      'audioOutputTokens': serializer.toJson<int>(audioOutputTokens),
+      'costUsd': serializer.toJson<double?>(costUsd),
+      'currency': serializer.toJson<String>(currency),
+      'status': serializer.toJson<String>(status),
+      'startedAt': serializer.toJson<int>(startedAt),
+      'completedAt': serializer.toJson<int?>(completedAt),
+    };
+  }
+
+  ConversationAiCostEntry copyWith({
+    String? id,
+    String? conversationId,
+    String? operationType,
+    String? providerId,
+    String? modelId,
+    int? inputTokens,
+    int? outputTokens,
+    int? cachedInputTokens,
+    int? audioInputTokens,
+    int? audioOutputTokens,
+    Value<double?> costUsd = const Value.absent(),
+    String? currency,
+    String? status,
+    int? startedAt,
+    Value<int?> completedAt = const Value.absent(),
+  }) => ConversationAiCostEntry(
+    id: id ?? this.id,
+    conversationId: conversationId ?? this.conversationId,
+    operationType: operationType ?? this.operationType,
+    providerId: providerId ?? this.providerId,
+    modelId: modelId ?? this.modelId,
+    inputTokens: inputTokens ?? this.inputTokens,
+    outputTokens: outputTokens ?? this.outputTokens,
+    cachedInputTokens: cachedInputTokens ?? this.cachedInputTokens,
+    audioInputTokens: audioInputTokens ?? this.audioInputTokens,
+    audioOutputTokens: audioOutputTokens ?? this.audioOutputTokens,
+    costUsd: costUsd.present ? costUsd.value : this.costUsd,
+    currency: currency ?? this.currency,
+    status: status ?? this.status,
+    startedAt: startedAt ?? this.startedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+  );
+  ConversationAiCostEntry copyWithCompanion(
+    ConversationAiCostEntriesCompanion data,
+  ) {
+    return ConversationAiCostEntry(
+      id: data.id.present ? data.id.value : this.id,
+      conversationId: data.conversationId.present
+          ? data.conversationId.value
+          : this.conversationId,
+      operationType: data.operationType.present
+          ? data.operationType.value
+          : this.operationType,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      modelId: data.modelId.present ? data.modelId.value : this.modelId,
+      inputTokens: data.inputTokens.present
+          ? data.inputTokens.value
+          : this.inputTokens,
+      outputTokens: data.outputTokens.present
+          ? data.outputTokens.value
+          : this.outputTokens,
+      cachedInputTokens: data.cachedInputTokens.present
+          ? data.cachedInputTokens.value
+          : this.cachedInputTokens,
+      audioInputTokens: data.audioInputTokens.present
+          ? data.audioInputTokens.value
+          : this.audioInputTokens,
+      audioOutputTokens: data.audioOutputTokens.present
+          ? data.audioOutputTokens.value
+          : this.audioOutputTokens,
+      costUsd: data.costUsd.present ? data.costUsd.value : this.costUsd,
+      currency: data.currency.present ? data.currency.value : this.currency,
+      status: data.status.present ? data.status.value : this.status,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationAiCostEntry(')
+          ..write('id: $id, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('operationType: $operationType, ')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('inputTokens: $inputTokens, ')
+          ..write('outputTokens: $outputTokens, ')
+          ..write('cachedInputTokens: $cachedInputTokens, ')
+          ..write('audioInputTokens: $audioInputTokens, ')
+          ..write('audioOutputTokens: $audioOutputTokens, ')
+          ..write('costUsd: $costUsd, ')
+          ..write('currency: $currency, ')
+          ..write('status: $status, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    conversationId,
+    operationType,
+    providerId,
+    modelId,
+    inputTokens,
+    outputTokens,
+    cachedInputTokens,
+    audioInputTokens,
+    audioOutputTokens,
+    costUsd,
+    currency,
+    status,
+    startedAt,
+    completedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConversationAiCostEntry &&
+          other.id == this.id &&
+          other.conversationId == this.conversationId &&
+          other.operationType == this.operationType &&
+          other.providerId == this.providerId &&
+          other.modelId == this.modelId &&
+          other.inputTokens == this.inputTokens &&
+          other.outputTokens == this.outputTokens &&
+          other.cachedInputTokens == this.cachedInputTokens &&
+          other.audioInputTokens == this.audioInputTokens &&
+          other.audioOutputTokens == this.audioOutputTokens &&
+          other.costUsd == this.costUsd &&
+          other.currency == this.currency &&
+          other.status == this.status &&
+          other.startedAt == this.startedAt &&
+          other.completedAt == this.completedAt);
+}
+
+class ConversationAiCostEntriesCompanion
+    extends UpdateCompanion<ConversationAiCostEntry> {
+  final Value<String> id;
+  final Value<String> conversationId;
+  final Value<String> operationType;
+  final Value<String> providerId;
+  final Value<String> modelId;
+  final Value<int> inputTokens;
+  final Value<int> outputTokens;
+  final Value<int> cachedInputTokens;
+  final Value<int> audioInputTokens;
+  final Value<int> audioOutputTokens;
+  final Value<double?> costUsd;
+  final Value<String> currency;
+  final Value<String> status;
+  final Value<int> startedAt;
+  final Value<int?> completedAt;
+  final Value<int> rowid;
+  const ConversationAiCostEntriesCompanion({
+    this.id = const Value.absent(),
+    this.conversationId = const Value.absent(),
+    this.operationType = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.modelId = const Value.absent(),
+    this.inputTokens = const Value.absent(),
+    this.outputTokens = const Value.absent(),
+    this.cachedInputTokens = const Value.absent(),
+    this.audioInputTokens = const Value.absent(),
+    this.audioOutputTokens = const Value.absent(),
+    this.costUsd = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.status = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ConversationAiCostEntriesCompanion.insert({
+    required String id,
+    required String conversationId,
+    required String operationType,
+    required String providerId,
+    required String modelId,
+    this.inputTokens = const Value.absent(),
+    this.outputTokens = const Value.absent(),
+    this.cachedInputTokens = const Value.absent(),
+    this.audioInputTokens = const Value.absent(),
+    this.audioOutputTokens = const Value.absent(),
+    this.costUsd = const Value.absent(),
+    this.currency = const Value.absent(),
+    this.status = const Value.absent(),
+    required int startedAt,
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       conversationId = Value(conversationId),
+       operationType = Value(operationType),
+       providerId = Value(providerId),
+       modelId = Value(modelId),
+       startedAt = Value(startedAt);
+  static Insertable<ConversationAiCostEntry> custom({
+    Expression<String>? id,
+    Expression<String>? conversationId,
+    Expression<String>? operationType,
+    Expression<String>? providerId,
+    Expression<String>? modelId,
+    Expression<int>? inputTokens,
+    Expression<int>? outputTokens,
+    Expression<int>? cachedInputTokens,
+    Expression<int>? audioInputTokens,
+    Expression<int>? audioOutputTokens,
+    Expression<double>? costUsd,
+    Expression<String>? currency,
+    Expression<String>? status,
+    Expression<int>? startedAt,
+    Expression<int>? completedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (conversationId != null) 'conversation_id': conversationId,
+      if (operationType != null) 'operation_type': operationType,
+      if (providerId != null) 'provider_id': providerId,
+      if (modelId != null) 'model_id': modelId,
+      if (inputTokens != null) 'input_tokens': inputTokens,
+      if (outputTokens != null) 'output_tokens': outputTokens,
+      if (cachedInputTokens != null) 'cached_input_tokens': cachedInputTokens,
+      if (audioInputTokens != null) 'audio_input_tokens': audioInputTokens,
+      if (audioOutputTokens != null) 'audio_output_tokens': audioOutputTokens,
+      if (costUsd != null) 'cost_usd': costUsd,
+      if (currency != null) 'currency': currency,
+      if (status != null) 'status': status,
+      if (startedAt != null) 'started_at': startedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ConversationAiCostEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? conversationId,
+    Value<String>? operationType,
+    Value<String>? providerId,
+    Value<String>? modelId,
+    Value<int>? inputTokens,
+    Value<int>? outputTokens,
+    Value<int>? cachedInputTokens,
+    Value<int>? audioInputTokens,
+    Value<int>? audioOutputTokens,
+    Value<double?>? costUsd,
+    Value<String>? currency,
+    Value<String>? status,
+    Value<int>? startedAt,
+    Value<int?>? completedAt,
+    Value<int>? rowid,
+  }) {
+    return ConversationAiCostEntriesCompanion(
+      id: id ?? this.id,
+      conversationId: conversationId ?? this.conversationId,
+      operationType: operationType ?? this.operationType,
+      providerId: providerId ?? this.providerId,
+      modelId: modelId ?? this.modelId,
+      inputTokens: inputTokens ?? this.inputTokens,
+      outputTokens: outputTokens ?? this.outputTokens,
+      cachedInputTokens: cachedInputTokens ?? this.cachedInputTokens,
+      audioInputTokens: audioInputTokens ?? this.audioInputTokens,
+      audioOutputTokens: audioOutputTokens ?? this.audioOutputTokens,
+      costUsd: costUsd ?? this.costUsd,
+      currency: currency ?? this.currency,
+      status: status ?? this.status,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (conversationId.present) {
+      map['conversation_id'] = Variable<String>(conversationId.value);
+    }
+    if (operationType.present) {
+      map['operation_type'] = Variable<String>(operationType.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (modelId.present) {
+      map['model_id'] = Variable<String>(modelId.value);
+    }
+    if (inputTokens.present) {
+      map['input_tokens'] = Variable<int>(inputTokens.value);
+    }
+    if (outputTokens.present) {
+      map['output_tokens'] = Variable<int>(outputTokens.value);
+    }
+    if (cachedInputTokens.present) {
+      map['cached_input_tokens'] = Variable<int>(cachedInputTokens.value);
+    }
+    if (audioInputTokens.present) {
+      map['audio_input_tokens'] = Variable<int>(audioInputTokens.value);
+    }
+    if (audioOutputTokens.present) {
+      map['audio_output_tokens'] = Variable<int>(audioOutputTokens.value);
+    }
+    if (costUsd.present) {
+      map['cost_usd'] = Variable<double>(costUsd.value);
+    }
+    if (currency.present) {
+      map['currency'] = Variable<String>(currency.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<int>(startedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<int>(completedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConversationAiCostEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('conversationId: $conversationId, ')
+          ..write('operationType: $operationType, ')
+          ..write('providerId: $providerId, ')
+          ..write('modelId: $modelId, ')
+          ..write('inputTokens: $inputTokens, ')
+          ..write('outputTokens: $outputTokens, ')
+          ..write('cachedInputTokens: $cachedInputTokens, ')
+          ..write('audioInputTokens: $audioInputTokens, ')
+          ..write('audioOutputTokens: $audioOutputTokens, ')
+          ..write('costUsd: $costUsd, ')
+          ..write('currency: $currency, ')
+          ..write('status: $status, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TopicsTable extends Topics with TableInfo<$TopicsTable, Topic> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -5348,6 +6234,8 @@ abstract class _$HelixDatabase extends GeneratedDatabase {
   late final $ConversationsTable conversations = $ConversationsTable(this);
   late final $ConversationSegmentsTable conversationSegments =
       $ConversationSegmentsTable(this);
+  late final $ConversationAiCostEntriesTable conversationAiCostEntries =
+      $ConversationAiCostEntriesTable(this);
   late final $TopicsTable topics = $TopicsTable(this);
   late final $FactsTable facts = $FactsTable(this);
   late final $DailyMemoriesTable dailyMemories = $DailyMemoriesTable(this);
@@ -5378,6 +6266,7 @@ abstract class _$HelixDatabase extends GeneratedDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     conversations,
     conversationSegments,
+    conversationAiCostEntries,
     topics,
     facts,
     dailyMemories,
@@ -5451,6 +6340,34 @@ final class $$ConversationsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _conversationSegmentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ConversationAiCostEntriesTable,
+    List<ConversationAiCostEntry>
+  >
+  _conversationAiCostEntriesRefsTable(_$HelixDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.conversationAiCostEntries,
+        aliasName: $_aliasNameGenerator(
+          db.conversations.id,
+          db.conversationAiCostEntries.conversationId,
+        ),
+      );
+
+  $$ConversationAiCostEntriesTableProcessedTableManager
+  get conversationAiCostEntriesRefs {
+    final manager = $$ConversationAiCostEntriesTableTableManager(
+      $_db,
+      $_db.conversationAiCostEntries,
+    ).filter((f) => f.conversationId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _conversationAiCostEntriesRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -5566,6 +6483,33 @@ class $$ConversationsTableFilterComposer
                 $removeJoinBuilderFromRootComposer,
           ),
     );
+    return f(composer);
+  }
+
+  Expression<bool> conversationAiCostEntriesRefs(
+    Expression<bool> Function($$ConversationAiCostEntriesTableFilterComposer f)
+    f,
+  ) {
+    final $$ConversationAiCostEntriesTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.conversationAiCostEntries,
+          getReferencedColumn: (t) => t.conversationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ConversationAiCostEntriesTableFilterComposer(
+                $db: $db,
+                $table: $db.conversationAiCostEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
     return f(composer);
   }
 
@@ -5734,6 +6678,33 @@ class $$ConversationsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> conversationAiCostEntriesRefs<T extends Object>(
+    Expression<T> Function($$ConversationAiCostEntriesTableAnnotationComposer a)
+    f,
+  ) {
+    final $$ConversationAiCostEntriesTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.conversationAiCostEntries,
+          getReferencedColumn: (t) => t.conversationId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ConversationAiCostEntriesTableAnnotationComposer(
+                $db: $db,
+                $table: $db.conversationAiCostEntries,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> topicsRefs<T extends Object>(
     Expression<T> Function($$TopicsTableAnnotationComposer a) f,
   ) {
@@ -5775,6 +6746,7 @@ class $$ConversationsTableTableManager
           Conversation,
           PrefetchHooks Function({
             bool conversationSegmentsRefs,
+            bool conversationAiCostEntriesRefs,
             bool topicsRefs,
           })
         > {
@@ -5856,11 +6828,17 @@ class $$ConversationsTableTableManager
               )
               .toList(),
           prefetchHooksCallback:
-              ({conversationSegmentsRefs = false, topicsRefs = false}) {
+              ({
+                conversationSegmentsRefs = false,
+                conversationAiCostEntriesRefs = false,
+                topicsRefs = false,
+              }) {
                 return PrefetchHooks(
                   db: db,
                   explicitlyWatchedTables: [
                     if (conversationSegmentsRefs) db.conversationSegments,
+                    if (conversationAiCostEntriesRefs)
+                      db.conversationAiCostEntries,
                     if (topicsRefs) db.topics,
                   ],
                   addJoins: null,
@@ -5881,6 +6859,27 @@ class $$ConversationsTableTableManager
                                 table,
                                 p0,
                               ).conversationSegmentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.conversationId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (conversationAiCostEntriesRefs)
+                        await $_getPrefetchedData<
+                          Conversation,
+                          $ConversationsTable,
+                          ConversationAiCostEntry
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ConversationsTableReferences
+                              ._conversationAiCostEntriesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ConversationsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).conversationAiCostEntriesRefs,
                           referencedItemsForCurrentItem:
                               (item, referencedItems) => referencedItems.where(
                                 (e) => e.conversationId == item.id,
@@ -5928,7 +6927,11 @@ typedef $$ConversationsTableProcessedTableManager =
       $$ConversationsTableUpdateCompanionBuilder,
       (Conversation, $$ConversationsTableReferences),
       Conversation,
-      PrefetchHooks Function({bool conversationSegmentsRefs, bool topicsRefs})
+      PrefetchHooks Function({
+        bool conversationSegmentsRefs,
+        bool conversationAiCostEntriesRefs,
+        bool topicsRefs,
+      })
     >;
 typedef $$ConversationSegmentsTableCreateCompanionBuilder =
     ConversationSegmentsCompanion Function({
@@ -6330,6 +7333,556 @@ typedef $$ConversationSegmentsTableProcessedTableManager =
       $$ConversationSegmentsTableUpdateCompanionBuilder,
       (ConversationSegment, $$ConversationSegmentsTableReferences),
       ConversationSegment,
+      PrefetchHooks Function({bool conversationId})
+    >;
+typedef $$ConversationAiCostEntriesTableCreateCompanionBuilder =
+    ConversationAiCostEntriesCompanion Function({
+      required String id,
+      required String conversationId,
+      required String operationType,
+      required String providerId,
+      required String modelId,
+      Value<int> inputTokens,
+      Value<int> outputTokens,
+      Value<int> cachedInputTokens,
+      Value<int> audioInputTokens,
+      Value<int> audioOutputTokens,
+      Value<double?> costUsd,
+      Value<String> currency,
+      Value<String> status,
+      required int startedAt,
+      Value<int?> completedAt,
+      Value<int> rowid,
+    });
+typedef $$ConversationAiCostEntriesTableUpdateCompanionBuilder =
+    ConversationAiCostEntriesCompanion Function({
+      Value<String> id,
+      Value<String> conversationId,
+      Value<String> operationType,
+      Value<String> providerId,
+      Value<String> modelId,
+      Value<int> inputTokens,
+      Value<int> outputTokens,
+      Value<int> cachedInputTokens,
+      Value<int> audioInputTokens,
+      Value<int> audioOutputTokens,
+      Value<double?> costUsd,
+      Value<String> currency,
+      Value<String> status,
+      Value<int> startedAt,
+      Value<int?> completedAt,
+      Value<int> rowid,
+    });
+
+final class $$ConversationAiCostEntriesTableReferences
+    extends
+        BaseReferences<
+          _$HelixDatabase,
+          $ConversationAiCostEntriesTable,
+          ConversationAiCostEntry
+        > {
+  $$ConversationAiCostEntriesTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ConversationsTable _conversationIdTable(_$HelixDatabase db) =>
+      db.conversations.createAlias(
+        $_aliasNameGenerator(
+          db.conversationAiCostEntries.conversationId,
+          db.conversations.id,
+        ),
+      );
+
+  $$ConversationsTableProcessedTableManager get conversationId {
+    final $_column = $_itemColumn<String>('conversation_id')!;
+
+    final manager = $$ConversationsTableTableManager(
+      $_db,
+      $_db.conversations,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_conversationIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ConversationAiCostEntriesTableFilterComposer
+    extends Composer<_$HelixDatabase, $ConversationAiCostEntriesTable> {
+  $$ConversationAiCostEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operationType => $composableBuilder(
+    column: $table.operationType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get inputTokens => $composableBuilder(
+    column: $table.inputTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get outputTokens => $composableBuilder(
+    column: $table.outputTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get cachedInputTokens => $composableBuilder(
+    column: $table.cachedInputTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioInputTokens => $composableBuilder(
+    column: $table.audioInputTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get audioOutputTokens => $composableBuilder(
+    column: $table.audioOutputTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get costUsd => $composableBuilder(
+    column: $table.costUsd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ConversationsTableFilterComposer get conversationId {
+    final $$ConversationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.conversationId,
+      referencedTable: $db.conversations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ConversationsTableFilterComposer(
+            $db: $db,
+            $table: $db.conversations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ConversationAiCostEntriesTableOrderingComposer
+    extends Composer<_$HelixDatabase, $ConversationAiCostEntriesTable> {
+  $$ConversationAiCostEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operationType => $composableBuilder(
+    column: $table.operationType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get modelId => $composableBuilder(
+    column: $table.modelId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get inputTokens => $composableBuilder(
+    column: $table.inputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get outputTokens => $composableBuilder(
+    column: $table.outputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get cachedInputTokens => $composableBuilder(
+    column: $table.cachedInputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioInputTokens => $composableBuilder(
+    column: $table.audioInputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get audioOutputTokens => $composableBuilder(
+    column: $table.audioOutputTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get costUsd => $composableBuilder(
+    column: $table.costUsd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get currency => $composableBuilder(
+    column: $table.currency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ConversationsTableOrderingComposer get conversationId {
+    final $$ConversationsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.conversationId,
+      referencedTable: $db.conversations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ConversationsTableOrderingComposer(
+            $db: $db,
+            $table: $db.conversations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ConversationAiCostEntriesTableAnnotationComposer
+    extends Composer<_$HelixDatabase, $ConversationAiCostEntriesTable> {
+  $$ConversationAiCostEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get operationType => $composableBuilder(
+    column: $table.operationType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get modelId =>
+      $composableBuilder(column: $table.modelId, builder: (column) => column);
+
+  GeneratedColumn<int> get inputTokens => $composableBuilder(
+    column: $table.inputTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get outputTokens => $composableBuilder(
+    column: $table.outputTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get cachedInputTokens => $composableBuilder(
+    column: $table.cachedInputTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audioInputTokens => $composableBuilder(
+    column: $table.audioInputTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get audioOutputTokens => $composableBuilder(
+    column: $table.audioOutputTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get costUsd =>
+      $composableBuilder(column: $table.costUsd, builder: (column) => column);
+
+  GeneratedColumn<String> get currency =>
+      $composableBuilder(column: $table.currency, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  $$ConversationsTableAnnotationComposer get conversationId {
+    final $$ConversationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.conversationId,
+      referencedTable: $db.conversations,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ConversationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.conversations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ConversationAiCostEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$HelixDatabase,
+          $ConversationAiCostEntriesTable,
+          ConversationAiCostEntry,
+          $$ConversationAiCostEntriesTableFilterComposer,
+          $$ConversationAiCostEntriesTableOrderingComposer,
+          $$ConversationAiCostEntriesTableAnnotationComposer,
+          $$ConversationAiCostEntriesTableCreateCompanionBuilder,
+          $$ConversationAiCostEntriesTableUpdateCompanionBuilder,
+          (ConversationAiCostEntry, $$ConversationAiCostEntriesTableReferences),
+          ConversationAiCostEntry,
+          PrefetchHooks Function({bool conversationId})
+        > {
+  $$ConversationAiCostEntriesTableTableManager(
+    _$HelixDatabase db,
+    $ConversationAiCostEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConversationAiCostEntriesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ConversationAiCostEntriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConversationAiCostEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> conversationId = const Value.absent(),
+                Value<String> operationType = const Value.absent(),
+                Value<String> providerId = const Value.absent(),
+                Value<String> modelId = const Value.absent(),
+                Value<int> inputTokens = const Value.absent(),
+                Value<int> outputTokens = const Value.absent(),
+                Value<int> cachedInputTokens = const Value.absent(),
+                Value<int> audioInputTokens = const Value.absent(),
+                Value<int> audioOutputTokens = const Value.absent(),
+                Value<double?> costUsd = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> startedAt = const Value.absent(),
+                Value<int?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationAiCostEntriesCompanion(
+                id: id,
+                conversationId: conversationId,
+                operationType: operationType,
+                providerId: providerId,
+                modelId: modelId,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                cachedInputTokens: cachedInputTokens,
+                audioInputTokens: audioInputTokens,
+                audioOutputTokens: audioOutputTokens,
+                costUsd: costUsd,
+                currency: currency,
+                status: status,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String conversationId,
+                required String operationType,
+                required String providerId,
+                required String modelId,
+                Value<int> inputTokens = const Value.absent(),
+                Value<int> outputTokens = const Value.absent(),
+                Value<int> cachedInputTokens = const Value.absent(),
+                Value<int> audioInputTokens = const Value.absent(),
+                Value<int> audioOutputTokens = const Value.absent(),
+                Value<double?> costUsd = const Value.absent(),
+                Value<String> currency = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                required int startedAt,
+                Value<int?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationAiCostEntriesCompanion.insert(
+                id: id,
+                conversationId: conversationId,
+                operationType: operationType,
+                providerId: providerId,
+                modelId: modelId,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                cachedInputTokens: cachedInputTokens,
+                audioInputTokens: audioInputTokens,
+                audioOutputTokens: audioOutputTokens,
+                costUsd: costUsd,
+                currency: currency,
+                status: status,
+                startedAt: startedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ConversationAiCostEntriesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({conversationId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (conversationId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.conversationId,
+                                referencedTable:
+                                    $$ConversationAiCostEntriesTableReferences
+                                        ._conversationIdTable(db),
+                                referencedColumn:
+                                    $$ConversationAiCostEntriesTableReferences
+                                        ._conversationIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ConversationAiCostEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$HelixDatabase,
+      $ConversationAiCostEntriesTable,
+      ConversationAiCostEntry,
+      $$ConversationAiCostEntriesTableFilterComposer,
+      $$ConversationAiCostEntriesTableOrderingComposer,
+      $$ConversationAiCostEntriesTableAnnotationComposer,
+      $$ConversationAiCostEntriesTableCreateCompanionBuilder,
+      $$ConversationAiCostEntriesTableUpdateCompanionBuilder,
+      (ConversationAiCostEntry, $$ConversationAiCostEntriesTableReferences),
+      ConversationAiCostEntry,
       PrefetchHooks Function({bool conversationId})
     >;
 typedef $$TopicsTableCreateCompanionBuilder =
@@ -8644,6 +10197,11 @@ class $HelixDatabaseManager {
       $$ConversationsTableTableManager(_db, _db.conversations);
   $$ConversationSegmentsTableTableManager get conversationSegments =>
       $$ConversationSegmentsTableTableManager(_db, _db.conversationSegments);
+  $$ConversationAiCostEntriesTableTableManager get conversationAiCostEntries =>
+      $$ConversationAiCostEntriesTableTableManager(
+        _db,
+        _db.conversationAiCostEntries,
+      );
   $$TopicsTableTableManager get topics =>
       $$TopicsTableTableManager(_db, _db.topics);
   $$FactsTableTableManager get facts =>

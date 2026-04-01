@@ -482,6 +482,9 @@ class SpeechStreamRecognizer {
         openaiTranscriber.onResponse = { [weak self] text, isFinal in
             self?.emitAIResponse(text, isFinal: isFinal)
         }
+        openaiTranscriber.onUsage = { [weak self] usage in
+            self?.emitUsage(usage)
+        }
         openaiTranscriber.onAudioOutput = { [weak self] audioData in
             self?.onRealtimeAudioOutput?(audioData)
         }
@@ -1179,6 +1182,15 @@ class SpeechStreamRecognizer {
         emitSpeechEvent([
             "aiResponse": text,
             "isFinal": isFinal,
+        ])
+    }
+
+    private func emitUsage(_ usage: [String: Any]) {
+        emitSpeechEvent([
+            "usage": usage,
+            "usageOperationType": usage["operationType"] as? String ?? "",
+            "usageModel": usage["model"] as? String ?? "",
+            "isUsageEvent": true,
         ])
     }
 

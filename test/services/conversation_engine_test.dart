@@ -50,6 +50,8 @@ class FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     if (_responses.isEmpty) {
       return '{"shouldRespond": false, "question": "", "questionExcerpt": ""}';
@@ -63,6 +65,8 @@ class FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     streamCallCount++;
     final script = _streamResponses.isEmpty
@@ -97,12 +101,16 @@ class FakeJsonProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }
@@ -222,28 +230,31 @@ void main() {
       },
     );
 
-    test('starting a new session clears prior in-memory history and live answer', () async {
-      engine.start(source: TranscriptSource.phone);
-      engine.onTranscriptionFinalized('First session transcript');
-      engine.onRealtimeResponse('First session answer', isFinal: false);
-      engine.onRealtimeResponse('', isFinal: true);
-      engine.stop();
+    test(
+      'starting a new session clears prior in-memory history and live answer',
+      () async {
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('First session transcript');
+        engine.onRealtimeResponse('First session answer', isFinal: false);
+        engine.onRealtimeResponse('', isFinal: true);
+        engine.stop();
 
-      expect(engine.history, isNotEmpty);
+        expect(engine.history, isNotEmpty);
 
-      final responseEvents = <String>[];
-      final responseSub = engine.aiResponseStream.listen(responseEvents.add);
+        final responseEvents = <String>[];
+        final responseSub = engine.aiResponseStream.listen(responseEvents.add);
 
-      engine.start(source: TranscriptSource.phone);
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+        engine.start(source: TranscriptSource.phone);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      await responseSub.cancel();
+        await responseSub.cancel();
 
-      expect(engine.history, isEmpty);
-      expect(responseEvents, ['']);
-      expect(engine.currentTranscriptSnapshot.fullTranscript, isEmpty);
-      expect(engine.currentTranscriptSnapshot.finalizedSegments, isEmpty);
-    });
+        expect(engine.history, isEmpty);
+        expect(responseEvents, ['']);
+        expect(engine.currentTranscriptSnapshot.fullTranscript, isEmpty);
+        expect(engine.currentTranscriptSnapshot.finalizedSegments, isEmpty);
+      },
+    );
 
     test(
       'openai realtime session skips downstream llm streaming and persists streamed assistant turns',
@@ -578,6 +589,26 @@ void main() {
       await sub.cancel();
 
       // No detection should be emitted.
+      expect(results, isEmpty);
+      expect(engine.history, isEmpty);
+    });
+
+    test('ignores social questions that should not be answered', () async {
+      await configureFakeLlm(
+        responses: [
+          '{"shouldRespond": true, "shouldAnswer": false, "category": "social", "question": "How are you?", "questionExcerpt": "How are you?", "askedBy": "other"}',
+        ],
+      );
+
+      final results = <QuestionDetectionResult>[];
+      final sub = engine.questionDetectionStream.listen(results.add);
+
+      engine.start(source: TranscriptSource.phone);
+      engine.onTranscriptionFinalized('How are you?');
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      await sub.cancel();
+
       expect(results, isEmpty);
       expect(engine.history, isEmpty);
     });
@@ -1572,6 +1603,8 @@ class _PromptCapturingProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     // Capture the last user message content as the "prompt".
     final userMessage = messages.lastWhere(
@@ -1584,6 +1617,8 @@ class _PromptCapturingProvider implements LlmProvider {
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     );
   }
 
@@ -1593,12 +1628,16 @@ class _PromptCapturingProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
     return delegate.streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     );
   }
 
@@ -1624,12 +1663,16 @@ class _PromptCapturingProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }
@@ -1656,6 +1699,8 @@ class _FailingProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     throw Exception('Simulated LLM failure');
   }
@@ -1666,6 +1711,8 @@ class _FailingProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     throw Exception('Simulated LLM failure');
   }
@@ -1691,6 +1738,8 @@ class _FailingProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     throw Exception('Simulated LLM failure');
   }

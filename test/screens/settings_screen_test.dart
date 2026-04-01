@@ -281,6 +281,25 @@ void main() {
       expect(find.text('OpenAI'), findsWidgets);
     });
 
+    testWidgets('provider selector includes OpenRouter when expanded', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: SettingsScreen())),
+      );
+      await tester.pump();
+
+      expect(find.text('OpenRouter'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.expand_more).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('OpenRouter'), findsOneWidget);
+    });
+
     testWidgets('model selector is shown for the active provider', (
       tester,
     ) async {

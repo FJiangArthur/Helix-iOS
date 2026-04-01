@@ -76,6 +76,8 @@ class AnthropicProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     if ((apiKey ?? '').trim().isEmpty) {
       yield '[Error] Missing API key for Anthropic';
@@ -184,6 +186,8 @@ class AnthropicProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     if ((apiKey ?? '').trim().isEmpty) {
       return '[Error] Missing API key for Anthropic';
@@ -289,6 +293,8 @@ class AnthropicProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     // Anthropic tool calling not yet implemented — tools are ignored.
     // The LLM will answer from its own knowledge without tool augmentation.
@@ -297,6 +303,8 @@ class AnthropicProvider implements LlmProvider {
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }

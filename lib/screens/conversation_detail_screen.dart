@@ -11,10 +11,7 @@ import '../widgets/glass_card.dart';
 class ConversationDetailScreen extends StatefulWidget {
   final String conversationId;
 
-  const ConversationDetailScreen({
-    super.key,
-    required this.conversationId,
-  });
+  const ConversationDetailScreen({super.key, required this.conversationId});
 
   @override
   State<ConversationDetailScreen> createState() =>
@@ -28,6 +25,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
   Conversation? _conversation;
   List<ConversationSegment> _segments = [];
   List<Topic> _topics = [];
+  double _totalAiCostUsd = 0;
   bool _isLoading = true;
 
   @override
@@ -47,17 +45,24 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
     final db = HelixDatabase.instance;
 
     try {
-      final conv =
-          await db.conversationDao.watchConversation(widget.conversationId).first;
-      final segments = await db.conversationDao
-          .getSegmentsForConversation(widget.conversationId);
-      final topics = await db.conversationDao
-          .getTopicsForConversation(widget.conversationId);
+      final conv = await db.conversationDao
+          .watchConversation(widget.conversationId)
+          .first;
+      final segments = await db.conversationDao.getSegmentsForConversation(
+        widget.conversationId,
+      );
+      final topics = await db.conversationDao.getTopicsForConversation(
+        widget.conversationId,
+      );
+      final totalAiCostUsd = await db.conversationDao.getTotalAiCostUsd(
+        widget.conversationId,
+      );
 
       setState(() {
         _conversation = conv;
         _segments = segments;
         _topics = topics;
+        _totalAiCostUsd = totalAiCostUsd;
         _isLoading = false;
       });
     } catch (_) {
@@ -96,10 +101,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
               overflow: TextOverflow.ellipsis,
             ),
             if (!_isLoading)
-              Text(
-                _dateSubtitle,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(_dateSubtitle, style: Theme.of(context).textTheme.bodySmall),
           ],
         ),
         bottom: TabBar(
@@ -127,15 +129,15 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
               child: CircularProgressIndicator(color: HelixTheme.cyan),
             )
           : _conversation == null
-              ? _buildNotFound()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildOverviewTab(),
-                    _buildTopicsTab(),
-                    _buildTranscriptTab(),
-                  ],
-                ),
+          ? _buildNotFound()
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverviewTab(),
+                _buildTopicsTab(),
+                _buildTranscriptTab(),
+              ],
+            ),
     );
   }
 
@@ -163,8 +165,8 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
       durationStr = minutes < 1
           ? 'Less than a minute'
           : minutes < 60
-              ? '$minutes minutes'
-              : '${(minutes / 60).floor()}h ${minutes % 60}m';
+          ? '$minutes minutes'
+          : '${(minutes / 60).floor()}h ${minutes % 60}m';
     }
 
     return ListView(
@@ -178,14 +180,17 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.summarize, size: 16, color: HelixTheme.cyan),
+                    const Icon(
+                      Icons.summarize,
+                      size: 16,
+                      color: HelixTheme.cyan,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Summary',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(color: HelixTheme.cyan),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelLarge?.copyWith(color: HelixTheme.cyan),
                     ),
                   ],
                 ),
@@ -209,6 +214,11 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
               _buildMetaRow('Source', conv.source),
               _buildMetaRow('Started', DateFormat.jm().format(startTime)),
               if (durationStr != null) _buildMetaRow('Duration', durationStr),
+              if (_totalAiCostUsd > 0)
+                _buildMetaRow(
+                  'AI Cost',
+                  '\$${_totalAiCostUsd.toStringAsFixed(4)}',
+                ),
               if (conv.sentiment != null && conv.sentiment!.isNotEmpty)
                 _buildMetaRowWithWidget(
                   'Sentiment',
@@ -224,10 +234,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
                     ],
                   ),
                 ),
-              _buildMetaRow(
-                'Segments',
-                '${_segments.length}',
-              ),
+              _buildMetaRow('Segments', '${_segments.length}'),
             ],
           ),
         ),
@@ -245,10 +252,9 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
                     const SizedBox(width: 8),
                     Text(
                       'Topics',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(color: HelixTheme.purple),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: HelixTheme.purple,
+                      ),
                     ),
                   ],
                 ),
@@ -275,16 +281,10 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
         children: [
           SizedBox(
             width: 90,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
+            child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
           ),
         ],
       ),
@@ -298,10 +298,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
         children: [
           SizedBox(
             width: 90,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
           ),
           child,
         ],
@@ -352,10 +349,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
     return Container(
       width: 10,
       height: 10,
-      decoration: BoxDecoration(
-        color: dotColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
     );
   }
 
@@ -450,7 +444,8 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
   }
 
   Widget _buildTranscriptBubble(ConversationSegment seg) {
-    final isMe = seg.speakerLabel?.toLowerCase() == 'me' ||
+    final isMe =
+        seg.speakerLabel?.toLowerCase() == 'me' ||
         seg.speakerLabel?.toLowerCase() == 'user' ||
         seg.speakerLabel == null;
     final speakerColor = isMe ? HelixTheme.cyan : HelixTheme.purple;
@@ -491,10 +486,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      timeStr,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
+                    Text(timeStr, style: Theme.of(context).textTheme.bodySmall),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -503,8 +495,8 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
                 Text(
                   seg.text_,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: HelixTheme.textPrimary,
-                      ),
+                    color: HelixTheme.textPrimary,
+                  ),
                 ),
               ],
             ),
@@ -574,9 +566,9 @@ class _TopicSectionState extends State<_TopicSection> {
                   Expanded(
                     child: Text(
                       widget.topic.label,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: color,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(color: color),
                     ),
                   ),
                   if (widget.segments.isNotEmpty)
@@ -606,11 +598,11 @@ class _TopicSectionState extends State<_TopicSection> {
               const Divider(height: 1),
               const SizedBox(height: 12),
               ...widget.segments.map((seg) {
-                final isMe = seg.speakerLabel?.toLowerCase() == 'me' ||
+                final isMe =
+                    seg.speakerLabel?.toLowerCase() == 'me' ||
                     seg.speakerLabel?.toLowerCase() == 'user' ||
                     seg.speakerLabel == null;
-                final speakerColor =
-                    isMe ? HelixTheme.cyan : HelixTheme.purple;
+                final speakerColor = isMe ? HelixTheme.cyan : HelixTheme.purple;
                 final speaker = isMe ? 'Me' : (seg.speakerLabel ?? 'Other');
 
                 return Padding(
@@ -629,10 +621,8 @@ class _TopicSectionState extends State<_TopicSection> {
                       Expanded(
                         child: Text(
                           seg.text_,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: HelixTheme.textPrimary,
-                                  ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: HelixTheme.textPrimary),
                         ),
                       ),
                     ],

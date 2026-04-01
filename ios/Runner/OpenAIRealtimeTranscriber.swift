@@ -27,6 +27,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     var onError: ((String) -> Void)?
     var onAudioOutput: ((Data) -> Void)?
     var onAudioOutputDone: (() -> Void)?
+    var onUsage: (([String: Any]) -> Void)?
 
     var isActive: Bool { webSocketTask != nil }
 
@@ -494,6 +495,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     self.onTranscriptWithId?(transcript, true, itemId)
                 }
             }
+            emitUsageIfPresent(json, operationType: "transcription")
 
         case "response.text.delta":
             if let delta = json["delta"] as? String, !delta.isEmpty {
@@ -506,6 +508,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             DispatchQueue.main.async {
                 self.onResponse?("", true)
             }
+            emitUsageIfPresent(json, operationType: "response")
 
         case "response.audio.delta":
             if let delta = json["delta"] as? String,
@@ -618,6 +621,16 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 ?? "Unknown API error"
         }
         return "Unknown API error"
+    }
+
+    private func emitUsageIfPresent(_ json: [String: Any], operationType: String) {
+        guard let usage = json["usage"] as? [String: Any] else { return }
+        var payload = usage
+        payload["operationType"] = operationType
+        payload["model"] = model
+        DispatchQueue.main.async { [weak self] in
+            self?.onUsage?(payload)
+        }
     }
 }
 

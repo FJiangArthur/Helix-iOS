@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'services/ble.dart';
 import 'services/evenai.dart';
@@ -64,6 +65,23 @@ class BleManager {
   static const int _maxHistorySize = 100;
 
   void _init() {}
+
+  @visibleForTesting
+  void debugSetConnectionState({
+    required bool leftConnected,
+    required bool rightConnected,
+  }) {
+    _isLeftConnected = leftConnected;
+    _isRightConnected = rightConnected;
+    isConnected = leftConnected || rightConnected;
+    connectionStatus = isConnected ? 'Connected (debug)' : 'Not connected';
+    _updateConnectionState(
+      isConnected
+          ? BleConnectionState.connected
+          : BleConnectionState.disconnected,
+    );
+    onStatusChanged?.call();
+  }
 
   /// Get current health metrics
   BleHealthMetrics getHealthMetrics() => _healthMetrics;
@@ -284,8 +302,9 @@ class BleManager {
   }
 
   void _onGlassesDisconnected([dynamic arguments]) {
-    final disconnectedSide =
-        arguments is Map ? arguments['disconnectedSide'] as String? : null;
+    final disconnectedSide = arguments is Map
+        ? arguments['disconnectedSide'] as String?
+        : null;
 
     if (disconnectedSide == 'L') {
       _isLeftConnected = false;
@@ -424,7 +443,9 @@ class BleManager {
     int retry = 3,
   }) async {
     BleReceive ret;
-    for (var i = 0; i < retry; i++) {
+    final attempts = BleTransportPolicy.attemptsForRetryCount(retry);
+    final target = lr ?? Proto.lR();
+    for (var i = 0; i < attempts; i++) {
       if (i > 0) {
         // Record retry attempts (not for first attempt)
         _instance?._healthMetrics = _instance!._healthMetrics.recordRetry();
@@ -440,7 +461,7 @@ class BleManager {
       if (!ret.isTimeout) {
         return ret;
       }
-      if (!BleManager.isBothConnected()) {
+      if (!_isTargetConnected(target)) {
         break;
       }
     }
@@ -599,7 +620,8 @@ class BleManager {
   }
 
   static bool isBothConnected() {
-    return _instance?.isConnected ?? false;
+    return (_instance?._isLeftConnected ?? false) &&
+        (_instance?._isRightConnected ?? false);
   }
 
   static bool isConnectedL() {
@@ -608,6 +630,17 @@ class BleManager {
 
   static bool isConnectedR() {
     return _instance?._isRightConnected ?? false;
+  }
+
+  static bool _isTargetConnected(String lr) {
+    switch (lr) {
+      case 'L':
+        return isConnectedL();
+      case 'R':
+        return isConnectedR();
+      default:
+        return isBothConnected();
+    }
   }
 
   static Future<bool> requestList(
@@ -649,7 +682,9 @@ class BleManager {
       var resp = await request(pack, lr: lr, timeoutMs: timeoutMs ?? 350);
       if (resp.isTimeout) {
         return false;
-      } else if (resp.data.length >= 2 && resp.data[1].toInt() != 0xc9 && resp.data[1].toInt() != 0xcB) {
+      } else if (resp.data.length >= 2 &&
+          resp.data[1].toInt() != 0xc9 &&
+          resp.data[1].toInt() != 0xcB) {
         return false;
       }
     }

@@ -43,6 +43,8 @@ class _FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     if (_responses.isEmpty) {
       return '{"shouldRespond": false, "question": "", "questionExcerpt": ""}';
@@ -56,6 +58,8 @@ class _FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     final script = _streamResponses.isEmpty
         ? const _FakeStreamResponse(['stubbed answer'])
@@ -86,12 +90,16 @@ class _FakeJsonProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }

@@ -20,6 +20,7 @@ class MemoriesScreen extends StatefulWidget {
 
 class _MemoriesScreenState extends State<MemoriesScreen> {
   List<_DaySection> _sections = [];
+  Map<String, double> _costByConversationId = const {};
   bool _isLoading = true;
   bool _isRegenerating = false;
 
@@ -39,6 +40,10 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       final allConversations = await db.conversationDao.getAllConversations(
         limit: 200,
       );
+      final costByConversationId = await db.conversationDao
+          .getAiCostTotalsForConversationIds(
+            allConversations.map((conversation) => conversation.id).toList(),
+          );
 
       // Load all daily memories
       final dailyMemories = await db.dailyMemoryDao.getRecentMemories(
@@ -65,15 +70,18 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
       final sections = <_DaySection>[];
       for (final dateStr in sortedDates) {
-        sections.add(_DaySection(
-          dateStr: dateStr,
-          memory: memoryByDate[dateStr],
-          conversations: convsByDate[dateStr] ?? [],
-        ));
+        sections.add(
+          _DaySection(
+            dateStr: dateStr,
+            memory: memoryByDate[dateStr],
+            conversations: convsByDate[dateStr] ?? [],
+          ),
+        );
       }
 
       setState(() {
         _sections = sections;
+        _costByConversationId = costByConversationId;
         _isLoading = false;
       });
     } catch (_) {
@@ -136,21 +144,21 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               child: CircularProgressIndicator(color: HelixTheme.cyan),
             )
           : _sections.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _onRefresh,
-                  color: HelixTheme.cyan,
-                  backgroundColor: HelixTheme.surfaceRaised,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    itemCount: _sections.length,
-                    itemBuilder: (context, index) =>
-                        _buildDaySection(_sections[index]),
-                  ),
+          ? _buildEmptyState()
+          : RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: HelixTheme.cyan,
+              backgroundColor: HelixTheme.surfaceRaised,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
+                itemCount: _sections.length,
+                itemBuilder: (context, index) =>
+                    _buildDaySection(_sections[index]),
+              ),
+            ),
     );
   }
 
@@ -194,9 +202,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               _formatDateHeader(section.dateStr),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HelixTheme.cyan,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: HelixTheme.cyan),
             ),
           ),
 
@@ -229,9 +237,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                 const SizedBox(width: 8),
                 Text(
                   'Daily Memory',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: HelixTheme.purple,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: HelixTheme.purple),
                 ),
               ],
             ),
@@ -291,6 +299,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
   Widget _buildConversationCard(Conversation conv) {
     final startTime = DateTime.fromMillisecondsSinceEpoch(conv.startedAt);
     final timeStr = DateFormat.jm().format(startTime);
+    final totalAiCostUsd = _costByConversationId[conv.id] ?? 0;
 
     String? durationStr;
     if (conv.endedAt != null) {
@@ -299,15 +308,15 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
       durationStr = minutes < 1
           ? '<1 min'
           : minutes < 60
-              ? '$minutes min'
-              : '${(minutes / 60).floor()}h ${minutes % 60}m';
+          ? '$minutes min'
+          : '${(minutes / 60).floor()}h ${minutes % 60}m';
     }
 
     final title = conv.title?.isNotEmpty == true
         ? conv.title!
         : conv.summary?.isNotEmpty == true
-            ? conv.summary!
-            : 'Untitled conversation';
+        ? conv.summary!
+        : 'Untitled conversation';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -315,8 +324,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  ConversationDetailScreen(conversationId: conv.id),
+              builder: (_) => ConversationDetailScreen(conversationId: conv.id),
             ),
           );
         },
@@ -333,9 +341,9 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 14,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 14),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -363,10 +371,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
               // Time + duration + sentiment
               Row(
                 children: [
-                  Text(
-                    timeStr,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  Text(timeStr, style: Theme.of(context).textTheme.bodySmall),
                   if (durationStr != null) ...[
                     const SizedBox(width: 8),
                     Text(
@@ -374,10 +379,19 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
-                  if (conv.sentiment != null &&
-                      conv.sentiment!.isNotEmpty) ...[
+                  if (conv.sentiment != null && conv.sentiment!.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     _buildSentimentDot(conv.sentiment!),
+                  ],
+                  if (totalAiCostUsd > 0) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '\$${totalAiCostUsd.toStringAsFixed(4)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: HelixTheme.cyan,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                   const Spacer(),
                   // Mode badge
@@ -425,10 +439,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
     return Container(
       width: 8,
       height: 8,
-      decoration: BoxDecoration(
-        color: dotColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
     );
   }
 }

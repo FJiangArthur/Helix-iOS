@@ -2,6 +2,7 @@ import 'package:flutter_helix/services/llm/anthropic_provider.dart';
 import 'package:flutter_helix/services/llm/deepseek_provider.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
 import 'package:flutter_helix/services/llm/openai_provider.dart';
+import 'package:flutter_helix/services/llm/openrouter_provider.dart';
 import 'package:flutter_helix/services/llm/qwen_provider.dart';
 import 'package:flutter_helix/services/llm/siliconflow_provider.dart';
 import 'package:flutter_helix/services/llm/zhipu_provider.dart';
@@ -81,12 +82,16 @@ class LlmService {
     required List<ChatMessage> messages,
     double temperature = 0.7,
     String? model,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
     return activeProvider.streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model ?? _activeModel,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     );
   }
 
@@ -97,6 +102,8 @@ class LlmService {
     List<ToolDefinition>? tools,
     double temperature = 0.7,
     String? model,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
     return activeProvider.streamWithTools(
       systemPrompt: systemPrompt,
@@ -104,6 +111,8 @@ class LlmService {
       tools: tools,
       model: model ?? _activeModel,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     );
   }
 
@@ -112,11 +121,15 @@ class LlmService {
     required String systemPrompt,
     required List<ChatMessage> messages,
     String? model,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
     return activeProvider.getResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model ?? _activeModel,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     );
   }
 
@@ -144,6 +157,7 @@ class LlmService {
   /// Initialize all built-in providers.
   void initializeDefaults() {
     registerProvider(OpenAiProvider());
+    registerProvider(OpenRouterProvider());
     registerProvider(AnthropicProvider());
     registerProvider(DeepSeekProvider());
     registerProvider(QwenProvider());

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 
 import '../ble_manager.dart';
+import 'llm/llm_provider.dart';
 import '../utils/app_logger.dart';
 import 'conversation_engine.dart';
 import 'settings_manager.dart';
@@ -77,162 +78,192 @@ class ConversationListeningSession {
     if (_starting) return;
     _starting = true;
     try {
-    if (_isRunning) {
-      // Stop native side without tearing down the EventChannel subscription.
-      // Full stopSession() cancels the subscription which triggers a
-      // detach/attach cycle that races with the new startEvenAI call.
-      // Pass emitFinal=false to suppress the empty transcript that would
-      // otherwise be emitted before the new session has any audio.
-      await _invokeMethod('stopEvenAI', {'emitFinal': false});
-      _isRunning = false;
-    }
+      if (_isRunning) {
+        // Stop native side without tearing down the EventChannel subscription.
+        // Full stopSession() cancels the subscription which triggers a
+        // detach/attach cycle that races with the new startEvenAI call.
+        // Pass emitFinal=false to suppress the empty transcript that would
+        // otherwise be emitted before the new session has any audio.
+        await _invokeMethod('stopEvenAI', {'emitFinal': false});
+        _isRunning = false;
+      }
 
-    _source = source;
-    _latestTranscript = '';
-    _lastFinalizedTranscript = '';
-    _lastEmittedPartial = '';
-    _speechFinalizationCompleter = null;
-    _publishError(null);
-    _engine.start(source: source);
+      _source = source;
+      _latestTranscript = '';
+      _lastFinalizedTranscript = '';
+      _lastEmittedPartial = '';
+      _speechFinalizationCompleter = null;
+      _publishError(null);
+      _engine.start(source: source);
 
-    // Reuse the existing EventChannel subscription if it's still alive.
-    if (_speechSubscription != null) {
-      appLogger.d('[ListeningSession] Reusing existing eventSpeechRecognize subscription');
-    } else {
-      appLogger.d('[ListeningSession] Subscribing to eventSpeechRecognize stream');
-    }
-    _speechSubscription ??= _speechEvents.listen(
-      (event) {
-        final payload = Map<String, dynamic>.from(event as Map);
-        final text = (payload['script'] as String? ?? '').trim();
-        final isFinal = payload['isFinal'] == true;
-        final error = (payload['error'] as String?)?.trim();
-        final timestampMs = payload['timestampMs'] as int?;
-        final segmentId = payload['segmentId'] as int?;
-        final speaker = payload['speaker'] as String?;
+      // Reuse the existing EventChannel subscription if it's still alive.
+      if (_speechSubscription != null) {
+        appLogger.d(
+          '[ListeningSession] Reusing existing eventSpeechRecognize subscription',
+        );
+      } else {
+        appLogger.d(
+          '[ListeningSession] Subscribing to eventSpeechRecognize stream',
+        );
+      }
+      _speechSubscription ??= _speechEvents.listen(
+        (event) {
+          final payload = Map<String, dynamic>.from(event as Map);
+          final text = (payload['script'] as String? ?? '').trim();
+          final isFinal = payload['isFinal'] == true;
+          final error = (payload['error'] as String?)?.trim();
+          final timestampMs = payload['timestampMs'] as int?;
+          final segmentId = payload['segmentId'] as int?;
+          final speaker = payload['speaker'] as String?;
+          final usagePayload = payload['usage'];
 
-        if (kDebugMode && _speechEventCount++ % 10 == 0) {
-          appLogger.d('[ListeningSession] Speech event #$_speechEventCount — '
+          if (kDebugMode && _speechEventCount++ % 10 == 0) {
+            appLogger.d(
+              '[ListeningSession] Speech event #$_speechEventCount — '
               'isFinal=$isFinal, text="${text.length > 140 ? text.substring(0, 140) : text}"'
               '${segmentId != null ? ", segmentId=$segmentId" : ""}'
-              '${error != null ? ", error=$error" : ""}');
+              '${error != null ? ", error=$error" : ""}',
+            );
+          }
+
+          if (text.isNotEmpty) {
+            _ensureSpeechFinalizationCompleter();
+            _latestTranscript = text;
+            _latestTimestampMs = timestampMs;
+            _latestSegmentId = segmentId;
+            _latestSpeaker = speaker;
+            _publishError(null);
+            // Dedup identical partials to avoid redundant UI updates and LLM scheduling
+            if (!isFinal && text == _lastEmittedPartial) return;
+            _lastEmittedPartial = isFinal ? '' : text;
+            _engine.onTranscriptionUpdate(text);
+          }
+
+          if (error != null && error.isNotEmpty) {
+            appLogger.e('Speech recognition error: $error');
+            _publishError(error);
+          }
+
+          if (usagePayload is Map) {
+            final usageMap = usagePayload.cast<String, dynamic>();
+            final operationType =
+                (payload['usageOperationType'] as String?)?.trim() ?? '';
+            final modelId =
+                (payload['usageModel'] as String?)?.trim().isNotEmpty == true
+                ? (payload['usageModel'] as String).trim()
+                : SettingsManager.instance.transcriptionModel;
+            if (operationType == 'transcription') {
+              _engine.onTranscriptionUsage(
+                providerId: 'openai',
+                modelId: modelId,
+                usage: LlmUsage.fromJson(usageMap),
+              );
+            }
+          }
+
+          if (isFinal) {
+            finalizePendingTranscript(
+              overrideText: text.isNotEmpty ? text : _latestTranscript,
+            );
+          }
+
+          final aiResponse = payload['aiResponse'] as String?;
+          if (aiResponse != null) {
+            _engine.onRealtimeResponse(
+              aiResponse,
+              isFinal: payload['isFinal'] == true,
+            );
+          }
+        },
+        onError: (error) {
+          appLogger.e('Speech recognition stream error', error: error);
+          _publishError('Speech recognition stream error.');
+          finalizePendingTranscript();
+        },
+      );
+
+      // Allow the EventChannel subscription to complete its onListen callback
+      // in the native layer. Without this, the speech event sink may not be
+      // attached when recognition starts, causing early events to be dropped.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      final langCode = _getLanguageCode();
+      final sourceStr = source == TranscriptSource.glasses
+          ? 'glasses'
+          : 'microphone';
+      final settings = SettingsManager.instance;
+      String? apiKey;
+      String? systemPrompt;
+      if (settings.transcriptionBackend == 'openai') {
+        try {
+          apiKey = await settings.getApiKey('openai');
+        } catch (e) {
+          appLogger.w('[ListeningSession] Failed to load OpenAI key: $e');
         }
-
-        if (text.isNotEmpty) {
-          _ensureSpeechFinalizationCompleter();
-          _latestTranscript = text;
-          _latestTimestampMs = timestampMs;
-          _latestSegmentId = segmentId;
-          _latestSpeaker = speaker;
-          _publishError(null);
-          // Dedup identical partials to avoid redundant UI updates and LLM scheduling
-          if (!isFinal && text == _lastEmittedPartial) return;
-          _lastEmittedPartial = isFinal ? '' : text;
-          _engine.onTranscriptionUpdate(text);
-        }
-
-        if (error != null && error.isNotEmpty) {
-          appLogger.e('Speech recognition error: $error');
-          _publishError(error);
-        }
-
-        if (isFinal) {
-          finalizePendingTranscript(
-            overrideText: text.isNotEmpty ? text : _latestTranscript,
-          );
-        }
-
-        final aiResponse = payload['aiResponse'] as String?;
-        if (aiResponse != null) {
-          _engine.onRealtimeResponse(
-            aiResponse,
-            isFinal: payload['isFinal'] == true,
-          );
-        }
-      },
-      onError: (error) {
-        appLogger.e('Speech recognition stream error', error: error);
-        _publishError('Speech recognition stream error.');
-        finalizePendingTranscript();
-      },
-    );
-
-    // Allow the EventChannel subscription to complete its onListen callback
-    // in the native layer. Without this, the speech event sink may not be
-    // attached when recognition starts, causing early events to be dropped.
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-
-    final langCode = _getLanguageCode();
-    final sourceStr =
-        source == TranscriptSource.glasses ? 'glasses' : 'microphone';
-    final settings = SettingsManager.instance;
-    String? apiKey;
-    String? systemPrompt;
-    if (settings.transcriptionBackend == 'openai') {
-      try {
-        apiKey = await settings.getApiKey('openai');
-      } catch (e) {
-        appLogger.w('[ListeningSession] Failed to load OpenAI key: $e');
       }
-    }
-    if (settings.usesOpenAIRealtimeSession) {
-      systemPrompt =
-          settings.openAIRealtimePrompt?.trim().isNotEmpty == true
-          ? settings.openAIRealtimePrompt!.trim()
-          : _engine.systemPrompt;
-    }
+      if (settings.usesOpenAIRealtimeSession) {
+        systemPrompt = settings.openAIRealtimePrompt?.trim().isNotEmpty == true
+            ? settings.openAIRealtimePrompt!.trim()
+            : _engine.systemPrompt;
+      }
 
-    final voiceEnabled = settings.voiceResponseEnabled;
-    final voiceName = settings.voiceAssistantVoice;
+      final voiceEnabled = settings.voiceResponseEnabled;
+      final voiceName = settings.voiceAssistantVoice;
 
-    appLogger.d('[ListeningSession] Calling startEvenAI — '
+      appLogger.d(
+        '[ListeningSession] Calling startEvenAI — '
         'lang=$langCode, source=$sourceStr, '
         'backend=${settings.transcriptionBackend}, '
         'sessionMode=${settings.openAISessionMode}, '
         'model=${settings.transcriptionModel}'
-        '${voiceEnabled ? ", voice=$voiceName" : ""}');
-    try {
-      await _invokeMethod('startEvenAI', {
-        'language': langCode,
-        'source': sourceStr,
-        'backend': settings.transcriptionBackend,
-        'sessionMode': settings.openAISessionMode,
-        'apiKey': apiKey,
-        'model': settings.transcriptionModel,
-        'systemPrompt': systemPrompt,
-        if (voiceEnabled) 'voice': voiceName,
-        if (settings.transcriptionBackend == 'whisper') ...{
-          'enableDiarization': settings.enableDiarization,
-          'whisperChunkDurationSec': settings.whisperChunkDurationSec,
-        },
-      });
-      _isRunning = true;
+        '${voiceEnabled ? ", voice=$voiceName" : ""}',
+      );
+      try {
+        await _invokeMethod('startEvenAI', {
+          'language': langCode,
+          'source': sourceStr,
+          'backend': settings.transcriptionBackend,
+          'sessionMode': settings.openAISessionMode,
+          'apiKey': apiKey,
+          'model': settings.transcriptionModel,
+          'systemPrompt': systemPrompt,
+          if (voiceEnabled) 'voice': voiceName,
+          if (settings.transcriptionBackend == 'whisper') ...{
+            'enableDiarization': settings.enableDiarization,
+            'whisperChunkDurationSec': settings.whisperChunkDurationSec,
+          },
+        });
+        _isRunning = true;
 
-      // Start receiving voice audio output when voice responses are enabled
-      _voiceWasEnabled = voiceEnabled;
-      if (voiceEnabled) {
-        await VoiceAssistantService.instance.startListening();
-        appLogger.d('[ListeningSession] Voice assistant listening started');
+        // Start receiving voice audio output when voice responses are enabled
+        _voiceWasEnabled = voiceEnabled;
+        if (voiceEnabled) {
+          await VoiceAssistantService.instance.startListening();
+          appLogger.d('[ListeningSession] Voice assistant listening started');
+        }
+
+        appLogger.d(
+          '[ListeningSession] startEvenAI succeeded — session is running',
+        );
+      } on PlatformException catch (error) {
+        appLogger.e(
+          '[ListeningSession] startEvenAI PlatformException: ${error.message}',
+        );
+        await _speechSubscription?.cancel();
+        _speechSubscription = null;
+        _isRunning = false;
+        _engine.stop();
+        _publishError(error.message ?? 'Failed to start speech recognition.');
+        rethrow;
+      } catch (error) {
+        appLogger.e('[ListeningSession] startEvenAI error: $error');
+        await _speechSubscription?.cancel();
+        _speechSubscription = null;
+        _isRunning = false;
+        _engine.stop();
+        _publishError('Failed to start speech recognition.');
+        rethrow;
       }
-
-      appLogger.d('[ListeningSession] startEvenAI succeeded — session is running');
-    } on PlatformException catch (error) {
-      appLogger.e('[ListeningSession] startEvenAI PlatformException: ${error.message}');
-      await _speechSubscription?.cancel();
-      _speechSubscription = null;
-      _isRunning = false;
-      _engine.stop();
-      _publishError(error.message ?? 'Failed to start speech recognition.');
-      rethrow;
-    } catch (error) {
-      appLogger.e('[ListeningSession] startEvenAI error: $error');
-      await _speechSubscription?.cancel();
-      _speechSubscription = null;
-      _isRunning = false;
-      _engine.stop();
-      _publishError('Failed to start speech recognition.');
-      rethrow;
-    }
     } finally {
       _starting = false;
     }
@@ -267,7 +298,11 @@ class ConversationListeningSession {
     final segmentTimestamp = _latestTimestampMs != null
         ? DateTime.fromMillisecondsSinceEpoch(_latestTimestampMs!)
         : null;
-    _engine.onTranscriptionFinalized(candidate, segmentTimestamp: segmentTimestamp, speakerLabel: _latestSpeaker);
+    _engine.onTranscriptionFinalized(
+      candidate,
+      segmentTimestamp: segmentTimestamp,
+      speakerLabel: _latestSpeaker,
+    );
     _completeSpeechFinalization();
   }
 

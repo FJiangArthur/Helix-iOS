@@ -27,6 +27,8 @@ class ThrowingStreamProvider extends FakeJsonProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     if (throwAfterFirstChunk) {
       yield TextDelta('partial answer ');
@@ -38,6 +40,8 @@ class ThrowingStreamProvider extends FakeJsonProvider {
       tools: tools,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield chunk;
     }

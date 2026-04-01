@@ -35,6 +35,8 @@ abstract class LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   });
 
   /// Get a complete response (non-streaming).
@@ -43,6 +45,8 @@ abstract class LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   });
 
   /// Test if the API key is valid by making a lightweight request.
@@ -56,16 +60,107 @@ abstract class LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }
   }
+}
+
+enum AiOperationType { transcription, questionDetection, answerGeneration }
+
+class LlmRequestOptions {
+  const LlmRequestOptions({
+    this.operationType,
+    this.maxOutputTokens,
+    this.reasoningEffort,
+  });
+
+  final AiOperationType? operationType;
+  final int? maxOutputTokens;
+  final String? reasoningEffort;
+}
+
+class LlmUsage {
+  const LlmUsage({
+    this.inputTokens = 0,
+    this.outputTokens = 0,
+    this.cachedInputTokens = 0,
+    this.audioInputTokens = 0,
+    this.audioOutputTokens = 0,
+  });
+
+  factory LlmUsage.fromJson(Map<String, dynamic> json) {
+    final inputDetails =
+        _asMap(json['input_token_details']) ??
+        _asMap(json['prompt_tokens_details']) ??
+        _asMap(json['inputTokenDetails']);
+    final outputDetails =
+        _asMap(json['output_token_details']) ??
+        _asMap(json['completion_tokens_details']) ??
+        _asMap(json['outputTokenDetails']);
+
+    return LlmUsage(
+      inputTokens: _readInt(json, const [
+        'input_tokens',
+        'prompt_tokens',
+        'inputTokens',
+      ]),
+      outputTokens: _readInt(json, const [
+        'output_tokens',
+        'completion_tokens',
+        'outputTokens',
+      ]),
+      cachedInputTokens: _readInt(inputDetails, const [
+        'cached_tokens',
+        'cachedTokens',
+      ]),
+      audioInputTokens: _readInt(inputDetails, const [
+        'audio_tokens',
+        'audioTokens',
+      ]),
+      audioOutputTokens: _readInt(outputDetails, const [
+        'audio_tokens',
+        'audioTokens',
+      ]),
+    );
+  }
+
+  final int inputTokens;
+  final int outputTokens;
+  final int cachedInputTokens;
+  final int audioInputTokens;
+  final int audioOutputTokens;
+
+  bool get hasAnyUsage =>
+      inputTokens > 0 ||
+      outputTokens > 0 ||
+      cachedInputTokens > 0 ||
+      audioInputTokens > 0 ||
+      audioOutputTokens > 0;
+}
+
+class LlmResponseMetadata {
+  const LlmResponseMetadata({
+    required this.providerId,
+    required this.modelId,
+    required this.usage,
+    this.operationType,
+  });
+
+  final String providerId;
+  final String modelId;
+  final LlmUsage usage;
+  final AiOperationType? operationType;
 }
 
 /// Represents a single message in a chat conversation.
@@ -114,5 +209,35 @@ class ToolCallRequest extends LlmResponseEvent {
   final String id;
   final String name;
   final Map<String, dynamic> arguments;
-  ToolCallRequest({required this.id, required this.name, required this.arguments});
+  ToolCallRequest({
+    required this.id,
+    required this.name,
+    required this.arguments,
+  });
+}
+
+class UsageMetadata extends LlmResponseEvent {
+  UsageMetadata(this.metadata);
+
+  final LlmResponseMetadata metadata;
+}
+
+Map<String, dynamic>? _asMap(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.cast<String, dynamic>();
+  }
+  return null;
+}
+
+int _readInt(Map<String, dynamic>? json, List<String> keys) {
+  if (json == null) return 0;
+  for (final key in keys) {
+    final value = json[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+  }
+  return 0;
 }

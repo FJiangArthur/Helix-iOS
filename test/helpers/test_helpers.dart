@@ -64,6 +64,8 @@ class FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
     getResponseCallCount++;
     capturedSystemPrompts.add(systemPrompt);
@@ -80,6 +82,8 @@ class FakeJsonProvider implements LlmProvider {
     required List<ChatMessage> messages,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     streamCallCount++;
     capturedSystemPrompts.add(systemPrompt);
@@ -116,12 +120,16 @@ class FakeJsonProvider implements LlmProvider {
     List<ToolDefinition>? tools,
     String? model,
     double temperature = 0.7,
+    LlmRequestOptions? requestOptions,
+    void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async* {
     await for (final chunk in streamResponse(
       systemPrompt: systemPrompt,
       messages: messages,
       model: model,
       temperature: temperature,
+      requestOptions: requestOptions,
+      onMetadata: onMetadata,
     )) {
       yield TextDelta(chunk);
     }
