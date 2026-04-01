@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +20,8 @@ class ConversationHistoryScreen extends StatefulWidget {
 }
 
 class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
+  final _engine = ConversationEngine.instance;
+  final List<StreamSubscription> _subs = [];
   static const List<String> _modeFilterKeys = [
     'All',
     'General',
@@ -32,20 +36,20 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   ];
 
   static String _modeFilterLabel(String key) => switch (key) {
-        'All' => tr('All', '全部'),
-        'General' => tr('General', '通用'),
-        'Interview' => tr('Interview', '面试'),
-        'Passive' => tr('Passive', '被动'),
-        _ => key,
-      };
+    'All' => tr('All', '全部'),
+    'General' => tr('General', '通用'),
+    'Interview' => tr('Interview', '面试'),
+    'Passive' => tr('Passive', '被动'),
+    _ => key,
+  };
 
   static String _libraryFilterLabel(String key) => switch (key) {
-        'All' => tr('All', '全部'),
-        'Favorites' => tr('Favorites', '收藏'),
-        'Action Items' => tr('Action Items', '待办事项'),
-        'Fact-check Flags' => tr('Fact-check Flags', '事实核查'),
-        _ => key,
-      };
+    'All' => tr('All', '全部'),
+    'Favorites' => tr('Favorites', '收藏'),
+    'Action Items' => tr('Action Items', '待办事项'),
+    'Fact-check Flags' => tr('Fact-check Flags', '事实核查'),
+    _ => key,
+  };
   static const String _favoriteKey = 'historyFavoriteSessionIds';
 
   List<ConversationTurn> _history = [];
@@ -64,10 +68,19 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   void initState() {
     super.initState();
     _loadFavoritesAndHistory();
+    _subs.add(
+      _engine.statusStream.listen((status) {
+        if (!mounted || status != EngineStatus.idle) return;
+        _loadHistory();
+      }),
+    );
   }
 
   @override
   void dispose() {
+    for (final sub in _subs) {
+      sub.cancel();
+    }
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -81,7 +94,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
       _favoriteSessionIds
         ..clear()
         ..addAll(favoriteIds);
-      _history = ConversationEngine.instance.history;
+      _history = _engine.history;
       _sessions = _buildSessions(_history);
       _applyFilters();
     });
@@ -94,7 +107,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
 
   void _loadHistory() {
     setState(() {
-      _history = ConversationEngine.instance.history;
+      _history = _engine.history;
       _sessions = _buildSessions(_history);
       _applyFilters();
     });
@@ -373,8 +386,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
 
   Widget _buildCompactHeader() {
     final totalSessions = _sessions.length;
-    final favoriteSessions =
-        _sessions.where((session) => session.isFavorite).length;
+    final favoriteSessions = _sessions
+        .where((session) => session.isFavorite)
+        .length;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
@@ -413,9 +427,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               });
             },
             icon: Icon(
-              _searchExpanded
-                  ? Icons.search_off_rounded
-                  : Icons.search_rounded,
+              _searchExpanded ? Icons.search_off_rounded : Icons.search_rounded,
               color: _searchExpanded
                   ? HelixTheme.cyan
                   : Colors.white.withValues(alpha: 0.54),
@@ -449,7 +461,10 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
             style: const TextStyle(color: Colors.white, fontSize: 15),
             cursorColor: HelixTheme.cyan,
             decoration: InputDecoration(
-              hintText: tr('Search sessions, prompts, answers...', '搜索会话、提示、回答...'),
+              hintText: tr(
+                'Search sessions, prompts, answers...',
+                '搜索会话、提示、回答...',
+              ),
               hintStyle: TextStyle(
                 color: Colors.white.withValues(alpha: 0.34),
                 fontSize: 15,
@@ -941,7 +956,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   icon: isExpanded
                       ? Icons.unfold_less_rounded
                       : Icons.unfold_more_rounded,
-                  label: isExpanded ? tr('Collapse', '收起') : tr('Details', '详情'),
+                  label: isExpanded
+                      ? tr('Collapse', '收起')
+                      : tr('Details', '详情'),
                   onTap: () => _toggleExpanded(session),
                 ),
               ],

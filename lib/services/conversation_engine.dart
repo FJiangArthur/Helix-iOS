@@ -57,6 +57,7 @@ class ConversationEngine {
   Timer? _analysisTimer;
   int _analysisToken = 0;
   int _responseToken = 0;
+  bool _sessionStopHandled = false;
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
@@ -209,6 +210,7 @@ class ConversationEngine {
     _cancelInFlightResponse();
     _resetLiveSessionState(clearConversationHistory: true);
     _isActive = true;
+    _sessionStopHandled = false;
     _transcriptSource = source;
     _silenceSuggestionSent = false;
     _analysisToken = 0;
@@ -245,6 +247,7 @@ class ConversationEngine {
     _lastEmittedPartial = '';
     _clearProviderError();
     _sessionContextManager.reset();
+    _ensureTranscriptHistorySnapshot();
     // Force-persist on stop regardless of debounce
     _lastPersistTime = null;
     _persistHistory();
@@ -255,9 +258,18 @@ class ConversationEngine {
     _statusController.add(EngineStatus.idle);
     appLogger.i('ConversationEngine stopped');
 
+    if (_sessionStopHandled) {
+      return;
+    }
+    _sessionStopHandled = true;
+
+    final hasTranscript = _finalizedSegments.isNotEmpty;
+    final hasAnalysisContext =
+        _history.length > 1 && _finalizedSegments.length > 1;
+
     // Trigger post-conversation analysis asynchronously if there is
     // meaningful history and the session produced finalized segments.
-    if (_history.length > 1 && _finalizedSegments.length > 1) {
+    if (hasAnalysisContext) {
       final stopToken = _analysisToken;
       getPostConversationAnalysis()
           .then((result) {
@@ -271,8 +283,11 @@ class ConversationEngine {
               _postConversationController.add(null);
             }
           });
+    }
 
-      // V2.2: Save conversation to SQLite and trigger cloud pipeline
+    // Save any session that produced finalized transcript segments, even when
+    // the websocket or downstream analysis failed before an assistant answer.
+    if (hasTranscript) {
       _saveAndProcessConversation();
     }
   }
@@ -2066,12 +2081,37 @@ Rules:
     _lastHandledQuestionKey = '';
     _lastHandledQuestionTime = null;
     _latestQuestionDetection = null;
+    _sessionStopHandled = false;
     _lastEmittedSnapshot = '__session_reset__';
     _lastEmittedPartial = '__session_reset__';
     _followUpChipsController.add(const []);
     _aiResponseController.add('');
     _postConversationController.add(null);
     _emitTranscriptSnapshot();
+  }
+
+  void _ensureTranscriptHistorySnapshot() {
+    if (_history.isNotEmpty || _finalizedSegments.isEmpty) {
+      return;
+    }
+
+    final transcript = _finalizedSegments
+        .map((segment) => segment.text.trim())
+        .where((segment) => segment.isNotEmpty)
+        .join('\n\n');
+    if (transcript.isEmpty) {
+      return;
+    }
+
+    _history.add(
+      ConversationTurn(
+        role: 'user',
+        content: transcript,
+        timestamp: _finalizedSegments.first.timestamp,
+        mode: _mode.name,
+        assistantProfileId: SettingsManager.instance.assistantProfileId,
+      ),
+    );
   }
 
   int _beginResponseCycle() {

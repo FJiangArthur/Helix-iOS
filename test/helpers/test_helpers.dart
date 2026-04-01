@@ -227,6 +227,7 @@ Future<void> initTestSettings({
 }) async {
   SharedPreferences.setMockInitialValues({
     'transcriptionBackend': 'appleCloud',
+    'cloudProcessingEnabled': false,
     ...overrides,
   });
   await SettingsManager.instance.initialize();
