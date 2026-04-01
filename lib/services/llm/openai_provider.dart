@@ -24,6 +24,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     'gpt-4.1',
     'gpt-4.1-mini',
     'gpt-4.1-nano',
+    'gpt-realtime',
+    'gpt-realtime-mini',
   ];
 
   @override
@@ -38,6 +40,8 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
       'gpt-4.1',
       'gpt-4.1-mini',
       'gpt-4.1-nano',
+      'gpt-realtime',
+      'gpt-realtime-mini',
     };
     final filtered =
         modelIds
@@ -79,9 +83,22 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     return body;
   }
 
+  String normalizeModelId(String model) {
+    switch (model.trim().toLowerCase()) {
+      case 'gpt-4o-mini-realtime':
+      case 'gpt-4o-mini-realtime-preview':
+        return 'gpt-realtime-mini';
+      case 'gpt-4o-realtime':
+      case 'gpt-4o-realtime-preview':
+        return 'gpt-realtime';
+      default:
+        return model.trim();
+    }
+  }
+
   @override
   bool supportsRealtimeModel(String model) {
-    return model.toLowerCase().contains('realtime');
+    return normalizeModelId(model).toLowerCase().contains('realtime');
   }
 
   @override
@@ -93,7 +110,7 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     LlmRequestOptions? requestOptions,
     void Function(LlmResponseMetadata metadata)? onMetadata,
   }) {
-    final selectedModel = model ?? defaultModel;
+    final selectedModel = normalizeModelId(model ?? defaultModel);
     if (!supportsRealtimeModel(selectedModel)) {
       return super.streamResponse(
         systemPrompt: systemPrompt,
@@ -121,7 +138,7 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     LlmRequestOptions? requestOptions,
     void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
-    final selectedModel = model ?? defaultModel;
+    final selectedModel = normalizeModelId(model ?? defaultModel);
     if (!supportsRealtimeModel(selectedModel)) {
       return super.getResponse(
         systemPrompt: systemPrompt,

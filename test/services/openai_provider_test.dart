@@ -12,6 +12,31 @@ void main() {
       expect(provider.availableModels, contains('gpt-5.4-nano'));
     });
 
+    test('exposes canonical realtime models', () {
+      final provider = OpenAiProvider();
+
+      expect(provider.availableModels, contains('gpt-realtime'));
+      expect(provider.availableModels, contains('gpt-realtime-mini'));
+    });
+
+    test('normalizes legacy realtime aliases to canonical model IDs', () {
+      final provider = OpenAiProvider();
+
+      expect(
+        provider.normalizeModelId('gpt-4o-mini-realtime'),
+        'gpt-realtime-mini',
+      );
+      expect(
+        provider.normalizeModelId('gpt-4o-mini-realtime-preview'),
+        'gpt-realtime-mini',
+      );
+      expect(provider.normalizeModelId('gpt-4o-realtime'), 'gpt-realtime');
+      expect(
+        provider.normalizeModelId('gpt-4o-realtime-preview'),
+        'gpt-realtime',
+      );
+    });
+
     test(
       'builds chat request bodies with output caps for answer generation',
       () {
