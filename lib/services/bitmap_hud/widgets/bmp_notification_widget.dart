@@ -13,6 +13,11 @@ class BmpNotificationWidget extends BmpWidget {
 
   /// Update the unread notification count from outside.
   void setCount(int value) {
+    if (_count != value) {
+      _count = value;
+      isDirty = true;
+      return;
+    }
     _count = value;
   }
 
@@ -47,9 +52,11 @@ class BmpNotificationWidget extends BmpWidget {
     // Count text to the right.
     final countStr = _count > 99 ? '99+' : '$_count';
     HudDraw.text(
-      canvas, countStr,
+      canvas,
+      countStr,
       Offset(iconSize + 4, iconY + 2),
-      fontSize: 22, weight: FontWeight.bold,
+      fontSize: 22,
+      weight: FontWeight.bold,
       maxWidth: zone.width - iconSize - 8,
     );
   }

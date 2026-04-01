@@ -15,7 +15,12 @@ import 'hud_widget_registry.dart';
 import 'proto.dart';
 import 'settings_manager.dart';
 
-enum DashboardRenderPath { fallbackHud, nativeDashboard, bitmapHud, enhancedHud }
+enum DashboardRenderPath {
+  fallbackHud,
+  nativeDashboard,
+  bitmapHud,
+  enhancedHud,
+}
 
 extension DashboardRenderPathLabel on DashboardRenderPath {
   String get label => switch (this) {
@@ -90,6 +95,8 @@ class DashboardDebugState {
 
 typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
+typedef BitmapDashboardRenderer = Future<bool> Function();
+typedef BitmapDashboardInvalidator = void Function();
 
 class DashboardService {
   DashboardService({
@@ -101,6 +108,9 @@ class DashboardService {
     DashboardTextRenderer? dashboardRenderer,
     DashboardTextRenderer? quickAskRestorer,
     DashboardExitRenderer? exitRenderer,
+    BitmapDashboardRenderer? bitmapDeltaRenderer,
+    BitmapDashboardRenderer? bitmapFullRenderer,
+    BitmapDashboardInvalidator? bitmapInvalidateCache,
     DateTime Function()? clock,
     this.cooldown = const Duration(seconds: 4),
     this.displayDuration = const Duration(seconds: 5),
@@ -115,6 +125,12 @@ class DashboardService {
        _quickAskRestorer =
            quickAskRestorer ?? DashboardService._restoreQuickAskText,
        _exitRenderer = exitRenderer ?? DashboardService._exitDashboardText,
+       _bitmapDeltaRenderer =
+           bitmapDeltaRenderer ?? BitmapHudService.instance.pushDelta,
+       _bitmapFullRenderer =
+           bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
+       _bitmapInvalidateCache =
+           bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _clock = clock ?? DateTime.now;
 
   static DashboardService? _instance;
@@ -128,6 +144,9 @@ class DashboardService {
   final DashboardTextRenderer _dashboardRenderer;
   final DashboardTextRenderer _quickAskRestorer;
   final DashboardExitRenderer _exitRenderer;
+  final BitmapDashboardRenderer _bitmapDeltaRenderer;
+  final BitmapDashboardRenderer _bitmapFullRenderer;
+  final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final DateTime Function() _clock;
   final Duration cooldown;
   final Duration displayDuration;
@@ -391,14 +410,15 @@ class DashboardService {
 
     // Bitmap HUD mode: delegate to BitmapHudService for delta push
     if (_isBitmapMode) {
-      final bitmapService = BitmapHudService.instance;
-      var renderOk = await bitmapService.pushDelta();
+      var renderOk = await _bitmapDeltaRenderer();
 
       // Retry with full send if delta failed
       if (!renderOk) {
-        appLogger.w('[DashboardService] Delta push failed, retrying with full send');
-        bitmapService.invalidateCache();
-        renderOk = await bitmapService.pushFull();
+        appLogger.w(
+          '[DashboardService] Delta push failed, retrying with full send',
+        );
+        _bitmapInvalidateCache();
+        renderOk = await _bitmapFullRenderer();
       }
 
       if (!renderOk) {
@@ -422,7 +442,10 @@ class DashboardService {
         triggeredEvent: event,
       );
 
-      // Bitmap HUD is persistent — no auto-hide timer
+      _hideTimer?.cancel();
+      _hideTimer = Timer(_effectiveDisplayDuration, () {
+        unawaited(hideDashboard(source: 'DashboardService.autoHide'));
+      });
       return;
     }
 
@@ -500,11 +523,7 @@ class DashboardService {
     final text = registry.pageText(_currentPageIndex);
     final totalPages = registry.pageCount;
 
-    final renderOk = await _renderPage(
-      text,
-      _currentPageIndex + 1,
-      totalPages,
-    );
+    final renderOk = await _renderPage(text, _currentPageIndex + 1, totalPages);
     if (renderOk) {
       _hudController.updateDisplay(text);
       _updateSnapshotState(activeOverride: true, blockedReason: null);
@@ -609,23 +628,17 @@ class DashboardService {
       _recordingStartedAt = null;
     }
 
-    final Duration? recDuration =
-        isRecording && _recordingStartedAt != null
-            ? now.difference(_recordingStartedAt!)
-            : null;
+    final Duration? recDuration = isRecording && _recordingStartedAt != null
+        ? now.difference(_recordingStartedAt!)
+        : null;
 
-    final questionCount =
-        history.where((t) => t.role == 'user').length;
-    final answerCount =
-        history.where((t) => t.role == 'assistant').length;
+    final questionCount = history.where((t) => t.role == 'user').length;
+    final answerCount = history.where((t) => t.role == 'assistant').length;
     final wordCount = history.fold<int>(
       0,
       (sum, t) =>
           sum +
-          t.content
-              .split(RegExp(r'\s+'))
-              .where((w) => w.isNotEmpty)
-              .length,
+          t.content.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length,
     );
 
     return DashboardSnapshot(
@@ -647,9 +660,10 @@ class DashboardService {
     return switch (_engineStatus) {
       EngineStatus.thinking => 'THINKING...',
       EngineStatus.responding => 'RESPONDING...',
-      EngineStatus.listening => _lastUserQuestion().isNotEmpty
-          ? _lastUserQuestion()
-          : 'Listening for speech',
+      EngineStatus.listening =>
+        _lastUserQuestion().isNotEmpty
+            ? _lastUserQuestion()
+            : 'Listening for speech',
       EngineStatus.error => 'Assistant needs attention',
       EngineStatus.idle => _idleContextLine(),
     };

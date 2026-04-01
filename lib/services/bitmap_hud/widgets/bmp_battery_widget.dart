@@ -14,7 +14,13 @@ class BmpBatteryWidget extends BmpWidget {
 
   /// Update the battery level (0.0–1.0) from outside.
   void setLevel(double value) {
-    _level = value.clamp(0.0, 1.0);
+    final normalized = value.clamp(0.0, 1.0).toDouble();
+    if ((_level - normalized).abs() > 0.0001) {
+      _level = normalized;
+      isDirty = true;
+      return;
+    }
+    _level = normalized;
   }
 
   // BmpWidget -----------------------------------------------------------------
@@ -43,14 +49,21 @@ class BmpBatteryWidget extends BmpWidget {
 
     // Centre vertically within zone (local coords — canvas is pre-translated).
     final iconY = (h - iconSize) / 2;
-    HudDraw.batteryIcon(canvas, Offset(0, iconY), iconSize, fillPercent: _level);
+    HudDraw.batteryIcon(
+      canvas,
+      Offset(0, iconY),
+      iconSize,
+      fillPercent: _level,
+    );
 
     // Percentage text to the right.
     final pct = (_level * 100).round();
     HudDraw.text(
-      canvas, '$pct%',
+      canvas,
+      '$pct%',
       Offset(iconSize + 4, iconY + 2),
-      fontSize: 22, weight: FontWeight.bold,
+      fontSize: 22,
+      weight: FontWeight.bold,
       maxWidth: zone.width - iconSize - 8,
     );
   }

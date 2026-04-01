@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import '../../controllers/bmp_update_manager.dart';
 import '../../ble_manager.dart';
 import '../ble.dart';
@@ -34,14 +36,49 @@ import 'widgets/bmp_weather_widget.dart';
 /// 2. The service automatically pushes a full BMP on BLE connect.
 /// 3. Periodic delta updates refresh the display every 1-2 minutes.
 class BitmapHudService {
-  BitmapHudService._();
+  BitmapHudService._({
+    Future<Uint8List> Function(HudLayout, Map<String, BmpWidget>)? renderer,
+    Future<bool> Function(Uint8List)? fullSender,
+    Future<bool> Function(Uint8List, List<int>)? deltaSender,
+    bool Function()? isConnectedChecker,
+  }) : _renderer = renderer,
+       _fullSender = fullSender,
+       _deltaSender = deltaSender,
+       _isConnectedChecker = isConnectedChecker;
 
   static BitmapHudService? _instance;
   static BitmapHudService get instance => _instance ??= BitmapHudService._();
 
+  @visibleForTesting
+  factory BitmapHudService.test({
+    required HudLayout layout,
+    required Map<String, BmpWidget> zoneWidgets,
+    Uint8List? lastSentBmp,
+    Future<Uint8List> Function(HudLayout, Map<String, BmpWidget>)? renderer,
+    Future<bool> Function(Uint8List)? fullSender,
+    Future<bool> Function(Uint8List, List<int>)? deltaSender,
+    bool Function()? isConnectedChecker,
+  }) {
+    final service = BitmapHudService._(
+      renderer: renderer,
+      fullSender: fullSender,
+      deltaSender: deltaSender,
+      isConnectedChecker: isConnectedChecker,
+    );
+    service._activeLayout = layout;
+    service._zoneWidgets = Map<String, BmpWidget>.from(zoneWidgets);
+    service._lastSentBmp = lastSentBmp;
+    return service;
+  }
+
   final Map<String, BmpWidget> _widgets = {};
   HudLayout _activeLayout = HudLayoutPresets.classic();
   Map<String, BmpWidget> _zoneWidgets = {};
+  final Future<Uint8List> Function(HudLayout, Map<String, BmpWidget>)?
+  _renderer;
+  final Future<bool> Function(Uint8List)? _fullSender;
+  final Future<bool> Function(Uint8List, List<int>)? _deltaSender;
+  final bool Function()? _isConnectedChecker;
 
   /// Cached last-sent BMP for delta comparison.
   Uint8List? _lastSentBmp;
@@ -238,15 +275,17 @@ class BitmapHudService {
 
   /// Refresh only stale widgets (past their refresh interval).
   ///
-  /// Returns `true` if any widget reports [isDirty] after refresh.
-  Future<bool> _refreshStaleWidgets() async {
+  /// Tracks whether any widget was refreshed and whether any widget is dirty.
+  Future<_WidgetRefreshState> _refreshStaleWidgets() async {
     final now = DateTime.now();
-    bool anyDirty = false;
+    bool refreshedAny = false;
+    bool anyDirty = _zoneWidgets.values.any((widget) => widget.isDirty);
 
     for (final entry in _zoneWidgets.entries) {
       final widget = entry.value;
       final last = widget.lastRefreshed;
       if (last == null || now.difference(last) >= widget.refreshInterval) {
+        refreshedAny = true;
         try {
           await widget.refresh();
           if (widget.isDirty) anyDirty = true;
@@ -256,17 +295,21 @@ class BitmapHudService {
       }
     }
 
-    return anyDirty;
+    return _WidgetRefreshState(refreshedAny: refreshedAny, anyDirty: anyDirty);
   }
 
   /// Render the current dashboard to BMP bytes.
   Future<Uint8List> renderDashboard() async {
+    final renderer = _renderer;
+    if (renderer != null) {
+      return renderer(_activeLayout, _zoneWidgets);
+    }
     return BitmapRenderer.render(_activeLayout, _zoneWidgets);
   }
 
   /// Full BMP send: render and push all chunks to both glasses.
   Future<bool> pushFull() async {
-    if (_sending || !BleManager.isBothConnected()) return false;
+    if (_sending || !_isConnected()) return false;
     return _pushFullLocked();
   }
 
@@ -277,9 +320,10 @@ class BitmapHudService {
       await _refreshAllWidgets();
       final bmpData = await renderDashboard();
 
-      final success = await BmpUpdateManager.sendBitmapHud(bmpData);
+      final success = await _sendFull(bmpData);
       if (success) {
         _lastSentBmp = bmpData;
+        _clearDirtyFlags();
         appLogger.d(
           'BitmapHud: full push complete '
           '(${bmpData.length} bytes)',
@@ -301,16 +345,16 @@ class BitmapHudService {
   /// [renderDashboard] is skipped entirely and the refresh interval is doubled
   /// (up to [_maxRefreshInterval]).
   Future<bool> pushDelta() async {
-    if (_sending || !BleManager.isBothConnected()) return false;
+    if (_sending || !_isConnected()) return false;
     if (_lastSentBmp == null) return _pushFullLocked();
 
     _sending = true;
 
     try {
-      final anyDirty = await _refreshStaleWidgets();
+      final refreshState = await _refreshStaleWidgets();
 
-      // If no widget changed, skip rendering entirely and back off.
-      if (!anyDirty) {
+      // If nothing refreshed and no widget is marked dirty, skip rendering.
+      if (!refreshState.refreshedAny && !refreshState.anyDirty) {
         appLogger.d('BitmapHud: no widget dirty, skipping render');
         _currentRefreshIntervalSeconds = (_currentRefreshIntervalSeconds * 2)
             .clamp(_minRefreshInterval, _maxRefreshInterval);
@@ -321,15 +365,10 @@ class BitmapHudService {
       _currentRefreshIntervalSeconds = _minRefreshInterval;
 
       final newBmp = await renderDashboard();
-
-      // Clear dirty flags after render.
-      for (final w in _zoneWidgets.values) {
-        w.isDirty = false;
-      }
-
       final changedIndices = DeltaEncoder.diff(_lastSentBmp!, newBmp);
 
       if (changedIndices.isEmpty) {
+        _clearDirtyFlags();
         appLogger.d('BitmapHud: no pixel changes, skipping send');
         return true;
       }
@@ -339,21 +378,21 @@ class BitmapHudService {
           DeltaEncoder.chunkSize;
       appLogger.d('BitmapHud: delta ${changedIndices.length}/$total chunks');
 
-      final success = await BmpUpdateManager.sendBitmapHudDelta(
-        newBmp,
-        changedIndices,
-      );
+      final success = await _sendDelta(newBmp, changedIndices);
 
       if (success) {
         _lastSentBmp = newBmp;
+        _clearDirtyFlags();
         return true;
       }
 
       // Delta failed — fall back to full send (keep lock held)
       appLogger.w('BitmapHud: delta failed, falling back to full send');
-      final bmpData = await renderDashboard();
-      final fullSuccess = await BmpUpdateManager.sendBitmapHud(bmpData);
-      if (fullSuccess) _lastSentBmp = bmpData;
+      final fullSuccess = await _sendFull(newBmp);
+      if (fullSuccess) {
+        _lastSentBmp = newBmp;
+        _clearDirtyFlags();
+      }
       return fullSuccess;
     } catch (e) {
       appLogger.e('BitmapHud: delta push error: $e');
@@ -388,4 +427,39 @@ class BitmapHudService {
     _connectionSub?.cancel();
     _settingsSub?.cancel();
   }
+
+  bool _isConnected() =>
+      _isConnectedChecker?.call() ?? BleManager.isBothConnected();
+
+  Future<bool> _sendFull(Uint8List bmpData) {
+    final sender = _fullSender;
+    if (sender != null) {
+      return sender(bmpData);
+    }
+    return BmpUpdateManager.sendBitmapHud(bmpData);
+  }
+
+  Future<bool> _sendDelta(Uint8List bmpData, List<int> changedIndices) {
+    final sender = _deltaSender;
+    if (sender != null) {
+      return sender(bmpData, changedIndices);
+    }
+    return BmpUpdateManager.sendBitmapHudDelta(bmpData, changedIndices);
+  }
+
+  void _clearDirtyFlags() {
+    for (final widget in _zoneWidgets.values) {
+      widget.isDirty = false;
+    }
+  }
+}
+
+class _WidgetRefreshState {
+  const _WidgetRefreshState({
+    required this.refreshedAny,
+    required this.anyDirty,
+  });
+
+  final bool refreshedAny;
+  final bool anyDirty;
 }

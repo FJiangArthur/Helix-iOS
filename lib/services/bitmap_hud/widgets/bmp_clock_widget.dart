@@ -14,8 +14,18 @@ import '../draw_helpers.dart';
 class BmpClockWidget extends BmpWidget {
   static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   DateTime _now = DateTime.now();
@@ -31,7 +41,17 @@ class BmpClockWidget extends BmpWidget {
 
   @override
   Future<void> refresh() async {
-    _now = DateTime.now();
+    final next = DateTime.now();
+    final minuteChanged =
+        next.minute != _now.minute ||
+        next.hour != _now.hour ||
+        next.day != _now.day ||
+        next.month != _now.month ||
+        next.year != _now.year;
+    _now = next;
+    if (minuteChanged) {
+      isDirty = true;
+    }
     lastRefreshed = _now;
   }
 
@@ -49,16 +69,14 @@ class BmpClockWidget extends BmpWidget {
     final h = zone.height.toDouble();
 
     // Date line at top
-    HudDraw.text(
-      canvas,
-      dateStr,
-      Offset(8, 8),
-      fontSize: 20,
-      maxWidth: w - 16,
-    );
+    HudDraw.text(canvas, dateStr, Offset(8, 8), fontSize: 20, maxWidth: w - 16);
 
     // Large time — centered vertically in remaining space
-    final timeSize = HudDraw.measure(timeStr, fontSize: 64, weight: FontWeight.bold);
+    final timeSize = HudDraw.measure(
+      timeStr,
+      fontSize: 64,
+      weight: FontWeight.bold,
+    );
     final tx = (w - timeSize.width) / 2;
     final ty = 36 + (h - 36 - timeSize.height) / 2;
 

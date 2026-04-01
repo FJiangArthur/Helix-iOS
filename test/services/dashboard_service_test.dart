@@ -196,5 +196,49 @@ void main() {
 
       activeService.dispose();
     });
+
+    test('bitmap dashboard auto-hides after the configured duration', () async {
+      SettingsManager.instance.hudRenderPath = 'bitmap';
+
+      final bitmapService = DashboardService(
+        bleManager: BleManager.get(),
+        hudController: HudController.instance,
+        conversationEngine: ConversationEngine.instance,
+        handoffMemory: HandoffMemory.instance,
+        settingsManager: SettingsManager.instance,
+        dashboardRenderer: (text) async => true,
+        quickAskRestorer: (text) async => true,
+        exitRenderer: () async {
+          exitCalls += 1;
+          return true;
+        },
+        bitmapDeltaRenderer: () async => true,
+        bitmapFullRenderer: () async => true,
+        bitmapInvalidateCache: () {},
+        clock: () => DateTime(2026, 3, 12, 10, 0),
+        cooldown: const Duration(milliseconds: 200),
+        displayDuration: const Duration(milliseconds: 40),
+      );
+
+      await bitmapService.initialize();
+      await bitmapService.handleDeviceEvent(
+        headUpEvent(label: 'bitmap_head_up'),
+      );
+
+      expect(bitmapService.state.isActive, isTrue);
+      expect(HudController.instance.currentIntent, HudIntent.dashboard);
+
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(bitmapService.state.isActive, isFalse);
+      expect(HudController.instance.currentIntent, HudIntent.idle);
+      expect(exitCalls, 1);
+
+      await bitmapService.hideDashboard(
+        source: 'test.bitmapDashboard.teardown',
+      );
+      bitmapService.dispose();
+      SettingsManager.instance.hudRenderPath = 'text';
+    });
   });
 }
