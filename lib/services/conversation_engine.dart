@@ -61,6 +61,7 @@ class ConversationEngine {
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
   QuestionDetectionResult? _latestQuestionDetection;
+  String? _lastSavedConversationId;
   final ConversationCostTracker _conversationCostTracker =
       ConversationCostTracker();
 
@@ -82,6 +83,8 @@ class ConversationEngine {
   static const int _responseFlushThreshold = 14;
   bool _silenceSuggestionSent = false;
   String _realtimeResponseBuffer = '';
+  String _latestAssistantResponse = '';
+  DateTime? _latestAssistantResponseTimestamp;
   String _lastEmittedSnapshot = '';
   String _lastEmittedPartial = '';
   DateTime? _silenceTimerTarget;
@@ -253,6 +256,9 @@ class ConversationEngine {
     _persistHistory();
     // Restore idle heartbeat now that conversation ended.
     BleManager.get().updateHeartbeatMode(false);
+    if (!BleManager.isBothConnected()) {
+      BleManager.get().stopSendBeatHeart();
+    }
     // Resume bitmap HUD refresh.
     BitmapHudService.instance.setConversationActive(false);
     _statusController.add(EngineStatus.idle);
@@ -298,6 +304,7 @@ class ConversationEngine {
       final db = database_pkg.HelixDatabase.instance;
       final conversationId = const Uuid().v4();
       final now = DateTime.now().millisecondsSinceEpoch;
+      _lastSavedConversationId = conversationId;
 
       // Save conversation record
       await db.conversationDao.insertConversation(
@@ -310,9 +317,12 @@ class ConversationEngine {
         ),
       );
 
-      // Save segments
-      for (int i = 0; i < _finalizedSegments.length; i++) {
-        final seg = _finalizedSegments[i];
+      final timelineEntries = _buildPersistedTimelineEntries();
+
+      // Save timeline entries in chronological order so transcript and
+      // assistant replies remain part of the same persisted session.
+      for (int i = 0; i < timelineEntries.length; i++) {
+        final seg = timelineEntries[i];
         await db.conversationDao.insertSegment(
           database_pkg.ConversationSegmentsCompanion.insert(
             id: const Uuid().v4(),
@@ -326,7 +336,7 @@ class ConversationEngine {
       }
 
       appLogger.i(
-        'Saved conversation $conversationId with ${_finalizedSegments.length} segments',
+        'Saved conversation $conversationId with ${timelineEntries.length} timeline entries',
       );
 
       for (final entry in _conversationCostTracker.entries) {
@@ -358,6 +368,73 @@ class ConversationEngine {
       CloudPipelineService.instance.processConversation(conversationId);
     } catch (e) {
       appLogger.e('Failed to save conversation to database', error: e);
+    }
+  }
+
+  List<TranscriptSegment> _buildPersistedTimelineEntries() {
+    final entries = <TranscriptSegment>[
+      ..._finalizedSegments.map(
+        (segment) => TranscriptSegment(
+          text: segment.text,
+          timestamp: segment.timestamp,
+          speakerLabel: segment.speakerLabel,
+        ),
+      ),
+      ..._history
+          .where((turn) => turn.role == 'assistant')
+          .map(
+            (turn) => TranscriptSegment(
+              text: turn.content,
+              timestamp: turn.timestamp,
+              speakerLabel: 'assistant',
+            ),
+          ),
+    ];
+
+    final latestResponse = _latestAssistantResponse.trim();
+    final hasPersistedAssistantTurn = entries.any(
+      (entry) =>
+          entry.speakerLabel == 'assistant' &&
+          _normalizeQuestion(entry.text) == _normalizeQuestion(latestResponse),
+    );
+    if (latestResponse.isNotEmpty && !hasPersistedAssistantTurn) {
+      entries.add(
+        TranscriptSegment(
+          text: latestResponse,
+          timestamp:
+              _latestAssistantResponseTimestamp ??
+              (_finalizedSegments.isNotEmpty
+                  ? _finalizedSegments.last.timestamp
+                  : DateTime.now()),
+          speakerLabel: 'assistant',
+        ),
+      );
+    }
+
+    entries.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return entries;
+  }
+
+  Future<void> attachLatestAudioFilePath(String? path) async {
+    final trimmedPath = path?.trim();
+    if (trimmedPath == null || trimmedPath.isEmpty) {
+      return;
+    }
+    final conversationId = _lastSavedConversationId;
+    if (conversationId == null) {
+      return;
+    }
+
+    try {
+      final db = database_pkg.HelixDatabase.instance;
+      await db.conversationDao.updateConversation(
+        database_pkg.ConversationsCompanion(
+          id: drift.Value(conversationId),
+          audioFilePath: drift.Value(trimmedPath),
+        ),
+      );
+    } catch (error) {
+      appLogger.e('Failed to attach audio path to conversation', error: error);
     }
   }
 
@@ -566,6 +643,8 @@ class ConversationEngine {
   void onRealtimeResponse(String text, {required bool isFinal}) {
     if (text.isNotEmpty) {
       _realtimeResponseBuffer += text;
+      _latestAssistantResponse = _realtimeResponseBuffer;
+      _latestAssistantResponseTimestamp = DateTime.now();
       _streamToGlasses(text, isStreaming: true);
       _aiResponseController.add(_realtimeResponseBuffer);
       _statusController.add(EngineStatus.responding);
@@ -1380,6 +1459,10 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
         try {
           await _generateResponse(
             detection.question,
+            overrideMessages: _buildAutoAnswerMessages(
+              detection,
+              transcriptWindow: window,
+            ),
             responseToken: responseToken,
           );
         } finally {
@@ -1682,6 +1765,8 @@ $profileInstruction''';
                 return;
               }
               responseText += text;
+              _latestAssistantResponse = responseText;
+              _latestAssistantResponseTimestamp = DateTime.now();
               pendingDelta += text;
               if (_shouldFlushBufferedResponse(pendingDelta)) {
                 await flushPendingDelta();
@@ -1827,7 +1912,10 @@ $profileInstruction''';
   }
 
   /// Build context messages for the LLM
-  List<ChatMessage> _buildContextMessages(String currentQuestion) {
+  List<ChatMessage> _buildContextMessages(
+    String currentQuestion, {
+    String? transcriptWindow,
+  }) {
     final messages = <ChatMessage>[];
 
     // Add recent conversation history (last 20 turns)
@@ -1845,12 +1933,90 @@ $profileInstruction''';
       );
     }
 
+    final trimmedWindow = transcriptWindow?.trim() ?? '';
+    if (trimmedWindow.isNotEmpty) {
+      messages.add(
+        ChatMessage(
+          role: 'user',
+          content: _buildTranscriptContextPrompt(
+            transcriptWindow: trimmedWindow,
+            question: currentQuestion,
+          ),
+        ),
+      );
+      return messages;
+    }
+
     // Add current question if not already in history
     if (messages.isEmpty || messages.last.content != currentQuestion) {
       messages.add(ChatMessage(role: 'user', content: currentQuestion));
     }
 
     return messages;
+  }
+
+  List<ChatMessage> _buildAutoAnswerMessages(
+    QuestionDetectionResult detection, {
+    required String transcriptWindow,
+  }) {
+    final recentHistory = _history.length > 20
+        ? _history.sublist(_history.length - 20)
+        : _history;
+    final messages = <ChatMessage>[];
+
+    for (final turn in recentHistory) {
+      final isCurrentDetectedQuestion =
+          turn.role == 'user' &&
+          _normalizeQuestion(turn.content) ==
+              _normalizeQuestion(detection.question);
+      if (isCurrentDetectedQuestion) {
+        continue;
+      }
+      messages.add(
+        ChatMessage(
+          role: turn.role,
+          content: turn.content,
+          timestamp: turn.timestamp,
+        ),
+      );
+    }
+
+    messages.add(
+      ChatMessage(
+        role: 'user',
+        content: _buildTranscriptContextPrompt(
+          transcriptWindow: transcriptWindow,
+          question: detection.question,
+          questionExcerpt: detection.questionExcerpt,
+        ),
+      ),
+    );
+    return messages;
+  }
+
+  String _buildTranscriptContextPrompt({
+    required String transcriptWindow,
+    required String question,
+    String? questionExcerpt,
+  }) {
+    final excerpt = questionExcerpt?.trim() ?? '';
+    if (_language == 'zh') {
+      return '''最近对话上下文：
+$transcriptWindow
+
+${excerpt.isNotEmpty ? '原始提问片段：$excerpt\n' : ''}需要回答的问题：
+$question
+
+请基于最近对话上下文，直接给出佩戴者可以说出口的回答。''';
+    }
+
+    return '''Recent conversation context:
+$transcriptWindow
+
+${excerpt.isNotEmpty ? 'Verbatim question excerpt: $excerpt\n' : ''}Question to answer:
+$question
+
+Answer the detected question directly using the recent conversation context above.''';
   }
 
   /// Get the current language setting
@@ -2090,6 +2256,8 @@ Rules:
     _partialTranscription = '';
     _finalizedSegments.clear();
     _realtimeResponseBuffer = '';
+    _latestAssistantResponse = '';
+    _latestAssistantResponseTimestamp = null;
     _lastHandledQuestionKey = '';
     _lastHandledQuestionTime = null;
     _latestQuestionDetection = null;
@@ -2127,6 +2295,8 @@ Rules:
   }
 
   int _beginResponseCycle() {
+    _latestAssistantResponse = '';
+    _latestAssistantResponseTimestamp = null;
     _responseToken++;
     return _responseToken;
   }

@@ -31,21 +31,17 @@ enum RecordingMode {
 }
 
 /// The capture path currently available for an active recording.
-enum RecordingCaptureState {
-  idle,
-  transcribing,
-  audioOnly,
-}
+enum RecordingCaptureState { idle, transcribing, audioOnly }
 
 typedef RecordingAudioServiceFactory = AudioService Function();
-typedef RecordingStartTranscription = Future<void> Function({
-  required TranscriptSource source,
-  required RecordingMode mode,
-  required bool useGlasses,
-});
-typedef RecordingStopTranscription = Future<void> Function({
-  required bool startedViaEvenAI,
-});
+typedef RecordingStartTranscription =
+    Future<void> Function({
+      required TranscriptSource source,
+      required RecordingMode mode,
+      required bool useGlasses,
+    });
+typedef RecordingStopTranscription =
+    Future<void> Function({required bool startedViaEvenAI});
 
 /// Singleton that coordinates recording across both the conversation
 /// listening session (transcription) and the audio file recorder.
@@ -61,9 +57,9 @@ class RecordingCoordinator {
   }) : _audioServiceFactory = audioServiceFactory ?? AudioServiceImpl.new,
        _startTranscription = startTranscription ?? _defaultStartTranscription,
        _stopTranscription = stopTranscription ?? _defaultStopTranscription {
-    _listeningErrorSubscription = (listeningErrors ??
-            ConversationListeningSession.instance.errorStream)
-        .listen(_handleListeningError);
+    _listeningErrorSubscription =
+        (listeningErrors ?? ConversationListeningSession.instance.errorStream)
+            .listen(_handleListeningError);
   }
 
   static RecordingCoordinator? _instance;
@@ -220,16 +216,13 @@ class RecordingCoordinator {
 
     if (!audioRecordingStarted) {
       _recordingStartTime = DateTime.now();
-      _fallbackDurationTimer = Timer.periodic(
-        const Duration(seconds: 1),
-        (_) {
-          if (_recordingStartTime != null) {
-            _durationController.add(
-              DateTime.now().difference(_recordingStartTime!),
-            );
-          }
-        },
-      );
+      _fallbackDurationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (_recordingStartTime != null) {
+          _durationController.add(
+            DateTime.now().difference(_recordingStartTime!),
+          );
+        }
+      });
     }
 
     final settings = SettingsManager.instance;
@@ -239,9 +232,11 @@ class RecordingCoordinator {
       _ => BleManager.isBothConnected(),
     };
 
-    appLogger.d('[RecordingCoordinator] micPref=${settings.preferredMicSource} '
-        'bleConnected=${BleManager.isBothConnected()} '
-        'useGlasses=$useGlasses source=$source mode=$mode');
+    appLogger.d(
+      '[RecordingCoordinator] micPref=${settings.preferredMicSource} '
+      'bleConnected=${BleManager.isBothConnected()} '
+      'useGlasses=$useGlasses source=$source mode=$mode',
+    );
 
     var transcriptionStarted = false;
     try {
@@ -285,6 +280,7 @@ class RecordingCoordinator {
         await _audioService!.stopRecording();
         filePath = _audioService!.currentRecordingPath;
         _lastAudioFilePath = filePath;
+        await ConversationEngine.instance.attachLatestAudioFilePath(filePath);
       }
     } catch (e) {
       appLogger.e('[RecordingCoordinator] Audio stop failed: $e');

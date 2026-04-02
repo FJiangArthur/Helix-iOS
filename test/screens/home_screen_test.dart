@@ -450,4 +450,21 @@ void main() {
     BleManager.get().stopSendBeatHeart();
     await tester.pump();
   });
+
+  testWidgets('home screen exposes proactive mode and an analyze action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: HomeScreen())),
+    );
+    await tester.pump();
+
+    expect(find.text('Proactive'), findsOneWidget);
+
+    await tester.tap(find.text('Proactive'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('home-analyze-button')), findsOneWidget);
+    expect(find.text('Analyze'), findsOneWidget);
+  });
 }

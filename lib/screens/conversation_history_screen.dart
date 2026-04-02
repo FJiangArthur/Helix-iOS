@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/assistant_session_meta.dart';
 import '../services/conversation_engine.dart';
+import '../services/database/helix_database.dart';
+import '../services/history_session_loader.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
@@ -27,6 +29,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     'General',
     'Interview',
     'Passive',
+    'Proactive',
   ];
   static const List<String> _libraryFilterKeys = [
     'All',
@@ -40,6 +43,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     'General' => tr('General', '通用'),
     'Interview' => tr('Interview', '面试'),
     'Passive' => tr('Passive', '被动'),
+    'Proactive' => tr('Proactive', '主动'),
     _ => key,
   };
 
@@ -52,7 +56,6 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   };
   static const String _favoriteKey = 'historyFavoriteSessionIds';
 
-  List<ConversationTurn> _history = [];
   List<AssistantSessionMeta> _sessions = [];
   List<AssistantSessionMeta> _filteredSessions = [];
   final Set<String> _expandedSessionIds = <String>{};
@@ -89,13 +92,16 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   Future<void> _loadFavoritesAndHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final favoriteIds = prefs.getStringList(_favoriteKey) ?? const <String>[];
+    final persistedSessions = await HistorySessionLoader.loadPersistedSessions(
+      favoriteIds: favoriteIds,
+    );
+    final transientSessions = _buildSessions(_engine.history);
     if (!mounted) return;
     setState(() {
       _favoriteSessionIds
         ..clear()
         ..addAll(favoriteIds);
-      _history = _engine.history;
-      _sessions = _buildSessions(_history);
+      _sessions = [...persistedSessions, ...transientSessions];
       _applyFilters();
     });
   }
@@ -105,10 +111,14 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     await prefs.setStringList(_favoriteKey, _favoriteSessionIds.toList());
   }
 
-  void _loadHistory() {
+  Future<void> _loadHistory() async {
+    final persistedSessions = await HistorySessionLoader.loadPersistedSessions(
+      favoriteIds: _favoriteSessionIds.toList(),
+    );
+    final transientSessions = _buildSessions(_engine.history);
+    if (!mounted) return;
     setState(() {
-      _history = _engine.history;
-      _sessions = _buildSessions(_history);
+      _sessions = [...persistedSessions, ...transientSessions];
       _applyFilters();
     });
   }
@@ -229,13 +239,27 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           TextButton(
             onPressed: () {
               ConversationEngine.instance.clearHistory();
+              unawaited(
+                Future.wait([
+                  HelixDatabase.instance.customStatement(
+                    'DELETE FROM conversation_ai_cost_entries',
+                  ),
+                  HelixDatabase.instance.customStatement('DELETE FROM topics'),
+                  HelixDatabase.instance.customStatement(
+                    'DELETE FROM conversation_segments',
+                  ),
+                  HelixDatabase.instance.customStatement(
+                    'DELETE FROM conversations',
+                  ),
+                ]),
+              );
               _searchController.clear();
               _searchQuery = '';
               _searchExpanded = false;
               _selectedMode = 'All';
               _selectedLibraryFilter = 'All';
               _expandedSessionIds.clear();
-              _loadHistory();
+              unawaited(_loadHistory());
               Navigator.of(context).pop();
             },
             child: Text(
@@ -287,8 +311,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     ConversationTurn next,
   ) {
     final gap = next.timestamp.difference(previous.timestamp);
-    final currentMode = _modeLabel(currentSession.first.mode);
-    final nextMode = _modeLabel(next.mode);
+    final currentMode = historyModeLabel(currentSession.first.mode);
+    final nextMode = historyModeLabel(next.mode);
 
     if (currentMode != nextMode) return true;
     if (gap.inMinutes >= 25) return true;
@@ -349,15 +373,12 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
         return HelixTheme.purple;
       case 'passive':
         return Colors.orangeAccent;
+      case 'proactive':
+        return HelixTheme.amber;
       case 'general':
       default:
         return HelixTheme.cyan;
     }
-  }
-
-  String _modeLabel(String? mode) {
-    if (mode == null || mode.isEmpty) return 'General';
-    return mode[0].toUpperCase() + mode.substring(1).toLowerCase();
   }
 
   @override

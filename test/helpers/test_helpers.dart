@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
+import 'package:flutter_helix/services/database/helix_database.dart';
 import 'package:flutter_helix/services/hud_controller.dart';
 import 'package:flutter_helix/services/llm/llm_provider.dart';
 import 'package:flutter_helix/services/llm/llm_service.dart';
@@ -219,6 +221,16 @@ void removePlatformMocks() {
   const bleChannel = MethodChannel('method.bluetooth');
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(bleChannel, null);
+}
+
+Future<void> installTestDatabase() async {
+  await HelixDatabase.overrideForTesting(
+    HelixDatabase.testWith(NativeDatabase.memory()),
+  );
+}
+
+Future<void> resetTestDatabase() async {
+  await HelixDatabase.resetForTesting();
 }
 
 /// Initialize SettingsManager with sensible defaults for tests.

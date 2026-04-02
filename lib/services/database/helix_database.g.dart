@@ -132,6 +132,17 @@ class $ConversationsTable extends Conversations
     requiredDuringInsert: false,
     defaultValue: const Constant('phone'),
   );
+  static const VerificationMeta _audioFilePathMeta = const VerificationMeta(
+    'audioFilePath',
+  );
+  @override
+  late final GeneratedColumn<String> audioFilePath = GeneratedColumn<String>(
+    'audio_file_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -145,6 +156,7 @@ class $ConversationsTable extends Conversations
     isProcessed,
     silenceEnded,
     source,
+    audioFilePath,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -234,6 +246,15 @@ class $ConversationsTable extends Conversations
         source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
       );
     }
+    if (data.containsKey('audio_file_path')) {
+      context.handle(
+        _audioFilePathMeta,
+        audioFilePath.isAcceptableOrUnknown(
+          data['audio_file_path']!,
+          _audioFilePathMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -287,6 +308,10 @@ class $ConversationsTable extends Conversations
         DriftSqlType.string,
         data['${effectivePrefix}source'],
       )!,
+      audioFilePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}audio_file_path'],
+      ),
     );
   }
 
@@ -308,6 +333,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   final bool isProcessed;
   final bool silenceEnded;
   final String source;
+  final String? audioFilePath;
   const Conversation({
     required this.id,
     required this.startedAt,
@@ -320,6 +346,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     required this.isProcessed,
     required this.silenceEnded,
     required this.source,
+    this.audioFilePath,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -345,6 +372,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['is_processed'] = Variable<bool>(isProcessed);
     map['silence_ended'] = Variable<bool>(silenceEnded);
     map['source'] = Variable<String>(source);
+    if (!nullToAbsent || audioFilePath != null) {
+      map['audio_file_path'] = Variable<String>(audioFilePath);
+    }
     return map;
   }
 
@@ -371,6 +401,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       isProcessed: Value(isProcessed),
       silenceEnded: Value(silenceEnded),
       source: Value(source),
+      audioFilePath: audioFilePath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(audioFilePath),
     );
   }
 
@@ -391,6 +424,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       isProcessed: serializer.fromJson<bool>(json['isProcessed']),
       silenceEnded: serializer.fromJson<bool>(json['silenceEnded']),
       source: serializer.fromJson<String>(json['source']),
+      audioFilePath: serializer.fromJson<String?>(json['audioFilePath']),
     );
   }
   @override
@@ -408,6 +442,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'isProcessed': serializer.toJson<bool>(isProcessed),
       'silenceEnded': serializer.toJson<bool>(silenceEnded),
       'source': serializer.toJson<String>(source),
+      'audioFilePath': serializer.toJson<String?>(audioFilePath),
     };
   }
 
@@ -423,6 +458,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     bool? isProcessed,
     bool? silenceEnded,
     String? source,
+    Value<String?> audioFilePath = const Value.absent(),
   }) => Conversation(
     id: id ?? this.id,
     startedAt: startedAt ?? this.startedAt,
@@ -435,6 +471,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     isProcessed: isProcessed ?? this.isProcessed,
     silenceEnded: silenceEnded ?? this.silenceEnded,
     source: source ?? this.source,
+    audioFilePath: audioFilePath.present
+        ? audioFilePath.value
+        : this.audioFilePath,
   );
   Conversation copyWithCompanion(ConversationsCompanion data) {
     return Conversation(
@@ -455,6 +494,9 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ? data.silenceEnded.value
           : this.silenceEnded,
       source: data.source.present ? data.source.value : this.source,
+      audioFilePath: data.audioFilePath.present
+          ? data.audioFilePath.value
+          : this.audioFilePath,
     );
   }
 
@@ -471,7 +513,8 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('toneAnalysis: $toneAnalysis, ')
           ..write('isProcessed: $isProcessed, ')
           ..write('silenceEnded: $silenceEnded, ')
-          ..write('source: $source')
+          ..write('source: $source, ')
+          ..write('audioFilePath: $audioFilePath')
           ..write(')'))
         .toString();
   }
@@ -489,6 +532,7 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     isProcessed,
     silenceEnded,
     source,
+    audioFilePath,
   );
   @override
   bool operator ==(Object other) =>
@@ -504,7 +548,8 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.toneAnalysis == this.toneAnalysis &&
           other.isProcessed == this.isProcessed &&
           other.silenceEnded == this.silenceEnded &&
-          other.source == this.source);
+          other.source == this.source &&
+          other.audioFilePath == this.audioFilePath);
 }
 
 class ConversationsCompanion extends UpdateCompanion<Conversation> {
@@ -519,6 +564,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<bool> isProcessed;
   final Value<bool> silenceEnded;
   final Value<String> source;
+  final Value<String?> audioFilePath;
   final Value<int> rowid;
   const ConversationsCompanion({
     this.id = const Value.absent(),
@@ -532,6 +578,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.isProcessed = const Value.absent(),
     this.silenceEnded = const Value.absent(),
     this.source = const Value.absent(),
+    this.audioFilePath = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ConversationsCompanion.insert({
@@ -546,6 +593,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.isProcessed = const Value.absent(),
     this.silenceEnded = const Value.absent(),
     this.source = const Value.absent(),
+    this.audioFilePath = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        startedAt = Value(startedAt);
@@ -561,6 +609,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<bool>? isProcessed,
     Expression<bool>? silenceEnded,
     Expression<String>? source,
+    Expression<String>? audioFilePath,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -575,6 +624,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (isProcessed != null) 'is_processed': isProcessed,
       if (silenceEnded != null) 'silence_ended': silenceEnded,
       if (source != null) 'source': source,
+      if (audioFilePath != null) 'audio_file_path': audioFilePath,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -591,6 +641,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Value<bool>? isProcessed,
     Value<bool>? silenceEnded,
     Value<String>? source,
+    Value<String?>? audioFilePath,
     Value<int>? rowid,
   }) {
     return ConversationsCompanion(
@@ -605,6 +656,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       isProcessed: isProcessed ?? this.isProcessed,
       silenceEnded: silenceEnded ?? this.silenceEnded,
       source: source ?? this.source,
+      audioFilePath: audioFilePath ?? this.audioFilePath,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -645,6 +697,9 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (source.present) {
       map['source'] = Variable<String>(source.value);
     }
+    if (audioFilePath.present) {
+      map['audio_file_path'] = Variable<String>(audioFilePath.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -665,6 +720,7 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('isProcessed: $isProcessed, ')
           ..write('silenceEnded: $silenceEnded, ')
           ..write('source: $source, ')
+          ..write('audioFilePath: $audioFilePath, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6292,6 +6348,7 @@ typedef $$ConversationsTableCreateCompanionBuilder =
       Value<bool> isProcessed,
       Value<bool> silenceEnded,
       Value<String> source,
+      Value<String?> audioFilePath,
       Value<int> rowid,
     });
 typedef $$ConversationsTableUpdateCompanionBuilder =
@@ -6307,6 +6364,7 @@ typedef $$ConversationsTableUpdateCompanionBuilder =
       Value<bool> isProcessed,
       Value<bool> silenceEnded,
       Value<String> source,
+      Value<String?> audioFilePath,
       Value<int> rowid,
     });
 
@@ -6461,6 +6519,11 @@ class $$ConversationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get audioFilePath => $composableBuilder(
+    column: $table.audioFilePath,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> conversationSegmentsRefs(
     Expression<bool> Function($$ConversationSegmentsTableFilterComposer f) f,
   ) {
@@ -6602,6 +6665,11 @@ class $$ConversationsTableOrderingComposer
     column: $table.source,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get audioFilePath => $composableBuilder(
+    column: $table.audioFilePath,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ConversationsTableAnnotationComposer
@@ -6651,6 +6719,11 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<String> get audioFilePath => $composableBuilder(
+    column: $table.audioFilePath,
+    builder: (column) => column,
+  );
 
   Expression<T> conversationSegmentsRefs<T extends Object>(
     Expression<T> Function($$ConversationSegmentsTableAnnotationComposer a) f,
@@ -6776,6 +6849,7 @@ class $$ConversationsTableTableManager
                 Value<bool> isProcessed = const Value.absent(),
                 Value<bool> silenceEnded = const Value.absent(),
                 Value<String> source = const Value.absent(),
+                Value<String?> audioFilePath = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion(
                 id: id,
@@ -6789,6 +6863,7 @@ class $$ConversationsTableTableManager
                 isProcessed: isProcessed,
                 silenceEnded: silenceEnded,
                 source: source,
+                audioFilePath: audioFilePath,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6804,6 +6879,7 @@ class $$ConversationsTableTableManager
                 Value<bool> isProcessed = const Value.absent(),
                 Value<bool> silenceEnded = const Value.absent(),
                 Value<String> source = const Value.absent(),
+                Value<String?> audioFilePath = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion.insert(
                 id: id,
@@ -6817,6 +6893,7 @@ class $$ConversationsTableTableManager
                 isProcessed: isProcessed,
                 silenceEnded: silenceEnded,
                 source: source,
+                audioFilePath: audioFilePath,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

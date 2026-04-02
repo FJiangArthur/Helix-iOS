@@ -21,6 +21,7 @@ import 'services/database/helix_database.dart';
 import 'services/database/migration_service.dart';
 import 'services/entity_memory.dart';
 import 'services/gesture_action_router.dart';
+import 'services/live_activity_service.dart';
 import 'services/passive_listening_service.dart';
 
 void main() async {
@@ -39,6 +40,9 @@ void main() async {
 
   // Initialize gesture detection pipeline (V2.2)
   _initializeGestureSystem();
+
+  // Initialize Live Activity bridge for recording sessions.
+  LiveActivityService.instance().initialize();
 
   // Initialize HUD widget registry (before dashboard service)
   await _initializeHudWidgets();

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 
 import '../services/database/helix_database.dart';
 import '../theme/helix_theme.dart';
@@ -219,6 +220,8 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
                   'AI Cost',
                   '\$${_totalAiCostUsd.toStringAsFixed(4)}',
                 ),
+              if (conv.audioFilePath != null && conv.audioFilePath!.isNotEmpty)
+                _buildMetaRow('Audio', p.basename(conv.audioFilePath!)),
               if (conv.sentiment != null && conv.sentiment!.isNotEmpty)
                 _buildMetaRowWithWidget(
                   'Sentiment',
@@ -444,12 +447,18 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
   }
 
   Widget _buildTranscriptBubble(ConversationSegment seg) {
+    final normalizedSpeaker = seg.speakerLabel?.toLowerCase();
+    final isAssistant = normalizedSpeaker == 'assistant';
     final isMe =
-        seg.speakerLabel?.toLowerCase() == 'me' ||
-        seg.speakerLabel?.toLowerCase() == 'user' ||
+        normalizedSpeaker == 'me' ||
+        normalizedSpeaker == 'user' ||
         seg.speakerLabel == null;
-    final speakerColor = isMe ? HelixTheme.cyan : HelixTheme.purple;
-    final speakerLabel = isMe ? 'Me' : (seg.speakerLabel ?? 'Other');
+    final speakerColor = isAssistant
+        ? HelixTheme.amber
+        : (isMe ? HelixTheme.cyan : HelixTheme.purple);
+    final speakerLabel = isAssistant
+        ? 'Even AI'
+        : (isMe ? 'Conversation' : (seg.speakerLabel ?? 'Other'));
 
     final time = DateTime.fromMillisecondsSinceEpoch(seg.startedAt);
     final timeStr = DateFormat.jms().format(time);

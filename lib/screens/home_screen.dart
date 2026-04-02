@@ -37,11 +37,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _transcription = '';
   String _aiResponse = '';
   bool _isRecording = false;
-  RecordingCaptureState _recordingCaptureState =
-      RecordingCaptureState.idle;
+  RecordingCaptureState _recordingCaptureState = RecordingCaptureState.idle;
   bool _showDetailLink = false;
   Duration _recordingDuration = Duration.zero;
   int _segmentCount = 0;
+  bool _manualAnalyzePending = false;
 
   final List<StreamSubscription> _subscriptions = [];
   final ScrollController _scrollController = ScrollController();
@@ -141,6 +141,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!mounted) return;
         setState(() {
           _aiResponse = text;
+          if (text.trim().isNotEmpty) {
+            _manualAnalyzePending = false;
+          }
         });
         _scrollToBottom();
       }),
@@ -156,12 +159,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }),
       _engine.providerErrorStream.listen((error) {
         if (mounted) {
-          setState(() => _providerError = error);
+          setState(() {
+            _providerError = error;
+            if (error != null) {
+              _manualAnalyzePending = false;
+            }
+          });
         }
       }),
       _engine.statusStream.listen((status) {
         if (!mounted) return;
-        setState(() => _status = status);
+        setState(() {
+          _status = status;
+          if (status == EngineStatus.idle || status == EngineStatus.listening) {
+            _manualAnalyzePending = false;
+          }
+        });
         if (status == EngineStatus.listening) {
           _pulseController.repeat(reverse: true);
         } else {
@@ -186,6 +199,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _listeningError = error == null
               ? null
               : _localizeListeningErrorMessage(error);
+          if (error != null) {
+            _manualAnalyzePending = false;
+          }
         });
       }),
     ]);
@@ -351,6 +367,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showDetailLink = false;
     _recordingDuration = Duration.zero;
     _segmentCount = 0;
+    _manualAnalyzePending = false;
   }
 
   String _formatListeningError(Object error) {
@@ -437,6 +454,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           _buildStatusBar(),
           const SizedBox(height: 8),
+          _buildModeSelector(),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -455,6 +474,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 10),
+              _buildOverviewActionButton(
+                key: const Key('home-analyze-button'),
+                icon: _manualAnalyzePending
+                    ? Icons.hourglass_top_rounded
+                    : Icons.auto_awesome_rounded,
+                label: _isChinese ? '分析' : 'Analyze',
+                color: _canAnalyzeCurrentSession
+                    ? modeColor
+                    : Colors.white.withValues(alpha: 0.2),
+                onTap: _canAnalyzeCurrentSession && !_manualAnalyzePending
+                    ? _handleAnalyzePressed
+                    : null,
               ),
               const SizedBox(width: 10),
               _buildOverviewActionButton(
@@ -524,30 +557,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildOverviewActionButton({
+    Key? key,
     required IconData icon,
     required String label,
     required Color color,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
   }) {
     return GestureDetector(
+      key: key,
       onTap: onTap,
       child: Container(
         width: 50,
         height: 50,
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.12),
+          color: color.withValues(alpha: onTap == null ? 0.06 : 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withValues(alpha: 0.18)),
+          border: Border.all(
+            color: color.withValues(alpha: onTap == null ? 0.08 : 0.18),
+          ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 16, color: color.withValues(alpha: 0.92)),
+            Icon(
+              icon,
+              size: 16,
+              color: color.withValues(alpha: onTap == null ? 0.44 : 0.92),
+            ),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.84),
+                color: Colors.white.withValues(
+                  alpha: onTap == null ? 0.42 : 0.84,
+                ),
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
               ),
@@ -556,6 +599,87 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ),
     );
+  }
+
+  Widget _buildModeSelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: ConversationMode.values.map((mode) {
+        final isSelected = mode == _currentMode;
+        final color = _modeColor(mode);
+        return GestureDetector(
+          onTap: () => _selectMode(mode),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? color.withValues(alpha: 0.16)
+                  : Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: isSelected
+                    ? color.withValues(alpha: 0.32)
+                    : Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            child: Text(
+              _modeLabel(mode),
+              style: TextStyle(
+                color: isSelected
+                    ? color
+                    : Colors.white.withValues(alpha: 0.72),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  void _selectMode(ConversationMode mode) {
+    if (_currentMode == mode) {
+      return;
+    }
+    _modeSwitchController
+      ..reset()
+      ..forward();
+    _engine.setMode(mode);
+    setState(() => _currentMode = mode);
+  }
+
+  bool get _canAnalyzeCurrentSession =>
+      (_segmentCount > 0 || _transcription.trim().isNotEmpty) &&
+      _status != EngineStatus.thinking &&
+      _status != EngineStatus.responding;
+
+  Future<void> _handleAnalyzePressed() async {
+    if (_manualAnalyzePending || !_canAnalyzeCurrentSession) {
+      return;
+    }
+
+    setState(() {
+      _manualAnalyzePending = true;
+      _providerError = null;
+    });
+
+    try {
+      if (_currentMode == ConversationMode.proactive) {
+        await _engine.triggerProactiveAnalysis();
+      } else {
+        _engine.forceQuestionAnalysis();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _manualAnalyzePending = false;
+        _providerError = ProviderErrorState.fromException(error);
+      });
+    }
   }
 
   void _showProfileEditor(AssistantProfile profile, {VoidCallback? onSaved}) {
@@ -2607,7 +2731,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildComposerCard() {
-    final accentColor = _recordingCaptureState == RecordingCaptureState.audioOnly
+    final accentColor =
+        _recordingCaptureState == RecordingCaptureState.audioOnly
         ? const Color(0xFFFFB547)
         : _isRecording
         ? const Color(0xFFFF6B6B)
@@ -3065,6 +3190,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return const Color(0xFF00FF88);
       case ConversationMode.proactive:
         return HelixTheme.amber;
+    }
+  }
+
+  String _modeLabel(ConversationMode mode) {
+    if (_isChinese) {
+      switch (mode) {
+        case ConversationMode.general:
+          return '通用';
+        case ConversationMode.interview:
+          return '面试';
+        case ConversationMode.passive:
+          return '被动';
+        case ConversationMode.proactive:
+          return '主动';
+      }
+    }
+
+    switch (mode) {
+      case ConversationMode.general:
+        return 'General';
+      case ConversationMode.interview:
+        return 'Interview';
+      case ConversationMode.passive:
+        return 'Passive';
+      case ConversationMode.proactive:
+        return 'Proactive';
     }
   }
 }

@@ -34,6 +34,7 @@ class Conversations extends Table {
   BoolColumn get silenceEnded => boolean().withDefault(const Constant(false))();
   TextColumn get source =>
       text().withDefault(const Constant('phone'))(); // phone/glasses
+  TextColumn get audioFilePath => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -232,6 +233,19 @@ class HelixDatabase extends _$HelixDatabase {
   static HelixDatabase? _instance;
   static HelixDatabase get instance => _instance ??= HelixDatabase._();
 
+  static Future<void> overrideForTesting(HelixDatabase database) async {
+    if (identical(_instance, database)) {
+      return;
+    }
+    await _instance?.close();
+    _instance = database;
+  }
+
+  static Future<void> resetForTesting() async {
+    await _instance?.close();
+    _instance = null;
+  }
+
   HelixDatabase._() : super(_openConnection());
 
   /// For testing
@@ -241,7 +255,7 @@ class HelixDatabase extends _$HelixDatabase {
   HelixDatabase.testWith(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -306,6 +320,9 @@ class HelixDatabase extends _$HelixDatabase {
     onUpgrade: (Migrator m, from, to) async {
       if (from < 2) {
         await m.createTable(conversationAiCostEntries);
+      }
+      if (from < 3) {
+        await m.addColumn(conversations, conversations.audioFilePath);
       }
     },
   );
