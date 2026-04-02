@@ -219,6 +219,10 @@ void main() {
     expect(find.text('CONVERSATION HUB'), findsOneWidget);
     expect(find.text('Expand'), findsNothing);
     expect(find.text('Tune'), findsOneWidget);
+    expect(find.byKey(const Key('home-proactive-button')), findsOneWidget);
+    expect(find.byKey(const Key('home-analyze-button')), findsOneWidget);
+    expect(find.text('Activate Proactive'), findsOneWidget);
+    expect(find.text('Analyze Now'), findsOneWidget);
     expect(
       find.text('Keep the prompt, answer, and voice controls in one place'),
       findsNothing,
@@ -460,11 +464,14 @@ void main() {
     await tester.pump();
 
     expect(find.text('Proactive'), findsOneWidget);
+    expect(find.text('Activate Proactive'), findsOneWidget);
+    expect(find.text('Analyze Now'), findsOneWidget);
 
     await tester.tap(find.text('Proactive'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Proactive On'), findsOneWidget);
     expect(find.byKey(const Key('home-analyze-button')), findsOneWidget);
-    expect(find.text('Analyze'), findsOneWidget);
+    expect(find.text('Analyze Now'), findsOneWidget);
   });
 }

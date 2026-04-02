@@ -477,20 +477,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
               const SizedBox(width: 10),
               _buildOverviewActionButton(
-                key: const Key('home-analyze-button'),
-                icon: _manualAnalyzePending
-                    ? Icons.hourglass_top_rounded
-                    : Icons.auto_awesome_rounded,
-                label: _isChinese ? '分析' : 'Analyze',
-                color: _canAnalyzeCurrentSession
-                    ? modeColor
-                    : Colors.white.withValues(alpha: 0.2),
-                onTap: _canAnalyzeCurrentSession && !_manualAnalyzePending
-                    ? _handleAnalyzePressed
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              _buildOverviewActionButton(
                 icon: Icons.tune_rounded,
                 label: _isChinese ? '调整' : 'Tune',
                 color: modeColor,
@@ -498,6 +484,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          _buildPrimarySessionActions(modeColor),
           if (_aiResponse.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             _buildOverviewReplyStrip(),
@@ -593,6 +581,138 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 fontSize: 8,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrimarySessionActions(Color modeColor) {
+    final proactiveActive = _currentMode == ConversationMode.proactive;
+    final proactiveColor = proactiveActive ? HelixTheme.amber : modeColor;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _buildPrimarySessionButton(
+            key: const Key('home-proactive-button'),
+            icon: proactiveActive
+                ? Icons.check_circle_rounded
+                : Icons.bolt_rounded,
+            title: proactiveActive
+                ? (_isChinese ? '主动模式已开启' : 'Proactive On')
+                : (_isChinese ? '开启主动模式' : 'Activate Proactive'),
+            subtitle: proactiveActive
+                ? (_isChinese
+                      ? '会自动审视当前对话'
+                      : 'Auto-reviews the current session')
+                : (_isChinese ? '切换到主动分析模式' : 'Switch into proactive analysis'),
+            color: proactiveColor,
+            onTap: proactiveActive
+                ? null
+                : () => _selectMode(ConversationMode.proactive),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _buildPrimarySessionButton(
+            key: const Key('home-analyze-button'),
+            icon: _manualAnalyzePending
+                ? Icons.hourglass_top_rounded
+                : Icons.auto_awesome_rounded,
+            title: _manualAnalyzePending
+                ? (_isChinese ? '分析中...' : 'Analyzing...')
+                : (_isChinese ? '立即分析' : 'Analyze Now'),
+            subtitle: _manualAnalyzePending
+                ? (_isChinese ? '请稍候' : 'Working on the current transcript')
+                : (_canAnalyzeCurrentSession
+                      ? (_isChinese
+                            ? '基于当前对话触发分析'
+                            : 'Run analysis on the current transcript')
+                      : (_isChinese ? '开始录音后可用' : 'Start recording to enable')),
+            color: _canAnalyzeCurrentSession
+                ? modeColor
+                : Colors.white.withValues(alpha: 0.28),
+            onTap: _canAnalyzeCurrentSession && !_manualAnalyzePending
+                ? _handleAnalyzePressed
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrimarySessionButton({
+    required Key key,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      key: key,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: enabled ? 0.14 : 0.06),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: color.withValues(alpha: enabled ? 0.22 : 0.1),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: enabled ? 0.16 : 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                icon,
+                size: 18,
+                color: color.withValues(alpha: enabled ? 0.94 : 0.46),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: enabled ? 0.92 : 0.54,
+                      ),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: enabled ? 0.68 : 0.42,
+                      ),
+                      fontSize: 10,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

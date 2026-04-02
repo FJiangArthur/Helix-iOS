@@ -8,16 +8,20 @@
 
 /* Begin PBXBuildFile section */
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
+		2D12B9F7A7101B24B7BDDB93 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 11CC0A63C39BD8373B703EAE /* Foundation.framework */; };
+		2F7B842D45D3EFBBBF80731E /* HelixLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */; };
 		313CFE1CB707644059D86DAF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
 		45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C897E096773DD7055D211F /* HealthKitManager.swift */; };
 		4B1B0268AACDDD5AD4FFAAA1 /* Pods_Even_Companion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8034C7F1D6ABF74B964B667E /* Pods_Even_Companion.framework */; };
+		55E2472528ACFCDAFE65BBDE /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */; };
 		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
+		983EBCE66AB45EC0B9ADD250 /* HelixLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
 		A49C458AC613ABD101C94280 /* Pods_Even_CompanionTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */; };
 		AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CED14744F5132BCC469A6862 /* EventKit.framework */; };
@@ -50,6 +54,7 @@
 		DA91ADA22E67000100220CE1 /* SpeakerTurnDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA32E67000100220CE1 /* SpeakerTurnDetector.swift */; };
 		DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */; };
 		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
+		E3D9E13DABF71B221D7C889F /* HelixLiveActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -64,6 +69,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		0AAF5ECC1707FDBC195CD835 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				983EBCE66AB45EC0B9ADD250 /* HelixLiveActivity.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9705A1C41CF9048500538489 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -81,6 +97,7 @@
 		11CC0A63C39BD8373B703EAE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
 		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
+		15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelixLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		17629B3695D154A2389F1285 /* Pods-Even Companion.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.release.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.release.xcconfig"; sourceTree = "<group>"; };
 		19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		331C807B294A618700263BE5 /* RunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunnerTests.swift; sourceTree = "<group>"; };
@@ -88,7 +105,9 @@
 		39C897E096773DD7055D211F /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityLiveActivity.swift; sourceTree = "<group>"; };
 		5950FC57965EA55AA63216AB /* Pods-Even CompanionTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.profile.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.profile.xcconfig"; sourceTree = "<group>"; };
+		74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityBundle.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7AFA3C8E1D35360C0083082E /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = Release.xcconfig; path = Flutter/Release.xcconfig; sourceTree = "<group>"; };
@@ -106,7 +125,7 @@
 		B37B05956690456612FE562A /* Pods-Even Companion.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.debug.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.debug.xcconfig"; sourceTree = "<group>"; };
 		B67C511101FB8D1FA3597656 /* Pods_Even_CompanionTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_Even_CompanionTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		C252E7ECD806343ABD6C09B1 /* Pods-Even Companion.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.profile.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.profile.xcconfig"; sourceTree = "<group>"; };
-		CD0B722ABA2A019672065BD5 /* HelixLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelixLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C4E7D70DB0EDFCDE1F4CC2AB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CED14744F5132BCC469A6862 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		D3B493D75FCAF6B7ADFBD54C /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Profile.xcconfig; sourceTree = "<group>"; };
 		DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesMicSessionManager.swift; sourceTree = "<group>"; };
@@ -159,7 +178,6 @@
 		DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNNoiseProcessor.m; sourceTree = "<group>"; };
 		DA91ADA62E67000100220CE1 /* RNNoiseProcessor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNNoiseProcessor.h; sourceTree = "<group>"; };
 		DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveAudioMonitor.swift; sourceTree = "<group>"; };
-		EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */ = {isa = PBXFileReference; includeInIndex = 0; path = HelixLiveActivity; sourceTree = BUILT_PRODUCTS_DIR; };
 		F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EventKitChannel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -179,6 +197,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				A49C458AC613ABD101C94280 /* Pods_Even_CompanionTests.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FD97F17F9DBCC5FD13871EF4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D12B9F7A7101B24B7BDDB93 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -203,6 +229,17 @@
 				331C807B294A618700263BE5 /* RunnerTests.swift */,
 			);
 			path = RunnerTests;
+			sourceTree = "<group>";
+		};
+		6E45934FC54B2D906BA0C720 /* HelixLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */,
+				4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */,
+				C4E7D70DB0EDFCDE1F4CC2AB /* Info.plist */,
+			);
+			name = HelixLiveActivity;
+			path = HelixLiveActivity;
 			sourceTree = "<group>";
 		};
 		94291B7A62D2ABF0B851112E /* iOS */ = {
@@ -234,6 +271,7 @@
 				331C8082294A63A400263BE5 /* RunnerTests */,
 				C849158E139DA320D16D70DE /* Pods */,
 				1A600599FD6576A471968964 /* Frameworks */,
+				6E45934FC54B2D906BA0C720 /* HelixLiveActivity */,
 			);
 			sourceTree = "<group>";
 		};
@@ -242,8 +280,7 @@
 			children = (
 				97C146EE1CF9000F007C117D /* Even Companion.app */,
 				331C8081294A63A400263BE5 /* Even CompanionTests.xctest */,
-				EC09D10EA64A27BA341DDEFC /* HelixLiveActivity */,
-				CD0B722ABA2A019672065BD5 /* HelixLiveActivity.appex */,
+				15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -342,6 +379,23 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		165D1BD5595938FE5348ADAB /* HelixLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 6F13BFFCBA00509980D02EDD /* Build configuration list for PBXNativeTarget "HelixLiveActivity" */;
+			buildPhases = (
+				61BD0694098A4DA65D51BDE7 /* Sources */,
+				FD97F17F9DBCC5FD13871EF4 /* Frameworks */,
+				242FF3D78D4F14684F18AF3F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = HelixLiveActivity;
+			productName = HelixLiveActivity;
+			productReference = 15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		331C8080294A63A400263BE5 /* Even CompanionTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 331C8087294A63A400263BE5 /* Build configuration list for PBXNativeTarget "Even CompanionTests" */;
@@ -371,6 +425,7 @@
 				97C146EB1CF9000F007C117D /* Frameworks */,
 				97C146EC1CF9000F007C117D /* Resources */,
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
+				0AAF5ECC1707FDBC195CD835 /* Embed App Extensions */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
 				66B7708CC09B5FE2625F663E /* [CP] Embed Pods Frameworks */,
 				959C546F0C3368B0EFAB8E0F /* [CP] Copy Pods Resources */,
@@ -419,11 +474,19 @@
 			targets = (
 				97C146ED1CF9000F007C117D /* Even Companion */,
 				331C8080294A63A400263BE5 /* Even CompanionTests */,
+				165D1BD5595938FE5348ADAB /* HelixLiveActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		242FF3D78D4F14684F18AF3F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		331C807F294A63A400263BE5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -565,6 +628,16 @@
 			buildActionMask = 2147483647;
 			files = (
 				331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		61BD0694098A4DA65D51BDE7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2F7B842D45D3EFBBBF80731E /* HelixLiveActivityBundle.swift in Sources */,
+				E3D9E13DABF71B221D7C889F /* HelixLiveActivityLiveActivity.swift in Sources */,
+				55E2472528ACFCDAFE65BBDE /* HelixLiveActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -772,6 +845,32 @@
 			};
 			name = Profile;
 		};
+		75334235A14290FB7EEFDD79 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		97C147031CF9000F007C117D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -950,6 +1049,60 @@
 			};
 			name = Release;
 		};
+		A3C7B5AC562C95E6FE2D19FE /* Profile */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Profile;
+		};
+		C3BFA77839A44A3CE68392B3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";
+				DEVELOPMENT_TEAM = 4SA9UFLZMT;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -959,6 +1112,16 @@
 				331C8088294A63A400263BE5 /* Debug */,
 				331C8089294A63A400263BE5 /* Release */,
 				331C808A294A63A400263BE5 /* Profile */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		6F13BFFCBA00509980D02EDD /* Build configuration list for PBXNativeTarget "HelixLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C3BFA77839A44A3CE68392B3 /* Release */,
+				75334235A14290FB7EEFDD79 /* Debug */,
+				A3C7B5AC562C95E6FE2D19FE /* Profile */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
