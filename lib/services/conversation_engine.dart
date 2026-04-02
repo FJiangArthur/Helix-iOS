@@ -440,7 +440,10 @@ class ConversationEngine {
         _finalizedSegments.add(
           TranscriptSegment(text: sentence, timestamp: DateTime.now()),
         );
-        appLogger.d('[Engine] Progressive finalize: "$sentence"');
+        appLogger.d(
+          '[Engine] Progressive finalize '
+          '(segmentChars=${sentence.length})',
+        );
       }
     }
     if (completeCount > _segmentSentencesFinalized) {
@@ -822,7 +825,10 @@ Current topic: $_currentTranscription''';
               );
 
         _coachingController.add(coaching);
-        appLogger.d('STAR coaching triggered for: $questionContext');
+        appLogger.d(
+          'STAR coaching triggered '
+          '(questionChars=${questionContext.length})',
+        );
 
         // Push a compact STAR reminder to glasses HUD
         if (_glassesConnectionChecker()) {
@@ -1111,7 +1117,10 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
       final trimmed = response.trim();
       if (trimmed.toUpperCase() != 'OK' && trimmed.isNotEmpty) {
-        appLogger.d('[FactCheck] Correction: $trimmed');
+        appLogger.d(
+          '[FactCheck] Correction received '
+          '(chars=${trimmed.length})',
+        );
         _factCheckAlertController.add(trimmed);
       }
     } catch (e) {
@@ -1182,7 +1191,10 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
         if (trimmed.isNotEmpty &&
             trimmed.toLowerCase() != 'null' &&
             trimmed.toUpperCase() != 'OK') {
-          appLogger.d('[FactCheck] Correction: $trimmed');
+          appLogger.d(
+            '[FactCheck] Correction received '
+            '(chars=${trimmed.length})',
+          );
           _factCheckAlertController.add(trimmed);
         }
       }

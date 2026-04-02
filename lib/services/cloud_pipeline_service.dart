@@ -346,7 +346,11 @@ class CloudPipelineService {
           ),
         );
       } catch (e) {
-        appLogger.w('[Pipeline] Failed to insert topic "$label"', error: e);
+        appLogger.w(
+          '[Pipeline] Failed to insert topic '
+          '(labelChars=${label.length})',
+          error: e,
+        );
       }
     }
   }
@@ -370,7 +374,10 @@ class CloudPipelineService {
       try {
         final existing = await db.factsDao.getFactsByDedupeKey(dedupeKey);
         if (existing.isNotEmpty) {
-          appLogger.d('[Pipeline] Skipping duplicate fact: $content');
+          appLogger.d(
+            '[Pipeline] Skipping duplicate fact '
+            '(contentChars=${content.length})',
+          );
           continue;
         }
 
@@ -495,8 +502,10 @@ class CloudPipelineService {
       return null;
     } catch (e) {
       appLogger.w('[Pipeline] JSON parse error: $e');
-      appLogger.d('[Pipeline] Raw response (first 500 chars): '
-          '${raw.substring(0, raw.length < 500 ? raw.length : 500)}');
+      appLogger.d(
+        '[Pipeline] Raw response omitted for privacy '
+        '(chars=${raw.length})',
+      );
       return null;
     }
   }

@@ -55,8 +55,20 @@ printf "${BOLD} Helix-iOS Pre-Release Quality Gate${NC}\n"
 printf "${BOLD}========================================${NC}\n"
 printf " Started: %s\n\n" "$(date '+%Y-%m-%d %H:%M:%S')"
 
-# ===== Gate 1: Static Analysis =====
-printf "${BOLD}[1/6] Static Analysis${NC}\n"
+# ===== Gate 1: Security =====
+printf "${BOLD}[1/7] Security Gate${NC}\n"
+t=$(gate_start_time)
+if bash scripts/security_gate.sh --repo; then
+  pass "Security gate passed"
+else
+  fail "Security gate failed"
+  FAILURES=$((FAILURES + 1))
+fi
+info "Elapsed: $(gate_elapsed "$t")"
+echo ""
+
+# ===== Gate 2: Static Analysis =====
+printf "${BOLD}[2/7] Static Analysis${NC}\n"
 t=$(gate_start_time)
 ANALYZE_OUTPUT=$(flutter analyze --no-fatal-infos 2>&1) || true
 ANALYZE_ERRORS=$(echo "$ANALYZE_OUTPUT" | grep -c "error •" || true)
@@ -70,8 +82,8 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 2: Unit Tests =====
-printf "${BOLD}[2/6] Unit Tests${NC}\n"
+# ===== Gate 3: Unit Tests =====
+printf "${BOLD}[3/7] Unit Tests${NC}\n"
 t=$(gate_start_time)
 if flutter test test/ --reporter expanded 2>&1; then
   pass "All unit tests passed"
@@ -82,8 +94,8 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 3: Test Coverage =====
-printf "${BOLD}[3/6] Test Coverage (>= ${MIN_COVERAGE}%%)${NC}\n"
+# ===== Gate 4: Test Coverage =====
+printf "${BOLD}[4/7] Test Coverage (>= ${MIN_COVERAGE}%%)${NC}\n"
 t=$(gate_start_time)
 if flutter test --coverage test/ 2>&1; then
   if command -v lcov &>/dev/null; then
@@ -112,8 +124,8 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 4: iOS Simulator Build =====
-printf "${BOLD}[4/6] iOS Simulator Build${NC}\n"
+# ===== Gate 5: iOS Simulator Build =====
+printf "${BOLD}[5/7] iOS Simulator Build${NC}\n"
 t=$(gate_start_time)
 if flutter build ios --simulator --no-codesign 2>&1; then
   pass "iOS simulator build succeeded"
@@ -124,8 +136,8 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 5: Critical TODOs =====
-printf "${BOLD}[5/6] Critical TODOs (threshold: ${MAX_CRITICAL_TODOS})${NC}\n"
+# ===== Gate 6: Critical TODOs =====
+printf "${BOLD}[6/7] Critical TODOs (threshold: ${MAX_CRITICAL_TODOS})${NC}\n"
 t=$(gate_start_time)
 TODO_COUNT=0
 for f in "${CRITICAL_FILES[@]}"; do
@@ -149,9 +161,9 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 6: Analyzer Warnings (threshold: 10) =====
+# ===== Gate 7: Analyzer Warnings (threshold: 10) =====
 MAX_WARNINGS=10
-printf "${BOLD}[6/6] Analyzer Warnings (threshold: ${MAX_WARNINGS})${NC}\n"
+printf "${BOLD}[7/7] Analyzer Warnings (threshold: ${MAX_WARNINGS})${NC}\n"
 t=$(gate_start_time)
 ANALYZE_WARNINGS=$(echo "$ANALYZE_OUTPUT" | grep -c "warning •" || true)
 ANALYZE_INFOS=$(echo "$ANALYZE_OUTPUT" | grep -c "info •" || true)

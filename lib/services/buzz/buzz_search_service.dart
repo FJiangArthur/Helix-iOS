@@ -81,7 +81,10 @@ class BuzzSearchService {
       }
     }
 
-    appLogger.d('[BuzzSearch] Found ${enriched.length} results for "$query"');
+    appLogger.d(
+      '[BuzzSearch] Found ${enriched.length} results '
+      '(queryChars=${query.length})',
+    );
     return enriched;
   }
 

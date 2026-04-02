@@ -88,7 +88,9 @@ class FactService {
     try {
       return await HelixDatabase.instance.factsDao.searchFacts(query);
     } catch (e) {
-      appLogger.w('[FactService] Search failed for "$query": $e');
+      appLogger.w(
+        '[FactService] Search failed (queryChars=${query.length}): $e',
+      );
       return [];
     }
   }

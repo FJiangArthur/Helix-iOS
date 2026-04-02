@@ -1,4 +1,35 @@
+import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
+
+class AppLogSettings {
+  const AppLogSettings({
+    required this.allowContentLogs,
+    required this.level,
+    required this.usePrettyPrinter,
+  });
+
+  final bool allowContentLogs;
+  final Level level;
+  final bool usePrettyPrinter;
+}
+
+const bool _forceSanitizedLogs = bool.fromEnvironment(
+  'HELIX_FORCE_SANITIZED_LOGS',
+);
+
+AppLogSettings resolveAppLogSettings({
+  bool isReleaseMode = kReleaseMode,
+  bool forceSanitizedLogs = _forceSanitizedLogs,
+}) {
+  final sanitizeLogs = isReleaseMode || forceSanitizedLogs;
+  return AppLogSettings(
+    allowContentLogs: !sanitizeLogs,
+    level: sanitizeLogs ? Level.warning : Level.debug,
+    usePrettyPrinter: !sanitizeLogs,
+  );
+}
+
+final AppLogSettings _appLogSettings = resolveAppLogSettings();
 
 /// Global logger instance for the application
 ///
@@ -12,22 +43,18 @@ import 'package:logger/logger.dart';
 /// appLogger.e('Error message', error: error, stackTrace: stackTrace);
 /// ```
 final appLogger = Logger(
-  printer: PrettyPrinter(
-    methodCount: 2,
-    errorMethodCount: 8,
-    lineLength: 120,
-    colors: true,
-    printEmojis: true,
-    dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
-  ),
-  level: Level.debug, // Change to Level.info for production
-);
-
-/// Simplified logger for production builds
-final appLoggerSimple = Logger(
-  printer: SimplePrinter(
-    colors: false,
-    printTime: true,
-  ),
-  level: Level.info,
+  printer: _appLogSettings.usePrettyPrinter
+      ? PrettyPrinter(
+          methodCount: 2,
+          errorMethodCount: 8,
+          lineLength: 120,
+          colors: true,
+          printEmojis: true,
+          dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
+        )
+      : SimplePrinter(
+          colors: false,
+          printTime: true,
+        ),
+  level: _appLogSettings.level,
 );

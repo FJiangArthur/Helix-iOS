@@ -10,9 +10,17 @@ API_ISSUER = "201a71fb-11b4-406e-b857-5908f129d99e"
 platform :ios do
   # ─── Helpers ─────────────────────────────────────────────────────────
 
+  def run_security_gate
+    Dir.chdir(PROJECT_DIR) do
+      sh("bash", "scripts/security_gate.sh", "--repo")
+    end
+  end
+
   def flutter_build_ipa(build_number)
     Dir.chdir(PROJECT_DIR) do
+      run_security_gate
       sh("flutter", "build", "ipa", "--release",
+         "--dart-define=HELIX_FORCE_SANITIZED_LOGS=true",
          "--build-number=#{build_number}",
          "--export-options-plist=ios/fastlane/ExportOptions.plist")
     end

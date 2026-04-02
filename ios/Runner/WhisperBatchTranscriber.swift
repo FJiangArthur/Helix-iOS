@@ -78,6 +78,16 @@ class WhisperBatchTranscriber {
     private static let bitsPerSample: Int = 16
     private static let numChannels: Int = 1
 
+    private func debugLog(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        NSLog("%@", message())
+        #endif
+    }
+
+    private func warningLog(_ message: @autoclosure () -> String) {
+        NSLog("%@", message())
+    }
+
     // MARK: - Lifecycle
 
     func start(apiKey: String, language: String = "en", chunkDurationSec: Double = 5.0) {
@@ -95,14 +105,14 @@ class WhisperBatchTranscriber {
 
         _isActive = true
         startChunkTimer()
-        NSLog("[WhisperBatch] Started language=\(language) chunk=\(chunkDurationSec)s")
+        debugLog("[WhisperBatch] Started language=\(language) chunk=\(chunkDurationSec)s")
     }
 
     func stop() {
         _isActive = false
         chunkTimer?.invalidate()
         chunkTimer = nil
-        NSLog("[WhisperBatch] Stopped")
+        debugLog("[WhisperBatch] Stopped")
     }
 
     /// Append raw PCM16 audio data from the microphone or glasses BLE.
@@ -162,7 +172,7 @@ class WhisperBatchTranscriber {
         // VAD gating: compute RMS energy and skip if below threshold
         let rms = computeRMS(chunkData)
         if rms < vadEnergyThreshold {
-            NSLog("[WhisperBatch] Chunk skipped (silence), RMS=\(String(format: "%.6f", rms))")
+            debugLog("[WhisperBatch] Chunk skipped (silence), RMS=\(String(format: "%.6f", rms))")
             return
         }
 
@@ -172,7 +182,9 @@ class WhisperBatchTranscriber {
         // Encode to WAV
         let wavData = encodeWAV(pcmData: chunkData)
 
-        NSLog("[WhisperBatch] Sending chunk \(currentChunkIndex) bytes=\(chunkData.count) RMS=\(String(format: "%.4f", rms))")
+        debugLog(
+            "[WhisperBatch] Sending chunk \(currentChunkIndex) bytes=\(chunkData.count) RMS=\(String(format: "%.4f", rms))"
+        )
 
         // POST to Whisper API
         postToWhisper(wavData: wavData, chunkIndex: currentChunkIndex, isFinal: isFinal)
@@ -258,7 +270,7 @@ class WhisperBatchTranscriber {
             self.requestInFlight = false
 
             if let error = error {
-                NSLog("[WhisperBatch] HTTP error chunk \(chunkIndex): \(error.localizedDescription)")
+                self.warningLog("[WhisperBatch] HTTP error chunk \(chunkIndex): \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     self.onError?("Whisper request failed: \(error.localizedDescription)")
                 }
@@ -275,7 +287,10 @@ class WhisperBatchTranscriber {
             guard httpResponse.statusCode == 200, let data = data else {
                 let statusCode = httpResponse.statusCode
                 let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? "no body"
-                NSLog("[WhisperBatch] HTTP \(statusCode) chunk \(chunkIndex): \(body)")
+                self.warningLog(
+                    "[WhisperBatch] HTTP \(statusCode) chunk \(chunkIndex) "
+                    + "(bodyChars=\(body.count))"
+                )
                 DispatchQueue.main.async {
                     self.onError?("Whisper API error (\(statusCode)): \(body)")
                 }
@@ -328,7 +343,10 @@ class WhisperBatchTranscriber {
                 lastChunkEndTimestamp = lastWord.end
             }
 
-            NSLog("[WhisperBatch] Chunk \(chunkIndex) transcript=\(outputText.prefix(80))... words=\(dedupedWords.count)")
+            debugLog(
+                "[WhisperBatch] Chunk \(chunkIndex) transcript received "
+                + "(chars=\(outputText.count), words=\(dedupedWords.count))"
+            )
 
             DispatchQueue.main.async {
                 if !outputText.isEmpty {
@@ -340,7 +358,7 @@ class WhisperBatchTranscriber {
             }
 
         } catch {
-            NSLog("[WhisperBatch] JSON parse error: \(error.localizedDescription)")
+            warningLog("[WhisperBatch] JSON parse error: \(error.localizedDescription)")
             DispatchQueue.main.async {
                 self.onError?("Whisper JSON parse error: \(error.localizedDescription)")
             }

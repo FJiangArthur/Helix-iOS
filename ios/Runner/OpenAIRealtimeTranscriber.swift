@@ -63,6 +63,16 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private let targetSampleRate = 24000
     private let sourceSampleRate = 16000
 
+    private func debugLog(_ message: @autoclosure () -> String) {
+        #if DEBUG
+        NSLog("%@", message())
+        #endif
+    }
+
+    private func warningLog(_ message: @autoclosure () -> String) {
+        NSLog("%@", message())
+    }
+
     private func resolvedLanguageCode() -> String {
         let languageMap: [String: String] = [
             "en": "en", "zh": "zh", "ja": "ja", "ko": "ko",
@@ -175,7 +185,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
-        NSLog("[OpenAITranscriber] WebSocket opened")
+        debugLog("[OpenAITranscriber] WebSocket opened")
         connectTimeoutWork?.cancel()
         connectTimeoutWork = nil
 
@@ -198,7 +208,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         reason: Data?
     ) {
         let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "none"
-        NSLog("[OpenAITranscriber] WebSocket closed: code=\(closeCode.rawValue), reason=\(reasonStr)")
+        debugLog(
+            "[OpenAITranscriber] WebSocket closed: code=\(closeCode.rawValue), "
+            + "reasonChars=\(reasonStr.count)"
+        )
         handleDisconnect(
             error: TranscriberError.connectionFailed(
                 "Closed with code \(closeCode.rawValue), reason: \(reasonStr)"
@@ -213,9 +226,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     ) {
         guard let error = error else { return }
         let nsError = error as NSError
-        print(
-            "[OpenAITranscriber] Session error: \(error.localizedDescription) " +
-            "(domain=\(nsError.domain), code=\(nsError.code))"
+        warningLog(
+            "[OpenAITranscriber] Session error domain=\(nsError.domain) "
+            + "code=\(nsError.code)"
         )
 
         if let completion = pendingCompletion {
@@ -276,13 +289,13 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             guard let self = self, let completion = self.pendingCompletion else { return }
             self.pendingCompletion = nil
             self.disconnect()
-            NSLog("[OpenAITranscriber] Connection timed out")
+            self.warningLog("[OpenAITranscriber] Connection timed out")
             completion(.failure(TranscriberError.connectionFailed("Connection timed out")))
         }
         connectTimeoutWork = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
 
-        NSLog("[OpenAITranscriber] Connecting mode=\(mode), session=\(sessionModel)...")
+        debugLog("[OpenAITranscriber] Connecting mode=\(mode), session=\(sessionModel)...")
     }
 
     private func sendSessionConfig() {
@@ -290,9 +303,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         sendEvent(sessionConfigEvent(for: resolvedLang))
         switch mode {
         case .transcriptionOnly:
-            NSLog("[OpenAITranscriber] Transcription config sent, language=\(resolvedLang)")
+            debugLog("[OpenAITranscriber] Transcription config sent, language=\(resolvedLang)")
         case .conversation:
-            NSLog("[OpenAITranscriber] Conversation config sent, language=\(resolvedLang)")
+            debugLog("[OpenAITranscriber] Conversation config sent, language=\(resolvedLang)")
         }
     }
 
@@ -316,7 +329,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     /// transcription state. Preserves the audio buffer so incoming PCM data
     /// is not lost during the brief reconnect window.
     private func reconnectSession() {
-        NSLog("[OpenAITranscriber] Reconnecting session to recover from stale transcription")
+        debugLog("[OpenAITranscriber] Reconnecting session to recover from stale transcription")
         let savedAudio = audioBuffer  // preserve in-flight audio
         disconnect()
 
@@ -335,9 +348,11 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 if !savedAudio.isEmpty {
                     self.audioBuffer.append(savedAudio)
                 }
-                NSLog("[OpenAITranscriber] Reconnect succeeded")
+                self.debugLog("[OpenAITranscriber] Reconnect succeeded")
             case .failure(let error):
-                NSLog("[OpenAITranscriber] Reconnect failed: \(error.localizedDescription)")
+                self.warningLog(
+                    "[OpenAITranscriber] Reconnect failed: \(error.localizedDescription)"
+                )
                 DispatchQueue.main.async {
                     self.onError?("Transcription reconnect failed: \(error.localizedDescription)")
                 }
@@ -368,7 +383,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         task.sendPing { [weak self] error in
             guard let self else { return }
             if let error {
-                NSLog("[OpenAITranscriber] Ping failed: \(error.localizedDescription)")
+                self.warningLog("[OpenAITranscriber] Ping failed: \(error.localizedDescription)")
                 self.handleDisconnect(error: error)
             }
         }
@@ -405,11 +420,11 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             let message = URLSessionWebSocketTask.Message.string(String(data: data, encoding: .utf8)!)
             task.send(message) { error in
                 if let error = error {
-                    NSLog("[OpenAITranscriber] Send error: \(error.localizedDescription)")
+                    self.warningLog("[OpenAITranscriber] Send error: \(error.localizedDescription)")
                 }
             }
         } catch {
-            NSLog("[OpenAITranscriber] JSON serialization error: \(error)")
+            warningLog("[OpenAITranscriber] JSON serialization error: \(error)")
         }
     }
 
@@ -432,7 +447,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 self.receiveMessage()
 
             case .failure(let error):
-                NSLog("[OpenAITranscriber] Receive error: \(error.localizedDescription)")
+                self.warningLog("[OpenAITranscriber] Receive error: \(error.localizedDescription)")
                 self.handleDisconnect(error: error)
             }
         }
@@ -464,7 +479,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 if trimmed == lastEmittedPartialText {
                     stalePartialCount += 1
                     if stalePartialCount >= Self.stalePartialThreshold {
-                        NSLog("[OpenAITranscriber] Stale partial detected (\(stalePartialCount)x), reconnecting")
+                        self.debugLog(
+                            "[OpenAITranscriber] Stale partial detected "
+                            + "(\(self.stalePartialCount)x), reconnecting"
+                        )
                         stalePartialCount = 0
                         // Finalize current text then reconnect
                         let text = lastRecognizedText
@@ -525,9 +543,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
         case "error":
             let errorMsg = extractError(json)
-            NSLog("[OpenAITranscriber] API error: \(errorMsg)")
+            warningLog("[OpenAITranscriber] API error received")
             if isStopping && errorMsg.lowercased().contains("buffer too small") {
-                NSLog("[OpenAITranscriber] Ignoring shutdown buffer commit error")
+                debugLog("[OpenAITranscriber] Ignoring shutdown buffer commit error")
                 return
             }
             if errorMsg.contains("401") || errorMsg.lowercased().contains("auth") {
@@ -543,7 +561,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
         case "transcription_session.created", "transcription_session.updated",
              "session.created", "session.updated":
-            NSLog("[OpenAITranscriber] Session event: \(type)")
+            debugLog("[OpenAITranscriber] Session event: \(type)")
 
         default:
             break
@@ -587,15 +605,14 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
         if retryCount < maxRetries {
             retryCount += 1
-            print(
-                "[OpenAITranscriber] Reconnecting (attempt \(retryCount)/\(maxRetries)) " +
-                "after error: \(error.localizedDescription)"
+            warningLog(
+                "[OpenAITranscriber] Reconnecting (attempt \(retryCount)/\(maxRetries))"
             )
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(retryCount)) { [weak self] in
                 self?.connect()
             }
         } else {
-            NSLog("[OpenAITranscriber] Max retries reached, giving up")
+            warningLog("[OpenAITranscriber] Max retries reached, giving up")
             DispatchQueue.main.async {
                 let detail = self.lastDisconnectMessage ?? error.localizedDescription
                 self.onError?(

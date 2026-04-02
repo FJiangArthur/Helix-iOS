@@ -62,7 +62,10 @@ class BuzzService {
 
   /// Ask a question and get a streaming answer with citations.
   Stream<BuzzResponseEvent> ask(String question) async* {
-    appLogger.i('[Buzz] Question: ${question.substring(0, question.length.clamp(0, 60))}');
+    appLogger.i(
+      '[Buzz] Question received '
+      '(chars=${question.length}, history=${_history.length})',
+    );
 
     yield const BuzzResponseEvent.searching();
 
