@@ -1,10 +1,12 @@
 import '../services/conversation_engine.dart';
+import '../utils/conversation_mode_labels.dart';
 import 'assistant_profile.dart';
 
 class AssistantSessionMeta {
   AssistantSessionMeta({
     required this.id,
     required this.turns,
+    required this.timelineEntries,
     required this.modeLabel,
     required this.profileId,
     required this.profileLabel,
@@ -53,10 +55,14 @@ class AssistantSessionMeta {
         ? _compactLine(firstAssistant.content, maxLength: 72)
         : _compactLine(firstUser.content, maxLength: 72);
     final summaryBody = _summaryBody(turns);
+    final timelineEntries = turns
+        .map(SessionTimelineEntry.fromTurn)
+        .toList(growable: false);
 
     return AssistantSessionMeta(
       id: '${first.timestamp.millisecondsSinceEpoch}-${turns.length}',
       turns: turns,
+      timelineEntries: timelineEntries,
       modeLabel: _modeLabel(first.mode),
       profileId: profile.id,
       profileLabel: profile.name,
@@ -89,8 +95,97 @@ class AssistantSessionMeta {
     );
   }
 
+  factory AssistantSessionMeta.fromTimelineEntries(
+    List<SessionTimelineEntry> timelineEntries, {
+    required String id,
+    String? mode,
+    String? profileId,
+    String? title,
+    String? summary,
+    List<AssistantProfile> profiles = const [],
+    bool isFavorite = false,
+  }) {
+    final first = timelineEntries.first;
+    final last = timelineEntries.last;
+    final transcriptEntries = timelineEntries
+        .where((entry) => !entry.isAssistant)
+        .toList(growable: false);
+    final assistantEntries = timelineEntries
+        .where((entry) => entry.isAssistant)
+        .toList(growable: false);
+    final primaryTranscript = transcriptEntries.isNotEmpty
+        ? transcriptEntries.first
+        : first;
+    final firstAssistant = assistantEntries.isNotEmpty
+        ? assistantEntries.first
+        : null;
+    final resolvedProfileId = (profileId ?? '').trim().isNotEmpty
+        ? profileId!.trim()
+        : 'general';
+    final profile = AssistantProfile.normalize(profiles).firstWhere(
+      (candidate) => candidate.id == resolvedProfileId,
+      orElse: () => AssistantProfile.fallback(resolvedProfileId),
+    );
+    final turns = timelineEntries
+        .map(
+          (entry) => ConversationTurn(
+            role: entry.isAssistant ? 'assistant' : 'user',
+            content: entry.text,
+            timestamp: entry.timestamp,
+            mode: mode,
+            assistantProfileId: resolvedProfileId,
+          ),
+        )
+        .toList(growable: false);
+    final actionItems = _extractActionItems(turns);
+    final verificationCandidates = _extractVerificationCandidates(turns);
+    final normalizedTitle = title?.trim() ?? '';
+    final normalizedSummary = summary?.trim() ?? '';
+    final summaryTitle = normalizedTitle.isNotEmpty
+        ? normalizedTitle
+        : _compactLine(primaryTranscript.text, maxLength: 72);
+    final summaryBody = normalizedSummary.isNotEmpty
+        ? normalizedSummary
+        : _timelineSummaryBody(timelineEntries);
+
+    return AssistantSessionMeta(
+      id: id,
+      turns: turns,
+      timelineEntries: timelineEntries,
+      modeLabel: _modeLabel(mode),
+      profileId: profile.id,
+      profileLabel: profile.name,
+      startedAt: first.timestamp,
+      duration: last.timestamp.difference(first.timestamp),
+      summaryTitle: summaryTitle,
+      summaryBody: summaryBody,
+      promptPreview: _compactLine(primaryTranscript.text),
+      answerPreview: _compactLine(firstAssistant?.text ?? ''),
+      assistantCount: assistantEntries.length,
+      actionItems: actionItems,
+      verificationCandidates: verificationCandidates,
+      reviewBrief: _buildReviewBrief(
+        summaryTitle: summaryTitle,
+        summaryBody: summaryBody,
+        actionItems: actionItems,
+        verificationCandidates: verificationCandidates,
+      ),
+      reviewSignalCount: actionItems.length + verificationCandidates.length,
+      searchableText: [
+        normalizedTitle,
+        normalizedSummary,
+        ...timelineEntries.map((entry) => entry.text.toLowerCase()),
+      ].join(' ').toLowerCase(),
+      fullTranscript: timelineEntries
+          .map((entry) => '${entry.displayLabel}: ${entry.text}')
+          .join('\n\n'),
+      isFavorite: isFavorite,
+    );
+  }
+
   final String id;
   final List<ConversationTurn> turns;
+  final List<SessionTimelineEntry> timelineEntries;
   final String modeLabel;
   final String profileId;
   final String profileLabel;
@@ -117,6 +212,7 @@ class AssistantSessionMeta {
     return AssistantSessionMeta(
       id: id,
       turns: turns,
+      timelineEntries: timelineEntries,
       modeLabel: modeLabel,
       profileId: profileId,
       profileLabel: profileLabel,
@@ -138,8 +234,7 @@ class AssistantSessionMeta {
   }
 
   static String _modeLabel(String? mode) {
-    if (mode == null || mode.isEmpty) return 'General';
-    return mode[0].toUpperCase() + mode.substring(1).toLowerCase();
+    return storedConversationModeLabel(mode);
   }
 
   static String _compactLine(String text, {int maxLength = 80}) {
@@ -154,6 +249,18 @@ class AssistantSessionMeta {
         .map(
           (turn) =>
               '${turn.role == 'user' ? 'You' : 'Even AI'}: ${_compactLine(turn.content, maxLength: 96)}',
+        )
+        .join('  ');
+  }
+
+  static String _timelineSummaryBody(
+    List<SessionTimelineEntry> timelineEntries,
+  ) {
+    return timelineEntries
+        .take(3)
+        .map(
+          (entry) =>
+              '${entry.displayLabel}: ${_compactLine(entry.text, maxLength: 96)}',
         )
         .join('  ');
   }
@@ -262,4 +369,46 @@ class AssistantSessionMeta {
     '统计',
     '报道',
   ];
+}
+
+class SessionTimelineEntry {
+  const SessionTimelineEntry({
+    required this.speakerLabel,
+    required this.text,
+    required this.timestamp,
+  });
+
+  factory SessionTimelineEntry.fromTurn(ConversationTurn turn) {
+    return SessionTimelineEntry(
+      speakerLabel: turn.role == 'assistant' ? 'assistant' : 'user',
+      text: turn.content,
+      timestamp: turn.timestamp,
+    );
+  }
+
+  final String speakerLabel;
+  final String text;
+  final DateTime timestamp;
+
+  String get _normalizedSpeaker => speakerLabel.toLowerCase().trim();
+
+  bool get isAssistant => _normalizedSpeaker == 'assistant';
+
+  bool get isWearer =>
+      _normalizedSpeaker == 'me' ||
+      _normalizedSpeaker == 'user' ||
+      _normalizedSpeaker == 'wearer';
+
+  String get displayLabel {
+    if (isAssistant) {
+      return 'Even AI';
+    }
+    if (isWearer) {
+      return 'You';
+    }
+    if (_normalizedSpeaker == 'other') {
+      return 'Other';
+    }
+    return 'Conversation';
+  }
 }

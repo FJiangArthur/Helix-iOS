@@ -22,9 +22,10 @@ void main() {
     recorder = StreamRecorder(engine);
   });
 
-  tearDown(() {
+  tearDown(() async {
     recorder.dispose();
     teardownTestEngine(engine);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
   });
 
   group('B4 - Proactive mode triggerProactiveAnalysis', () {
@@ -48,12 +49,14 @@ void main() {
       // The triggerProactiveAnalysis method calls _generateResponse which
       // uses streamWithTools (stream). Enqueue the streaming response.
       // The proactive response includes a JSON preamble on the first line.
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "answer", "target": "training resources"}\n',
-        'Based on the conversation, ',
-        'the team should consider ',
-        'scheduling React workshops next sprint.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "answer", "target": "training resources"}\n',
+          'Based on the conversation, ',
+          'the team should consider ',
+          'scheduling React workshops next sprint.',
+        ]),
+      );
 
       final responseFuture = waitForStream<String>(
         engine.aiResponseStream,
@@ -72,9 +75,11 @@ void main() {
       // Do NOT call engine.start() — engine is inactive
       engine.stop();
 
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "insight", "target": "test"}\nSome insight.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "insight", "target": "test"}\nSome insight.',
+        ]),
+      );
 
       await engine.triggerProactiveAnalysis();
       await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -91,9 +96,11 @@ void main() {
 
       engine.onTranscriptionFinalized('Some context for analysis.');
 
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "answer", "target": "test"}\nTest answer.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "answer", "target": "test"}\nTest answer.',
+        ]),
+      );
 
       await engine.triggerProactiveAnalysis();
       await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -101,6 +108,61 @@ void main() {
       // triggerProactiveAnalysis returns early if not in proactive mode
       expect(provider.streamCallCount, 0);
     });
+
+    test(
+      'manual contextual Q&A in proactive mode cancels the in-flight answer and refreshes with the latest nearby question',
+      () async {
+        engine.autoDetectQuestions = false;
+        SettingsManager.instance.sentimentMonitorEnabled = false;
+        SettingsManager.instance.entityMemoryEnabled = false;
+        engine.start(mode: ConversationMode.proactive);
+
+        engine.onTranscriptionFinalized('We are discussing the beta rollout.');
+        engine.onTranscriptionFinalized('What is the rollout plan?');
+
+        provider.enqueueStreamResponse(
+          const FakeStreamResponse([
+            'First ',
+            'answer that should be replaced.',
+          ], delayBetweenChunks: Duration(milliseconds: 120)),
+        );
+        provider.enqueueStreamResponse(
+          const FakeStreamResponse(['Ship the beta next week.']),
+        );
+
+        engine.forceQuestionAnalysis();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        engine.onTranscriptionFinalized('Can you confirm the beta timing?');
+
+        final responseFuture = waitForStream<String>(
+          engine.aiResponseStream,
+          predicate: (value) => value.contains('beta next week'),
+          timeout: const Duration(seconds: 5),
+        );
+
+        engine.forceQuestionAnalysis();
+
+        final response = await responseFuture;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+
+        expect(response, contains('beta next week'));
+        final assistantTurns = engine.history
+            .where((turn) => turn.role == 'assistant')
+            .toList();
+        expect(assistantTurns, hasLength(1));
+        expect(assistantTurns.single.content, contains('beta next week'));
+
+        final contextualQaCalls = provider.capturedMessages.where((messages) {
+          final userContent = messages
+              .where((message) => message.role == 'user')
+              .map((message) => message.content)
+              .join('\n');
+          return userContent.contains('Can you confirm the beta timing?');
+        }).toList();
+        expect(contextualQaCalls, isNotEmpty);
+      },
+    );
   });
 
   group('B5 - Answered questions not repeated', () {
@@ -115,10 +177,12 @@ void main() {
       );
 
       // First proactive analysis — JSON preamble tracks the answered question
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "answer", "target": "front-end frameworks"}\n',
-        'The team primarily uses React and Vue.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "answer", "target": "front-end frameworks"}\n',
+          'The team primarily uses React and Vue.',
+        ]),
+      );
 
       // Wait for the response to finish streaming
       final responseFuture = waitForStream<String>(
@@ -135,10 +199,7 @@ void main() {
 
       // The SessionContextManager should have recorded the answered question
       expect(engine.answeredQuestions, isNotEmpty);
-      expect(
-        engine.answeredQuestions.first.question,
-        isNotEmpty,
-      );
+      expect(engine.answeredQuestions.first.question, isNotEmpty);
     });
 
     test('second analysis includes answered summary in context', () async {
@@ -152,10 +213,12 @@ void main() {
       );
 
       // First analysis
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "answer", "target": "deployment pipeline"}\n',
-        'We use GitHub Actions with staging and production environments.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "answer", "target": "deployment pipeline"}\n',
+          'We use GitHub Actions with staging and production environments.',
+        ]),
+      );
 
       final firstResponse = waitForStream<String>(
         engine.aiResponseStream,
@@ -171,15 +234,15 @@ void main() {
       expect(answeredCountAfterFirst, greaterThan(0));
 
       // Add more context for second analysis
-      engine.onTranscriptionFinalized(
-        'How do you handle database migrations?',
-      );
+      engine.onTranscriptionFinalized('How do you handle database migrations?');
 
       // Second analysis
-      provider.enqueueStreamResponse(FakeStreamResponse([
-        '{"action": "answer", "target": "database migrations"}\n',
-        'We use Flyway for database migrations with versioned scripts.',
-      ]));
+      provider.enqueueStreamResponse(
+        FakeStreamResponse([
+          '{"action": "answer", "target": "database migrations"}\n',
+          'We use Flyway for database migrations with versioned scripts.',
+        ]),
+      );
 
       final secondResponse = waitForStream<String>(
         engine.aiResponseStream,

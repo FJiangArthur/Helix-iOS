@@ -32,7 +32,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Ask questions, start conversations, and get AI-powered answers instantly. Choose from 4 quick modes \u2014 Concise, Speak For Me, Interview Coach, or Fact Check. Tap the mic to start recording and let AI listen along.',
       gradient: [HelixTheme.cyan, HelixTheme.lime],
-      bullets: ['Quick Ask', 'Live Transcription', 'AI Answers', 'Follow-up Chips'],
+      bullets: [
+        'Quick Ask',
+        'Live Transcription',
+        'AI Answers',
+        'Follow-up Chips',
+      ],
     ),
     _OnboardingPage(
       icon: Icons.bluetooth_connected_rounded,
@@ -48,7 +53,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'Conversation History',
       subtitle: 'History',
       description:
-          'Browse, search, and filter all your past conversations. Filter by mode (General, Interview, Passive), mark favorites, and find action items or fact-check flags.',
+          'Browse, search, and filter all your past conversations. Filter by mode (General, Interview, Answer All, or Answer On-demand), mark favorites, and find action items or fact-check flags.',
       gradient: [HelixTheme.purple, HelixTheme.amber],
       bullets: ['Search', 'Filter by Mode', 'Favorites', 'Action Items'],
     ),
@@ -59,7 +64,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'See your conversation unfold in real-time. Live transcription, AI Q&A as it happens, word and segment counts, and post-conversation analysis with topics, summaries, and action items.',
       gradient: [Color(0xFFFF6B6B), HelixTheme.amber],
-      bullets: ['Real-time Transcript', 'Live Q&A', 'Word Count', 'Post Analysis'],
+      bullets: [
+        'Real-time Transcript',
+        'Live Q&A',
+        'Word Count',
+        'Post Analysis',
+      ],
     ),
     _OnboardingPage(
       icon: Icons.lightbulb_rounded,

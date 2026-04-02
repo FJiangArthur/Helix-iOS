@@ -11,6 +11,7 @@ import '../services/history_session_loader.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
+import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
 
 class ConversationHistoryScreen extends StatefulWidget {
@@ -28,8 +29,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     'All',
     'General',
     'Interview',
-    'Passive',
-    'Proactive',
+    'Answer All',
+    'Answer On-demand',
   ];
   static const List<String> _libraryFilterKeys = [
     'All',
@@ -42,8 +43,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     'All' => tr('All', '全部'),
     'General' => tr('General', '通用'),
     'Interview' => tr('Interview', '面试'),
-    'Passive' => tr('Passive', '被动'),
-    'Proactive' => tr('Proactive', '主动'),
+    'Answer All' => tr('Answer All', '全程回答'),
+    'Answer On-demand' => tr('Answer On-demand', '按需回答'),
     _ => key,
   };
 
@@ -72,8 +73,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     super.initState();
     _loadFavoritesAndHistory();
     _subs.add(
-      _engine.statusStream.listen((status) {
-        if (!mounted || status != EngineStatus.idle) return;
+      _engine.sessionSavedStream.listen((_) {
+        if (!mounted) return;
         _loadHistory();
       }),
     );
@@ -95,13 +96,12 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     final persistedSessions = await HistorySessionLoader.loadPersistedSessions(
       favoriteIds: favoriteIds,
     );
-    final transientSessions = _buildSessions(_engine.history);
     if (!mounted) return;
     setState(() {
       _favoriteSessionIds
         ..clear()
         ..addAll(favoriteIds);
-      _sessions = [...persistedSessions, ...transientSessions];
+      _sessions = persistedSessions;
       _applyFilters();
     });
   }
@@ -115,10 +115,9 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     final persistedSessions = await HistorySessionLoader.loadPersistedSessions(
       favoriteIds: _favoriteSessionIds.toList(),
     );
-    final transientSessions = _buildSessions(_engine.history);
     if (!mounted) return;
     setState(() {
-      _sessions = [...persistedSessions, ...transientSessions];
+      _sessions = persistedSessions;
       _applyFilters();
     });
   }
@@ -272,58 +271,6 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     );
   }
 
-  List<AssistantSessionMeta> _buildSessions(List<ConversationTurn> turns) {
-    if (turns.isEmpty) return [];
-
-    final sessions = <AssistantSessionMeta>[];
-    var current = <ConversationTurn>[turns.first];
-    final profiles = SettingsManager.instance.assistantProfiles;
-
-    for (var i = 1; i < turns.length; i++) {
-      final previous = turns[i - 1];
-      final next = turns[i];
-      if (_shouldStartNewSession(current, previous, next)) {
-        final session = AssistantSessionMeta.fromTurns(
-          current,
-          profiles: profiles,
-        );
-        sessions.add(
-          session.copyWith(
-            isFavorite: _favoriteSessionIds.contains(session.id),
-          ),
-        );
-        current = <ConversationTurn>[next];
-      } else {
-        current.add(next);
-      }
-    }
-
-    final tail = AssistantSessionMeta.fromTurns(current, profiles: profiles);
-    sessions.add(
-      tail.copyWith(isFavorite: _favoriteSessionIds.contains(tail.id)),
-    );
-    return sessions.reversed.toList();
-  }
-
-  bool _shouldStartNewSession(
-    List<ConversationTurn> currentSession,
-    ConversationTurn previous,
-    ConversationTurn next,
-  ) {
-    final gap = next.timestamp.difference(previous.timestamp);
-    final currentMode = historyModeLabel(currentSession.first.mode);
-    final nextMode = historyModeLabel(next.mode);
-
-    if (currentMode != nextMode) return true;
-    if (gap.inMinutes >= 25) return true;
-    if (previous.role == 'assistant' &&
-        next.role == 'user' &&
-        gap.inMinutes >= 4) {
-      return true;
-    }
-    return false;
-  }
-
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final diff = now.difference(timestamp);
@@ -368,12 +315,14 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   }
 
   Color _modeColor(String? mode) {
-    switch (mode?.toLowerCase()) {
+    switch ((mode ?? '').trim().toLowerCase()) {
       case 'interview':
         return HelixTheme.purple;
       case 'passive':
-        return Colors.orangeAccent;
+      case 'answer all':
+        return const Color(0xFF00FF88);
       case 'proactive':
+      case 'answer on-demand':
         return HelixTheme.amber;
       case 'general':
       default:
@@ -878,8 +827,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               children: [
                 Expanded(
                   child: _buildPreviewBlock(
-                    label: tr('Prompt', '提问'),
-                    icon: Icons.person_outline_rounded,
+                    label: tr('Transcript', '转录'),
+                    icon: Icons.notes_rounded,
                     text: session.promptPreview,
                     accent: HelixTheme.cyan,
                   ),
@@ -887,7 +836,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _buildPreviewBlock(
-                    label: tr('Answer', '回答'),
+                    label: tr('AI Reply', 'AI 回复'),
                     icon: Icons.auto_awesome_outlined,
                     text: session.answerPreview,
                     accent: HelixTheme.purple,
@@ -980,6 +929,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   label: isExpanded
                       ? tr('Collapse', '收起')
                       : tr('Details', '详情'),
+                  key: ValueKey('history-session-details-${session.id}'),
                   onTap: () => _toggleExpanded(session),
                 ),
               ],
@@ -1016,8 +966,13 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: session.turns
-                      .map((turn) => _buildDetailRow(turn))
+                  children: session.timelineEntries
+                      .map(
+                        (entry) => _buildDetailRow(
+                          entry,
+                          session.timelineEntries.first.timestamp,
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -1103,12 +1058,14 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
   }
 
   Widget _buildActionButton({
+    Key? key,
     required IconData icon,
     required String label,
     required VoidCallback? onTap,
   }) {
     final isEnabled = onTap != null;
     return Material(
+      key: key,
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
@@ -1208,10 +1165,20 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     );
   }
 
-  Widget _buildDetailRow(ConversationTurn turn) {
-    final isUser = turn.role == 'user';
-    final accent = isUser ? HelixTheme.cyan : HelixTheme.purple;
-    final label = isUser ? tr('You', '你') : 'Even AI';
+  Widget _buildDetailRow(SessionTimelineEntry entry, DateTime sessionStart) {
+    final normalizedSpeaker = entry.speakerLabel.toLowerCase().trim();
+    final isAssistant = entry.isAssistant;
+    final accent = isAssistant
+        ? HelixTheme.purple
+        : normalizedSpeaker == 'other'
+        ? HelixTheme.amber
+        : HelixTheme.cyan;
+    final label = switch (entry.displayLabel) {
+      'You' => tr('You', '你'),
+      'Other' => tr('Other', '对方'),
+      'Conversation' => tr('Conversation', '对话'),
+      _ => entry.displayLabel,
+    };
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -1227,7 +1194,11 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
               border: Border.all(color: accent.withValues(alpha: 0.28)),
             ),
             child: Icon(
-              isUser ? Icons.person_outline : Icons.auto_awesome,
+              isAssistant
+                  ? Icons.auto_awesome
+                  : normalizedSpeaker == 'other'
+                  ? Icons.record_voice_over_outlined
+                  : Icons.person_outline,
               size: 14,
               color: accent,
             ),
@@ -1250,7 +1221,10 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _formatTimestamp(turn.timestamp),
+                      formatTranscriptElapsed(
+                        entry.timestamp,
+                        sessionStart: sessionStart,
+                      ),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.34),
                         fontSize: 11,
@@ -1260,7 +1234,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  turn.content,
+                  entry.text,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.78),
                     fontSize: 12,

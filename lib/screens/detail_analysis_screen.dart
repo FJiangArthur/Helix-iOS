@@ -10,6 +10,7 @@ import '../services/conversation_engine.dart';
 import '../services/recording_coordinator.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
+import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/home_assistant_modules.dart';
 
@@ -27,8 +28,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   final List<StreamSubscription> _subs = [];
 
   bool _isRecording = false;
-  RecordingCaptureState _recordingCaptureState =
-      RecordingCaptureState.idle;
+  RecordingCaptureState _recordingCaptureState = RecordingCaptureState.idle;
   Duration _duration = Duration.zero;
   String _transcription = '';
   String _aiResponse = '';
@@ -36,7 +36,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   AssistantInsightSnapshot? _postAnalysis;
   int _wordCount = 0;
   int _segmentCount = 0;
-  List<String> _segments = [];
+  List<TranscriptSegment> _transcriptEntries = [];
   CoachingPrompt? _activeCoaching;
 
   @override
@@ -66,7 +66,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             _postAnalysis = null;
             _wordCount = 0;
             _segmentCount = 0;
-            _segments = [];
+            _transcriptEntries = [];
             _duration = Duration.zero;
             _activeCoaching = null;
           });
@@ -84,8 +84,8 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
         if (!mounted) return;
         setState(() {
           _transcription = snapshot.fullTranscript;
-          _segments = snapshot.finalizedSegments;
-          _segmentCount = _segments.length;
+          _transcriptEntries = snapshot.finalizedTimelineEntries;
+          _segmentCount = _transcriptEntries.length;
           _wordCount = _transcription
               .split(RegExp(r'\s+'))
               .where((w) => w.isNotEmpty)
@@ -111,12 +111,14 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             (e) => e.question == detection.question,
           );
           if (existing == -1) {
-            _qaEntries.add(_QAEntry(
-              question: detection.question,
-              questionExcerpt: detection.questionExcerpt,
-              timestamp: detection.timestamp,
-              answer: '',
-            ));
+            _qaEntries.add(
+              _QAEntry(
+                question: detection.question,
+                questionExcerpt: detection.questionExcerpt,
+                timestamp: detection.timestamp,
+                answer: '',
+              ),
+            );
           }
         });
         _scrollToBottom();
@@ -326,6 +328,9 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
 
   Widget _buildTranscriptCard() {
     final partial = _engine.currentTranscriptSnapshot.partialText;
+    final sessionStart = _transcriptEntries.isNotEmpty
+        ? _transcriptEntries.first.timestamp
+        : DateTime.now();
     return GlassCard(
       opacity: 0.1,
       borderColor: HelixTheme.cyan.withValues(alpha: 0.2),
@@ -347,9 +352,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
               const Spacer(),
               if (_isRecording && _segmentCount > 0)
                 Text(
-                  _isChinese
-                      ? '段落 $_segmentCount'
-                      : 'seg $_segmentCount',
+                  _isChinese ? '段落 $_segmentCount' : 'seg $_segmentCount',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.35),
                     fontSize: 10,
@@ -360,29 +363,81 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
           ),
           const SizedBox(height: 8),
           // Show finalized segments with visual separation
-          ..._segments.asMap().entries.map((entry) {
+          ..._transcriptEntries.map((entry) {
             return Padding(
               padding: const EdgeInsets.only(bottom: 6),
-              child: Text(
-                entry.value,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.88),
-                  fontSize: 14,
-                  height: 1.5,
-                ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 54,
+                    child: Text(
+                      formatTranscriptElapsed(
+                        entry.timestamp,
+                        sessionStart: sessionStart,
+                      ),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.36),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.text,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.88),
+                        fontSize: 14,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             );
           }),
-          // Show live partial transcription with different styling
-          if (partial.isNotEmpty)
+          if (_transcriptEntries.isEmpty && _transcription.trim().isNotEmpty)
             Text(
-              partial,
+              _transcription,
               style: TextStyle(
-                color: HelixTheme.cyan.withValues(alpha: 0.75),
+                color: Colors.white.withValues(alpha: 0.88),
                 fontSize: 14,
                 height: 1.5,
-                fontStyle: FontStyle.italic,
               ),
+            ),
+          // Show live partial transcription with different styling
+          if (partial.isNotEmpty)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 54,
+                  child: Text(
+                    'LIVE',
+                    style: TextStyle(
+                      color: HelixTheme.cyan.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    partial,
+                    style: TextStyle(
+                      color: HelixTheme.cyan.withValues(alpha: 0.75),
+                      fontSize: 14,
+                      height: 1.5,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
             ),
         ],
       ),
@@ -506,32 +561,34 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...coaching.steps.map((step) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '\u2022 ',
-                  style: TextStyle(
-                    color: HelixTheme.lime,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Expanded(
-                  child: Text(
-                    step,
+          ...coaching.steps.map(
+            (step) => Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '\u2022 ',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
+                      color: HelixTheme.lime,
                       fontSize: 13,
-                      height: 1.4,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Text(
+                      step,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          )),
+          ),
           if (coaching.questionContext.isNotEmpty) ...[
             const SizedBox(height: 6),
             Container(
@@ -579,16 +636,18 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
               _isChinese ? '字数' : 'Words',
             ),
             _buildStatDivider(),
-            Builder(builder: (_) {
-              final stats = _engine.transcriptStats;
-              return _buildStatItem(
-                Icons.speed_rounded,
-                stats.wordsPerMinute > 0
-                    ? '${stats.wordsPerMinute.toInt()}'
-                    : '--',
-                'WPM',
-              );
-            }),
+            Builder(
+              builder: (_) {
+                final stats = _engine.transcriptStats;
+                return _buildStatItem(
+                  Icons.speed_rounded,
+                  stats.wordsPerMinute > 0
+                      ? '${stats.wordsPerMinute.toInt()}'
+                      : '--',
+                  'WPM',
+                );
+              },
+            ),
             _buildStatDivider(),
             _buildStatItem(
               Icons.segment_rounded,
@@ -650,7 +709,8 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   // ── Post-conversation view ─────────────────────────────────────
 
   Widget _buildPostConversation() {
-    final hasContent = _transcription.isNotEmpty ||
+    final hasContent =
+        _transcription.isNotEmpty ||
         _qaEntries.isNotEmpty ||
         _postAnalysis != null;
 
@@ -756,11 +816,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
         children: [
           Row(
             children: [
-              Icon(
-                Icons.insights_rounded,
-                size: 18,
-                color: HelixTheme.purple,
-              ),
+              Icon(Icons.insights_rounded, size: 18, color: HelixTheme.purple),
               const SizedBox(width: 8),
               Text(
                 _isChinese ? '对话分析' : 'CONVERSATION ANALYSIS',
@@ -842,32 +898,34 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            ...analysis.actionItems.map((item) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '\u2022 ',
-                    style: TextStyle(
-                      color: HelixTheme.cyan,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      item,
+            ...analysis.actionItems.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '\u2022 ',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.82),
-                        fontSize: 13,
-                        height: 1.4,
+                        color: HelixTheme.cyan,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.82),
+                          fontSize: 13,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            )),
+            ),
           ],
 
           // Sentiment
@@ -891,8 +949,9 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: _sentimentColor(analysis.sentiment)
-                        .withValues(alpha: 0.12),
+                    color: _sentimentColor(
+                      analysis.sentiment,
+                    ).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
@@ -981,8 +1040,8 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
           _isRecording
               ? Icons.stop_rounded
               : _isSimulating
-                  ? Icons.hourglass_top_rounded
-                  : Icons.mic_rounded,
+              ? Icons.hourglass_top_rounded
+              : Icons.mic_rounded,
           color: Colors.white,
         ),
       ),
@@ -999,7 +1058,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
       _postAnalysis = null;
       _wordCount = 0;
       _segmentCount = 0;
-      _segments = [];
+      _transcriptEntries = [];
     });
 
     _engine.start(source: TranscriptSource.phone);
@@ -1007,12 +1066,13 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
 
     // Start a duration timer for the simulation
     final startTime = DateTime.now();
-    final durationTimer = Stream.periodic(
-      const Duration(seconds: 1),
-      (_) => DateTime.now().difference(startTime),
-    ).listen((d) {
-      if (mounted) setState(() => _duration = d);
-    });
+    final durationTimer =
+        Stream.periodic(
+          const Duration(seconds: 1),
+          (_) => DateTime.now().difference(startTime),
+        ).listen((d) {
+          if (mounted) setState(() => _duration = d);
+        });
 
     await _engine.simulateTranscription();
 
@@ -1039,12 +1099,16 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
 
   Color _sentimentColor(String sentiment) {
     final lower = sentiment.toLowerCase();
-    if (lower.contains('positive') || lower.contains('smooth') ||
-        lower.contains('\u79EF\u6781') || lower.contains('\u987A\u7545')) {
+    if (lower.contains('positive') ||
+        lower.contains('smooth') ||
+        lower.contains('\u79EF\u6781') ||
+        lower.contains('\u987A\u7545')) {
       return Colors.green;
     }
-    if (lower.contains('cautious') || lower.contains('risk') ||
-        lower.contains('\u8C28\u614E') || lower.contains('\u98CE\u9669')) {
+    if (lower.contains('cautious') ||
+        lower.contains('risk') ||
+        lower.contains('\u8C28\u614E') ||
+        lower.contains('\u98CE\u9669')) {
       return Colors.orange;
     }
     return HelixTheme.cyan;

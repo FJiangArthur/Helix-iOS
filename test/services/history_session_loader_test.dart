@@ -89,7 +89,7 @@ void main() {
     });
 
     test(
-      'loads recorded sessions and preserves proactive mode labeling',
+      'loads recorded sessions and preserves answer-on-demand mode labeling',
       () async {
         final db = HelixDatabase.instance;
         await db.conversationDao.insertConversation(
@@ -120,11 +120,78 @@ void main() {
         );
 
         expect(sessions, hasLength(1));
-        expect(sessions.single.modeLabel, 'Proactive');
+        expect(sessions.single.modeLabel, 'Answer On-demand');
         expect(sessions.single.summaryTitle, 'Recorded strategy session');
         expect(sessions.single.searchableText, contains('launch checklist'));
         expect(sessions.single.isFavorite, isTrue);
       },
     );
+
+    test('preserves transcript speakers for persisted session history', () async {
+      final db = HelixDatabase.instance;
+      await db.conversationDao.insertConversation(
+        ConversationsCompanion.insert(
+          id: 'speaker-session',
+          startedAt: 1700002000000,
+          endedAt: const drift.Value(1700002060000),
+          mode: const drift.Value('general'),
+        ),
+      );
+      await db.conversationDao.insertSegment(
+        ConversationSegmentsCompanion.insert(
+          id: 'speaker-segment-1',
+          conversationId: 'speaker-session',
+          segmentIndex: 0,
+          text_: 'How should we frame the beta rollout?',
+          speakerLabel: const drift.Value('other'),
+          startedAt: 1700002001000,
+        ),
+      );
+      await db.conversationDao.insertSegment(
+        ConversationSegmentsCompanion.insert(
+          id: 'speaker-segment-2',
+          conversationId: 'speaker-session',
+          segmentIndex: 1,
+          text_: 'We can frame it around next week\'s beta.',
+          speakerLabel: const drift.Value('me'),
+          startedAt: 1700002005000,
+        ),
+      );
+      await db.conversationDao.insertSegment(
+        ConversationSegmentsCompanion.insert(
+          id: 'speaker-segment-3',
+          conversationId: 'speaker-session',
+          segmentIndex: 2,
+          text_:
+              'Mention the beta next week and the general availability target.',
+          speakerLabel: const drift.Value('assistant'),
+          startedAt: 1700002010000,
+        ),
+      );
+
+      final sessions = await HistorySessionLoader.loadPersistedSessions(
+        favoriteIds: const [],
+      );
+
+      expect(sessions, hasLength(1));
+      expect(
+        sessions.single.promptPreview,
+        'How should we frame the beta rollout?',
+      );
+      expect(
+        sessions.single.fullTranscript,
+        contains('Other: How should we frame the beta rollout?'),
+      );
+      expect(
+        sessions.single.fullTranscript,
+        contains('You: We can frame it around next week\'s beta.'),
+      );
+      expect(
+        sessions.single.fullTranscript,
+        contains(
+          'Even AI: Mention the beta next week and the general availability target.',
+        ),
+      );
+    });
   });
 }

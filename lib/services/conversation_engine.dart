@@ -115,6 +115,7 @@ class ConversationEngine {
       StreamController<DetectedQuestion>.broadcast();
   final _questionDetectionController =
       StreamController<QuestionDetectionResult>.broadcast();
+  final _sessionSavedController = StreamController<String>.broadcast();
   final _statusController = StreamController<EngineStatus>.broadcast();
   final _proactiveSuggestionController =
       StreamController<ProactiveSuggestion>.broadcast();
@@ -145,6 +146,7 @@ class ConversationEngine {
       _questionDetectedController.stream;
   Stream<QuestionDetectionResult> get questionDetectionStream =>
       _questionDetectionController.stream;
+  Stream<String> get sessionSavedStream => _sessionSavedController.stream;
   Stream<EngineStatus> get statusStream => _statusController.stream;
   Stream<ProactiveSuggestion> get proactiveSuggestionStream =>
       _proactiveSuggestionController.stream;
@@ -172,6 +174,9 @@ class ConversationEngine {
     partialText: _partialTranscription,
     finalizedSegments: List.unmodifiable(
       _finalizedSegments.map((s) => s.text).toList(),
+    ),
+    finalizedTimelineEntries: List.unmodifiable(
+      _copyTranscriptSegments(_finalizedSegments),
     ),
     fullTranscript: _currentTranscription,
   );
@@ -223,6 +228,7 @@ class ConversationEngine {
     _analyticsRunning = false;
     _conversationCostTracker.reset();
     _clearProviderError();
+    _lastSavedConversationId = null;
     if (mode != null) setMode(mode);
     if (_mode == ConversationMode.proactive) {
       _sessionContextManager.startSession();
@@ -338,6 +344,7 @@ class ConversationEngine {
       appLogger.i(
         'Saved conversation $conversationId with ${timelineEntries.length} timeline entries',
       );
+      _sessionSavedController.add(conversationId);
 
       for (final entry in _conversationCostTracker.entries) {
         await db
@@ -1299,6 +1306,9 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
       finalizedSegments: List.unmodifiable(
         _finalizedSegments.map((s) => s.text).toList(),
       ),
+      finalizedTimelineEntries: List.unmodifiable(
+        _copyTranscriptSegments(_finalizedSegments),
+      ),
       fullTranscript: _currentTranscription,
     );
     _transcriptionController.add(snapshot.fullTranscript);
@@ -1438,16 +1448,7 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
         ),
       );
 
-      _history.add(
-        ConversationTurn(
-          role: 'user',
-          content: detection.question,
-          timestamp: detection.timestamp,
-          mode: _mode.name,
-          assistantProfileId: _activeAssistantProfile().id,
-        ),
-      );
-      _persistHistory();
+      _recordDetectedQuestionTurn(detection);
 
       _aiResponseController.add('');
       if (autoAnswerQuestions) {
@@ -1636,6 +1637,191 @@ $profileInstruction''';
     return '';
   }
 
+  List<TranscriptSegment> _copyTranscriptSegments(
+    Iterable<TranscriptSegment> segments,
+  ) {
+    return segments
+        .map(
+          (segment) => TranscriptSegment(
+            text: segment.text,
+            timestamp: segment.timestamp,
+            speakerLabel: segment.speakerLabel,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _recordDetectedQuestionTurn(QuestionDetectionResult detection) {
+    final normalizedQuestion = _normalizeQuestion(detection.question);
+    final lastUserTurn = _history.reversed.cast<ConversationTurn?>().firstWhere(
+      (turn) => turn?.role == 'user',
+      orElse: () => null,
+    );
+    if (lastUserTurn != null &&
+        _normalizeQuestion(lastUserTurn.content) == normalizedQuestion) {
+      return;
+    }
+
+    _history.add(
+      ConversationTurn(
+        role: 'user',
+        content: detection.question,
+        timestamp: detection.timestamp,
+        mode: _mode.name,
+        assistantProfileId: _activeAssistantProfile().id,
+      ),
+    );
+    _persistHistory();
+  }
+
+  bool _looksLikeQuestionText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    if (trimmed.contains('?') || trimmed.contains('？')) {
+      return true;
+    }
+
+    final lowered = trimmed.toLowerCase();
+    return RegExp(
+      r'^(what|when|where|why|who|whom|whose|which|how|can|could|would|should|do|does|did|is|are|am|will|have|has|had|may)\b',
+    ).hasMatch(lowered);
+  }
+
+  String _extractNearbyQuestionText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    final explicitQuestions = RegExp(
+      r'[^?？]*[?？]',
+    ).allMatches(trimmed).toList();
+    if (explicitQuestions.isNotEmpty) {
+      return explicitQuestions.last.group(0)!.trim();
+    }
+
+    return trimmed;
+  }
+
+  QuestionDetectionResult? _buildManualQuestionDetection(
+    String transcriptWindow,
+  ) {
+    final currentDetection = _latestQuestionDetection;
+    if (currentDetection != null) {
+      final excerpt = _resolveQuestionExcerpt(
+        transcriptWindow,
+        currentDetection.questionExcerpt,
+        currentDetection.question,
+      );
+      if (excerpt.isNotEmpty ||
+          transcriptWindow.toLowerCase().contains(
+            currentDetection.question.toLowerCase(),
+          )) {
+        return QuestionDetectionResult(
+          question: currentDetection.question,
+          questionExcerpt: excerpt,
+          timestamp: DateTime.now(),
+          askedBy: currentDetection.askedBy,
+        );
+      }
+    }
+
+    final candidates = <TranscriptSegment>[
+      ..._finalizedSegments.reversed,
+      if (_partialTranscription.trim().isNotEmpty)
+        TranscriptSegment(
+          text: _partialTranscription.trim(),
+          timestamp: DateTime.now(),
+        ),
+    ];
+
+    for (final segment in candidates) {
+      if (!_looksLikeQuestionText(segment.text)) {
+        continue;
+      }
+      final question = _extractNearbyQuestionText(segment.text);
+      if (question.isEmpty) {
+        continue;
+      }
+      return QuestionDetectionResult(
+        question: question,
+        questionExcerpt: _resolveQuestionExcerpt(
+          transcriptWindow,
+          segment.text,
+          question,
+        ),
+        timestamp: DateTime.now(),
+      );
+    }
+
+    return null;
+  }
+
+  Future<void> _runManualContextualQa() async {
+    if (!_isActive) {
+      return;
+    }
+
+    _analysisTimer?.cancel();
+    _analysisToken++;
+    _clearProviderError();
+    _cancelInFlightResponse();
+
+    final transcriptWindow = _buildRecentTranscriptWindow();
+    if (transcriptWindow.trim().isEmpty) {
+      _statusController.add(
+        _isActive ? EngineStatus.listening : EngineStatus.idle,
+      );
+      return;
+    }
+
+    final detection = _buildManualQuestionDetection(transcriptWindow);
+    if (detection == null) {
+      _statusController.add(
+        _isActive ? EngineStatus.listening : EngineStatus.idle,
+      );
+      return;
+    }
+
+    _latestQuestionDetection = detection;
+    _questionDetectionController.add(detection);
+    _questionDetectedController.add(
+      DetectedQuestion(
+        question: detection.question,
+        fullContext: transcriptWindow,
+        timestamp: detection.timestamp,
+      ),
+    );
+    _recordDetectedQuestionTurn(detection);
+
+    _aiResponseController.add('');
+    final session = ConversationListeningSession.instance;
+    final shouldPause = session.isRunning;
+    if (shouldPause) {
+      session.pauseTranscription();
+    }
+
+    final responseToken = _beginResponseCycle();
+    _statusController.add(EngineStatus.thinking);
+    try {
+      await _generateResponse(
+        detection.question,
+        overrideMessages: _buildAutoAnswerMessages(
+          detection,
+          transcriptWindow: transcriptWindow,
+        ),
+        responseToken: responseToken,
+        bypassRealtimeGuard: true,
+      );
+    } finally {
+      if (shouldPause) {
+        session.resumeTranscription();
+      }
+    }
+  }
+
   String _normalizeQuestion(String value) {
     final lowered = value.toLowerCase().trim();
     if (lowered.isEmpty) return '';
@@ -1668,8 +1854,10 @@ $profileInstruction''';
     required int responseToken,
     List<ChatMessage>? overrideMessages,
     String? overrideSystemPrompt,
+    bool bypassRealtimeGuard = false,
   }) async {
-    if (SettingsManager.instance.usesOpenAIRealtimeSession) {
+    if (SettingsManager.instance.usesOpenAIRealtimeSession &&
+        !bypassRealtimeGuard) {
       return;
     }
     Timer? flushTimer;
@@ -2497,6 +2685,7 @@ Rules:
     _modeController.close();
     _questionDetectedController.close();
     _questionDetectionController.close();
+    _sessionSavedController.close();
     _statusController.close();
     _proactiveSuggestionController.close();
     _coachingController.close();
@@ -2510,20 +2699,12 @@ Rules:
     _entityController.close();
   }
 
-  /// Manually trigger question analysis from glasses button press.
-  /// Bypasses the realtime-session guard in [_scheduleTranscriptAnalysis] so
-  /// that the user can still request a local LLM analysis even when using
-  /// OpenAI Realtime mode.
+  /// Manually trigger a contextual Q&A pass from the latest transcript.
   ///
-  /// In proactive mode, routes to [triggerProactiveAnalysis] instead.
-  void forceQuestionAnalysis() {
-    if (!_isActive) return;
-    if (_mode == ConversationMode.proactive) {
-      triggerProactiveAnalysis();
-      return;
-    }
-    final token = ++_analysisToken;
-    _analyzeRecentTranscriptWindow(token);
+  /// This bypasses the realtime-session auto-analysis guard and always tries
+  /// to answer the nearest current question using the smart answer path.
+  Future<void> forceQuestionAnalysis() async {
+    await _runManualContextualQa();
   }
 
   /// Simulate a multi-segment transcription session for testing the full
@@ -2589,12 +2770,14 @@ class TranscriptSnapshot {
     required this.source,
     required this.partialText,
     required this.finalizedSegments,
+    required this.finalizedTimelineEntries,
     required this.fullTranscript,
   });
 
   final TranscriptSource source;
   final String partialText;
   final List<String> finalizedSegments;
+  final List<TranscriptSegment> finalizedTimelineEntries;
   final String fullTranscript;
 }
 

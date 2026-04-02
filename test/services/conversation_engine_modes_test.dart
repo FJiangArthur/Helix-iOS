@@ -89,6 +89,43 @@ void main() {
       final lastTurn = engine.history.last;
       expect(lastTurn.content, contains('AI'));
     });
+
+    test(
+      'manual contextual Q&A in passive mode answers from transcript context without a detection-only round trip',
+      () async {
+        engine.autoDetectQuestions = false;
+        engine.start(mode: ConversationMode.passive);
+        engine.onTranscriptionFinalized('We are reviewing the launch plan.');
+        engine.onTranscriptionFinalized('What is the rollout plan?');
+
+        provider.enqueueStreamResponse(
+          const FakeStreamResponse(['Ship the beta next week.']),
+        );
+
+        final responseFuture = waitForStream<String>(
+          engine.aiResponseStream,
+          predicate: (value) => value.contains('beta next week'),
+          timeout: const Duration(seconds: 5),
+        );
+
+        engine.forceQuestionAnalysis();
+
+        final response = await responseFuture;
+        expect(response, contains('beta next week'));
+        expect(provider.streamCallCount, 1);
+        expect(provider.getResponseCallCount, 0);
+
+        final userContent = provider.capturedMessages.last
+            .where((message) => message.role == 'user')
+            .map((message) => message.content)
+            .join('\n');
+        expect(userContent, contains('Recent conversation context:'));
+        expect(
+          userContent,
+          contains('Question to answer:\nWhat is the rollout plan?'),
+        );
+      },
+    );
   });
 
   group('B13 - Mode switching preserves history', () {

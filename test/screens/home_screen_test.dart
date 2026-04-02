@@ -219,10 +219,14 @@ void main() {
     expect(find.text('CONVERSATION HUB'), findsOneWidget);
     expect(find.text('Expand'), findsNothing);
     expect(find.text('Tune'), findsOneWidget);
-    expect(find.byKey(const Key('home-proactive-button')), findsOneWidget);
-    expect(find.byKey(const Key('home-analyze-button')), findsOneWidget);
-    expect(find.text('Activate Proactive'), findsOneWidget);
-    expect(find.text('Analyze Now'), findsOneWidget);
+    expect(find.byKey(const Key('home-proactive-button')), findsNothing);
+    expect(find.byKey(const Key('home-analyze-button')), findsNothing);
+    expect(find.byKey(const Key('home-qa-button')), findsOneWidget);
+    expect(find.text('Activate Proactive'), findsNothing);
+    expect(find.text('Analyze Now'), findsNothing);
+    expect(find.text('Answer All'), findsOneWidget);
+    expect(find.text('Answer On-demand'), findsOneWidget);
+    expect(find.text('Q&A'), findsOneWidget);
     expect(
       find.text('Keep the prompt, answer, and voice controls in one place'),
       findsNothing,
@@ -353,6 +357,7 @@ void main() {
       expect(find.text('ACTIVE TRANSCRIPTION'), findsOneWidget);
       expect(find.text('DETECTED QUESTION'), findsOneWidget);
       expect(find.text('PHONE ANSWER'), findsOneWidget);
+      expect(find.text('+00:00'), findsOneWidget);
       expect(find.textContaining('Here is the concise answer.'), findsWidgets);
       expect(find.byKey(const Key('home-response-tools-card')), findsOneWidget);
       expect(find.byKey(const Key('home-follow-up-chip-deck')), findsOneWidget);
@@ -365,6 +370,39 @@ void main() {
       await tester.pump();
     },
   );
+
+  testWidgets('home screen shows elapsed timestamps for transcript segments', (
+    tester,
+  ) async {
+    SettingsManager.instance.autoDetectQuestions = false;
+
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: HomeScreen())),
+    );
+    await tester.pump();
+
+    final engine = ConversationEngine.instance;
+    final startedAt = DateTime(2026, 4, 1, 9, 0, 0);
+    engine.start(source: TranscriptSource.phone);
+    engine.onTranscriptionFinalized(
+      'We are reviewing the launch timeline.',
+      segmentTimestamp: startedAt,
+    );
+    engine.onTranscriptionFinalized(
+      'What is the rollout plan?',
+      segmentTimestamp: startedAt.add(const Duration(seconds: 5)),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+
+    expect(find.text('+00:00'), findsOneWidget);
+    expect(find.text('+00:05'), findsOneWidget);
+
+    engine.stop();
+    BleManager.get().stopSendBeatHeart();
+    await tester.pump();
+  });
 
   testWidgets(
     'home screen mic honors phone override even when glasses are connected',
@@ -455,7 +493,7 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('home screen exposes proactive mode and an analyze action', (
+  testWidgets('home screen exposes answer modes and a Q&A action', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -463,15 +501,17 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Proactive'), findsOneWidget);
-    expect(find.text('Activate Proactive'), findsOneWidget);
-    expect(find.text('Analyze Now'), findsOneWidget);
+    expect(find.text('Answer All'), findsOneWidget);
+    expect(find.text('Answer On-demand'), findsOneWidget);
+    expect(find.byKey(const Key('home-qa-button')), findsOneWidget);
+    expect(find.text('Activate Proactive'), findsNothing);
+    expect(find.text('Analyze Now'), findsNothing);
 
-    await tester.tap(find.text('Proactive'));
+    await tester.tap(find.text('Answer On-demand'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Proactive On'), findsOneWidget);
-    expect(find.byKey(const Key('home-analyze-button')), findsOneWidget);
-    expect(find.text('Analyze Now'), findsOneWidget);
+    expect(ConversationEngine.instance.mode, ConversationMode.proactive);
+    expect(find.byKey(const Key('home-qa-button')), findsOneWidget);
+    expect(find.text('Proactive On'), findsNothing);
   });
 }

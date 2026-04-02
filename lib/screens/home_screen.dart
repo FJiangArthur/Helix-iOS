@@ -12,6 +12,7 @@ import '../services/llm/llm_service.dart';
 import '../services/provider_error_state.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
+import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/home_assistant_modules.dart';
 import '../widgets/status_indicator.dart';
@@ -35,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   EngineStatus _status = EngineStatus.idle;
   TranscriptSource _transcriptSource = TranscriptSource.phone;
   String _transcription = '';
+  List<TranscriptSegment> _transcriptEntries = const [];
   String _aiResponse = '';
   bool _isRecording = false;
   RecordingCaptureState _recordingCaptureState = RecordingCaptureState.idle;
@@ -133,6 +135,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!mounted) return;
         setState(() {
           _transcription = snapshot.fullTranscript;
+          _transcriptEntries = snapshot.finalizedTimelineEntries;
           _transcriptSource = snapshot.source;
           _segmentCount = snapshot.finalizedSegments.length;
         });
@@ -359,6 +362,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _resetLiveSessionUiState() {
     _aiResponse = '';
     _transcription = '';
+    _transcriptEntries = const [];
     _latestQuestionDetection = null;
     _providerError = null;
     _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
@@ -590,57 +594,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildPrimarySessionActions(Color modeColor) {
-    final proactiveActive = _currentMode == ConversationMode.proactive;
-    final proactiveColor = proactiveActive ? HelixTheme.amber : modeColor;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _buildPrimarySessionButton(
-            key: const Key('home-proactive-button'),
-            icon: proactiveActive
-                ? Icons.check_circle_rounded
-                : Icons.bolt_rounded,
-            title: proactiveActive
-                ? (_isChinese ? '主动模式已开启' : 'Proactive On')
-                : (_isChinese ? '开启主动模式' : 'Activate Proactive'),
-            subtitle: proactiveActive
+    return _buildPrimarySessionButton(
+      key: const Key('home-qa-button'),
+      icon: _manualAnalyzePending
+          ? Icons.hourglass_top_rounded
+          : Icons.question_answer_rounded,
+      title: _isChinese ? '问答' : 'Q&A',
+      subtitle: _manualAnalyzePending
+          ? (_isChinese
+                ? '正在基于最新上下文刷新答案'
+                : 'Refreshing the answer from the latest context')
+          : (_canAnalyzeCurrentSession
                 ? (_isChinese
-                      ? '会自动审视当前对话'
-                      : 'Auto-reviews the current session')
-                : (_isChinese ? '切换到主动分析模式' : 'Switch into proactive analysis'),
-            color: proactiveColor,
-            onTap: proactiveActive
-                ? null
-                : () => _selectMode(ConversationMode.proactive),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildPrimarySessionButton(
-            key: const Key('home-analyze-button'),
-            icon: _manualAnalyzePending
-                ? Icons.hourglass_top_rounded
-                : Icons.auto_awesome_rounded,
-            title: _manualAnalyzePending
-                ? (_isChinese ? '分析中...' : 'Analyzing...')
-                : (_isChinese ? '立即分析' : 'Analyze Now'),
-            subtitle: _manualAnalyzePending
-                ? (_isChinese ? '请稍候' : 'Working on the current transcript')
-                : (_canAnalyzeCurrentSession
-                      ? (_isChinese
-                            ? '基于当前对话触发分析'
-                            : 'Run analysis on the current transcript')
-                      : (_isChinese ? '开始录音后可用' : 'Start recording to enable')),
-            color: _canAnalyzeCurrentSession
-                ? modeColor
-                : Colors.white.withValues(alpha: 0.28),
-            onTap: _canAnalyzeCurrentSession && !_manualAnalyzePending
-                ? _handleAnalyzePressed
-                : null,
-          ),
-        ),
-      ],
+                      ? '使用当前转录和附近问题生成回答'
+                      : 'Use the current transcript and nearby question')
+                : (_isChinese ? '开始录音后可用' : 'Start recording to enable')),
+      color: _canAnalyzeCurrentSession
+          ? modeColor
+          : Colors.white.withValues(alpha: 0.28),
+      onTap: _canAnalyzeCurrentSession ? _handleAnalyzePressed : null,
     );
   }
 
@@ -773,26 +745,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   bool get _canAnalyzeCurrentSession =>
-      (_segmentCount > 0 || _transcription.trim().isNotEmpty) &&
-      _status != EngineStatus.thinking &&
-      _status != EngineStatus.responding;
+      _segmentCount > 0 || _transcription.trim().isNotEmpty;
 
   Future<void> _handleAnalyzePressed() async {
-    if (_manualAnalyzePending || !_canAnalyzeCurrentSession) {
+    if (!_canAnalyzeCurrentSession) {
       return;
     }
 
     setState(() {
       _manualAnalyzePending = true;
       _providerError = null;
+      _aiResponse = '';
+      _followUpChips = const [];
     });
 
     try {
-      if (_currentMode == ConversationMode.proactive) {
-        await _engine.triggerProactiveAnalysis();
-      } else {
-        _engine.forceQuestionAnalysis();
-      }
+      await _engine.forceQuestionAnalysis();
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -2330,6 +2298,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildTranscriptMessageCard() {
+    final sessionStart = _transcriptEntries.isNotEmpty
+        ? _transcriptEntries.first.timestamp
+        : DateTime.now();
+    final partial = _engine.currentTranscriptSnapshot.partialText.trim();
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -2374,12 +2347,80 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 10),
-          Text.rich(
-            _buildHighlightedTranscriptSpan(
-              _transcription,
-              _latestQuestionDetection?.questionExcerpt ?? '',
+          ..._transcriptEntries.map((entry) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 54,
+                    child: Text(
+                      formatTranscriptElapsed(
+                        entry.timestamp,
+                        sessionStart: sessionStart,
+                      ),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.42),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text.rich(
+                      _buildHighlightedTranscriptSpan(
+                        entry.text,
+                        _latestQuestionDetection?.questionExcerpt ?? '',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (_transcriptEntries.isEmpty && _transcription.trim().isNotEmpty)
+            Text.rich(
+              _buildHighlightedTranscriptSpan(
+                _transcription,
+                _latestQuestionDetection?.questionExcerpt ?? '',
+              ),
             ),
-          ),
+          if (partial.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 54,
+                    child: Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: HelixTheme.cyan.withValues(alpha: 0.62),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      partial,
+                      style: TextStyle(
+                        color: HelixTheme.cyan.withValues(alpha: 0.82),
+                        fontSize: 14,
+                        height: 1.4,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -2796,7 +2837,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         case ConversationMode.passive:
           return ['什么是好的领导力？', '用简单的话解释量子计算', '今天的科技趋势是什么？', '机器学习是如何工作的？'];
         case ConversationMode.proactive:
-          return ['开始录音然后按分析', '听一段对话后自动总结', '帮我分析谈话要点'];
+          return ['开始录音后点问答', '围绕附近问题快速作答', '根据当前上下文给我回答'];
       }
     }
     switch (_currentMode) {
@@ -2825,9 +2866,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ];
       case ConversationMode.proactive:
         return [
-          'Start recording then analyze',
-          'Auto-summarize after listening',
-          'Analyze key conversation points',
+          'Start recording then tap Q&A',
+          'Answer the nearest live question',
+          'Reply from the latest context',
         ];
     }
   }
@@ -3171,7 +3212,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         case ConversationMode.passive:
           return '提个问题...';
         case ConversationMode.proactive:
-          return '分析谈话内容...';
+          return '输入问题或点问答...';
       }
     }
     switch (_currentMode) {
@@ -3182,7 +3223,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case ConversationMode.passive:
         return 'Ask a question...';
       case ConversationMode.proactive:
-        return 'Analyze conversation...';
+        return 'Type a question or tap Q&A...';
     }
   }
 
@@ -3321,9 +3362,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         case ConversationMode.interview:
           return '面试';
         case ConversationMode.passive:
-          return '被动';
+          return '全程回答';
         case ConversationMode.proactive:
-          return '主动';
+          return '按需回答';
       }
     }
 
@@ -3333,9 +3374,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case ConversationMode.interview:
         return 'Interview';
       case ConversationMode.passive:
-        return 'Passive';
+        return 'Answer All';
       case ConversationMode.proactive:
-        return 'Proactive';
+        return 'Answer On-demand';
     }
   }
 }

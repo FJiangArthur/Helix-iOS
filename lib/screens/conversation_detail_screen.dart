@@ -7,6 +7,8 @@ import 'package:path/path.dart' as p;
 
 import '../services/database/helix_database.dart';
 import '../theme/helix_theme.dart';
+import '../utils/conversation_mode_labels.dart';
+import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
 
 class ConversationDetailScreen extends StatefulWidget {
@@ -211,7 +213,7 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildMetaRow('Mode', conv.mode),
+              _buildMetaRow('Mode', storedConversationModeLabel(conv.mode)),
               _buildMetaRow('Source', conv.source),
               _buildMetaRow('Started', DateFormat.jm().format(startTime)),
               if (durationStr != null) _buildMetaRow('Duration', durationStr),
@@ -461,7 +463,12 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
         : (isMe ? 'Conversation' : (seg.speakerLabel ?? 'Other'));
 
     final time = DateTime.fromMillisecondsSinceEpoch(seg.startedAt);
-    final timeStr = DateFormat.jms().format(time);
+    final sessionStart = _segments.isNotEmpty
+        ? DateTime.fromMillisecondsSinceEpoch(_segments.first.startedAt)
+        : DateTime.fromMillisecondsSinceEpoch(
+            _conversation?.startedAt ?? seg.startedAt,
+          );
+    final timeStr = formatTranscriptElapsed(time, sessionStart: sessionStart);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

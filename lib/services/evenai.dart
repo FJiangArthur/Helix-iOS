@@ -151,8 +151,7 @@ class EvenAI {
     _stopRecordingTimer();
     _audioBuffer.stopReceiving();
     await ConversationListeningSession.instance.stopSession();
-    await _hudController.resetToIdle(
-        source: 'EvenAI.stopContinuousSession');
+    await _hudController.resetToIdle(source: 'EvenAI.stopContinuousSession');
   }
 
   /// Stop Even AI by OS command
@@ -210,9 +209,7 @@ class EvenAI {
         break;
       case HudIntent.dashboard:
       case HudIntent.notification:
-        HudController.instance.resetToIdle(
-          source: 'EvenAI.handleLeftTouch',
-        );
+        HudController.instance.resetToIdle(source: 'EvenAI.handleLeftTouch');
         break;
       case HudIntent.textTransfer:
         // existing page back behavior — no-op, auto-paced
@@ -239,9 +236,7 @@ class EvenAI {
         break;
       case HudIntent.dashboard:
       case HudIntent.notification:
-        HudController.instance.resetToIdle(
-          source: 'EvenAI.handleRightTouch',
-        );
+        HudController.instance.resetToIdle(source: 'EvenAI.handleRightTouch');
         break;
       case HudIntent.textTransfer:
         // existing page forward behavior — no-op, auto-paced
@@ -274,16 +269,15 @@ class EvenAI {
     }
   }
 
-  /// Manually trigger question detection from glasses button press.
-  /// In proactive mode, shows session-appropriate feedback.
+  /// Manually trigger contextual Q&A from the latest transcript.
   static void _triggerManualQuestionDetection() {
     final mode = ConversationEngine.instance.mode;
     if (mode == ConversationMode.proactive) {
-      _flashFeedback('ANALYZING SESSION...');
+      _flashFeedback('Q&A REFRESH...');
     } else {
-      _flashFeedback('ANALYZING...');
+      _flashFeedback('Q&A...');
     }
-    ConversationEngine.instance.forceQuestionAnalysis();
+    unawaited(ConversationEngine.instance.forceQuestionAnalysis());
   }
 
   /// Show brief feedback text on glasses display, auto-clears after 500ms

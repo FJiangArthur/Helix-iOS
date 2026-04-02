@@ -1,5 +1,6 @@
 import '../services/ble.dart';
 import '../services/conversation_engine.dart';
+import '../utils/conversation_mode_labels.dart';
 
 class DashboardSnapshot {
   const DashboardSnapshot({
@@ -68,9 +69,11 @@ class DashboardSnapshot {
       _truncate(_formatTime(timestamp)),
       _truncate(_formatDate(timestamp)),
       _truncate(_connectionLabel(connectionState)),
-      _truncate(engineStatus == EngineStatus.idle
-          ? 'Tap mic to start'
-          : '${_modeLabel(mode)} ${_statusLabel(engineStatus)}'),
+      _truncate(
+        engineStatus == EngineStatus.idle
+            ? 'Tap mic to start'
+            : '${_modeLabel(mode)} ${_statusLabel(engineStatus)}',
+      ),
       _truncate(contextLine),
     ];
   }
@@ -130,12 +133,7 @@ class DashboardSnapshot {
   }
 
   static String _modeLabel(ConversationMode mode) {
-    return switch (mode) {
-      ConversationMode.general => 'GENERAL',
-      ConversationMode.interview => 'INTERVIEW',
-      ConversationMode.passive => 'PASSIVE',
-      ConversationMode.proactive => 'PROACTIVE',
-    };
+    return conversationModeLabel(mode, uppercase: true);
   }
 
   static String _statusLabel(EngineStatus status) {
