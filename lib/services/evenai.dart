@@ -88,13 +88,24 @@ class EvenAI {
 
     isRunning = true;
     _isPaused = false;
-    await ConversationListeningSession.instance.startSession(
-      source: TranscriptSource.glasses,
-    );
+    try {
+      await ConversationListeningSession.instance.startSession(
+        source: TranscriptSource.glasses,
+      );
 
-    await _hudController.beginLiveListening(source: 'EvenAI.toStartEvenAIByOS');
+      await _hudController.beginLiveListening(
+        source: 'EvenAI.toStartEvenAIByOS',
+      );
 
-    _startRecordingTimer();
+      _startRecordingTimer();
+    } catch (error) {
+      _audioBuffer.stopReceiving();
+      isRunning = false;
+      _isPaused = false;
+      _stopRecordingTimer();
+      clear();
+      rethrow;
+    }
   }
 
   /// Start a continuous glasses session (no 30-second auto-stop).
@@ -114,12 +125,22 @@ class EvenAI {
     isRunning = true;
     _isPaused = false;
 
-    await ConversationListeningSession.instance.startSession(
-      source: TranscriptSource.glasses,
-    );
-    await _hudController.beginLiveListening(
-        source: 'EvenAI.continuousSession');
-    // NO _startRecordingTimer() — native GlassesMicSessionManager handles restarts
+    try {
+      await ConversationListeningSession.instance.startSession(
+        source: TranscriptSource.glasses,
+      );
+      await _hudController.beginLiveListening(
+        source: 'EvenAI.continuousSession',
+      );
+      // NO _startRecordingTimer() — native GlassesMicSessionManager handles restarts
+    } catch (error) {
+      continuousMode = false;
+      isRunning = false;
+      _isPaused = false;
+      _audioBuffer.stopReceiving();
+      clear();
+      rethrow;
+    }
   }
 
   /// Stop a continuous glasses session.

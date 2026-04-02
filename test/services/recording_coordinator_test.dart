@@ -8,9 +8,109 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_helix/models/audio_configuration.dart';
 import 'package:flutter_helix/services/recording_coordinator.dart';
+import 'package:flutter_helix/services/audio_service.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
+
+class _FakeAudioService implements AudioService {
+  _FakeAudioService({required this.path});
+
+  final String path;
+
+  @override
+  AudioConfiguration get configuration => const AudioConfiguration();
+
+  @override
+  bool get hasPermission => true;
+
+  @override
+  bool get isRecording => _isRecording;
+  bool _isRecording = false;
+
+  @override
+  String? get currentRecordingPath => path;
+
+  final StreamController<Duration> _durationController =
+      StreamController<Duration>.broadcast();
+
+  @override
+  Stream<Uint8List> get audioStream => const Stream.empty();
+
+  @override
+  Stream<double> get audioLevelStream => const Stream.empty();
+
+  @override
+  Stream<Duration> get durationStream => _durationController.stream;
+
+  @override
+  Stream<bool> get voiceActivityStream => const Stream.empty();
+
+  @override
+  Future<void> configureAudioProcessing({
+    bool enableNoiseReduction = true,
+    bool enableEchoCancellation = true,
+    double gainLevel = 1.0,
+  }) async {}
+
+  @override
+  Future<void> dispose() async {
+    await _durationController.close();
+  }
+
+  @override
+  Future<Duration?> getRecordingDuration() async => null;
+
+  @override
+  Future<List<AudioInputDevice>> getInputDevices() async => const [];
+
+  @override
+  Future<void> initialize(AudioConfiguration config) async {}
+
+  @override
+  Future<void> pauseRecording() async {}
+
+  @override
+  Future<bool> requestPermission() async => true;
+
+  @override
+  Future<void> resumeRecording() async {}
+
+  @override
+  Future<void> selectInputDevice(String deviceId) async {}
+
+  @override
+  Future<void> setAudioQuality(AudioQuality quality) async {}
+
+  @override
+  Future<void> setVoiceActivityDetection(bool enabled) async {}
+
+  @override
+  Future<void> startRecording() async {
+    _isRecording = true;
+    _durationController.add(Duration.zero);
+  }
+
+  @override
+  Future<String> startConversationRecording(String conversationId) async {
+    await startRecording();
+    return path;
+  }
+
+  @override
+  Future<void> stopConversationRecording() async {
+    await stopRecording();
+  }
+
+  @override
+  Future<void> stopRecording() async {
+    _isRecording = false;
+  }
+
+  @override
+  Future<bool> testAudioRecording() async => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -191,6 +291,22 @@ void main() {
   // platform services, by checking the ValueNotifier and stream contracts.
   // ---------------------------------------------------------------------------
   group('RecordingCoordinator state machine', () {
+    setUp(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('method.passiveAudio'),
+        (MethodCall methodCall) async => null,
+      );
+    });
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+        const MethodChannel('method.passiveAudio'),
+        null,
+      );
+    });
+
     test('isRecording starts false and is consistent with stream', () {
       final coordinator = RecordingCoordinator.instance;
       expect(coordinator.isRecording.value, isFalse);
@@ -213,5 +329,84 @@ void main() {
       // Both should have received the same events (possibly empty).
       expect(states1, equals(states2));
     });
+
+    test(
+      'falls back to audio-only recording when transcription startup fails',
+      () async {
+        final listeningErrors = StreamController<String?>.broadcast();
+        final audioService = _FakeAudioService(path: '/tmp/audio-only.wav');
+        final coordinator = RecordingCoordinator.test(
+          audioServiceFactory: () => audioService,
+          listeningErrors: listeningErrors.stream,
+          startTranscription: ({
+            required TranscriptSource source,
+            required RecordingMode mode,
+            required bool useGlasses,
+          }) async {
+            listeningErrors.add('OpenAI API key is invalid or expired');
+            throw PlatformException(
+              code: 'SpeechStartFailed',
+              message: 'OpenAI API key is invalid or expired',
+            );
+          },
+          stopTranscription: ({required bool startedViaEvenAI}) async {},
+        );
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+
+        expect(coordinator.isRecording.value, isTrue);
+        expect(coordinator.currentCaptureState, RecordingCaptureState.audioOnly);
+        expect(audioService.isRecording, isTrue);
+
+        final savedPath = await coordinator.toggleRecording(
+          source: TranscriptSource.phone,
+        );
+
+        expect(savedPath, '/tmp/audio-only.wav');
+        expect(coordinator.isRecording.value, isFalse);
+        expect(coordinator.currentCaptureState, RecordingCaptureState.idle);
+
+        await coordinator.debugDispose();
+        await audioService.dispose();
+        await listeningErrors.close();
+      },
+    );
+
+    test(
+      'downgrades an active recording to audio-only when transcription later fails',
+      () async {
+        final listeningErrors = StreamController<String?>.broadcast();
+        final audioService = _FakeAudioService(path: '/tmp/retry-failure.wav');
+        final coordinator = RecordingCoordinator.test(
+          audioServiceFactory: () => audioService,
+          listeningErrors: listeningErrors.stream,
+          startTranscription: ({
+            required TranscriptSource source,
+            required RecordingMode mode,
+            required bool useGlasses,
+          }) async {},
+          stopTranscription: ({required bool startedViaEvenAI}) async {},
+        );
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.transcribing,
+        );
+
+        listeningErrors.add('WebSocket connection lost after 3 attempts');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(coordinator.isRecording.value, isTrue);
+        expect(coordinator.currentCaptureState, RecordingCaptureState.audioOnly);
+        expect(audioService.isRecording, isTrue);
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+        await coordinator.debugDispose();
+        await audioService.dispose();
+        await listeningErrors.close();
+      },
+    );
   });
 }

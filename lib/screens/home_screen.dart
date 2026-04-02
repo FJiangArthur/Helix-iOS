@@ -37,6 +37,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String _transcription = '';
   String _aiResponse = '';
   bool _isRecording = false;
+  RecordingCaptureState _recordingCaptureState =
+      RecordingCaptureState.idle;
   bool _showDetailLink = false;
   Duration _recordingDuration = Duration.zero;
   int _segmentCount = 0;
@@ -70,6 +72,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _assistantProfileId = settings.assistantProfileId;
     _engine.autoDetectQuestions = settings.autoDetectQuestions;
     _engine.autoAnswerQuestions = settings.autoAnswerQuestions;
+    _recordingCaptureState = _coordinator.currentCaptureState;
 
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1200),
@@ -117,6 +120,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _resetLiveSessionUiState();
           }
         });
+      }),
+      _coordinator.captureStateStream.listen((state) {
+        if (!mounted) return;
+        setState(() => _recordingCaptureState = state);
       }),
       _coordinator.durationStream.listen((d) {
         if (!mounted) return;
@@ -179,9 +186,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _listeningError = error == null
               ? null
               : _localizeListeningErrorMessage(error);
-          if (error != null && error.isNotEmpty) {
-            _isRecording = false;
-          }
         });
       }),
     ]);
@@ -1747,6 +1751,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildListeningErrorCard() {
+    final isAudioOnly =
+        _recordingCaptureState == RecordingCaptureState.audioOnly;
+    final title = isAudioOnly
+        ? _tr(
+            en: 'AUDIO-ONLY FALLBACK',
+            zh: '已切换为仅录音模式',
+            ja: '音声のみの録音に切り替え',
+            ko: '오디오 전용 녹음으로 전환됨',
+            es: 'MODO SOLO AUDIO',
+            ru: 'ПЕРЕКЛЮЧЕНО НА ЗАПИСЬ АУДИО',
+          )
+        : _tr(
+            en: 'TRANSCRIPTION FAILED',
+            zh: '转写启动失败',
+            ja: '文字起こしを开始できません',
+            ko: '전사를 시작할 수 없음',
+            es: 'NO SE PUDO INICIAR LA TRANSCRIPCIÓN',
+            ru: 'НЕ УДАЛОСЬ ЗАПУСТИТЬ РАСШИФРОВКУ',
+          );
+
     return GlassCard(
       opacity: 0.08,
       borderColor: HelixTheme.error.withValues(alpha: 0.22),
@@ -1755,14 +1779,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            _tr(
-              en: 'TRANSCRIPTION FAILED',
-              zh: '转写启动失败',
-              ja: '文字起こしを開始できません',
-              ko: '전사를 시작할 수 없음',
-              es: 'NO SE PUDO INICIAR LA TRANSCRIPCIÓN',
-              ru: 'НЕ УДАЛОСЬ ЗАПУСТИТЬ РАСШИФРОВКУ',
-            ),
+            title,
             style: TextStyle(
               color: HelixTheme.error,
               fontSize: 11,
@@ -1771,6 +1788,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 8),
+          if (isAudioOnly) ...[
+            Text(
+              _tr(
+                en: 'Local audio capture is still running and will be saved when you stop.',
+                zh: '本地音频仍在录制，停止后会自动保存。',
+                ja: 'ローカル音声の録音は継続中で、停止時に保存されます。',
+                ko: '로컬 오디오 녹음은 계속되며 중지하면 저장됩니다.',
+                es: 'La grabación de audio local sigue activa y se guardará al detenerla.',
+                ru: 'Локальная запись аудио продолжается и будет сохранена после остановки.',
+              ),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.78),
+                fontSize: 12,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             _listeningError!,
             style: TextStyle(
@@ -1869,9 +1904,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildContextRibbon() {
     final isLiveTranscript = _isRecording;
     final glassesConnected = BleManager.isBothConnected();
-    final accentColor = isLiveTranscript
+    final isAudioOnly =
+        _recordingCaptureState == RecordingCaptureState.audioOnly;
+    final accentColor = isAudioOnly
+        ? const Color(0xFFFFB547)
+        : isLiveTranscript
         ? const Color(0xFFFF6B6B)
         : HelixTheme.cyan;
+    final heading = isAudioOnly
+        ? _tr(
+            en: 'AUDIO-ONLY RECORDING',
+            zh: '仅录音模式',
+            ja: '音声のみ録音中',
+            ko: '오디오 전용 녹음',
+            es: 'GRABACIÓN SOLO DE AUDIO',
+            ru: 'ТОЛЬКО ЗАПИСЬ АУДИО',
+          )
+        : _tr(
+            en: 'ACTIVE TRANSCRIPTION',
+            zh: '主动转写',
+            ja: 'ライブ文字起こし',
+            ko: '실시간 전사',
+            es: 'TRANSCRIPCIÓN ACTIVA',
+            ru: 'АКТИВНАЯ РАСШИФРОВКА',
+          );
     final sourceLabel = _transcriptSource == TranscriptSource.glasses
         ? _tr(
             en: 'GLASSES INPUT',
@@ -1898,7 +1954,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isLiveTranscript ? Icons.mic : Icons.short_text,
+            isAudioOnly
+                ? Icons.graphic_eq_rounded
+                : isLiveTranscript
+                ? Icons.mic
+                : Icons.short_text,
             size: 18,
             color: accentColor,
           ),
@@ -1908,14 +1968,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _tr(
-                    en: 'ACTIVE TRANSCRIPTION',
-                    zh: '主动转写',
-                    ja: 'ライブ文字起こし',
-                    ko: '실시간 전사',
-                    es: 'TRANSCRIPCIÓN ACTIVA',
-                    ru: 'АКТИВНАЯ РАСШИФРОВКА',
-                  ),
+                  heading,
                   style: TextStyle(
                     color: accentColor,
                     fontSize: 11,
@@ -1965,6 +2018,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             fontFamily: 'monospace',
+                          ),
+                        ),
+                      ),
+                    if (isAudioOnly)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          _tr(
+                            en: 'SAVING LOCAL WAV',
+                            zh: '正在保存本地 WAV',
+                            ja: 'ローカル WAV を保存中',
+                            ko: '로컬 WAV 저장 중',
+                            es: 'GUARDANDO WAV LOCAL',
+                            ru: 'СОХРАНЯЕТСЯ ЛОКАЛЬНЫЙ WAV',
+                          ),
+                          style: TextStyle(
+                            color: accentColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
                           ),
                         ),
                       ),
@@ -2527,7 +2607,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildComposerCard() {
-    final accentColor = _isRecording
+    final accentColor = _recordingCaptureState == RecordingCaptureState.audioOnly
+        ? const Color(0xFFFFB547)
+        : _isRecording
         ? const Color(0xFFFF6B6B)
         : _modeColor(_currentMode);
 
@@ -2553,7 +2635,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       builder: (context, child) {
         final isRecordingActive =
             _isRecording && _status == EngineStatus.listening;
-        final baseColor = _isRecording
+        final baseColor =
+            _recordingCaptureState == RecordingCaptureState.audioOnly
+            ? const Color(0xFFFFB547)
+            : _isRecording
             ? const Color(0xFFFF6B6B)
             : HelixTheme.cyan;
 

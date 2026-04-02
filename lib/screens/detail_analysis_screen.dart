@@ -27,6 +27,8 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   final List<StreamSubscription> _subs = [];
 
   bool _isRecording = false;
+  RecordingCaptureState _recordingCaptureState =
+      RecordingCaptureState.idle;
   Duration _duration = Duration.zero;
   String _transcription = '';
   String _aiResponse = '';
@@ -42,6 +44,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
     super.initState();
 
     _isRecording = _coordinator.isRecording.value;
+    _recordingCaptureState = _coordinator.currentCaptureState;
 
     _subs.addAll([
       _coordinator.recordingStateStream.listen((recording) {
@@ -68,6 +71,10 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             _activeCoaching = null;
           });
         }
+      }),
+      _coordinator.captureStateStream.listen((state) {
+        if (!mounted) return;
+        setState(() => _recordingCaptureState = state);
       }),
       _coordinator.durationStream.listen((d) {
         if (!mounted) return;
@@ -213,9 +220,15 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   // ── Recording indicator ────────────────────────────────────────
 
   Widget _buildRecordingIndicator() {
+    final isAudioOnly =
+        _recordingCaptureState == RecordingCaptureState.audioOnly;
+    final accentColor = isAudioOnly
+        ? const Color(0xFFFFB547)
+        : const Color(0xFFFF6B6B);
+
     return GlassCard(
       opacity: 0.14,
-      borderColor: const Color(0xFFFF6B6B).withValues(alpha: 0.3),
+      borderColor: accentColor.withValues(alpha: 0.3),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       child: Row(
         children: [
@@ -223,11 +236,11 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             width: 10,
             height: 10,
             decoration: BoxDecoration(
-              color: const Color(0xFFFF6B6B),
+              color: accentColor,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFF6B6B).withValues(alpha: 0.5),
+                  color: accentColor.withValues(alpha: 0.5),
                   blurRadius: 8,
                 ),
               ],
@@ -235,9 +248,11 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
           ),
           const SizedBox(width: 10),
           Text(
-            _isChinese ? '录音中' : 'Recording',
-            style: const TextStyle(
-              color: Color(0xFFFF6B6B),
+            isAudioOnly
+                ? (_isChinese ? '仅录音模式' : 'Recording audio only')
+                : (_isChinese ? '录音中' : 'Recording'),
+            style: TextStyle(
+              color: accentColor,
               fontSize: 13,
               fontWeight: FontWeight.w700,
             ),
@@ -269,6 +284,10 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (_recordingCaptureState == RecordingCaptureState.audioOnly)
+                  _buildAudioOnlyNotice(),
+                if (_recordingCaptureState == RecordingCaptureState.audioOnly)
+                  const SizedBox(height: 10),
                 if (_transcription.isNotEmpty) _buildTranscriptCard(),
                 if (_activeCoaching != null) ...[
                   const SizedBox(height: 10),
@@ -284,6 +303,24 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
         ),
         _buildStatsBar(),
       ],
+    );
+  }
+
+  Widget _buildAudioOnlyNotice() {
+    return GlassCard(
+      opacity: 0.08,
+      borderColor: const Color(0xFFFFB547).withValues(alpha: 0.28),
+      padding: const EdgeInsets.all(14),
+      child: Text(
+        _isChinese
+            ? '实时转录当前不可用，但本地音频仍在持续录制，停止后会保存音频文件。'
+            : 'Live transcription is unavailable, but local audio capture is still running and will be saved when you stop.',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.82),
+          fontSize: 13,
+          height: 1.4,
+        ),
+      ),
     );
   }
 
@@ -929,7 +966,9 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   bool _isSimulating = false;
 
   Widget _buildFab() {
-    final color = _isRecording || _isSimulating
+    final color = _recordingCaptureState == RecordingCaptureState.audioOnly
+        ? const Color(0xFFFFB547)
+        : _isRecording || _isSimulating
         ? const Color(0xFFFF6B6B)
         : HelixTheme.cyan;
 
