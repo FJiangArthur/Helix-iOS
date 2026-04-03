@@ -97,6 +97,7 @@ typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
 typedef BitmapDashboardRenderer = Future<bool> Function();
 typedef BitmapDashboardHideRenderer = Future<bool> Function();
+typedef BitmapDashboardScreenHideRenderer = Future<bool> Function();
 typedef BitmapDashboardInvalidator = void Function();
 typedef BitmapDashboardVisibilitySetter = void Function(bool visible);
 
@@ -113,6 +114,7 @@ class DashboardService {
     BitmapDashboardRenderer? bitmapDeltaRenderer,
     BitmapDashboardRenderer? bitmapFullRenderer,
     BitmapDashboardHideRenderer? bitmapHideRenderer,
+    BitmapDashboardScreenHideRenderer? bitmapScreenHideRenderer,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
     BitmapDashboardVisibilitySetter? bitmapSetOverlayVisible,
     DateTime Function()? clock,
@@ -134,6 +136,8 @@ class DashboardService {
        _bitmapFullRenderer =
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
        _bitmapHideRenderer = bitmapHideRenderer ?? Proto.hideDashboard,
+       _bitmapScreenHideRenderer =
+           bitmapScreenHideRenderer ?? (() => Proto.pushScreen(0x00)),
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _bitmapSetOverlayVisible =
@@ -154,6 +158,7 @@ class DashboardService {
   final BitmapDashboardRenderer _bitmapDeltaRenderer;
   final BitmapDashboardRenderer _bitmapFullRenderer;
   final BitmapDashboardHideRenderer _bitmapHideRenderer;
+  final BitmapDashboardScreenHideRenderer _bitmapScreenHideRenderer;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final BitmapDashboardVisibilitySetter _bitmapSetOverlayVisible;
   final DateTime Function() _clock;
@@ -363,6 +368,11 @@ class DashboardService {
       final hideOk = await _bitmapHideRenderer();
       if (!hideOk) {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
+      } else {
+        final screenHideOk = await _bitmapScreenHideRenderer();
+        if (!screenHideOk) {
+          emitDeviceDiagnostic('BitmapHUD', 'dashboard screen hide failed');
+        }
       }
     }
 

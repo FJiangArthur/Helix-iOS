@@ -141,6 +141,7 @@ void main() {
         var bitmapInvalidateCalls = 0;
         final overlayVisibility = <bool>[];
         var bitmapHideCalls = 0;
+        var bitmapScreenHideCalls = 0;
         HudController.instance.updateDisplay('Saved quick ask answer');
         await HudController.instance.beginQuickAsk(
           source: 'test.bitmapQuickAskSetup',
@@ -167,6 +168,10 @@ void main() {
             bitmapHideCalls += 1;
             return true;
           },
+          bitmapScreenHideRenderer: () async {
+            bitmapScreenHideCalls += 1;
+            return true;
+          },
           bitmapInvalidateCache: () {
             bitmapInvalidateCalls += 1;
           },
@@ -187,6 +192,7 @@ void main() {
         expect(quickAskRestores, ['Saved quick ask answer']);
         expect(exitCalls, 0);
         expect(bitmapHideCalls, 0);
+        expect(bitmapScreenHideCalls, 0);
         expect(bitmapInvalidateCalls, 1);
         expect(overlayVisibility, [true, false]);
         expect(HudController.instance.currentIntent, HudIntent.quickAsk);
@@ -281,6 +287,7 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapInvalidateCalls = 0;
       var bitmapHideCalls = 0;
+      var bitmapScreenHideCalls = 0;
 
       final bitmapService = DashboardService(
         bleManager: BleManager.get(),
@@ -298,6 +305,10 @@ void main() {
         bitmapFullRenderer: () async => true,
         bitmapHideRenderer: () async {
           bitmapHideCalls += 1;
+          return true;
+        },
+        bitmapScreenHideRenderer: () async {
+          bitmapScreenHideCalls += 1;
           return true;
         },
         bitmapInvalidateCache: () {
@@ -322,6 +333,7 @@ void main() {
       expect(HudController.instance.currentIntent, HudIntent.idle);
       expect(exitCalls, 0);
       expect(bitmapHideCalls, 1);
+      expect(bitmapScreenHideCalls, 1);
       expect(bitmapInvalidateCalls, 1);
 
       await bitmapService.hideDashboard(
