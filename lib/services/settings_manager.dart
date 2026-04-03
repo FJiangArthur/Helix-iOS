@@ -136,9 +136,8 @@ class SettingsManager {
   /// Whether tilt gestures can open the dashboard overlay on the glasses.
   bool dashboardTiltEnabled = true;
 
-  /// HUD render path: 'text' (fallback) or 'bitmap' (full bitmap HUD).
-  /// Default to text until bitmap BLE reliability is resolved.
-  String hudRenderPath = 'text';
+  /// HUD render path: 'text' (fallback), 'bitmap', or 'enhanced'.
+  String hudRenderPath = 'bitmap';
 
   /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
   String bitmapLayoutPreset = 'classic';

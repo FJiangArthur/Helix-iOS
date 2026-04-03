@@ -234,26 +234,78 @@ class Proto {
 
   // tell the glasses to exit function to dashboard
   static Future<bool> exit() async {
-    appLogger.d("send exit all func");
-    var data = Uint8List.fromList([0x18]);
+    return _sendExitToConnectedSides(
+      data: Uint8List.fromList([0x18]),
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      requestSide: (lr, packet, timeoutMs) =>
+          BleManager.request(packet, lr: lr, timeoutMs: timeoutMs),
+    );
+  }
 
-    var retL = await BleManager.request(data, lr: "L", timeoutMs: 1500);
-    appLogger.d('${DateTime.now()} exit----L----ret---${retL.data}--');
-    if (retL.isTimeout) {
-      return false;
-    } else if (retL.data.isNotEmpty && retL.data[1].toInt() == 0xc9) {
-      var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      appLogger.d('${DateTime.now()} exit----R----retR---${retR.data}--');
-      if (retR.isTimeout) {
-        return false;
-      } else if (retR.data.isNotEmpty && retR.data[1].toInt() == 0xc9) {
-        return true;
-      } else {
-        return false;
-      }
-    } else {
+  @visibleForTesting
+  static Future<bool> exitForTest({
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) {
+    return _sendExitToConnectedSides(
+      data: Uint8List.fromList([0x18]),
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      requestSide: requestSide,
+    );
+  }
+
+  static Future<bool> _sendExitToConnectedSides({
+    required Uint8List data,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) async {
+    appLogger.d("send exit all func");
+
+    if (!leftConnected && !rightConnected) {
+      appLogger.d('${DateTime.now()} exit skipped: no connected side');
       return false;
     }
+
+    bool leftSuccess = false;
+    if (leftConnected) {
+      final retL = await requestSide("L", data, 1500);
+      appLogger.d('${DateTime.now()} exit----L----ret---${retL.data}--');
+      leftSuccess = _isExitAck(retL);
+    }
+
+    bool rightSuccess = false;
+    if (rightConnected) {
+      final retR = await requestSide("R", data, 1500);
+      appLogger.d('${DateTime.now()} exit----R----retR---${retR.data}--');
+      rightSuccess = _isExitAck(retR);
+    }
+
+    return BleTransportPolicy.didAllConnectedTargetsSucceed(
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      leftSuccess: leftSuccess,
+      rightSuccess: rightSuccess,
+    );
+  }
+
+  static bool _isExitAck(BleReceive receive) {
+    return !receive.isTimeout &&
+        receive.data.length > 1 &&
+        receive.data[1].toInt() == 0xc9;
   }
 
   static List<Uint8List> _getPackList(

@@ -34,6 +34,10 @@ void main() {
       dashboardRenders = [];
       quickAskRestores = [];
       exitCalls = 0;
+      await SettingsManager.instance.initialize();
+      SettingsManager.instance.hudRenderPath = 'text';
+      SettingsManager.instance.bitmapLayoutPreset = 'classic';
+      SettingsManager.instance.enhancedLayoutPreset = 'command_center';
       SettingsManager.instance.dashboardTiltEnabled = true;
       HandoffMemory.instance.clear();
       ConversationEngine.instance.clearHistory();

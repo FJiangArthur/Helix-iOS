@@ -31,4 +31,40 @@ void main() {
       expect(requestedSides, ['R']);
     });
   });
+
+  group('Proto.exitForTest', () {
+    test('succeeds when only the right lens is connected', () async {
+      final requestedSides = <String>[];
+
+      final result = await Proto.exitForTest(
+        leftConnected: false,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          requestedSides.add(lr);
+          final receive = BleReceive();
+          receive.data = Uint8List.fromList([0x18, 0xc9]);
+          return receive;
+        },
+      );
+
+      expect(result, isTrue);
+      expect(requestedSides, ['R']);
+    });
+
+    test('fails when a connected side does not acknowledge exit', () async {
+      final result = await Proto.exitForTest(
+        leftConnected: true,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          final receive = BleReceive();
+          receive.data = Uint8List.fromList(
+            lr == 'L' ? [0x18, 0xc9] : [0x18, 0x00],
+          );
+          return receive;
+        },
+      );
+
+      expect(result, isFalse);
+    });
+  });
 }
