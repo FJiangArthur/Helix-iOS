@@ -9,7 +9,6 @@ import '../ble.dart';
 import '../settings_manager.dart';
 import '../../utils/app_logger.dart';
 import 'bitmap_renderer.dart';
-import 'bmp_encoder.dart';
 import 'bmp_widget.dart';
 import 'delta_encoder.dart';
 import 'display_constants.dart';
@@ -49,7 +48,6 @@ class BitmapHudService {
 
   static BitmapHudService? _instance;
   static BitmapHudService get instance => _instance ??= BitmapHudService._();
-  static final Uint8List _blankBmp = _buildBlankBmp();
 
   @visibleForTesting
   factory BitmapHudService.test({
@@ -349,11 +347,6 @@ class BitmapHudService {
     return _requestSend(_PendingBitmapSend.delta);
   }
 
-  /// Clear the bitmap HUD by pushing a blank frame and aligning the cache to it.
-  Future<bool> clearDisplay() async {
-    return _requestSend(_PendingBitmapSend.blank);
-  }
-
   Future<bool> _performDeltaPush() async {
     try {
       if (_lastSentBmp == null) {
@@ -410,45 +403,6 @@ class BitmapHudService {
     }
   }
 
-  Future<bool> _performBlankPush() async {
-    try {
-      if (_lastSentBmp != null) {
-        final changedIndices = DeltaEncoder.diff(_lastSentBmp!, _blankBmp);
-        if (changedIndices.isEmpty) {
-          _lastSentBmp = _blankBmp;
-          _clearDirtyFlags();
-          appLogger.d('BitmapHud: clear skipped, frame already blank');
-          return true;
-        }
-
-        final deltaSuccess = await _sendDelta(_blankBmp, changedIndices);
-        if (deltaSuccess) {
-          _lastSentBmp = _blankBmp;
-          _clearDirtyFlags();
-          appLogger.d(
-            'BitmapHud: cleared display via delta '
-            '(${changedIndices.length} chunks)',
-          );
-          return true;
-        }
-
-        appLogger.w('BitmapHud: blank delta failed, falling back to full send');
-      }
-
-      final fullSuccess = await _sendFull(_blankBmp);
-      if (fullSuccess) {
-        _lastSentBmp = _blankBmp;
-        _clearDirtyFlags();
-        appLogger.d('BitmapHud: cleared display via full push');
-      }
-      return fullSuccess;
-    } catch (e) {
-      appLogger.e('BitmapHud: clear display error: $e');
-      emitDeviceDiagnostic('BitmapHUD', 'clear display exception=$e');
-      return false;
-    }
-  }
-
   Future<bool> _requestSend(_PendingBitmapSend requestedSend) async {
     if (!_isConnected()) {
       final message =
@@ -491,7 +445,6 @@ class BitmapHudService {
         final success = switch (send) {
           _PendingBitmapSend.full => await _performFullPush(),
           _PendingBitmapSend.delta => await _performDeltaPush(),
-          _PendingBitmapSend.blank => await _performBlankPush(),
         };
 
         for (final waiter in waiters) {
@@ -560,37 +513,16 @@ class BitmapHudService {
       widget.isDirty = false;
     }
   }
-
-  static Uint8List _buildBlankBmp() {
-    final rgba = Uint8List(G1Display.bitmapWidth * G1Display.bitmapHeight * 4);
-    for (var i = 0; i < rgba.length; i += 4) {
-      rgba[i] = 0xff;
-      rgba[i + 1] = 0xff;
-      rgba[i + 2] = 0xff;
-      rgba[i + 3] = 0xff;
-    }
-    return BmpEncoder.fromRgba(
-      ByteData.sublistView(rgba),
-      G1Display.bitmapWidth,
-      G1Display.bitmapHeight,
-    );
-  }
 }
 
-enum _PendingBitmapSend { delta, full, blank }
+enum _PendingBitmapSend { delta, full }
 
 _PendingBitmapSend _mergePendingSend(
   _PendingBitmapSend? current,
   _PendingBitmapSend next,
 ) {
-  if (next == _PendingBitmapSend.blank) {
-    return _PendingBitmapSend.blank;
-  }
   if (next == _PendingBitmapSend.full) {
     return _PendingBitmapSend.full;
-  }
-  if (current == _PendingBitmapSend.blank) {
-    return _PendingBitmapSend.blank;
   }
   if (current == _PendingBitmapSend.full) {
     return _PendingBitmapSend.full;

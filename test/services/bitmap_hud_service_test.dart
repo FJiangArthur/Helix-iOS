@@ -131,48 +131,6 @@ void main() {
         expect(await second, isTrue);
       },
     );
-
-    test(
-      'clearDisplay sends a blank bitmap and keeps transport aligned',
-      () async {
-        final widget = _CounterWidget(incrementOnRefresh: false);
-        final sentFrames = <Uint8List>[];
-
-        final service = BitmapHudService.test(
-          layout: _layout,
-          zoneWidgets: {'clock': widget},
-          lastSentBmp: Uint8List.fromList(
-            List<int>.filled(G1Display.totalBmpSize, 0xff),
-          ),
-          renderer: (_, zoneWidgets) async {
-            final current = zoneWidgets['clock'] as _CounterWidget;
-            return Uint8List.fromList([current.counter]);
-          },
-          fullSender: (bmp) async {
-            sentFrames.add(bmp);
-            return true;
-          },
-          deltaSender: (bmp, changed) async {
-            sentFrames.add(bmp);
-            return true;
-          },
-          isConnectedChecker: () => true,
-        );
-
-        final result = await service.clearDisplay();
-
-        expect(result, isTrue);
-        expect(sentFrames, hasLength(1));
-        expect(sentFrames.single.length, G1Display.totalBmpSize);
-        expect(sentFrames.single[0], 0x42);
-        expect(sentFrames.single[1], 0x4d);
-        expect(sentFrames.single[G1Display.headerSize], 0x00);
-        expect(
-          sentFrames.single.sublist(54, 62),
-          Uint8List.fromList([0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00]),
-        );
-      },
-    );
   });
 }
 

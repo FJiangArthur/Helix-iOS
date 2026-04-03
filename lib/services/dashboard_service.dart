@@ -97,7 +97,6 @@ typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
 typedef BitmapDashboardRenderer = Future<bool> Function();
 typedef BitmapDashboardInvalidator = void Function();
-typedef BitmapDashboardHideRenderer = Future<bool> Function();
 
 class DashboardService {
   DashboardService({
@@ -111,7 +110,6 @@ class DashboardService {
     DashboardExitRenderer? exitRenderer,
     BitmapDashboardRenderer? bitmapDeltaRenderer,
     BitmapDashboardRenderer? bitmapFullRenderer,
-    BitmapDashboardHideRenderer? bitmapHideRenderer,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
     DateTime Function()? clock,
     this.cooldown = const Duration(seconds: 4),
@@ -131,8 +129,6 @@ class DashboardService {
            bitmapDeltaRenderer ?? BitmapHudService.instance.pushDelta,
        _bitmapFullRenderer =
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
-       _bitmapHideRenderer =
-           bitmapHideRenderer ?? BitmapHudService.instance.clearDisplay,
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _clock = clock ?? DateTime.now;
@@ -150,7 +146,6 @@ class DashboardService {
   final DashboardExitRenderer _exitRenderer;
   final BitmapDashboardRenderer _bitmapDeltaRenderer;
   final BitmapDashboardRenderer _bitmapFullRenderer;
-  final BitmapDashboardHideRenderer _bitmapHideRenderer;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final DateTime Function() _clock;
   final Duration cooldown;
@@ -355,7 +350,7 @@ class DashboardService {
         previousIntent != HudIntent.quickAsk ||
         previousDisplayText.trim().isEmpty;
     if (shouldClearBitmap) {
-      final hideOk = await _bitmapHideRenderer();
+      final hideOk = await _exitRenderer();
       if (!hideOk) {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
       }
@@ -390,6 +385,11 @@ class DashboardService {
         await _hudController.resetToIdle(source: '$source.restoreIdle');
         break;
     }
+
+    // Any bitmap hide that hands off to text/native routes leaves the device
+    // frame unknown to the bitmap renderer, so the next bitmap show must
+    // rebuild from a full frame.
+    _bitmapInvalidateCache();
   }
 
   void dispose() {

@@ -20,8 +20,6 @@ void main() {
     late List<String> dashboardRenders;
     late List<String> quickAskRestores;
     late int exitCalls;
-    late int bitmapHideCalls;
-
     BleDeviceEvent headUpEvent({String label = 'head_up'}) => BleDeviceEvent(
       kind: BleDeviceEventKind.headUp,
       notifyIndex: 2,
@@ -36,8 +34,6 @@ void main() {
       dashboardRenders = [];
       quickAskRestores = [];
       exitCalls = 0;
-      bitmapHideCalls = 0;
-
       SettingsManager.instance.dashboardTiltEnabled = true;
       HandoffMemory.instance.clear();
       ConversationEngine.instance.clearHistory();
@@ -134,6 +130,65 @@ void main() {
     });
 
     test(
+      'bitmap dashboard restores quick ask text after auto-hide without exit',
+      () async {
+        SettingsManager.instance.hudRenderPath = 'bitmap';
+        BleManager.get().isConnected = true;
+        var bitmapInvalidateCalls = 0;
+        HudController.instance.updateDisplay('Saved quick ask answer');
+        await HudController.instance.beginQuickAsk(
+          source: 'test.bitmapQuickAskSetup',
+        );
+
+        final bitmapService = DashboardService(
+          bleManager: BleManager.get(),
+          hudController: HudController.instance,
+          conversationEngine: ConversationEngine.instance,
+          handoffMemory: HandoffMemory.instance,
+          settingsManager: SettingsManager.instance,
+          dashboardRenderer: (text) async => true,
+          quickAskRestorer: (text) async {
+            quickAskRestores.add(text);
+            return true;
+          },
+          exitRenderer: () async {
+            exitCalls += 1;
+            return true;
+          },
+          bitmapDeltaRenderer: () async => true,
+          bitmapFullRenderer: () async => true,
+          bitmapInvalidateCache: () {
+            bitmapInvalidateCalls += 1;
+          },
+          clock: () => DateTime(2026, 3, 12, 10, 0),
+          cooldown: const Duration(milliseconds: 200),
+          displayDuration: const Duration(milliseconds: 40),
+        );
+
+        await bitmapService.initialize();
+        await bitmapService.handleDeviceEvent(
+          headUpEvent(label: 'bitmap_quick_ask_head_up'),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+
+        expect(quickAskRestores, ['Saved quick ask answer']);
+        expect(exitCalls, 0);
+        expect(bitmapInvalidateCalls, 1);
+        expect(HudController.instance.currentIntent, HudIntent.quickAsk);
+        expect(
+          HudController.instance.currentDisplayText,
+          'Saved quick ask answer',
+        );
+
+        await bitmapService.hideDashboard(
+          source: 'test.bitmapQuickAsk.teardown',
+        );
+        bitmapService.dispose();
+        SettingsManager.instance.hudRenderPath = 'text';
+      },
+    );
+
+    test(
       'ignores tilt gestures when the dashboard feature is disabled',
       () async {
         SettingsManager.instance.dashboardTiltEnabled = false;
@@ -225,10 +280,6 @@ void main() {
         },
         bitmapDeltaRenderer: () async => true,
         bitmapFullRenderer: () async => true,
-        bitmapHideRenderer: () async {
-          bitmapHideCalls += 1;
-          return true;
-        },
         bitmapInvalidateCache: () {
           bitmapInvalidateCalls += 1;
         },
@@ -249,9 +300,8 @@ void main() {
 
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
-      expect(exitCalls, 0);
-      expect(bitmapHideCalls, 1);
-      expect(bitmapInvalidateCalls, 0);
+      expect(exitCalls, 1);
+      expect(bitmapInvalidateCalls, 1);
 
       await bitmapService.hideDashboard(
         source: 'test.bitmapDashboard.teardown',
