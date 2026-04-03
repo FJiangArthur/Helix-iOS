@@ -395,5 +395,55 @@ void main() {
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';
     });
+
+    test('bitmap toggle-off stays active when dashboard hide fails', () async {
+      SettingsManager.instance.hudRenderPath = 'bitmap';
+      var bitmapHideCalls = 0;
+      var bitmapScreenHideCalls = 0;
+
+      final bitmapService = DashboardService(
+        bleManager: BleManager.get(),
+        hudController: HudController.instance,
+        conversationEngine: ConversationEngine.instance,
+        handoffMemory: HandoffMemory.instance,
+        settingsManager: SettingsManager.instance,
+        dashboardRenderer: (text) async => true,
+        quickAskRestorer: (text) async => true,
+        exitRenderer: () async => true,
+        bitmapDeltaRenderer: () async => true,
+        bitmapFullRenderer: () async => true,
+        bitmapHideRenderer: () async {
+          bitmapHideCalls += 1;
+          return false;
+        },
+        bitmapScreenHideRenderer: () async {
+          bitmapScreenHideCalls += 1;
+          return true;
+        },
+        clock: () => DateTime(2026, 3, 12, 10, 0),
+        cooldown: const Duration(milliseconds: 200),
+        displayDuration: const Duration(seconds: 5),
+      );
+
+      await bitmapService.initialize();
+      await bitmapService.handleDeviceEvent(
+        headUpEvent(label: 'bitmap_toggle_show'),
+      );
+      await bitmapService.handleDeviceEvent(
+        headUpEvent(label: 'bitmap_toggle_hide_fail'),
+      );
+
+      expect(bitmapHideCalls, 1);
+      expect(bitmapScreenHideCalls, 0);
+      expect(bitmapService.state.isActive, isTrue);
+      expect(HudController.instance.currentIntent, HudIntent.dashboard);
+      expect(bitmapService.state.lastBlockedReason, 'Bitmap dashboard hide failed');
+
+      await bitmapService.hideDashboard(
+        source: 'test.bitmapHideFailure.teardown',
+      );
+      bitmapService.dispose();
+      SettingsManager.instance.hudRenderPath = 'text';
+    });
   });
 }

@@ -312,18 +312,26 @@ class DashboardService {
     final previousIntent = _previousIntent ?? HudIntent.idle;
     final previousDisplayText = _previousDisplayText;
 
-    _cancelDashboardState();
-
     if (_isBitmapMode) {
-      _bitmapSetOverlayVisible(false);
-      await _restoreBitmapRoute(
+      final restored = await _restoreBitmapRoute(
         previousIntent: previousIntent,
         previousDisplayText: previousDisplayText,
         source: source,
       );
+      if (!restored) {
+        _updateSnapshotState(
+          blockedReason: 'Bitmap dashboard hide failed',
+          activeOverride: true,
+        );
+        return;
+      }
+      _bitmapSetOverlayVisible(false);
+      _cancelDashboardState();
       _updateSnapshotState(blockedReason: null, activeOverride: false);
       return;
     }
+
+    _cancelDashboardState();
 
     switch (previousIntent) {
       case HudIntent.quickAsk:
@@ -360,7 +368,7 @@ class DashboardService {
     _updateSnapshotState(blockedReason: null, activeOverride: false);
   }
 
-  Future<void> _restoreBitmapRoute({
+  Future<bool> _restoreBitmapRoute({
     required HudIntent previousIntent,
     required String previousDisplayText,
     required String source,
@@ -372,14 +380,15 @@ class DashboardService {
       final hideOk = await _bitmapHideRenderer();
       if (!hideOk) {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
-      } else {
-        if (_bitmapScreenHideDelay > Duration.zero) {
-          await Future<void>.delayed(_bitmapScreenHideDelay);
-        }
-        final screenHideOk = await _bitmapScreenHideRenderer();
-        if (!screenHideOk) {
-          emitDeviceDiagnostic('BitmapHUD', 'dashboard screen hide failed');
-        }
+        return false;
+      }
+      if (_bitmapScreenHideDelay > Duration.zero) {
+        await Future<void>.delayed(_bitmapScreenHideDelay);
+      }
+      final screenHideOk = await _bitmapScreenHideRenderer();
+      if (!screenHideOk) {
+        emitDeviceDiagnostic('BitmapHUD', 'dashboard screen hide failed');
+        return false;
       }
     }
 
@@ -417,6 +426,7 @@ class DashboardService {
     // frame unknown to the bitmap renderer, so the next bitmap show must
     // rebuild from a full frame.
     _bitmapInvalidateCache();
+    return true;
   }
 
   void dispose() {
