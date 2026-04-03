@@ -314,12 +314,16 @@ class Proto {
   ///
   /// This uses the dashboard visibility command observed in the community
   /// wrapper instead of the Even AI/text exit command.
-  static Future<bool> hideDashboard({int position = 0}) {
+  static Future<bool> hideDashboard({
+    int position = 0,
+    Duration interSideDelay = const Duration(milliseconds: 100),
+  }) {
     return _sendDashboardVisibilityToConnectedSides(
       data: _buildDashboardVisibilityPacket(visible: false, position: position),
       leftConnected: BleManager.isConnectedL(),
       rightConnected: BleManager.isConnectedR(),
       sendSide: (lr, packet) => BleManager.sendData(packet, lr: lr),
+      interSideDelay: interSideDelay,
     );
   }
 
@@ -329,12 +333,14 @@ class Proto {
     required bool rightConnected,
     required Future<void> Function(String lr, Uint8List data) sendSide,
     int position = 0,
+    Duration interSideDelay = const Duration(milliseconds: 100),
   }) {
     return _sendDashboardVisibilityToConnectedSides(
       data: _buildDashboardVisibilityPacket(visible: false, position: position),
       leftConnected: leftConnected,
       rightConnected: rightConnected,
       sendSide: sendSide,
+      interSideDelay: interSideDelay,
     );
   }
 
@@ -354,6 +360,7 @@ class Proto {
     required bool leftConnected,
     required bool rightConnected,
     required Future<void> Function(String lr, Uint8List data) sendSide,
+    required Duration interSideDelay,
   }) async {
     if (!leftConnected && !rightConnected) {
       appLogger.d('${DateTime.now()} hideDashboard skipped: no connected side');
@@ -375,6 +382,9 @@ class Proto {
 
     var rightSuccess = false;
     if (rightConnected) {
+      if (leftConnected && interSideDelay > Duration.zero) {
+        await Future<void>.delayed(interSideDelay);
+      }
       try {
         await sendSide('R', data);
         rightSuccess = true;

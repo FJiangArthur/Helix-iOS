@@ -88,5 +88,23 @@ void main() {
         Uint8List.fromList([0x26, 0x07, 0x00, 0x01, 0x02, 0x00, 0x03]),
       );
     });
+
+    test('paces dashboard hide sends across both connected sides', () async {
+      final calls = <({String side, int elapsedMs})>[];
+      final stopwatch = Stopwatch()..start();
+
+      final result = await Proto.hideDashboardForTest(
+        leftConnected: true,
+        rightConnected: true,
+        interSideDelay: const Duration(milliseconds: 25),
+        sendSide: (lr, data) async {
+          calls.add((side: lr, elapsedMs: stopwatch.elapsedMilliseconds));
+        },
+      );
+
+      expect(result, isTrue);
+      expect(calls.map((call) => call.side).toList(), ['L', 'R']);
+      expect(calls[1].elapsedMs - calls[0].elapsedMs, greaterThanOrEqualTo(25));
+    });
   });
 }
