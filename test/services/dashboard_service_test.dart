@@ -20,6 +20,7 @@ void main() {
     late List<String> dashboardRenders;
     late List<String> quickAskRestores;
     late int exitCalls;
+    late int bitmapHideCalls;
 
     BleDeviceEvent headUpEvent({String label = 'head_up'}) => BleDeviceEvent(
       kind: BleDeviceEventKind.headUp,
@@ -35,6 +36,7 @@ void main() {
       dashboardRenders = [];
       quickAskRestores = [];
       exitCalls = 0;
+      bitmapHideCalls = 0;
 
       SettingsManager.instance.dashboardTiltEnabled = true;
       HandoffMemory.instance.clear();
@@ -223,6 +225,10 @@ void main() {
         },
         bitmapDeltaRenderer: () async => true,
         bitmapFullRenderer: () async => true,
+        bitmapHideRenderer: () async {
+          bitmapHideCalls += 1;
+          return true;
+        },
         bitmapInvalidateCache: () {
           bitmapInvalidateCalls += 1;
         },
@@ -244,7 +250,8 @@ void main() {
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
       expect(exitCalls, 0);
-      expect(bitmapInvalidateCalls, 1);
+      expect(bitmapHideCalls, 1);
+      expect(bitmapInvalidateCalls, 0);
 
       await bitmapService.hideDashboard(
         source: 'test.bitmapDashboard.teardown',

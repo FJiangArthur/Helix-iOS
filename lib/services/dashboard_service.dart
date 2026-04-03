@@ -97,6 +97,7 @@ typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
 typedef BitmapDashboardRenderer = Future<bool> Function();
 typedef BitmapDashboardInvalidator = void Function();
+typedef BitmapDashboardHideRenderer = Future<bool> Function();
 
 class DashboardService {
   DashboardService({
@@ -110,6 +111,7 @@ class DashboardService {
     DashboardExitRenderer? exitRenderer,
     BitmapDashboardRenderer? bitmapDeltaRenderer,
     BitmapDashboardRenderer? bitmapFullRenderer,
+    BitmapDashboardHideRenderer? bitmapHideRenderer,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
     DateTime Function()? clock,
     this.cooldown = const Duration(seconds: 4),
@@ -129,6 +131,8 @@ class DashboardService {
            bitmapDeltaRenderer ?? BitmapHudService.instance.pushDelta,
        _bitmapFullRenderer =
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
+       _bitmapHideRenderer =
+           bitmapHideRenderer ?? BitmapHudService.instance.clearDisplay,
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _clock = clock ?? DateTime.now;
@@ -146,6 +150,7 @@ class DashboardService {
   final DashboardExitRenderer _exitRenderer;
   final BitmapDashboardRenderer _bitmapDeltaRenderer;
   final BitmapDashboardRenderer _bitmapFullRenderer;
+  final BitmapDashboardHideRenderer _bitmapHideRenderer;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final DateTime Function() _clock;
   final Duration cooldown;
@@ -297,7 +302,6 @@ class DashboardService {
     _cancelDashboardState();
 
     if (_isBitmapMode) {
-      _bitmapInvalidateCache();
       await _restoreBitmapRoute(
         previousIntent: previousIntent,
         previousDisplayText: previousDisplayText,
@@ -347,6 +351,16 @@ class DashboardService {
     required String previousDisplayText,
     required String source,
   }) async {
+    final shouldClearBitmap =
+        previousIntent != HudIntent.quickAsk ||
+        previousDisplayText.trim().isEmpty;
+    if (shouldClearBitmap) {
+      final hideOk = await _bitmapHideRenderer();
+      if (!hideOk) {
+        emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
+      }
+    }
+
     switch (previousIntent) {
       case HudIntent.quickAsk:
         if (previousDisplayText.trim().isNotEmpty) {
