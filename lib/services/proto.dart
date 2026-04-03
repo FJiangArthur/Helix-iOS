@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
+
 import '../ble_manager.dart';
 import 'ble.dart';
 import '../services/evenai_proto.dart';
@@ -114,8 +116,40 @@ class Proto {
 
   static int _beatHeartSeq = 0;
   static Future<bool> sendHeartBeat() async {
-    var length = 6;
-    var data = Uint8List.fromList([
+    final data = _buildHeartBeatPacket();
+    appLogger.d('${DateTime.now()} sendHeartBeat--------data---$data--');
+
+    return _sendHeartBeatToConnectedSides(
+      data: data,
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      requestSide: (lr, packet, timeoutMs) =>
+          BleManager.request(packet, lr: lr, timeoutMs: timeoutMs),
+    );
+  }
+
+  @visibleForTesting
+  static Future<bool> sendHeartBeatForTest({
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) {
+    return _sendHeartBeatToConnectedSides(
+      data: _buildHeartBeatPacket(),
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      requestSide: requestSide,
+    );
+  }
+
+  static Uint8List _buildHeartBeatPacket() {
+    const length = 6;
+    final data = Uint8List.fromList([
       0x25,
       length & 0xff,
       (length >> 8) & 0xff,
@@ -124,33 +158,62 @@ class Proto {
       _beatHeartSeq & 0xff,
     ]);
     _beatHeartSeq++;
+    return data;
+  }
 
-    appLogger.d('${DateTime.now()} sendHeartBeat--------data---$data--');
-    var ret = await BleManager.request(data, lr: "L", timeoutMs: 1500);
-
-    appLogger.d('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
-    if (ret.isTimeout) {
-      appLogger.d('${DateTime.now()} sendHeartBeat----L----time out--');
-      return false;
-    } else if (ret.data[0].toInt() == 0x25 &&
-        ret.data.length > 5 &&
-        ret.data[4].toInt() == 0x04) {
-      var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      appLogger.d(
-        '${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--',
-      );
-      if (retR.isTimeout) {
-        return false;
-      } else if (retR.data[0].toInt() == 0x25 &&
-          retR.data.length > 5 &&
-          retR.data[4].toInt() == 0x04) {
-        return true;
-      } else {
-        return false;
-      }
-    } else {
+  static Future<bool> _sendHeartBeatToConnectedSides({
+    required Uint8List data,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) async {
+    if (!leftConnected && !rightConnected) {
+      appLogger.d('${DateTime.now()} sendHeartBeat skipped: no connected side');
       return false;
     }
+
+    bool leftSuccess = false;
+    if (leftConnected) {
+      final ret = await requestSide('L', data, 1500);
+      appLogger.d(
+        '${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--',
+      );
+      leftSuccess = _isHeartbeatAck(ret);
+      if (!leftSuccess) {
+        appLogger.d('${DateTime.now()} sendHeartBeat----L----failed--');
+      }
+    }
+
+    bool rightSuccess = false;
+    if (rightConnected) {
+      final ret = await requestSide('R', data, 1500);
+      appLogger.d(
+        '${DateTime.now()} sendHeartBeat----R----ret---${ret.data}--',
+      );
+      rightSuccess = _isHeartbeatAck(ret);
+      if (!rightSuccess) {
+        appLogger.d('${DateTime.now()} sendHeartBeat----R----failed--');
+      }
+    }
+
+    return BleTransportPolicy.didAllConnectedTargetsSucceed(
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      leftSuccess: leftSuccess,
+      rightSuccess: rightSuccess,
+    );
+  }
+
+  static bool _isHeartbeatAck(BleReceive receive) {
+    return !receive.isTimeout &&
+        receive.data.length > 5 &&
+        receive.data[0].toInt() == 0x25 &&
+        receive.data[4].toInt() == 0x04;
   }
 
   static Future<String> getLegSn(String lr) async {
