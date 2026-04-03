@@ -139,6 +139,7 @@ void main() {
         SettingsManager.instance.hudRenderPath = 'bitmap';
         BleManager.get().isConnected = true;
         var bitmapInvalidateCalls = 0;
+        final overlayVisibility = <bool>[];
         HudController.instance.updateDisplay('Saved quick ask answer');
         await HudController.instance.beginQuickAsk(
           source: 'test.bitmapQuickAskSetup',
@@ -164,6 +165,9 @@ void main() {
           bitmapInvalidateCache: () {
             bitmapInvalidateCalls += 1;
           },
+          bitmapSetOverlayVisible: (visible) {
+            overlayVisibility.add(visible);
+          },
           clock: () => DateTime(2026, 3, 12, 10, 0),
           cooldown: const Duration(milliseconds: 200),
           displayDuration: const Duration(milliseconds: 40),
@@ -178,6 +182,7 @@ void main() {
         expect(quickAskRestores, ['Saved quick ask answer']);
         expect(exitCalls, 0);
         expect(bitmapInvalidateCalls, 1);
+        expect(overlayVisibility, [true, false]);
         expect(HudController.instance.currentIntent, HudIntent.quickAsk);
         expect(
           HudController.instance.currentDisplayText,

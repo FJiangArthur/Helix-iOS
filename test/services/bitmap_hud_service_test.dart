@@ -4,12 +4,28 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/ble_manager.dart';
+import 'package:flutter_helix/services/ble.dart';
 import 'package:flutter_helix/services/bitmap_hud/bitmap_hud_service.dart';
 import 'package:flutter_helix/services/bitmap_hud/bmp_widget.dart';
 import 'package:flutter_helix/services/bitmap_hud/display_constants.dart';
+import 'package:flutter_helix/services/settings_manager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('BitmapHudService', () {
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await SettingsManager.instance.initialize();
+      SettingsManager.instance.hudRenderPath = 'bitmap';
+      SettingsManager.instance.bitmapLayoutPreset = 'classic';
+      BleManager.get().debugSetConnectionState(
+        leftConnected: false,
+        rightConnected: false,
+      );
+    });
+
     test(
       'pushDelta sends an update when refreshed content changes even without dirty flag',
       () async {
@@ -129,6 +145,98 @@ void main() {
 
         expect(await first, isTrue);
         expect(await second, isTrue);
+      },
+    );
+
+    test(
+      'reconnect does not auto-push while overlay is hidden',
+      () async {
+        var fullCalls = 0;
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': _CounterWidget(incrementOnRefresh: false)},
+          fullSender: (_) async {
+            fullCalls += 1;
+            return true;
+          },
+          deltaSender: (_, __) async => true,
+          isConnectedChecker: () => true,
+          reconnectPushDelay: Duration.zero,
+        );
+
+        await service.handleConnectionStateForTest(BleConnectionState.connected);
+
+        expect(fullCalls, 0);
+        service.dispose();
+      },
+    );
+
+    test(
+      'resuming conversation only pushes delta when overlay is visible',
+      () async {
+        var deltaCalls = 0;
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': _CounterWidget(incrementOnRefresh: true)},
+          lastSentBmp: Uint8List.fromList([0]),
+          renderer: (_, zoneWidgets) async {
+            final current = zoneWidgets['clock'] as _CounterWidget;
+            return Uint8List.fromList([current.counter]);
+          },
+          fullSender: (_) async => true,
+          deltaSender: (_, __) async {
+            deltaCalls += 1;
+            return true;
+          },
+          isConnectedChecker: () => true,
+        );
+
+        service.setConversationActive(true);
+        service.setConversationActive(false);
+        expect(deltaCalls, 0);
+
+        service.setOverlayVisible(true);
+        service.setConversationActive(true);
+        service.setConversationActive(false);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(deltaCalls, 1);
+        service.dispose();
+      },
+    );
+
+    test(
+      'layout changes while hidden defer the full push until the next show',
+      () async {
+        var fullCalls = 0;
+        var deltaCalls = 0;
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': _CounterWidget(incrementOnRefresh: false)},
+          lastSentBmp: Uint8List.fromList([7]),
+          renderer: (_, __) async => Uint8List.fromList([7]),
+          fullSender: (_) async {
+            fullCalls += 1;
+            return true;
+          },
+          deltaSender: (_, __) async {
+            deltaCalls += 1;
+            return true;
+          },
+          isConnectedChecker: () => true,
+        );
+
+        service.handleSettingsChangedForTest();
+        expect(fullCalls, 0);
+        expect(deltaCalls, 0);
+
+        service.setOverlayVisible(true);
+        final result = await service.pushDelta();
+
+        expect(result, isTrue);
+        expect(fullCalls, 1);
+        expect(deltaCalls, 0);
+        service.dispose();
       },
     );
   });

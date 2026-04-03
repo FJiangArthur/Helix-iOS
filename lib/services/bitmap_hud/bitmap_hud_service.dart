@@ -33,18 +33,21 @@ import 'widgets/bmp_weather_widget.dart';
 ///
 /// Usage:
 /// 1. Call [initialize] once at app startup.
-/// 2. The service automatically pushes a full BMP on BLE connect.
-/// 3. Periodic delta updates refresh the display every 1-2 minutes.
+/// 2. Mark the overlay visible when the dashboard is shown.
+/// 3. While visible, the service refreshes the display and can re-push after
+///    reconnects.
 class BitmapHudService {
   BitmapHudService._({
     Future<Uint8List> Function(HudLayout, Map<String, BmpWidget>)? renderer,
     Future<bool> Function(Uint8List)? fullSender,
     Future<bool> Function(Uint8List, List<int>)? deltaSender,
     bool Function()? isConnectedChecker,
+    Duration reconnectPushDelay = const Duration(seconds: 3),
   }) : _renderer = renderer,
        _fullSender = fullSender,
        _deltaSender = deltaSender,
-       _isConnectedChecker = isConnectedChecker;
+       _isConnectedChecker = isConnectedChecker,
+       _reconnectPushDelay = reconnectPushDelay;
 
   static BitmapHudService? _instance;
   static BitmapHudService get instance => _instance ??= BitmapHudService._();
@@ -58,16 +61,20 @@ class BitmapHudService {
     Future<bool> Function(Uint8List)? fullSender,
     Future<bool> Function(Uint8List, List<int>)? deltaSender,
     bool Function()? isConnectedChecker,
+    bool overlayVisible = false,
+    Duration reconnectPushDelay = Duration.zero,
   }) {
     final service = BitmapHudService._(
       renderer: renderer,
       fullSender: fullSender,
       deltaSender: deltaSender,
       isConnectedChecker: isConnectedChecker,
+      reconnectPushDelay: reconnectPushDelay,
     );
     service._activeLayout = layout;
     service._zoneWidgets = Map<String, BmpWidget>.from(zoneWidgets);
     service._lastSentBmp = lastSentBmp;
+    service._overlayVisible = overlayVisible;
     return service;
   }
 
@@ -79,6 +86,7 @@ class BitmapHudService {
   final Future<bool> Function(Uint8List)? _fullSender;
   final Future<bool> Function(Uint8List, List<int>)? _deltaSender;
   final bool Function()? _isConnectedChecker;
+  final Duration _reconnectPushDelay;
 
   /// Cached last-sent BMP for delta comparison.
   Uint8List? _lastSentBmp;
@@ -88,6 +96,7 @@ class BitmapHudService {
   StreamSubscription<SettingsManager>? _settingsSub;
   bool _initialized = false;
   bool _sending = false;
+  bool _overlayVisible = false;
   _PendingBitmapSend? _pendingSend;
   final List<Completer<bool>> _pendingSendWaiters = [];
 
@@ -110,6 +119,14 @@ class BitmapHudService {
   bool get _isEnhancedMode =>
       SettingsManager.instance.hudRenderPath == 'enhanced';
 
+  bool get isOverlayVisible => _overlayVisible;
+
+  bool get _shouldBackgroundRefresh =>
+      _overlayVisible &&
+      isEnabled &&
+      _isConnected() &&
+      !_conversationPaused;
+
   /// Initialize the bitmap HUD service. Registers widgets and starts timers.
   Future<void> initialize() async {
     if (_initialized) return;
@@ -126,18 +143,9 @@ class BitmapHudService {
       await _refreshAllWidgets();
     }
 
-    // Listen for BLE connection to auto-push on connect
+    // Re-push the active overlay after reconnecting while it is visible.
     _connectionSub = BleManager.get().connectionStateStream.listen((state) {
-      if (state == BleConnectionState.connected &&
-          isEnabled &&
-          _hasConnectedSide()) {
-        // Delay slightly to let glasses initialize
-        Future.delayed(const Duration(seconds: 3), () {
-          if (isEnabled && _hasConnectedSide()) {
-            pushFull();
-          }
-        });
-      }
+      unawaited(_handleConnectionState(state));
     });
 
     // Listen for settings changes (layout, render path, stock ticker)
@@ -145,22 +153,22 @@ class BitmapHudService {
       _onSettingsChanged();
     });
 
-    // Adaptive periodic refresh timer
-    _startAdaptiveRefreshTimer();
+    _syncBackgroundRefreshTimer();
   }
 
-  void _startAdaptiveRefreshTimer() {
+  void _syncBackgroundRefreshTimer() {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer(
-      Duration(seconds: _currentRefreshIntervalSeconds),
-      () {
-        if (isEnabled && _hasConnectedSide() && !_conversationPaused) {
-          pushDelta();
-        }
-        // Re-schedule (interval may have changed after pushDelta).
-        _startAdaptiveRefreshTimer();
-      },
-    );
+    _refreshTimer = null;
+    if (!_shouldBackgroundRefresh) {
+      return;
+    }
+
+    _refreshTimer = Timer(Duration(seconds: _currentRefreshIntervalSeconds), () {
+      if (_shouldBackgroundRefresh) {
+        pushDelta();
+      }
+      _syncBackgroundRefreshTimer();
+    });
   }
 
   /// Pause bitmap refresh during active conversation (text HUD takes
@@ -168,12 +176,27 @@ class BitmapHudService {
   /// it stops.
   void setConversationActive(bool active) {
     _conversationPaused = active;
-    if (!active && isEnabled && _hasConnectedSide()) {
+    if (!active && _shouldBackgroundRefresh) {
       // Reset to base interval and push immediately on resume.
       _currentRefreshIntervalSeconds = _minRefreshInterval;
-      _startAdaptiveRefreshTimer();
+      _syncBackgroundRefreshTimer();
       pushDelta();
+      return;
     }
+    _syncBackgroundRefreshTimer();
+  }
+
+  void setOverlayVisible(bool visible) {
+    if (_overlayVisible == visible) {
+      _syncBackgroundRefreshTimer();
+      return;
+    }
+
+    _overlayVisible = visible;
+    if (visible) {
+      _currentRefreshIntervalSeconds = _minRefreshInterval;
+    }
+    _syncBackgroundRefreshTimer();
   }
 
   void _registerWidget(BmpWidget widget) {
@@ -258,11 +281,12 @@ class BitmapHudService {
     if (targetPreset != currentPreset) {
       _loadLayout();
       // Force full re-push on layout change
-      if (isEnabled && _hasConnectedSide()) {
-        _lastSentBmp = null;
+      _lastSentBmp = null;
+      if (_overlayVisible && isEnabled && _isConnected()) {
         pushFull();
       }
     }
+    _syncBackgroundRefreshTimer();
   }
 
   Future<void> _refreshAllWidgets() async {
@@ -360,11 +384,13 @@ class BitmapHudService {
         appLogger.d('BitmapHud: no widget dirty, skipping render');
         _currentRefreshIntervalSeconds = (_currentRefreshIntervalSeconds * 2)
             .clamp(_minRefreshInterval, _maxRefreshInterval);
+        _syncBackgroundRefreshTimer();
         return true;
       }
 
       // At least one widget changed — reset to base interval.
       _currentRefreshIntervalSeconds = _minRefreshInterval;
+      _syncBackgroundRefreshTimer();
 
       final newBmp = await renderDashboard();
       final changedIndices = DeltaEncoder.diff(_lastSentBmp!, newBmp);
@@ -487,10 +513,31 @@ class BitmapHudService {
     _settingsSub?.cancel();
   }
 
+  @visibleForTesting
+  Future<void> handleConnectionStateForTest(BleConnectionState state) {
+    return _handleConnectionState(state);
+  }
+
+  @visibleForTesting
+  void handleSettingsChangedForTest() {
+    _onSettingsChanged();
+  }
+
   bool _isConnected() => _isConnectedChecker?.call() ?? _hasConnectedSide();
 
   bool _hasConnectedSide() =>
       BleManager.isConnectedL() || BleManager.isConnectedR();
+
+  Future<void> _handleConnectionState(BleConnectionState state) async {
+    if (state != BleConnectionState.connected || !_overlayVisible) {
+      return;
+    }
+
+    await Future.delayed(_reconnectPushDelay);
+    if (_overlayVisible && isEnabled && _isConnected()) {
+      await pushFull();
+    }
+  }
 
   Future<bool> _sendFull(Uint8List bmpData) {
     final sender = _fullSender;

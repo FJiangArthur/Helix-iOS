@@ -97,6 +97,7 @@ typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
 typedef BitmapDashboardRenderer = Future<bool> Function();
 typedef BitmapDashboardInvalidator = void Function();
+typedef BitmapDashboardVisibilitySetter = void Function(bool visible);
 
 class DashboardService {
   DashboardService({
@@ -111,6 +112,7 @@ class DashboardService {
     BitmapDashboardRenderer? bitmapDeltaRenderer,
     BitmapDashboardRenderer? bitmapFullRenderer,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
+    BitmapDashboardVisibilitySetter? bitmapSetOverlayVisible,
     DateTime Function()? clock,
     this.cooldown = const Duration(seconds: 4),
     this.displayDuration = const Duration(seconds: 5),
@@ -131,6 +133,8 @@ class DashboardService {
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
+       _bitmapSetOverlayVisible =
+           bitmapSetOverlayVisible ?? BitmapHudService.instance.setOverlayVisible,
        _clock = clock ?? DateTime.now;
 
   static DashboardService? _instance;
@@ -147,6 +151,7 @@ class DashboardService {
   final BitmapDashboardRenderer _bitmapDeltaRenderer;
   final BitmapDashboardRenderer _bitmapFullRenderer;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
+  final BitmapDashboardVisibilitySetter _bitmapSetOverlayVisible;
   final DateTime Function() _clock;
   final Duration cooldown;
   final Duration displayDuration;
@@ -297,6 +302,7 @@ class DashboardService {
     _cancelDashboardState();
 
     if (_isBitmapMode) {
+      _bitmapSetOverlayVisible(false);
       await _restoreBitmapRoute(
         previousIntent: previousIntent,
         previousDisplayText: previousDisplayText,
@@ -501,6 +507,7 @@ class DashboardService {
       _lastShownAt = _clock();
       _active = true;
 
+      _bitmapSetOverlayVisible(true);
       _hudController.updateDisplay('[Bitmap HUD]');
       await _hudController.beginDashboard(
         source: 'DashboardService.bitmap.${event.label}',
