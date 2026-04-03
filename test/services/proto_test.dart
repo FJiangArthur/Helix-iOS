@@ -67,4 +67,26 @@ void main() {
       expect(result, isFalse);
     });
   });
+
+  group('Proto.hideDashboardForTest', () {
+    test('sends the dashboard hide packet to connected sides', () async {
+      final sent = <String, Uint8List>{};
+
+      final result = await Proto.hideDashboardForTest(
+        leftConnected: false,
+        rightConnected: true,
+        position: 3,
+        sendSide: (lr, data) async {
+          sent[lr] = data;
+        },
+      );
+
+      expect(result, isTrue);
+      expect(sent.keys, ['R']);
+      expect(
+        sent['R'],
+        Uint8List.fromList([0x26, 0x07, 0x00, 0x01, 0x02, 0x00, 0x03]),
+      );
+    });
+  });
 }

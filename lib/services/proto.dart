@@ -11,6 +11,8 @@ import '../utils/app_logger.dart';
 import '../utils/utils.dart';
 
 class Proto {
+  static const List<int> _dashboardHidePrefix = [0x26, 0x07, 0x00, 0x01, 0x02];
+
   static String lR() {
     if (BleManager.isConnectedR()) return "R";
     if (BleManager.isConnectedL()) return "L";
@@ -306,6 +308,90 @@ class Proto {
     return !receive.isTimeout &&
         receive.data.length > 1 &&
         receive.data[1].toInt() == 0xc9;
+  }
+
+  /// Hide the glasses dashboard overlay.
+  ///
+  /// This uses the dashboard visibility command observed in the community
+  /// wrapper instead of the Even AI/text exit command.
+  static Future<bool> hideDashboard({int position = 0}) {
+    return _sendDashboardVisibilityToConnectedSides(
+      data: _buildDashboardVisibilityPacket(visible: false, position: position),
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      sendSide: (lr, packet) => BleManager.sendData(packet, lr: lr),
+    );
+  }
+
+  @visibleForTesting
+  static Future<bool> hideDashboardForTest({
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<void> Function(String lr, Uint8List data) sendSide,
+    int position = 0,
+  }) {
+    return _sendDashboardVisibilityToConnectedSides(
+      data: _buildDashboardVisibilityPacket(visible: false, position: position),
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      sendSide: sendSide,
+    );
+  }
+
+  static Uint8List _buildDashboardVisibilityPacket({
+    required bool visible,
+    required int position,
+  }) {
+    return Uint8List.fromList([
+      ..._dashboardHidePrefix,
+      visible ? 0x01 : 0x00,
+      position & 0xff,
+    ]);
+  }
+
+  static Future<bool> _sendDashboardVisibilityToConnectedSides({
+    required Uint8List data,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<void> Function(String lr, Uint8List data) sendSide,
+  }) async {
+    if (!leftConnected && !rightConnected) {
+      appLogger.d('${DateTime.now()} hideDashboard skipped: no connected side');
+      return false;
+    }
+
+    var leftSuccess = false;
+    if (leftConnected) {
+      try {
+        await sendSide('L', data);
+        leftSuccess = true;
+      } catch (e) {
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'dashboard hide send failed side=L exception=$e',
+        );
+      }
+    }
+
+    var rightSuccess = false;
+    if (rightConnected) {
+      try {
+        await sendSide('R', data);
+        rightSuccess = true;
+      } catch (e) {
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'dashboard hide send failed side=R exception=$e',
+        );
+      }
+    }
+
+    return BleTransportPolicy.didAllConnectedTargetsSucceed(
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      leftSuccess: leftSuccess,
+      rightSuccess: rightSuccess,
+    );
   }
 
   static List<Uint8List> _getPackList(

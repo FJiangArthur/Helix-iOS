@@ -140,6 +140,7 @@ void main() {
         BleManager.get().isConnected = true;
         var bitmapInvalidateCalls = 0;
         final overlayVisibility = <bool>[];
+        var bitmapHideCalls = 0;
         HudController.instance.updateDisplay('Saved quick ask answer');
         await HudController.instance.beginQuickAsk(
           source: 'test.bitmapQuickAskSetup',
@@ -162,6 +163,10 @@ void main() {
           },
           bitmapDeltaRenderer: () async => true,
           bitmapFullRenderer: () async => true,
+          bitmapHideRenderer: () async {
+            bitmapHideCalls += 1;
+            return true;
+          },
           bitmapInvalidateCache: () {
             bitmapInvalidateCalls += 1;
           },
@@ -181,6 +186,7 @@ void main() {
 
         expect(quickAskRestores, ['Saved quick ask answer']);
         expect(exitCalls, 0);
+        expect(bitmapHideCalls, 0);
         expect(bitmapInvalidateCalls, 1);
         expect(overlayVisibility, [true, false]);
         expect(HudController.instance.currentIntent, HudIntent.quickAsk);
@@ -274,6 +280,7 @@ void main() {
     test('bitmap dashboard auto-hides after the configured duration', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapInvalidateCalls = 0;
+      var bitmapHideCalls = 0;
 
       final bitmapService = DashboardService(
         bleManager: BleManager.get(),
@@ -289,6 +296,10 @@ void main() {
         },
         bitmapDeltaRenderer: () async => true,
         bitmapFullRenderer: () async => true,
+        bitmapHideRenderer: () async {
+          bitmapHideCalls += 1;
+          return true;
+        },
         bitmapInvalidateCache: () {
           bitmapInvalidateCalls += 1;
         },
@@ -309,7 +320,8 @@ void main() {
 
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
-      expect(exitCalls, 1);
+      expect(exitCalls, 0);
+      expect(bitmapHideCalls, 1);
       expect(bitmapInvalidateCalls, 1);
 
       await bitmapService.hideDashboard(
