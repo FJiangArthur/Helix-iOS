@@ -186,6 +186,10 @@ class Proto {
       leftSuccess = _isHeartbeatAck(ret);
       if (!leftSuccess) {
         appLogger.d('${DateTime.now()} sendHeartBeat----L----failed--');
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'heartbeat ack failed side=L timeout=${ret.isTimeout} dataLen=${ret.data.length}',
+        );
       }
     }
 
@@ -198,6 +202,10 @@ class Proto {
       rightSuccess = _isHeartbeatAck(ret);
       if (!rightSuccess) {
         appLogger.d('${DateTime.now()} sendHeartBeat----R----failed--');
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'heartbeat ack failed side=R timeout=${ret.isTimeout} dataLen=${ret.data.length}',
+        );
       }
     }
 

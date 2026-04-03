@@ -4,21 +4,33 @@ import 'dart:ui';
 class G1Display {
   G1Display._();
 
+  /// Logical HUD design space used by the existing widget layouts.
   static const int width = 640;
   static const int height = 400;
+
+  /// Physical BMP dimensions accepted by the Even bitmap transport.
+  static const int bitmapWidth = 576;
+  static const int bitmapHeight = 136;
   static const int bitsPerPixel = 1;
+  static const int bmpTrailerBytes = 2;
 
   /// BMP row bytes: rows must be a multiple of 4 bytes.
-  static const int rowBytes = (width + 31) ~/ 32 * 4; // 80
+  static const int rowBytes = (bitmapWidth + 31) ~/ 32 * 4; // 72
 
   /// Total pixel data size in BMP (excluding headers).
-  static const int pixelDataSize = rowBytes * height; // 32000
+  ///
+  /// Even's sample BMPs include a 2-byte trailing pad after the packed rows.
+  static const int pixelDataSize =
+      rowBytes * bitmapHeight + bmpTrailerBytes; // 9794
 
   /// BMP header size: 14 (file) + 40 (info) + 8 (color table).
   static const int headerSize = 62;
 
   /// Total BMP file size.
-  static const int totalBmpSize = headerSize + pixelDataSize; // 32062
+  static const int totalBmpSize = headerSize + pixelDataSize; // 9856
+
+  static const double bitmapScaleX = bitmapWidth / width;
+  static const double bitmapScaleY = bitmapHeight / height;
 }
 
 /// A rectangular zone on the G1 display where a widget renders.
@@ -35,13 +47,17 @@ class HudZone {
     required this.y,
     required this.width,
     required this.height,
-  })  : assert(width > 0),
-        assert(height > 0),
-        assert(x >= 0),
-        assert(y >= 0);
+  }) : assert(width > 0),
+       assert(height > 0),
+       assert(x >= 0),
+       assert(y >= 0);
 
-  Rect toRect() => Rect.fromLTWH(x.toDouble(), y.toDouble(),
-      width.toDouble(), height.toDouble());
+  Rect toRect() => Rect.fromLTWH(
+    x.toDouble(),
+    y.toDouble(),
+    width.toDouble(),
+    height.toDouble(),
+  );
 }
 
 /// A divider line drawn between zones.

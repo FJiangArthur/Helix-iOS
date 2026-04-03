@@ -157,6 +157,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         reconnectAttemptsByPeripheral[peripheral.identifier] = 0
+        print("didConnectPeripheral id=\(peripheral.identifier.uuidString) name=\(peripheral.name ?? "")")
         handleConnectedPeripheral(peripheral)
     }
 
@@ -255,6 +256,13 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             }
         }
 
+        print(
+            "didDiscoverCharacteristics side=\(side ?? "?") "
+                + "leftPeripheral=\(leftPeripheral != nil) rightPeripheral=\(rightPeripheral != nil) "
+                + "leftWChar=\(leftWChar != nil) rightWChar=\(rightWChar != nil) "
+                + "leftRChar=\(leftRChar != nil) rightRChar=\(rightRChar != nil)"
+        )
+
         if side == "L",
            let leftRChar,
            leftWChar != nil {
@@ -282,9 +290,19 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func writeData(writeData: Data, cbPeripheral: CBPeripheral? = nil, lr: String? = nil) {
+        print(
+            "writeData lr=\(lr ?? "both") bytes=\(writeData.count) "
+                + "leftPeripheral=\(leftPeripheral != nil) rightPeripheral=\(rightPeripheral != nil) "
+                + "leftWChar=\(leftWChar != nil) rightWChar=\(rightWChar != nil)"
+        )
+
         if lr == "L" {
             if let leftWChar = leftWChar {
-                leftPeripheral?.writeValue(writeData, for: leftWChar, type: .withoutResponse)
+                if let leftPeripheral = leftPeripheral {
+                    leftPeripheral.writeValue(writeData, for: leftWChar, type: .withoutResponse)
+                } else {
+                    print("writeData leftPeripheral is nil, cannot write data to left side.")
+                }
             } else {
                 print("writeData leftWChar is nil, cannot write data to left peripheral.")
             }
@@ -293,7 +311,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         if lr == "R" {
             if let rightWChar = rightWChar {
-                rightPeripheral?.writeValue(writeData, for: rightWChar, type: .withoutResponse)
+                if let rightPeripheral = rightPeripheral {
+                    rightPeripheral.writeValue(writeData, for: rightWChar, type: .withoutResponse)
+                } else {
+                    print("writeData rightPeripheral is nil, cannot write data to right side.")
+                }
             } else {
                 print("writeData rightWChar is nil, cannot write data to right peripheral.")
             }
@@ -301,13 +323,21 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
 
         if let leftWChar = leftWChar {
-            leftPeripheral?.writeValue(writeData, for: leftWChar, type: .withoutResponse)
+            if let leftPeripheral = leftPeripheral {
+                leftPeripheral.writeValue(writeData, for: leftWChar, type: .withoutResponse)
+            } else {
+                print("writeData leftPeripheral is nil, cannot write data to left side.")
+            }
         } else {
             print("writeData leftWChar is nil, cannot write data to left peripheral.")
         }
 
         if let rightWChar = rightWChar {
-            rightPeripheral?.writeValue(writeData, for: rightWChar, type: .withoutResponse)
+            if let rightPeripheral = rightPeripheral {
+                rightPeripheral.writeValue(writeData, for: rightWChar, type: .withoutResponse)
+            } else {
+                print("writeData rightPeripheral is nil, cannot write data to right side.")
+            }
         } else {
             print("writeData rightWChar is nil, cannot write data to right peripheral.")
         }
@@ -445,11 +475,16 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         peripheral.delegate = self
         peripheral.discoverServices([UARTServiceUUID])
+        print(
+            "connectPeripheral side=\(side) deviceName=\(deviceName) "
+                + "leftConnected=\(pair.0 != nil) rightConnected=\(pair.1 != nil)"
+        )
 
         let currentPair = connectedDevices[deviceName]
         if let leftP = currentPair?.0, let rightP = currentPair?.1 {
             // Both sides connected
             persistConnectedDevice(deviceName: deviceName, left: leftP, right: rightP)
+            print("glassesConnected both sides deviceName=\(deviceName)")
             channel.invokeMethod("glassesConnected", arguments: [
                 "leftDeviceName": leftP.name ?? "",
                 "rightDeviceName": rightP.name ?? "",
@@ -457,6 +492,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             ])
         } else {
             // Partial connection - first side connected
+            print("glassesConnected partial side=\(side) deviceName=\(deviceName)")
             channel.invokeMethod("glassesConnected", arguments: [
                 "leftDeviceName": currentPair?.0?.name ?? "",
                 "rightDeviceName": currentPair?.1?.name ?? "",

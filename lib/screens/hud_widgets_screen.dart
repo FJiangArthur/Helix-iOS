@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/hud_widget_config.dart';
-import '../services/bitmap_hud/bitmap_hud_service.dart';
 import '../services/bitmap_hud/enhanced_layout_presets.dart';
 import '../services/bitmap_hud/hud_layout_presets.dart';
 import '../services/dashboard_service.dart';
@@ -84,14 +83,18 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
           // Bitmap layout picker (when bitmap mode active)
           if (_settings.hudRenderPath == 'bitmap') _buildLayoutPicker(),
           // Enhanced layout picker (when enhanced mode active)
-          if (_settings.hudRenderPath == 'enhanced') _buildEnhancedLayoutPicker(),
+          if (_settings.hudRenderPath == 'enhanced')
+            _buildEnhancedLayoutPicker(),
           // Summary bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
-                Icon(Icons.dashboard_customize,
-                    color: HelixTheme.cyan, size: 18),
+                Icon(
+                  Icons.dashboard_customize,
+                  color: HelixTheme.cyan,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -106,12 +109,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                 const SizedBox(width: 4),
                 TextButton.icon(
                   onPressed: () {
-                    final path = _settings.hudRenderPath;
-                    if (path == 'bitmap' || path == 'enhanced') {
-                      BitmapHudService.instance.pushFull();
-                    } else {
-                      DashboardService.instance.previewDashboard();
-                    }
+                    DashboardService.instance.previewDashboard();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('Dashboard sent to glasses'),
@@ -121,9 +119,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                   },
                   icon: const Icon(Icons.preview, size: 16),
                   label: const Text('Preview'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: HelixTheme.cyan,
-                  ),
+                  style: TextButton.styleFrom(foregroundColor: HelixTheme.cyan),
                 ),
               ],
             ),
@@ -291,7 +287,12 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                 const SizedBox(width: 8),
                 _buildModeChip('bitmap', 'Bitmap', Icons.grid_view, current),
                 const SizedBox(width: 8),
-                _buildModeChip('enhanced', 'Enhanced', Icons.auto_awesome, current),
+                _buildModeChip(
+                  'enhanced',
+                  'Enhanced',
+                  Icons.auto_awesome,
+                  current,
+                ),
               ],
             ),
             const SizedBox(height: 6),
@@ -308,7 +309,12 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
     );
   }
 
-  Widget _buildModeChip(String value, String label, IconData icon, String current) {
+  Widget _buildModeChip(
+    String value,
+    String label,
+    IconData icon,
+    String current,
+  ) {
     final selected = current == value;
     return Expanded(
       child: GestureDetector(
@@ -332,9 +338,11 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
           ),
           child: Column(
             children: [
-              Icon(icon,
-                  color: selected ? HelixTheme.cyan : Colors.white54,
-                  size: 20),
+              Icon(
+                icon,
+                color: selected ? HelixTheme.cyan : Colors.white54,
+                size: 20,
+              ),
               const SizedBox(height: 4),
               Text(
                 label,
@@ -355,7 +363,8 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
     return switch (mode) {
       'text' => 'Text-only display (24 chars × 5 lines)',
       'bitmap' => 'Graphical dashboard with charts & icons',
-      'enhanced' => 'Data-dense display with progress rings, charts & multi-widget layouts',
+      'enhanced' =>
+        'Data-dense display with progress rings, charts & multi-widget layouts',
       _ => '',
     };
   }
@@ -376,8 +385,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
             final selected = preset.id == current;
             return GestureDetector(
               onTap: () async {
-                await _settings
-                    .update((s) => s.bitmapLayoutPreset = preset.id);
+                await _settings.update((s) => s.bitmapLayoutPreset = preset.id);
                 setState(() {});
               },
               child: Container(
@@ -409,8 +417,9 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                       style: TextStyle(
                         color: selected ? HelixTheme.cyan : Colors.white70,
                         fontSize: 11,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -450,8 +459,9 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
             final selected = preset.id == current;
             return GestureDetector(
               onTap: () async {
-                await _settings
-                    .update((s) => s.enhancedLayoutPreset = preset.id);
+                await _settings.update(
+                  (s) => s.enhancedLayoutPreset = preset.id,
+                );
                 setState(() {});
               },
               child: Container(
@@ -483,8 +493,9 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
                       style: TextStyle(
                         color: selected ? HelixTheme.cyan : Colors.white70,
                         fontSize: 11,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -569,60 +580,57 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
         ),
         const SizedBox(height: 8),
         // Todo list
-        ...List.generate(
-          TodosWidget.cachedTodos.length,
-          (i) {
-            final todo = TodosWidget.cachedTodos[i];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () async {
-                      await TodosWidget.toggleTodo(i);
-                      await _registry.refreshWidget('todos');
-                      if (mounted) setState(() {});
-                    },
-                    child: Icon(
-                      todo['done'] == true
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      color: HelixTheme.cyan,
-                      size: 20,
-                    ),
+        ...List.generate(TodosWidget.cachedTodos.length, (i) {
+          final todo = TodosWidget.cachedTodos[i];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () async {
+                    await TodosWidget.toggleTodo(i);
+                    await _registry.refreshWidget('todos');
+                    if (mounted) setState(() {});
+                  },
+                  child: Icon(
+                    todo['done'] == true
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
+                    color: HelixTheme.cyan,
+                    size: 20,
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      todo['text'] as String? ?? '',
-                      style: TextStyle(
-                        color: Colors.white.withValues(
-                          alpha: todo['done'] == true ? 0.4 : 0.8,
-                        ),
-                        decoration: todo['done'] == true
-                            ? TextDecoration.lineThrough
-                            : null,
-                        fontSize: 13,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    todo['text'] as String? ?? '',
+                    style: TextStyle(
+                      color: Colors.white.withValues(
+                        alpha: todo['done'] == true ? 0.4 : 0.8,
                       ),
+                      decoration: todo['done'] == true
+                          ? TextDecoration.lineThrough
+                          : null,
+                      fontSize: 13,
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.close,
-                      size: 16,
-                      color: Colors.white.withValues(alpha: 0.3),
-                    ),
-                    onPressed: () async {
-                      await TodosWidget.removeTodo(i);
-                      await _registry.refreshWidget('todos');
-                      if (mounted) setState(() {});
-                    },
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: 16,
+                    color: Colors.white.withValues(alpha: 0.3),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
+                  onPressed: () async {
+                    await TodosWidget.removeTodo(i);
+                    await _registry.refreshWidget('todos');
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }

@@ -1,3 +1,6 @@
+import 'dart:developer' as developer;
+import 'dart:io' show stderr;
+
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
@@ -52,9 +55,16 @@ final appLogger = Logger(
           printEmojis: true,
           dateTimeFormat: DateTimeFormat.onlyTimeAndSinceStart,
         )
-      : SimplePrinter(
-          colors: false,
-          printTime: true,
-        ),
+      : SimplePrinter(colors: false, printTime: true),
   level: _appLogSettings.level,
 );
+
+/// Emit a high-signal diagnostic line that is visible in device console logs.
+///
+/// This bypasses the normal release log filtering used by [appLogger] so
+/// transport failures can still be captured from physical-device syslog.
+void emitDeviceDiagnostic(String tag, String message) {
+  final line = '[$tag] $message';
+  developer.log(line, name: 'Helix');
+  stderr.writeln(line);
+}

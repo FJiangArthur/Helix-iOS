@@ -4,15 +4,16 @@ import 'dart:ui' as ui;
 import 'display_constants.dart';
 
 /// Encodes a Flutter [ui.Image] or raw RGBA pixels into a 1-bit monochrome BMP
-/// suitable for the G1 display (640x400, green-on-black).
+/// suitable for the Even G1 bitmap transport.
 class BmpEncoder {
   BmpEncoder._();
 
-  /// Convert a [ui.Image] (must be 640x400) to 1-bit BMP bytes.
-  static Future<Uint8List> fromImage(ui.Image image,
-      {int threshold = 128}) async {
-    final byteData =
-        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  /// Convert a rendered [ui.Image] to 1-bit BMP bytes.
+  static Future<Uint8List> fromImage(
+    ui.Image image, {
+    int threshold = 128,
+  }) async {
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     if (byteData == null) {
       throw StateError('Failed to get RGBA data from image');
     }
@@ -22,11 +23,16 @@ class BmpEncoder {
   /// Convert raw RGBA byte data to 1-bit BMP.
   ///
   /// Each pixel's luminance (R+G+B)/3 is compared against [threshold].
-  /// Pixels above threshold become bit 1 (green on display), below become 0 (black).
-  static Uint8List fromRgba(ByteData rgba, int width, int height,
-      {int threshold = 128}) {
+  /// Pixels above threshold become palette index 0 (white), while darker pixels
+  /// remain palette index 1 (black). This matches Even's sample BMP assets.
+  static Uint8List fromRgba(
+    ByteData rgba,
+    int width,
+    int height, {
+    int threshold = 128,
+  }) {
     final rowBytes = (width + 31) ~/ 32 * 4;
-    final pixelDataSize = rowBytes * height;
+    final pixelDataSize = rowBytes * height + G1Display.bmpTrailerBytes;
     final fileSize = G1Display.headerSize + pixelDataSize;
     final bmp = Uint8List(fileSize);
     final data = ByteData.view(bmp.buffer);
@@ -36,7 +42,11 @@ class BmpEncoder {
     bmp[1] = 0x4D; // 'M'
     data.setUint32(2, fileSize, Endian.little);
     // Reserved (4 bytes at offset 6): already 0
-    data.setUint32(10, G1Display.headerSize, Endian.little); // pixel data offset
+    data.setUint32(
+      10,
+      G1Display.headerSize,
+      Endian.little,
+    ); // pixel data offset
 
     // --- BITMAPINFOHEADER (40 bytes) ---
     data.setUint32(14, 40, Endian.little); // header size
@@ -46,25 +56,35 @@ class BmpEncoder {
     data.setUint16(28, 1, Endian.little); // bits per pixel
     // Compression (4 bytes at 30): 0 = BI_RGB (already 0)
     data.setUint32(34, pixelDataSize, Endian.little); // image size
+    data.setUint32(38, 0x0b12, Endian.little); // x pixels per meter
+    data.setUint32(42, 0x0b12, Endian.little); // y pixels per meter
     // Remaining BITMAPINFOHEADER fields: 0 (ppm, colors, important)
 
     // --- Color Table (8 bytes: 2 entries x 4 bytes BGRA) ---
-    // Index 0: Black (B=0, G=0, R=0, A=0)
-    bmp[54] = 0x00;
-    bmp[55] = 0x00;
-    bmp[56] = 0x00;
+    // Index 0: White
+    bmp[54] = 0xFF;
+    bmp[55] = 0xFF;
+    bmp[56] = 0xFF;
     bmp[57] = 0x00;
-    // Index 1: Green (B=0, G=255, R=0, A=0)
+    // Index 1: Black
     bmp[58] = 0x00;
-    bmp[59] = 0xFF;
+    bmp[59] = 0x00;
     bmp[60] = 0x00;
     bmp[61] = 0x00;
 
     // --- Pixel Data ---
     // BMP stores rows bottom-to-top. Each row is `rowBytes` bytes.
-    // 8 pixels per byte, MSB first.
+    // 8 pixels per byte, MSB first. Start with palette index 1 everywhere
+    // so empty areas remain black, then clear bits for white content.
+    bmp.fillRange(
+      G1Display.headerSize,
+      G1Display.headerSize + rowBytes * height,
+      0xFF,
+    );
     final rgbaBytes = rgba.buffer.asUint8List(
-        rgba.offsetInBytes, rgba.lengthInBytes);
+      rgba.offsetInBytes,
+      rgba.lengthInBytes,
+    );
     for (int y = 0; y < height; y++) {
       // BMP row index: bottom-up
       final bmpRow = height - 1 - y;
@@ -77,10 +97,10 @@ class BmpEncoder {
         final luminance = (r + g + b) ~/ 3;
 
         if (luminance >= threshold) {
-          // Set bit (MSB first within byte)
+          // Clear bit to select palette index 0 (white).
           final byteIdx = bmpRowOffset + (x >> 3);
           final bitIdx = 7 - (x & 7);
-          bmp[byteIdx] |= (1 << bitIdx);
+          bmp[byteIdx] &= ~(1 << bitIdx);
         }
       }
     }

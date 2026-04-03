@@ -207,6 +207,7 @@ void main() {
 
     test('bitmap dashboard auto-hides after the configured duration', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
+      var bitmapInvalidateCalls = 0;
 
       final bitmapService = DashboardService(
         bleManager: BleManager.get(),
@@ -222,7 +223,9 @@ void main() {
         },
         bitmapDeltaRenderer: () async => true,
         bitmapFullRenderer: () async => true,
-        bitmapInvalidateCache: () {},
+        bitmapInvalidateCache: () {
+          bitmapInvalidateCalls += 1;
+        },
         clock: () => DateTime(2026, 3, 12, 10, 0),
         cooldown: const Duration(milliseconds: 200),
         displayDuration: const Duration(milliseconds: 40),
@@ -240,7 +243,8 @@ void main() {
 
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
-      expect(exitCalls, 1);
+      expect(exitCalls, 0);
+      expect(bitmapInvalidateCalls, 1);
 
       await bitmapService.hideDashboard(
         source: 'test.bitmapDashboard.teardown',

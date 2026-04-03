@@ -296,6 +296,17 @@ class DashboardService {
 
     _cancelDashboardState();
 
+    if (_isBitmapMode) {
+      _bitmapInvalidateCache();
+      await _restoreBitmapRoute(
+        previousIntent: previousIntent,
+        previousDisplayText: previousDisplayText,
+        source: source,
+      );
+      _updateSnapshotState(blockedReason: null, activeOverride: false);
+      return;
+    }
+
     switch (previousIntent) {
       case HudIntent.quickAsk:
         if (previousDisplayText.trim().isNotEmpty) {
@@ -329,6 +340,42 @@ class DashboardService {
     }
 
     _updateSnapshotState(blockedReason: null, activeOverride: false);
+  }
+
+  Future<void> _restoreBitmapRoute({
+    required HudIntent previousIntent,
+    required String previousDisplayText,
+    required String source,
+  }) async {
+    switch (previousIntent) {
+      case HudIntent.quickAsk:
+        if (previousDisplayText.trim().isNotEmpty) {
+          await _quickAskRestorer(previousDisplayText);
+          _hudController.updateDisplay(previousDisplayText);
+        } else {
+          _hudController.clearDisplay();
+        }
+        await _hudController.transitionTo(
+          HudIntent.quickAsk,
+          source: '$source.restoreQuickAsk',
+        );
+        break;
+      case HudIntent.notification:
+        _hudController.clearDisplay();
+        await _hudController.beginNotification(
+          source: '$source.restoreNotification',
+        );
+        break;
+      case HudIntent.idle:
+      case HudIntent.dashboard:
+        _hudController.clearDisplay();
+        await _hudController.resetToIdle(source: '$source.restoreIdle');
+        break;
+      case HudIntent.liveListening:
+      case HudIntent.textTransfer:
+        await _hudController.resetToIdle(source: '$source.restoreIdle');
+        break;
+    }
   }
 
   void dispose() {
@@ -418,11 +465,19 @@ class DashboardService {
         appLogger.w(
           '[DashboardService] Delta push failed, retrying with full send',
         );
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'dashboard delta failed, retrying full send',
+        );
         _bitmapInvalidateCache();
         pushOk = await _bitmapFullRenderer();
       }
 
       if (!pushOk) {
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'dashboard full send failed after delta retry',
+        );
         _updateSnapshotState(blockedReason: 'Bitmap dashboard push failed');
         return;
       }

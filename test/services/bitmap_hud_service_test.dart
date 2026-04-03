@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -91,6 +92,45 @@ void main() {
         rightConnected: false,
       );
     });
+
+    test(
+      'pushFull queues a second request while the first send is in flight',
+      () async {
+        final widget = _CounterWidget(incrementOnRefresh: false);
+        final sendCompleters = [Completer<bool>(), Completer<bool>()];
+        var sendCalls = 0;
+
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': widget},
+          renderer: (_, zoneWidgets) async {
+            final current = zoneWidgets['clock'] as _CounterWidget;
+            return Uint8List.fromList([current.counter]);
+          },
+          fullSender: (_) async => sendCompleters[sendCalls++].future,
+          deltaSender: (_, __) async => true,
+          isConnectedChecker: () => true,
+        );
+
+        final first = service.pushFull();
+        await Future<void>.delayed(Duration.zero);
+
+        final second = service.pushFull();
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sendCalls, 1);
+
+        sendCompleters[0].complete(true);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(sendCalls, 2);
+
+        sendCompleters[1].complete(true);
+
+        expect(await first, isTrue);
+        expect(await second, isTrue);
+      },
+    );
   });
 }
 

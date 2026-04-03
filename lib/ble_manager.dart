@@ -217,6 +217,11 @@ class BleManager {
         'Connected: \n${arguments['leftDeviceName'] ?? ''} \n${arguments['rightDeviceName'] ?? ''}';
     isConnected = true;
     _updateConnectionState(BleConnectionState.connected);
+    emitDeviceDiagnostic(
+      'BLE',
+      'connected left=$_isLeftConnected right=$_isRightConnected '
+          'status=$connectionStatus args=$arguments',
+    );
 
     onStatusChanged?.call();
     startSendBeatHeart();
@@ -325,6 +330,12 @@ class BleManager {
       connectionStatus = 'Not connected';
       _updateConnectionState(BleConnectionState.disconnected);
     }
+
+    emitDeviceDiagnostic(
+      'BLE',
+      'disconnected left=$_isLeftConnected right=$_isRightConnected '
+          'status=$connectionStatus args=$arguments',
+    );
 
     onStatusChanged?.call();
   }

@@ -88,6 +88,8 @@ class BitmapHudService {
   StreamSubscription<SettingsManager>? _settingsSub;
   bool _initialized = false;
   bool _sending = false;
+  _PendingBitmapSend? _pendingSend;
+  final List<Completer<bool>> _pendingSendWaiters = [];
 
   /// Adaptive refresh interval: starts at 60s, doubles on no-change deltas
   /// (up to 300s), resets to 60s when a widget reports dirty.
@@ -309,20 +311,11 @@ class BitmapHudService {
 
   /// Full BMP send: render and push all chunks to both glasses.
   Future<bool> pushFull() async {
-    if (_sending) {
-      appLogger.d('BitmapHud: pushFull skipped, send already in progress');
-      return false;
-    }
-    if (!_isConnected()) {
-      appLogger.d('BitmapHud: pushFull skipped, no connected glasses side');
-      return false;
-    }
-    return _pushFullLocked();
+    return _requestSend(_PendingBitmapSend.full);
   }
 
-  /// Internal full push that assumes caller manages _sending lock.
-  Future<bool> _pushFullLocked() async {
-    _sending = true;
+  /// Internal full push that assumes caller manages the send loop.
+  Future<bool> _performFullPush() async {
     try {
       await _refreshAllWidgets();
       final bmpData = await renderDashboard();
@@ -339,9 +332,8 @@ class BitmapHudService {
       return success;
     } catch (e) {
       appLogger.e('BitmapHud: full push error: $e');
+      emitDeviceDiagnostic('BitmapHUD', 'full push exception=$e');
       return false;
-    } finally {
-      _sending = false;
     }
   }
 
@@ -352,19 +344,15 @@ class BitmapHudService {
   /// [renderDashboard] is skipped entirely and the refresh interval is doubled
   /// (up to [_maxRefreshInterval]).
   Future<bool> pushDelta() async {
-    if (_sending) {
-      appLogger.d('BitmapHud: pushDelta skipped, send already in progress');
-      return false;
-    }
-    if (!_isConnected()) {
-      appLogger.d('BitmapHud: pushDelta skipped, no connected glasses side');
-      return false;
-    }
-    if (_lastSentBmp == null) return _pushFullLocked();
+    return _requestSend(_PendingBitmapSend.delta);
+  }
 
-    _sending = true;
-
+  Future<bool> _performDeltaPush() async {
     try {
+      if (_lastSentBmp == null) {
+        return _performFullPush();
+      }
+
       final refreshState = await _refreshStaleWidgets();
 
       // If nothing refreshed and no widget is marked dirty, skip rendering.
@@ -410,9 +398,66 @@ class BitmapHudService {
       return fullSuccess;
     } catch (e) {
       appLogger.e('BitmapHud: delta push error: $e');
+      emitDeviceDiagnostic('BitmapHUD', 'delta push exception=$e');
       return false;
+    }
+  }
+
+  Future<bool> _requestSend(_PendingBitmapSend requestedSend) async {
+    if (!_isConnected()) {
+      final message =
+          '${requestedSend.name} skipped no connected side '
+          'left=${BleManager.isConnectedL()} right=${BleManager.isConnectedR()}';
+      appLogger.d('BitmapHud: $message');
+      emitDeviceDiagnostic('BitmapHUD', message);
+      return false;
+    }
+
+    final completer = Completer<bool>();
+    _pendingSend = _mergePendingSend(_pendingSend, requestedSend);
+    _pendingSendWaiters.add(completer);
+
+    if (_sending) {
+      final message =
+          'queued ${requestedSend.name} send while send already in progress';
+      appLogger.d('BitmapHud: $message');
+      emitDeviceDiagnostic('BitmapHUD', message);
+      return completer.future;
+    }
+
+    unawaited(_drainPendingSends());
+    return completer.future;
+  }
+
+  Future<void> _drainPendingSends() async {
+    if (_sending) {
+      return;
+    }
+
+    _sending = true;
+    try {
+      while (_pendingSend != null) {
+        final send = _pendingSend!;
+        final waiters = List<Completer<bool>>.from(_pendingSendWaiters);
+        _pendingSend = null;
+        _pendingSendWaiters.clear();
+
+        final success = switch (send) {
+          _PendingBitmapSend.full => await _performFullPush(),
+          _PendingBitmapSend.delta => await _performDeltaPush(),
+        };
+
+        for (final waiter in waiters) {
+          if (!waiter.isCompleted) {
+            waiter.complete(success);
+          }
+        }
+      }
     } finally {
       _sending = false;
+      if (_pendingSend != null) {
+        unawaited(_drainPendingSends());
+      }
     }
   }
 
@@ -468,6 +513,18 @@ class BitmapHudService {
       widget.isDirty = false;
     }
   }
+}
+
+enum _PendingBitmapSend { delta, full }
+
+_PendingBitmapSend _mergePendingSend(
+  _PendingBitmapSend? current,
+  _PendingBitmapSend next,
+) {
+  if (current == _PendingBitmapSend.full || next == _PendingBitmapSend.full) {
+    return _PendingBitmapSend.full;
+  }
+  return next;
 }
 
 class _WidgetRefreshState {

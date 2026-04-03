@@ -9,6 +9,10 @@ import '../services/bitmap_hud/delta_encoder.dart';
 import '../services/proto.dart';
 import '../utils/app_logger.dart';
 
+typedef _BmpRequestSide =
+    Future<BleReceive> Function(String lr, Uint8List packet, int timeoutMs);
+typedef _BmpSendSide = Future<void> Function(String lr, Uint8List packet);
+
 /// Manages BMP image updates to G1 glasses following Even Demo protocol.
 /// Fragments BMP data, sends chunks with CRC32 verification.
 ///
@@ -18,31 +22,33 @@ class BmpUpdateManager {
   static const int _cmdBmpData = 0x15;
   static const int _cmdBmpCrc = 0x16;
   static const int _cmdBmpComplete = 0x20;
+  static const List<int> _bmpStorageAddress = [0x00, 0x1c, 0x00, 0x00];
+  static const List<int> _bmpCompletePayload = [0x20, 0x0d, 0x0e];
+  static const int _iosChunkDelayMs = 8;
+  static const int _defaultChunkDelayMs = 5;
 
   /// Default timeout per chunk for dashboard transfers (ms).
   /// 500ms allows for BLE write coalescing (200ms buffer) + transmission time.
   static const int _dashboardTimeoutMs = 500;
 
   /// Send BMP data to one side of the glasses (full send).
-  /// Fragments into 194-byte chunks, sends CRC32 checksum, then completion signal.
+  /// Fragments into 194-byte chunks, streams them, then sends completion and CRC.
   static Future<bool> updateBmp(
     String lr,
     Uint8List bmpData, {
     int timeoutMs = 500,
   }) async {
-    final totalChunks = (bmpData.length + _chunkSize - 1) ~/ _chunkSize;
-    for (int i = 0; i < totalChunks; i++) {
-      final start = i * _chunkSize;
-      final end = (start + _chunkSize).clamp(0, bmpData.length);
-      final ok = await _sendChunk(
-        lr,
-        i,
-        bmpData.sublist(start, end),
-        timeoutMs,
-      );
-      if (!ok) return false;
-    }
-    return _sendCrcAndComplete(lr, bmpData);
+    return _updateBmpTransfer(
+      lr,
+      bmpData,
+      List<int>.generate(
+        (bmpData.length + _chunkSize - 1) ~/ _chunkSize,
+        (i) => i,
+      ),
+      timeoutMs: timeoutMs,
+      sendSide: _sendBleSide,
+      requestSide: _requestBleSide,
+    );
   }
 
   /// Send only the changed chunks to one side of the glasses (delta send).
@@ -55,60 +61,212 @@ class BmpUpdateManager {
     List<int> changedIndices, {
     int timeoutMs = _dashboardTimeoutMs,
   }) async {
-    final chunks = DeltaEncoder.extractChunks(fullBmpData, changedIndices);
-    for (final chunk in chunks) {
-      final ok = await _sendChunk(lr, chunk.index, chunk.data, timeoutMs);
+    final sortedIndices = [...changedIndices]..sort();
+    return _updateBmpTransfer(
+      lr,
+      fullBmpData,
+      sortedIndices,
+      timeoutMs: timeoutMs,
+      sendSide: _sendBleSide,
+      requestSide: _requestBleSide,
+    );
+  }
+
+  @visibleForTesting
+  static Future<bool> updateBmpForTest(
+    String lr,
+    Uint8List bmpData, {
+    required _BmpSendSide sendSide,
+    required _BmpRequestSide requestSide,
+    int timeoutMs = 500,
+  }) {
+    return _updateBmpTransfer(
+      lr,
+      bmpData,
+      List<int>.generate(
+        (bmpData.length + _chunkSize - 1) ~/ _chunkSize,
+        (i) => i,
+      ),
+      timeoutMs: timeoutMs,
+      sendSide: sendSide,
+      requestSide: requestSide,
+    );
+  }
+
+  static Future<bool> _updateBmpTransfer(
+    String lr,
+    Uint8List fullBmpData,
+    List<int> chunkIndices, {
+    required int timeoutMs,
+    required _BmpSendSide sendSide,
+    required _BmpRequestSide requestSide,
+  }) async {
+    for (int sentIndex = 0; sentIndex < chunkIndices.length; sentIndex++) {
+      final chunkIndex = chunkIndices[sentIndex];
+      final start = chunkIndex * _chunkSize;
+      final end = (start + _chunkSize).clamp(0, fullBmpData.length);
+      final ok = await _streamChunk(
+        lr,
+        chunkIndex,
+        fullBmpData.sublist(start, end),
+        includeStorageAddress: sentIndex == 0,
+        sendSide: sendSide,
+      );
       if (!ok) return false;
     }
-    return _sendCrcAndComplete(lr, fullBmpData);
+    return _sendCompleteAndCrc(
+      lr,
+      fullBmpData,
+      timeoutMs: timeoutMs,
+      requestSide: requestSide,
+    );
   }
 
-  /// Build and send a single data chunk packet with one retry on timeout.
-  static Future<bool> _sendChunk(
+  /// Stream a single BMP data packet without waiting for a response.
+  static Future<bool> _streamChunk(
     String lr,
     int index,
-    Uint8List data,
-    int timeoutMs,
-  ) async {
-    final packet = Uint8List(data.length + 3);
-    packet[0] = _cmdBmpData;
-    packet[1] = (index >> 8) & 0xff;
-    packet[2] = index & 0xff;
-    packet.setRange(3, 3 + data.length, data);
-    var resp = await BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
-    if (resp.isTimeout) {
-      // Retry once on timeout
-      resp = await BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
+    Uint8List data, {
+    required bool includeStorageAddress,
+    required _BmpSendSide sendSide,
+  }) async {
+    final packet = _buildChunkPacket(
+      index: index,
+      data: data,
+      includeStorageAddress: includeStorageAddress,
+    );
+    try {
+      await sendSide(lr, packet);
+      await Future.delayed(
+        Duration(
+          milliseconds: defaultTargetPlatform == TargetPlatform.iOS
+              ? _iosChunkDelayMs
+              : _defaultChunkDelayMs,
+        ),
+      );
+      return true;
+    } catch (e) {
+      emitDeviceDiagnostic(
+        'BitmapHUD',
+        'chunk stream failed side=$lr index=$index bytes=${data.length} '
+            'exception=$e',
+      );
+      return false;
     }
-    return !resp.isTimeout;
   }
 
-  /// Send CRC32 checksum and completion signal.
-  static Future<bool> _sendCrcAndComplete(String lr, Uint8List bmpData) async {
-    // Calculate and send CRC32 (ISO-HDLC / XZ) checksum
-    final crc = Crc32();
-    int checksum = crc.convert(bmpData).toBigInt().toInt();
-
-    Uint8List crcPacket = Uint8List(5);
-    crcPacket[0] = _cmdBmpCrc;
-    crcPacket[1] = (checksum >> 24) & 0xff;
-    crcPacket[2] = (checksum >> 16) & 0xff;
-    crcPacket[3] = (checksum >> 8) & 0xff;
-    crcPacket[4] = checksum & 0xff;
-
-    var crcResp = await BleManager.request(crcPacket, lr: lr, timeoutMs: 1000);
-    if (crcResp.isTimeout) {
+  /// Send transfer-complete signal, then CRC32 checksum.
+  static Future<bool> _sendCompleteAndCrc(
+    String lr,
+    Uint8List bmpData, {
+    required int timeoutMs,
+    required _BmpRequestSide requestSide,
+  }) async {
+    final completePacket = Uint8List.fromList(_bmpCompletePayload);
+    final requestTimeoutMs = timeoutMs < 1000 ? 1000 : timeoutMs;
+    final completeResp = await requestSide(
+      lr,
+      completePacket,
+      requestTimeoutMs,
+    );
+    if (completeResp.isTimeout) {
+      emitDeviceDiagnostic(
+        'BitmapHUD',
+        'complete timeout side=$lr bmpBytes=${bmpData.length}',
+      );
+      return false;
+    }
+    if (!_isCompleteAckSuccess(completeResp)) {
+      emitDeviceDiagnostic(
+        'BitmapHUD',
+        'complete ack failed side=$lr bmpBytes=${bmpData.length} '
+            'response=${completeResp.hexStringData()}',
+      );
       return false;
     }
 
-    // Send completion signal
-    Uint8List completePacket = Uint8List.fromList([_cmdBmpComplete]);
-    var completeResp = await BleManager.request(
-      completePacket,
-      lr: lr,
-      timeoutMs: 1000,
-    );
-    return !completeResp.isTimeout;
+    final crcPacket = _buildCrcPacket(bmpData);
+    final crcResp = await requestSide(lr, crcPacket, requestTimeoutMs);
+    if (crcResp.isTimeout) {
+      emitDeviceDiagnostic(
+        'BitmapHUD',
+        'crc timeout side=$lr bmpBytes=${bmpData.length}',
+      );
+      return false;
+    }
+    if (!_isCrcAckSuccess(crcResp)) {
+      emitDeviceDiagnostic(
+        'BitmapHUD',
+        'crc ack failed side=$lr bmpBytes=${bmpData.length} '
+            'response=${crcResp.hexStringData()}',
+      );
+      return false;
+    }
+    return true;
+  }
+
+  static Uint8List _buildChunkPacket({
+    required int index,
+    required Uint8List data,
+    required bool includeStorageAddress,
+  }) {
+    final header = includeStorageAddress ? 6 : 2;
+    final packet = Uint8List(data.length + header);
+    packet[0] = _cmdBmpData;
+    packet[1] = index & 0xff;
+    var offset = 2;
+    if (includeStorageAddress) {
+      packet.setRange(
+        offset,
+        offset + _bmpStorageAddress.length,
+        _bmpStorageAddress,
+      );
+      offset += _bmpStorageAddress.length;
+    }
+    packet.setRange(offset, offset + data.length, data);
+    return packet;
+  }
+
+  static Uint8List _buildCrcPacket(Uint8List bmpData) {
+    final crc = Crc32Xz();
+    final crcInput = Uint8List.fromList([..._bmpStorageAddress, ...bmpData]);
+    final checksum = crc.convert(crcInput).toBigInt().toInt();
+    return Uint8List.fromList([
+      _cmdBmpCrc,
+      (checksum >> 24) & 0xff,
+      (checksum >> 16) & 0xff,
+      (checksum >> 8) & 0xff,
+      checksum & 0xff,
+    ]);
+  }
+
+  static bool _isCompleteAckSuccess(BleReceive receive) {
+    return !receive.isTimeout &&
+        receive.data.length >= 2 &&
+        (receive.data[1] == 0xc9 || receive.data[1] == 0xcb);
+  }
+
+  static bool _isCrcAckSuccess(BleReceive receive) {
+    if (receive.isTimeout) {
+      return false;
+    }
+    if (receive.data.length >= 6) {
+      return receive.data[5] == 0xc9 || receive.data[5] == 0xcb;
+    }
+    return receive.data.length >= 2 &&
+        (receive.data[1] == 0xc9 || receive.data[1] == 0xcb);
+  }
+
+  static Future<BleReceive> _requestBleSide(
+    String lr,
+    Uint8List packet,
+    int timeoutMs,
+  ) {
+    return BleManager.request(packet, lr: lr, timeoutMs: timeoutMs);
+  }
+
+  static Future<void> _sendBleSide(String lr, Uint8List packet) async {
+    await BleManager.sendData(packet, lr: lr);
   }
 
   // --- High-level helpers for bitmap HUD ---
@@ -184,6 +342,7 @@ class BmpUpdateManager {
       final heartbeatOk = await heartbeatSender();
       if (!heartbeatOk) {
         appLogger.e('Bitmap HUD $label: heartbeat failed');
+        emitDeviceDiagnostic('BitmapHUD', '$label heartbeat failed');
         return false;
       }
       startHeartbeat();
@@ -193,6 +352,7 @@ class BmpUpdateManager {
         leftSuccess = await sendSide('L');
         if (!leftSuccess) {
           appLogger.e('Bitmap HUD $label: L send failed');
+          emitDeviceDiagnostic('BitmapHUD', '$label left side send failed');
         }
       }
 
@@ -201,6 +361,7 @@ class BmpUpdateManager {
         rightSuccess = await sendSide('R');
         if (!rightSuccess) {
           appLogger.e('Bitmap HUD $label: R send failed');
+          emitDeviceDiagnostic('BitmapHUD', '$label right side send failed');
         }
       }
 
@@ -216,6 +377,12 @@ class BmpUpdateManager {
           '(leftConnected=$leftConnected leftSuccess=$leftSuccess '
           'rightConnected=$rightConnected rightSuccess=$rightSuccess)',
         );
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          '$label required-target failure '
+              'leftConnected=$leftConnected leftSuccess=$leftSuccess '
+              'rightConnected=$rightConnected rightSuccess=$rightSuccess',
+        );
         return false;
       }
 
@@ -223,6 +390,7 @@ class BmpUpdateManager {
       return true;
     } catch (e) {
       appLogger.e('Bitmap HUD $label error: $e');
+      emitDeviceDiagnostic('BitmapHUD', '$label exception=$e');
       return false;
     }
   }

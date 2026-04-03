@@ -22,17 +22,24 @@ class BitmapRenderer {
     Map<String, BmpWidget> zoneWidgets,
   ) async {
     final recorder = ui.PictureRecorder();
-    final displayRect = ui.Rect.fromLTWH(
+    final bitmapRect = ui.Rect.fromLTWH(
+      0,
+      0,
+      G1Display.bitmapWidth.toDouble(),
+      G1Display.bitmapHeight.toDouble(),
+    );
+    final canvas = ui.Canvas(recorder, bitmapRect);
+    canvas.scale(G1Display.bitmapScaleX, G1Display.bitmapScaleY);
+    final logicalRect = ui.Rect.fromLTWH(
       0,
       0,
       G1Display.width.toDouble(),
       G1Display.height.toDouble(),
     );
-    final canvas = ui.Canvas(recorder, displayRect);
 
     // Fill background black
     canvas.drawRect(
-      displayRect,
+      logicalRect,
       ui.Paint()..color = const ui.Color(0xFF000000),
     );
 
@@ -87,9 +94,11 @@ class BitmapRenderer {
 
     // Convert to image
     final picture = recorder.endRecording();
-    final image = await picture.toImage(G1Display.width, G1Display.height);
-    final byteData =
-        await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+    final image = await picture.toImage(
+      G1Display.bitmapWidth,
+      G1Display.bitmapHeight,
+    );
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     picture.dispose();
     image.dispose();
 
@@ -98,6 +107,10 @@ class BitmapRenderer {
     }
 
     // Encode to 1-bit BMP
-    return BmpEncoder.fromRgba(byteData, G1Display.width, G1Display.height);
+    return BmpEncoder.fromRgba(
+      byteData,
+      G1Display.bitmapWidth,
+      G1Display.bitmapHeight,
+    );
   }
 }
