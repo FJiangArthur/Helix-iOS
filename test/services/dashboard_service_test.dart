@@ -172,6 +172,7 @@ void main() {
             bitmapScreenHideCalls += 1;
             return true;
           },
+          bitmapScreenHideDelay: Duration.zero,
           bitmapInvalidateCache: () {
             bitmapInvalidateCalls += 1;
           },
@@ -311,6 +312,7 @@ void main() {
           bitmapScreenHideCalls += 1;
           return true;
         },
+        bitmapScreenHideDelay: Duration.zero,
         bitmapInvalidateCache: () {
           bitmapInvalidateCalls += 1;
         },
@@ -338,6 +340,57 @@ void main() {
 
       await bitmapService.hideDashboard(
         source: 'test.bitmapDashboard.teardown',
+      );
+      bitmapService.dispose();
+      SettingsManager.instance.hudRenderPath = 'text';
+    });
+
+    test('bitmap auto-hide defers text screen clear after dashboard hide', () async {
+      SettingsManager.instance.hudRenderPath = 'bitmap';
+      var bitmapHideCalls = 0;
+      var bitmapScreenHideCalls = 0;
+
+      final bitmapService = DashboardService(
+        bleManager: BleManager.get(),
+        hudController: HudController.instance,
+        conversationEngine: ConversationEngine.instance,
+        handoffMemory: HandoffMemory.instance,
+        settingsManager: SettingsManager.instance,
+        dashboardRenderer: (text) async => true,
+        quickAskRestorer: (text) async => true,
+        exitRenderer: () async => true,
+        bitmapDeltaRenderer: () async => true,
+        bitmapFullRenderer: () async => true,
+        bitmapHideRenderer: () async {
+          bitmapHideCalls += 1;
+          return true;
+        },
+        bitmapScreenHideRenderer: () async {
+          bitmapScreenHideCalls += 1;
+          return true;
+        },
+        bitmapScreenHideDelay: const Duration(milliseconds: 30),
+        clock: () => DateTime(2026, 3, 12, 10, 0),
+        cooldown: const Duration(milliseconds: 200),
+        displayDuration: const Duration(milliseconds: 40),
+      );
+
+      await bitmapService.initialize();
+      await bitmapService.handleDeviceEvent(
+        headUpEvent(label: 'bitmap_delayed_screen_clear'),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 55));
+
+      expect(bitmapHideCalls, 1);
+      expect(bitmapScreenHideCalls, 0);
+
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+
+      expect(bitmapScreenHideCalls, 1);
+
+      await bitmapService.hideDashboard(
+        source: 'test.bitmapDelayedScreenClear.teardown',
       );
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';

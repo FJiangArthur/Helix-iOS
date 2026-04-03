@@ -115,6 +115,7 @@ class DashboardService {
     BitmapDashboardRenderer? bitmapFullRenderer,
     BitmapDashboardHideRenderer? bitmapHideRenderer,
     BitmapDashboardScreenHideRenderer? bitmapScreenHideRenderer,
+    Duration? bitmapScreenHideDelay,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
     BitmapDashboardVisibilitySetter? bitmapSetOverlayVisible,
     DateTime Function()? clock,
@@ -138,6 +139,8 @@ class DashboardService {
        _bitmapHideRenderer = bitmapHideRenderer ?? Proto.hideDashboard,
        _bitmapScreenHideRenderer =
            bitmapScreenHideRenderer ?? (() => Proto.pushScreen(0x00)),
+       _bitmapScreenHideDelay =
+           bitmapScreenHideDelay ?? const Duration(milliseconds: 150),
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _bitmapSetOverlayVisible =
@@ -159,6 +162,7 @@ class DashboardService {
   final BitmapDashboardRenderer _bitmapFullRenderer;
   final BitmapDashboardHideRenderer _bitmapHideRenderer;
   final BitmapDashboardScreenHideRenderer _bitmapScreenHideRenderer;
+  final Duration _bitmapScreenHideDelay;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final BitmapDashboardVisibilitySetter _bitmapSetOverlayVisible;
   final DateTime Function() _clock;
@@ -369,6 +373,9 @@ class DashboardService {
       if (!hideOk) {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
       } else {
+        if (_bitmapScreenHideDelay > Duration.zero) {
+          await Future<void>.delayed(_bitmapScreenHideDelay);
+        }
         final screenHideOk = await _bitmapScreenHideRenderer();
         if (!screenHideOk) {
           emitDeviceDiagnostic('BitmapHUD', 'dashboard screen hide failed');
