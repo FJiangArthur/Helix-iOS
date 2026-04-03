@@ -48,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final List<StreamSubscription> _subscriptions = [];
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _askController = TextEditingController();
+  final FocusNode _askFocusNode = FocusNode();
   bool _hasApiKey = false;
   AssistantQuickAskPreset _selectedPreset = AssistantQuickAskPreset.concise;
   ProviderErrorState? _providerError;
@@ -398,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _pulseController.dispose();
     _modeSwitchController.dispose();
     _scrollController.dispose();
+    _askFocusNode.dispose();
     _askController.dispose();
     super.dispose();
   }
@@ -408,42 +410,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final dockBottomPadding = bottomInset > 0 ? bottomInset + 6 : 6.0;
     final scrollBottomPadding = _composerDockHeight + dockBottomPadding + 4;
 
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Column(
-          children: [
-            _buildOverviewCard(),
-            if (!_hasApiKey) ...[
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _dismissQuickAskFocus,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Column(
+            children: [
+              _buildOverviewCard(),
+              if (!_hasApiKey) ...[
+                const SizedBox(height: 8),
+                _buildSetupBanner(),
+              ],
               const SizedBox(height: 8),
-              _buildSetupBanner(),
-            ],
-            const SizedBox(height: 8),
-            Expanded(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: _buildHomeBody(bottomPadding: scrollBottomPadding),
-                  ),
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: AnimatedPadding(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      padding: EdgeInsets.only(bottom: dockBottomPadding),
-                      child: _buildComposerCard(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: _buildHomeBody(bottomPadding: scrollBottomPadding),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AnimatedPadding(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.only(bottom: dockBottomPadding),
+                        child: _buildComposerCard(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _dismissQuickAskFocus() {
+    if (_askFocusNode.hasFocus) {
+      _askFocusNode.unfocus();
+    }
   }
 
   Widget _buildOverviewCard() {
@@ -1608,6 +1620,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildHomeBody({required double bottomPadding}) {
     return SingleChildScrollView(
       controller: _scrollController,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: FadeTransition(
         opacity: _modeSwitchAnimation,
@@ -3006,6 +3019,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_isRecording) return;
     final text = _askController.text.trim();
     if (text.isNotEmpty) {
+      _dismissQuickAskFocus();
       _engine.askQuestion(_questionForPreset(text));
       _askController.clear();
       setState(() {
@@ -3129,6 +3143,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
               child: TextField(
                 controller: _askController,
+                focusNode: _askFocusNode,
                 enabled: !_isRecording,
                 style: TextStyle(
                   color: Colors.white.withValues(
@@ -3158,6 +3173,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 textInputAction: TextInputAction.send,
+                onTapOutside: (_) => _dismissQuickAskFocus(),
                 onSubmitted: (_) {
                   if (!_isRecording) {
                     _submitQuestion();

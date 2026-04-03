@@ -266,6 +266,36 @@ void main() {
     expect(hasScrollAncestor, isFalse);
   });
 
+  testWidgets('composer focus clears when tapping outside the chat box', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: Scaffold(body: HomeScreen())),
+    );
+    await tester.pump();
+
+    final composerField = find.descendant(
+      of: find.byKey(const Key('home-fixed-composer-dock')),
+      matching: find.byType(TextField),
+    );
+
+    await tester.tap(composerField);
+    await tester.pump();
+
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus,
+      isTrue,
+    );
+
+    await tester.tap(find.text('CONTROL DECK'));
+    await tester.pump();
+
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus,
+      isFalse,
+    );
+  });
+
   testWidgets('assistant setup sheet tunes profile tooling and auto surfaces', (
     tester,
   ) async {

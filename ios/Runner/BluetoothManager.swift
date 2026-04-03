@@ -1,14 +1,150 @@
 import CoreBluetooth
 import Flutter
+import Security
+
+struct StoredBluetoothConnection: Codable, Equatable {
+    let deviceName: String
+    let leftPeripheralID: UUID
+    let rightPeripheralID: UUID
+
+    func encoded() -> Data {
+        // This payload is tiny and schema-stable, so encoding should be deterministic.
+        try! JSONEncoder().encode(self)
+    }
+}
+
+protocol BluetoothConnectionSecureStore {
+    func read(for account: String) -> Data?
+    @discardableResult
+    func save(_ data: Data, for account: String) -> Bool
+    func delete(for account: String)
+}
+
+final class BluetoothConnectionKeychainStore: BluetoothConnectionSecureStore {
+    private let service = "com.evencompanion.bluetooth"
+
+    func read(for account: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
+    @discardableResult
+    func save(_ data: Data, for account: String) -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data
+        ]
+
+        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return true
+        }
+
+        if updateStatus != errSecItemNotFound {
+            return false
+        }
+
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        return SecItemAdd(addQuery as CFDictionary, nil) == errSecSuccess
+    }
+
+    func delete(for account: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+
+final class BluetoothConnectionPersistence {
+    static let storedDeviceNameKey = "com.evencompanion.bluetooth.deviceName"
+    static let storedLeftUUIDKey = "com.evencompanion.bluetooth.leftUUID"
+    static let storedRightUUIDKey = "com.evencompanion.bluetooth.rightUUID"
+    static let secureStoreAccount = "persistedConnection"
+
+    private let defaults: UserDefaults
+    private let secureStore: BluetoothConnectionSecureStore
+
+    init(
+        defaults: UserDefaults = .standard,
+        secureStore: BluetoothConnectionSecureStore = BluetoothConnectionKeychainStore()
+    ) {
+        self.defaults = defaults
+        self.secureStore = secureStore
+    }
+
+    func save(_ connection: StoredBluetoothConnection) {
+        persistToDefaults(connection)
+        _ = secureStore.save(connection.encoded(), for: Self.secureStoreAccount)
+    }
+
+    func load() -> StoredBluetoothConnection? {
+        if let connection = loadFromDefaults() {
+            _ = secureStore.save(connection.encoded(), for: Self.secureStoreAccount)
+            return connection
+        }
+
+        guard let data = secureStore.read(for: Self.secureStoreAccount),
+              let connection = try? JSONDecoder().decode(StoredBluetoothConnection.self, from: data) else {
+            return nil
+        }
+
+        persistToDefaults(connection)
+        return connection
+    }
+
+    func clear() {
+        defaults.removeObject(forKey: Self.storedDeviceNameKey)
+        defaults.removeObject(forKey: Self.storedLeftUUIDKey)
+        defaults.removeObject(forKey: Self.storedRightUUIDKey)
+        secureStore.delete(for: Self.secureStoreAccount)
+    }
+
+    private func loadFromDefaults() -> StoredBluetoothConnection? {
+        guard let deviceName = defaults.string(forKey: Self.storedDeviceNameKey),
+              let leftUUIDString = defaults.string(forKey: Self.storedLeftUUIDKey),
+              let rightUUIDString = defaults.string(forKey: Self.storedRightUUIDKey),
+              let leftUUID = UUID(uuidString: leftUUIDString),
+              let rightUUID = UUID(uuidString: rightUUIDString) else {
+            return nil
+        }
+
+        return StoredBluetoothConnection(
+            deviceName: deviceName,
+            leftPeripheralID: leftUUID,
+            rightPeripheralID: rightUUID
+        )
+    }
+
+    private func persistToDefaults(_ connection: StoredBluetoothConnection) {
+        defaults.set(connection.deviceName, forKey: Self.storedDeviceNameKey)
+        defaults.set(connection.leftPeripheralID.uuidString, forKey: Self.storedLeftUUIDKey)
+        defaults.set(connection.rightPeripheralID.uuidString, forKey: Self.storedRightUUIDKey)
+    }
+}
 
 class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     private static var _shared: BluetoothManager?
     static var shared: BluetoothManager { _shared! }
 
     private static let restorationIdentifier = "com.evencompanion.bluetooth.central"
-    private static let storedDeviceNameKey = "com.evencompanion.bluetooth.deviceName"
-    private static let storedLeftUUIDKey = "com.evencompanion.bluetooth.leftUUID"
-    private static let storedRightUUIDKey = "com.evencompanion.bluetooth.rightUUID"
 
     static func configure(channel: FlutterMethodChannel) -> BluetoothManager {
         let instance = BluetoothManager(channel: channel)
@@ -28,7 +164,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     var userInitiatedDisconnect = false
     private var reconnectAttemptsByPeripheral: [UUID: Int] = [:]
     private static let maxReconnectAttempts = 10
-    private let defaults = UserDefaults.standard
+    private let connectionPersistence = BluetoothConnectionPersistence()
 
     private var deviceNameByPeripheralId: [UUID: String] = [:]
     private var sideByPeripheralId: [UUID: String] = [:]
@@ -432,16 +568,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     private func restoreRegistration(for peripheral: CBPeripheral) {
-        guard let deviceName = storedDeviceName(),
-              let leftUUID = storedPeripheralUUID(for: BluetoothManager.storedLeftUUIDKey),
-              let rightUUID = storedPeripheralUUID(for: BluetoothManager.storedRightUUIDKey) else {
+        guard let storedConnection = connectionPersistence.load() else {
             return
         }
 
-        if peripheral.identifier == leftUUID {
-            registerPeripheral(peripheral, deviceName: deviceName, side: "L")
-        } else if peripheral.identifier == rightUUID {
-            registerPeripheral(peripheral, deviceName: deviceName, side: "R")
+        if peripheral.identifier == storedConnection.leftPeripheralID {
+            registerPeripheral(peripheral, deviceName: storedConnection.deviceName, side: "L")
+        } else if peripheral.identifier == storedConnection.rightPeripheralID {
+            registerPeripheral(peripheral, deviceName: storedConnection.deviceName, side: "R")
         }
     }
 
@@ -533,32 +667,27 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     private func persistConnectedDevice(deviceName: String, left: CBPeripheral, right: CBPeripheral) {
-        defaults.set(deviceName, forKey: BluetoothManager.storedDeviceNameKey)
-        defaults.set(left.identifier.uuidString, forKey: BluetoothManager.storedLeftUUIDKey)
-        defaults.set(right.identifier.uuidString, forKey: BluetoothManager.storedRightUUIDKey)
+        connectionPersistence.save(
+            StoredBluetoothConnection(
+                deviceName: deviceName,
+                leftPeripheralID: left.identifier,
+                rightPeripheralID: right.identifier
+            )
+        )
     }
 
     private func clearStoredConnection() {
-        defaults.removeObject(forKey: BluetoothManager.storedDeviceNameKey)
-        defaults.removeObject(forKey: BluetoothManager.storedLeftUUIDKey)
-        defaults.removeObject(forKey: BluetoothManager.storedRightUUIDKey)
-    }
-
-    private func storedDeviceName() -> String? {
-        defaults.string(forKey: BluetoothManager.storedDeviceNameKey)
-    }
-
-    private func storedPeripheralUUID(for key: String) -> UUID? {
-        guard let value = defaults.string(forKey: key) else { return nil }
-        return UUID(uuidString: value)
+        connectionPersistence.clear()
     }
 
     private func restorePersistedConnectionIfNeeded() {
-        guard let deviceName = storedDeviceName(),
-              let leftUUID = storedPeripheralUUID(for: BluetoothManager.storedLeftUUIDKey),
-              let rightUUID = storedPeripheralUUID(for: BluetoothManager.storedRightUUIDKey) else {
+        guard let storedConnection = connectionPersistence.load() else {
             return
         }
+
+        let deviceName = storedConnection.deviceName
+        let leftUUID = storedConnection.leftPeripheralID
+        let rightUUID = storedConnection.rightPeripheralID
 
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [leftUUID, rightUUID])
         guard !peripherals.isEmpty else { return }
