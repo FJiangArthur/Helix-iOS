@@ -1,6 +1,10 @@
 import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
+
 import 'package:crclib/catalog.dart';
 import '../ble_manager.dart';
+import '../services/ble.dart';
 import '../services/bitmap_hud/delta_encoder.dart';
 import '../services/proto.dart';
 import '../utils/app_logger.dart';
@@ -21,14 +25,21 @@ class BmpUpdateManager {
 
   /// Send BMP data to one side of the glasses (full send).
   /// Fragments into 194-byte chunks, sends CRC32 checksum, then completion signal.
-  static Future<bool> updateBmp(String lr, Uint8List bmpData,
-      {int timeoutMs = 500}) async {
+  static Future<bool> updateBmp(
+    String lr,
+    Uint8List bmpData, {
+    int timeoutMs = 500,
+  }) async {
     final totalChunks = (bmpData.length + _chunkSize - 1) ~/ _chunkSize;
     for (int i = 0; i < totalChunks; i++) {
       final start = i * _chunkSize;
       final end = (start + _chunkSize).clamp(0, bmpData.length);
       final ok = await _sendChunk(
-          lr, i, bmpData.sublist(start, end), timeoutMs);
+        lr,
+        i,
+        bmpData.sublist(start, end),
+        timeoutMs,
+      );
       if (!ok) return false;
     }
     return _sendCrcAndComplete(lr, bmpData);
@@ -54,7 +65,11 @@ class BmpUpdateManager {
 
   /// Build and send a single data chunk packet with one retry on timeout.
   static Future<bool> _sendChunk(
-      String lr, int index, Uint8List data, int timeoutMs) async {
+    String lr,
+    int index,
+    Uint8List data,
+    int timeoutMs,
+  ) async {
     final packet = Uint8List(data.length + 3);
     packet[0] = _cmdBmpData;
     packet[1] = (index >> 8) & 0xff;
@@ -88,8 +103,11 @@ class BmpUpdateManager {
 
     // Send completion signal
     Uint8List completePacket = Uint8List.fromList([_cmdBmpComplete]);
-    var completeResp =
-        await BleManager.request(completePacket, lr: lr, timeoutMs: 1000);
+    var completeResp = await BleManager.request(
+      completePacket,
+      lr: lr,
+      timeoutMs: 1000,
+    );
     return !completeResp.isTimeout;
   }
 
@@ -97,9 +115,13 @@ class BmpUpdateManager {
 
   /// Full BMP send to both glasses: heartbeat -> L -> R.
   static Future<bool> sendBitmapHud(Uint8List bmpData) {
-    return _sendBothSides(
-      'full send',
-      (lr) => updateBmp(lr, bmpData, timeoutMs: _dashboardTimeoutMs),
+    return _sendConnectedSides(
+      label: 'full send',
+      sendSide: (lr) => updateBmp(lr, bmpData, timeoutMs: _dashboardTimeoutMs),
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      heartbeatSender: Proto.sendHeartBeat,
+      startHeartbeat: BleManager.get().startSendBeatHeart,
     );
   }
 
@@ -113,28 +135,88 @@ class BmpUpdateManager {
     if (changedIndices.isEmpty) return Future.value(true);
 
     appLogger.d(
-        'Bitmap HUD delta: sending ${changedIndices.length} changed chunks');
-    return _sendBothSides(
-      'delta',
-      (lr) => updateBmpDelta(lr, newBmpData, changedIndices),
+      'Bitmap HUD delta: sending ${changedIndices.length} changed chunks',
+    );
+    return _sendConnectedSides(
+      label: 'delta',
+      sendSide: (lr) => updateBmpDelta(lr, newBmpData, changedIndices),
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      heartbeatSender: Proto.sendHeartBeat,
+      startHeartbeat: BleManager.get().startSendBeatHeart,
     );
   }
 
-  /// Send a heartbeat then run [sendSide] for L and R. Logs on failure.
-  static Future<bool> _sendBothSides(
-    String label,
-    Future<bool> Function(String lr) sendSide,
-  ) async {
-    try {
-      await Proto.sendHeartBeat();
-      BleManager.get().startSendBeatHeart();
+  @visibleForTesting
+  static Future<bool> sendConnectedSidesForTest({
+    required String label,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<bool> Function() heartbeatSender,
+    required void Function() startHeartbeat,
+    required Future<bool> Function(String lr) sendSide,
+  }) {
+    return _sendConnectedSides(
+      label: label,
+      sendSide: sendSide,
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      heartbeatSender: heartbeatSender,
+      startHeartbeat: startHeartbeat,
+    );
+  }
 
-      for (final side in ['L', 'R']) {
-        final ok = await sendSide(side);
-        if (!ok) {
-          appLogger.e('Bitmap HUD $label: $side send failed');
-          return false;
+  /// Send a heartbeat, then transmit to whichever sides are currently connected.
+  static Future<bool> _sendConnectedSides({
+    required String label,
+    required Future<bool> Function(String lr) sendSide,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<bool> Function() heartbeatSender,
+    required void Function() startHeartbeat,
+  }) async {
+    try {
+      if (!leftConnected && !rightConnected) {
+        appLogger.d('Bitmap HUD $label skipped: no connected glasses side');
+        return false;
+      }
+
+      final heartbeatOk = await heartbeatSender();
+      if (!heartbeatOk) {
+        appLogger.e('Bitmap HUD $label: heartbeat failed');
+        return false;
+      }
+      startHeartbeat();
+
+      var leftSuccess = false;
+      if (leftConnected) {
+        leftSuccess = await sendSide('L');
+        if (!leftSuccess) {
+          appLogger.e('Bitmap HUD $label: L send failed');
         }
+      }
+
+      var rightSuccess = false;
+      if (rightConnected) {
+        rightSuccess = await sendSide('R');
+        if (!rightSuccess) {
+          appLogger.e('Bitmap HUD $label: R send failed');
+        }
+      }
+
+      final success = BleTransportPolicy.didAllConnectedTargetsSucceed(
+        leftConnected: leftConnected,
+        rightConnected: rightConnected,
+        leftSuccess: leftSuccess,
+        rightSuccess: rightSuccess,
+      );
+      if (!success) {
+        appLogger.e(
+          'Bitmap HUD $label failed required targets '
+          '(leftConnected=$leftConnected leftSuccess=$leftSuccess '
+          'rightConnected=$rightConnected rightSuccess=$rightSuccess)',
+        );
+        return false;
       }
 
       appLogger.d('Bitmap HUD $label: complete');

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_helix/ble_manager.dart';
 import 'package:flutter_helix/services/bitmap_hud/bitmap_hud_service.dart';
 import 'package:flutter_helix/services/bitmap_hud/bmp_widget.dart';
 import 'package:flutter_helix/services/bitmap_hud/display_constants.dart';
@@ -62,6 +63,34 @@ void main() {
         expect(widget.isDirty, isFalse);
       },
     );
+
+    test('pushFull proceeds when one lens is connected', () async {
+      final widget = _CounterWidget(incrementOnRefresh: false);
+      BleManager.get().debugSetConnectionState(
+        leftConnected: true,
+        rightConnected: false,
+      );
+
+      final service = BitmapHudService.test(
+        layout: _layout,
+        zoneWidgets: {'clock': widget},
+        renderer: (_, zoneWidgets) async {
+          final current = zoneWidgets['clock'] as _CounterWidget;
+          return Uint8List.fromList([current.counter]);
+        },
+        fullSender: (_) async => true,
+        deltaSender: (_, __) async => true,
+      );
+
+      final result = await service.pushFull();
+
+      expect(result, isTrue);
+
+      BleManager.get().debugSetConnectionState(
+        leftConnected: false,
+        rightConnected: false,
+      );
+    });
   });
 }
 

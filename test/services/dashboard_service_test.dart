@@ -95,6 +95,14 @@ void main() {
       },
     );
 
+    test('previewDashboard records the synthetic preview event', () async {
+      await service.previewDashboard();
+
+      expect(service.state.lastObservedEventLabel, 'preview_dashboard');
+      expect(service.state.lastTriggerLabel, 'preview_dashboard');
+      expect(service.state.isActive, isTrue);
+    });
+
     test('suppresses repeated tilt events during cooldown', () async {
       await service.handleDeviceEvent(headUpEvent());
       await Future<void>.delayed(const Duration(milliseconds: 80));

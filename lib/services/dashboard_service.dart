@@ -275,6 +275,7 @@ class DashboardService {
       timestamp: _clock(),
       label: 'preview_dashboard',
     );
+    _recordObservedEvent(syntheticEvent);
     await _showDashboard(syntheticEvent);
   }
 
@@ -410,19 +411,19 @@ class DashboardService {
 
     // Bitmap HUD mode: delegate to BitmapHudService for delta push
     if (_isBitmapMode) {
-      var renderOk = await _bitmapDeltaRenderer();
+      var pushOk = await _bitmapDeltaRenderer();
 
       // Retry with full send if delta failed
-      if (!renderOk) {
+      if (!pushOk) {
         appLogger.w(
           '[DashboardService] Delta push failed, retrying with full send',
         );
         _bitmapInvalidateCache();
-        renderOk = await _bitmapFullRenderer();
+        pushOk = await _bitmapFullRenderer();
       }
 
-      if (!renderOk) {
-        _updateSnapshotState(blockedReason: 'Bitmap dashboard render failed');
+      if (!pushOk) {
+        _updateSnapshotState(blockedReason: 'Bitmap dashboard push failed');
         return;
       }
 
