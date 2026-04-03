@@ -58,3 +58,4 @@ ios/*.mobileprovision
 # Other
 .mcp.json
 coverage/
+.worktrees/
