@@ -92,6 +92,16 @@ class SpeechStreamRecognizer {
         interleaved: false
     )!
 
+    private let openAIMicrophoneOutputFormat24kHz = AVAudioFormat(
+        commonFormat: .pcmFormatInt16,
+        sampleRate: 24_000,
+        channels: 1,
+        interleaved: false
+    )!
+
+    private var openAIMicrophoneConverter24kHz: AVAudioConverter?
+    private var openAIMicrophoneInputFormat24kHz: AVAudioFormat?
+
     let languageDic = [
         "CN": "zh-CN",
         "EN": "en-US",
@@ -188,6 +198,7 @@ class SpeechStreamRecognizer {
                 identifier: identifier,
                 source: source,
                 apiKey: apiKey ?? "",
+                model: model ?? "whisper-1",
                 completion: completion
             )
             return
@@ -302,10 +313,18 @@ class SpeechStreamRecognizer {
                 }
 
                 if let error = error {
-                    self.completePendingStart(.failure(error))
-                    self.emitError("Speech recognition failed: \(error.localizedDescription)")
-                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
-                    self.cleanupRecognition(deactivateSession: true)
+                    let nsError = error as NSError
+                    // Code 203 = "no speech detected", 209 = "retry" — benign for
+                    // continuous listening; restart the segment instead of killing the session.
+                    if nsError.domain == "kAFAssistantErrorDomain" && (nsError.code == 203 || nsError.code == 209) {
+                        self.log("Benign Apple Speech error (code \(nsError.code)), restarting segment")
+                        self.restartRecognitionSegment()
+                    } else {
+                        self.completePendingStart(.failure(error))
+                        self.emitError("Speech recognition failed: \(error.localizedDescription)")
+                        self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                        self.cleanupRecognition(deactivateSession: true)
+                    }
                 }
             }
         }
@@ -407,9 +426,15 @@ class SpeechStreamRecognizer {
                 }
 
                 if let error = error {
-                    self.emitError("Speech recognition failed: \(error.localizedDescription)")
-                    self.emitTranscript(self.lastRecognizedText, isFinal: true)
-                    self.cleanupRecognition(deactivateSession: true)
+                    let nsError = error as NSError
+                    if nsError.domain == "kAFAssistantErrorDomain" && (nsError.code == 203 || nsError.code == 209) {
+                        self.log("Benign Apple Speech error (code \(nsError.code)), restarting segment")
+                        self.restartRecognitionSegment()
+                    } else {
+                        self.emitError("Speech recognition failed: \(error.localizedDescription)")
+                        self.emitTranscript(self.lastRecognizedText, isFinal: true)
+                        self.cleanupRecognition(deactivateSession: true)
+                    }
                 }
             }
         }
@@ -518,12 +543,13 @@ class SpeechStreamRecognizer {
                         let inputNode = self.audioEngine.inputNode
                         let recordingFormat = inputNode.outputFormat(forBus: 0)
                         self.removeInputTapIfNeeded()
-                        inputNode.installTap(onBus: 0, bufferSize: 1600, format: recordingFormat) {
+                        inputNode.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) {
                             [weak self] buffer, _ in
                             guard let self = self,
-                                  let data = self.convertBufferToOpenAIInput(buffer) else { return }
+                                  let data = self.convertBufferToOpenAI24kHz(buffer) else { return }
                             self.openaiTranscriber.appendAudio(data)
                         }
+                        self.openaiTranscriber.inputAlready24kHz = true
                         self.isInputTapInstalled = true
                         self.audioEngine.prepare()
                         try self.audioEngine.start()
@@ -551,6 +577,7 @@ class SpeechStreamRecognizer {
         identifier: String,
         source: String,
         apiKey: String,
+        model: String = "whisper-1",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         lastRecognizedText = ""
@@ -591,6 +618,11 @@ class SpeechStreamRecognizer {
             }
         }
 
+        whisperTranscriber.onDiarizedSegment = { [weak self] speaker, text, start, end in
+            guard let self = self else { return }
+            self.emitDiarizedTranscript(speaker: speaker, text: text, start: start, end: end)
+        }
+
         whisperTranscriber.onError = { [weak self] message in
             self?.emitError(message)
         }
@@ -599,7 +631,8 @@ class SpeechStreamRecognizer {
         whisperTranscriber.start(
             apiKey: apiKey,
             language: lang,
-            chunkDurationSec: whisperTranscriber.chunkDurationSec
+            chunkDurationSec: whisperTranscriber.chunkDurationSec,
+            model: model
         )
 
         // If using microphone, set up audio session and tap
@@ -671,6 +704,19 @@ class SpeechStreamRecognizer {
             let overflow = diarizationPcmBuffer.count - Self.maxDiarizationPcmBytes
             diarizationPcmBuffer.removeFirst(overflow)
         }
+    }
+
+    /// Emit a diarized transcript from the gpt-4o-transcribe-diarize model.
+    private func emitDiarizedTranscript(speaker: String, text: String, start: Double, end: Double) {
+        let payload: [String: Any] = [
+            "script": text,
+            "isFinal": true,
+            "speaker": speaker,
+            "speakerStartTime": start,
+            "speakerEndTime": end,
+            "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        emitSpeechEvent(payload)
     }
 
     /// Emit a speaker segment via the speech event channel.
@@ -1094,6 +1140,13 @@ class SpeechStreamRecognizer {
     }
 
     private func emitTranscript(_ text: String, isFinal: Bool) {
+        // While paused, suppress all emissions from the recognizer's
+        // internal buffer.  Buffered results would trigger competing
+        // analysis cycles in the Dart engine and cancel the in-flight
+        // answer.  The segment will be finalized when recognition
+        // restarts after resume.
+        if isPaused { return }
+
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.isEmpty && !isFinal { return }
         if didEmitFinalResult && isFinal { return }
@@ -1326,6 +1379,62 @@ class SpeechStreamRecognizer {
 
         if let conversionError {
             log("Microphone buffer conversion failed: \(conversionError.localizedDescription)")
+            return nil
+        }
+
+        guard status == .haveData || status == .inputRanDry,
+              outputBuffer.frameLength > 0,
+              let channelData = outputBuffer.int16ChannelData else {
+            return nil
+        }
+
+        let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
+        return Data(bytes: channelData.pointee, count: byteCount)
+    }
+
+    /// Convert microphone buffer directly to 24kHz PCM16 for OpenAI Realtime.
+    private func convertBufferToOpenAI24kHz(_ buffer: AVAudioPCMBuffer) -> Data? {
+        let inputFormat = buffer.format
+
+        if openAIMicrophoneConverter24kHz == nil || openAIMicrophoneInputFormat24kHz != inputFormat {
+            openAIMicrophoneInputFormat24kHz = inputFormat
+            openAIMicrophoneConverter24kHz = AVAudioConverter(
+                from: inputFormat,
+                to: openAIMicrophoneOutputFormat24kHz
+            )
+        }
+
+        guard let converter = openAIMicrophoneConverter24kHz else {
+            log("Failed to create AVAudioConverter for 24kHz OpenAI mic input")
+            return nil
+        }
+
+        let outputFrameCapacity = AVAudioFrameCount(
+            ceil(Double(buffer.frameLength) * openAIMicrophoneOutputFormat24kHz.sampleRate / inputFormat.sampleRate)
+        )
+
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: openAIMicrophoneOutputFormat24kHz,
+            frameCapacity: max(outputFrameCapacity, 1)
+        ) else {
+            log("Failed to allocate 24kHz converted mic buffer")
+            return nil
+        }
+
+        var didProvideInput = false
+        var conversionError: NSError?
+        let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+            if didProvideInput {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            didProvideInput = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+
+        if let conversionError {
+            log("24kHz mic conversion failed: \(conversionError.localizedDescription)")
             return nil
         }
 

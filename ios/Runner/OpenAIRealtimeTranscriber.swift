@@ -43,6 +43,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var model: String = "gpt-4o-mini-transcribe"
     private var language: String = "en"
     private var mode: RealtimeMode = .transcriptionOnly
+    var inputAlready24kHz = false
     private var voice: String = "alloy"
     private var systemInstructions: String = ""
     private var lastRecognizedText = ""
@@ -152,13 +153,24 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         self.isStopping = false
         self.lastEmittedPartialText = ""
         self.stalePartialCount = 0
+        self.appendAudioLogCount = 0
+        self.flushLogCount = 0
+        self.messageLogCount = 0
 
         connect(completion: completion)
     }
 
+    private var appendAudioLogCount = 0
     func appendAudio(_ pcmData: Data) {
-        guard isConnected else { return }
+        guard isConnected else {
+            warningLog("[OpenAITranscriber] appendAudio dropped — not connected, bytes=\(pcmData.count)")
+            return
+        }
         audioBuffer.append(pcmData)
+        appendAudioLogCount += 1
+        if appendAudioLogCount == 1 || appendAudioLogCount % 50 == 0 {
+            warningLog("[OpenAITranscriber] appendAudio #\(appendAudioLogCount) bufferBytes=\(audioBuffer.count)")
+        }
     }
 
     func stop() {
@@ -185,7 +197,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
-        debugLog("[OpenAITranscriber] WebSocket opened")
+        warningLog("[OpenAITranscriber] WebSocket opened")
         connectTimeoutWork?.cancel()
         connectTimeoutWork = nil
 
@@ -295,7 +307,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         connectTimeoutWork = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + 15, execute: timeout)
 
-        debugLog("[OpenAITranscriber] Connecting mode=\(mode), session=\(sessionModel)...")
+        warningLog("[OpenAITranscriber] Connecting mode=\(mode), session=\(sessionModel), url=\(urlString)")
     }
 
     private func sendSessionConfig() {
@@ -303,9 +315,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         sendEvent(sessionConfigEvent(for: resolvedLang))
         switch mode {
         case .transcriptionOnly:
-            debugLog("[OpenAITranscriber] Transcription config sent, language=\(resolvedLang)")
+            warningLog("[OpenAITranscriber] Transcription config sent, model=\(model), language=\(resolvedLang)")
         case .conversation:
-            debugLog("[OpenAITranscriber] Conversation config sent, language=\(resolvedLang)")
+            warningLog("[OpenAITranscriber] Conversation config sent, model=\(model), language=\(resolvedLang)")
         }
     }
 
@@ -389,19 +401,30 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         }
     }
 
+    private var flushLogCount = 0
     private func flushAudioBuffer() {
         guard !audioBuffer.isEmpty, isConnected else { return }
 
         let chunk = audioBuffer
         audioBuffer = Data()
 
-        let resampled = AudioResampler.resample(
-            pcm16Data: chunk,
-            fromRate: sourceSampleRate,
-            toRate: targetSampleRate
-        )
+        let dataToSend: Data
+        if inputAlready24kHz {
+            dataToSend = chunk
+        } else {
+            dataToSend = AudioResampler.resample(
+                pcm16Data: chunk,
+                fromRate: sourceSampleRate,
+                toRate: targetSampleRate
+            )
+        }
 
-        let base64Audio = resampled.base64EncodedString()
+        flushLogCount += 1
+        if flushLogCount == 1 || flushLogCount % 50 == 0 {
+            warningLog("[OpenAITranscriber] flushAudio #\(flushLogCount) chunkBytes=\(chunk.count) sendBytes=\(dataToSend.count)")
+        }
+
+        let base64Audio = dataToSend.base64EncodedString()
         sendEvent([
             "type": "input_audio_buffer.append",
             "audio": base64Audio,
@@ -453,11 +476,18 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         }
     }
 
+    private var messageLogCount = 0
     private func handleMessage(_ text: String) {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = json["type"] as? String else {
+            warningLog("[OpenAITranscriber] Failed to parse message: \(text.prefix(200))")
             return
+        }
+
+        messageLogCount += 1
+        if messageLogCount <= 5 || type.contains("error") || type.contains("transcription") {
+            warningLog("[OpenAITranscriber] Message #\(messageLogCount): \(type)")
         }
 
         switch type {
@@ -559,9 +589,19 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 }
             }
 
+        case "conversation.item.input_audio_transcription.failed":
+            let errorInfo = json["error"] as? [String: Any]
+            let errorMsg = errorInfo?["message"] as? String ?? "unknown"
+            let errorCode = errorInfo?["code"] as? String ?? "unknown"
+            let errorType = errorInfo?["type"] as? String ?? "unknown"
+            warningLog("[OpenAITranscriber] TRANSCRIPTION FAILED: code=\(errorCode) type=\(errorType) message=\(errorMsg)")
+            DispatchQueue.main.async {
+                self.onError?("Transcription failed: \(errorMsg)")
+            }
+
         case "transcription_session.created", "transcription_session.updated",
              "session.created", "session.updated":
-            debugLog("[OpenAITranscriber] Session event: \(type)")
+            warningLog("[OpenAITranscriber] Session event: \(type)")
 
         default:
             break
