@@ -31,15 +31,32 @@ static func resample(pcm16Data: Data, fromRate: Int, toRate: Int) -> Data
 
 Internally creates `AVAudioConverter(from: inputFormat, to: outputFormat)` and uses `convert(to:error:withInputFrom:)`.
 
-**1.2 Direct 48kHz → 24kHz path for phone mic + OpenAI**
+**1.2 Direct 48kHz → 24kHz path for phone mic + OpenAI Realtime**
 
-In `SpeechStreamRecognizer`, add `openAIMicrophoneOutputFormat24kHz` at 24kHz. When backend is `.openai`, the mic tap converts directly to 24kHz, bypassing `AudioResampler` entirely. `OpenAIRealtimeTranscriber` gains an `inputAlready24kHz` flag to skip its internal resampling.
+In `SpeechStreamRecognizer`, add `openAIMicrophoneOutputFormat24kHz` at 24kHz. When the backend is `.openai` (Realtime WebSocket), the mic tap converts directly to 24kHz, bypassing `AudioResampler` entirely. `OpenAIRealtimeTranscriber` gains an `inputAlready24kHz` flag to skip its internal resampling.
 
-**1.3 BLE glasses path**
+**1.3 Batch API path for gpt-4o-transcribe at native sample rate**
 
-Unchanged: 16kHz → `AudioResampler` (now high-quality via AVAudioConverter) → 24kHz.
+Route `gpt-4o-transcribe` and `gpt-4o-mini-transcribe` through the existing `WhisperBatchTranscriber` as an alternative to the Realtime WebSocket. These models are supported by the batch `/v1/audio/transcriptions` REST endpoint, which accepts WAV at any sample rate — the server handles optimal downsampling.
 
-**Files**: `AudioResampler.swift`, `SpeechStreamRecognizer.swift`, `OpenAIRealtimeTranscriber.swift`
+For the batch path with phone mic:
+- Mic tap captures at hardware rate (typically 48kHz) and converts to 48kHz PCM16 (or keeps native format)
+- `WhisperBatchTranscriber` encodes as WAV and POSTs to the API — no client-side resampling needed
+- Server receives full-bandwidth audio and does its own high-quality conversion
+
+Add a new setting `transcriptionTransport` with values:
+- `"realtime"` — Realtime WebSocket (streaming partials, lower latency)
+- `"batch"` — Batch REST API (best audio quality, slightly higher latency)
+
+Default: `"realtime"`. Exposed in Settings so the user can A/B test.
+
+When `transcriptionTransport == "batch"` and model is `gpt-4o-transcribe` or `gpt-4o-mini-transcribe`, `ConversationListeningSession` sets backend to `"whisper"` (reusing the existing batch path) with the selected model name.
+
+**1.4 BLE glasses path**
+
+Unchanged: 16kHz → `AudioResampler` (now high-quality via AVAudioConverter) → 24kHz for Realtime, or 16kHz WAV for batch.
+
+**Files**: `AudioResampler.swift`, `SpeechStreamRecognizer.swift`, `OpenAIRealtimeTranscriber.swift`, `WhisperBatchTranscriber.swift`, `settings_manager.dart`, `conversation_listening_session.dart`
 
 ### Section 2: VAD Configuration Fix
 
@@ -121,10 +138,11 @@ In `SpeechStreamRecognizer.appendPCMData()`, compute RMS via `computeBufferRMS()
 | `ios/Runner/AudioResampler.swift` | 1 |
 | `ios/Runner/OpenAIRealtimeTranscriber.swift` | 1, 2, 3, 4 |
 | `ios/Runner/SpeechStreamRecognizer.swift` | 1, 2, 4 |
-| `ios/Runner/WhisperBatchTranscriber.swift` | 4 |
+| `ios/Runner/WhisperBatchTranscriber.swift` | 1, 4 |
 | `ios/Runner/AppDelegate.swift` | 2 |
-| `lib/services/settings_manager.dart` | 4 |
-| `lib/services/conversation_listening_session.dart` | 2, 4 |
+| `lib/services/settings_manager.dart` | 1, 4 |
+| `lib/services/conversation_listening_session.dart` | 1, 2, 4 |
+| `lib/screens/settings_screen.dart` | 1 (transport toggle) |
 
 ## Testing Strategy
 
@@ -134,4 +152,8 @@ In `SpeechStreamRecognizer.appendPCMData()`, compute RMS via `computeBufferRMS()
 4. **Session config**: Log ordering of config-confirmed vs first-audio-sent
 5. **Rapid toggle**: Toggle recording 5x in 2 seconds, verify final session works
 6. **Transcription prompt**: Set domain vocabulary, verify improved accuracy for those terms
-7. **End-to-end**: Side-by-side comparison of transcript quality before/after all changes
+7. **Realtime vs Batch A/B test**: Manual comparison on phone mic with same speech sample:
+   - Realtime (48→24kHz, streaming partials)
+   - Batch (48kHz native WAV, server-side conversion)
+   - Compare: word accuracy, latency, sentence completeness
+8. **End-to-end**: Side-by-side comparison of transcript quality before/after all changes
