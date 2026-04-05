@@ -1,30 +1,72 @@
-import Foundation
+import AVFoundation
 
 struct AudioResampler {
     static func resample(pcm16Data: Data, fromRate: Int, toRate: Int) -> Data {
         if fromRate == toRate { return pcm16Data }
+        guard !pcm16Data.isEmpty else { return Data() }
 
-        let inputSamples = pcm16Data.withUnsafeBytes {
-            Array($0.bindMemory(to: Int16.self))
-        }
-        guard !inputSamples.isEmpty else { return Data() }
-
-        let ratio = Double(fromRate) / Double(toRate)
-        let outputCount = Int(Double(inputSamples.count) / ratio)
-        var output = [Int16](repeating: 0, count: outputCount)
-
-        for i in 0..<outputCount {
-            let srcIndex = Double(i) * ratio
-            let srcIndexInt = Int(srcIndex)
-            let frac = srcIndex - Double(srcIndexInt)
-
-            let s0 = inputSamples[min(srcIndexInt, inputSamples.count - 1)]
-            let s1 = inputSamples[min(srcIndexInt + 1, inputSamples.count - 1)]
-
-            let interpolated = Double(s0) * (1.0 - frac) + Double(s1) * frac
-            output[i] = Int16(clamping: Int(interpolated.rounded()))
+        guard let inputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: Double(fromRate),
+            channels: 1,
+            interleaved: false
+        ),
+        let outputFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: Double(toRate),
+            channels: 1,
+            interleaved: false
+        ) else {
+            return pcm16Data
         }
 
-        return output.withUnsafeBufferPointer { Data(buffer: $0) }
+        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+            return pcm16Data
+        }
+
+        let inputFrameCount = pcm16Data.count / MemoryLayout<Int16>.size
+        guard let inputBuffer = AVAudioPCMBuffer(
+            pcmFormat: inputFormat,
+            frameCapacity: AVAudioFrameCount(inputFrameCount)
+        ) else {
+            return pcm16Data
+        }
+
+        inputBuffer.frameLength = AVAudioFrameCount(inputFrameCount)
+        pcm16Data.withUnsafeBytes { rawBuffer in
+            guard let src = rawBuffer.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
+            inputBuffer.int16ChannelData?.pointee.initialize(from: src, count: inputFrameCount)
+        }
+
+        let outputFrameCapacity = AVAudioFrameCount(
+            ceil(Double(inputFrameCount) * Double(toRate) / Double(fromRate))
+        )
+        guard let outputBuffer = AVAudioPCMBuffer(
+            pcmFormat: outputFormat,
+            frameCapacity: max(outputFrameCapacity, 1)
+        ) else {
+            return pcm16Data
+        }
+
+        var didProvideInput = false
+        var conversionError: NSError?
+        let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
+            if didProvideInput {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            didProvideInput = true
+            outStatus.pointee = .haveData
+            return inputBuffer
+        }
+
+        guard (status == .haveData || status == .inputRanDry),
+              outputBuffer.frameLength > 0,
+              let channelData = outputBuffer.int16ChannelData else {
+            return pcm16Data
+        }
+
+        let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
+        return Data(bytes: channelData.pointee, count: byteCount)
     }
 }
