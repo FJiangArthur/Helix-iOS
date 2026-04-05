@@ -1,6 +1,6 @@
 import 'display_constants.dart';
 
-/// Enhanced HUD layouts that maximize the 640×400 display with data-dense zones.
+/// Enhanced HUD layouts optimized for the 576×136 display.
 class EnhancedLayoutPresets {
   EnhancedLayoutPresets._();
 
@@ -8,47 +8,38 @@ class EnhancedLayoutPresets {
   static const String cockpitId = 'cockpit';
   static const String focusId = 'focus';
 
-  /// Command Center: header strip + 3×2 grid + footer strip.
+  /// Command Center: header + 4 columns + footer.
   ///
   /// ```
-  /// ┌──────────── header (640×30) ────────────┐
-  /// ├──────────┬───────────┬──────────────────┤
-  /// │ stock    │ calendar  │   activity       │
-  /// │ 196×166  │ 220×166   │   200×166        │
-  /// ├──────────┼───────────┼──────────────────┤
-  /// │ news     │ todos     │   system         │
-  /// │ 196×166  │ 220×166   │   200×166        │
-  /// ├──────────┴───────────┴──────────────────┤
-  /// │ footer (640×24)                         │
-  /// └─────────────────────────────────────────┘
+  /// ┌──────────────── header (576×18) ────────────────┐
+  /// ├─────────┬─────────┬─────────┬──────────────────┤
+  /// │ stock   │calendar │activity │   news           │
+  /// │ 140×96  │ 140×96  │ 140×96  │   144×96         │
+  /// ├─────────┴─────────┴─────────┴──────────────────┤
+  /// │ footer (576×16)                                │
+  /// └────────────────────────────────────────────────┘
   /// ```
   static HudLayout commandCenter() {
     return const HudLayout(
       id: commandCenterId,
       name: 'Command Center',
       zones: [
-        HudZone(id: 'header', x: 0, y: 0, width: 640, height: 30),
-        HudZone(id: 'stock', x: 0, y: 34, width: 196, height: 166),
-        HudZone(id: 'calendar', x: 200, y: 34, width: 220, height: 166),
-        HudZone(id: 'activity', x: 424, y: 34, width: 216, height: 166),
-        HudZone(id: 'news', x: 0, y: 204, width: 196, height: 166),
-        HudZone(id: 'todos', x: 200, y: 204, width: 220, height: 166),
-        HudZone(id: 'system', x: 424, y: 204, width: 216, height: 166),
-        HudZone(id: 'footer', x: 0, y: 376, width: 640, height: 24),
+        HudZone(id: 'header', x: 0, y: 0, width: 576, height: 18),
+        HudZone(id: 'stock', x: 0, y: 21, width: 140, height: 96),
+        HudZone(id: 'calendar', x: 144, y: 21, width: 140, height: 96),
+        HudZone(id: 'activity', x: 288, y: 21, width: 140, height: 96),
+        HudZone(id: 'news', x: 432, y: 21, width: 144, height: 96),
+        HudZone(id: 'footer', x: 0, y: 120, width: 576, height: 16),
       ],
       dividers: [
         // Horizontal below header
-        HudDivider(x1: 0, y1: 32, x2: 640, y2: 32, thickness: 1),
-        // Horizontal between rows
-        HudDivider(x1: 0, y1: 202, x2: 640, y2: 202, thickness: 1),
+        HudDivider(x1: 0, y1: 19, x2: 576, y2: 19, thickness: 1),
+        // Vertical dividers between columns
+        HudDivider(x1: 142, y1: 21, x2: 142, y2: 119, thickness: 1),
+        HudDivider(x1: 286, y1: 21, x2: 286, y2: 119, thickness: 1),
+        HudDivider(x1: 430, y1: 21, x2: 430, y2: 119, thickness: 1),
         // Horizontal above footer
-        HudDivider(x1: 0, y1: 374, x2: 640, y2: 374, thickness: 1),
-        // Vertical dividers in top row
-        HudDivider(x1: 198, y1: 34, x2: 198, y2: 202, thickness: 1),
-        HudDivider(x1: 422, y1: 34, x2: 422, y2: 202, thickness: 1),
-        // Vertical dividers in bottom row
-        HudDivider(x1: 198, y1: 204, x2: 198, y2: 374, thickness: 1),
-        HudDivider(x1: 422, y1: 204, x2: 422, y2: 374, thickness: 1),
+        HudDivider(x1: 0, y1: 119, x2: 576, y2: 119, thickness: 1),
       ],
       defaultWidgetAssignments: {
         'header': 'enh_header',
@@ -56,52 +47,49 @@ class EnhancedLayoutPresets {
         'calendar': 'enh_calendar',
         'activity': 'enh_activity',
         'news': 'enh_news',
-        'todos': 'enh_todos',
-        'system': 'enh_system',
         'footer': 'enh_footer',
       },
     );
   }
 
-  /// Cockpit: status strip + two large panels + ticker + three utility zones.
+  /// Cockpit: header + 2 large panels (top) + 3 utility columns (bottom).
   ///
   /// ```
-  /// ┌────────── status (640×28) ──────────────┐
-  /// ├──────────────────┬──────────────────────┤
-  /// │ stock (312×172)  │ calendar (312×172)   │
-  /// ├──────────────────┴──────────────────────┤
-  /// │ news ticker (640×44)                    │
-  /// ├──────────┬───────────┬──────────────────┤
-  /// │ activity │  todos    │  system          │
-  /// │ 210×128  │  210×128  │  196×128         │
-  /// └──────────┴───────────┴──────────────────┘
+  /// ┌──────────────── header (576×18) ────────────────┐
+  /// ├────────────────────┬───────────────────────────┤
+  /// │ stock (284×54)     │ calendar (286×54)         │
+  /// ├──────────┬─────────┴────┬──────────────────────┤
+  /// │ activity │  todos       │  system              │
+  /// │ 190×58   │  190×58      │  188×58              │
+  /// └──────────┴──────────────┴──────────────────────┘
   /// ```
   static HudLayout cockpit() {
     return const HudLayout(
       id: cockpitId,
       name: 'Cockpit',
       zones: [
-        HudZone(id: 'header', x: 0, y: 0, width: 640, height: 28),
-        HudZone(id: 'stock', x: 0, y: 32, width: 316, height: 172),
-        HudZone(id: 'calendar', x: 320, y: 32, width: 320, height: 172),
-        HudZone(id: 'news', x: 0, y: 208, width: 640, height: 44),
-        HudZone(id: 'activity', x: 0, y: 256, width: 210, height: 144),
-        HudZone(id: 'todos', x: 214, y: 256, width: 210, height: 144),
-        HudZone(id: 'system', x: 428, y: 256, width: 212, height: 144),
+        HudZone(id: 'header', x: 0, y: 0, width: 576, height: 18),
+        HudZone(id: 'stock', x: 0, y: 21, width: 284, height: 54),
+        HudZone(id: 'calendar', x: 290, y: 21, width: 286, height: 54),
+        HudZone(id: 'activity', x: 0, y: 78, width: 190, height: 58),
+        HudZone(id: 'todos', x: 194, y: 78, width: 190, height: 58),
+        HudZone(id: 'system', x: 388, y: 78, width: 188, height: 58),
       ],
       dividers: [
-        HudDivider(x1: 0, y1: 30, x2: 640, y2: 30, thickness: 1),
-        HudDivider(x1: 318, y1: 32, x2: 318, y2: 206, thickness: 1),
-        HudDivider(x1: 0, y1: 206, x2: 640, y2: 206, thickness: 1),
-        HudDivider(x1: 0, y1: 254, x2: 640, y2: 254, thickness: 1),
-        HudDivider(x1: 212, y1: 256, x2: 212, y2: 400, thickness: 1),
-        HudDivider(x1: 426, y1: 256, x2: 426, y2: 400, thickness: 1),
+        // Horizontal below header
+        HudDivider(x1: 0, y1: 19, x2: 576, y2: 19, thickness: 1),
+        // Vertical divider in top row
+        HudDivider(x1: 287, y1: 21, x2: 287, y2: 77, thickness: 1),
+        // Horizontal between rows
+        HudDivider(x1: 0, y1: 77, x2: 576, y2: 77, thickness: 1),
+        // Vertical dividers in bottom row
+        HudDivider(x1: 192, y1: 78, x2: 192, y2: 136, thickness: 1),
+        HudDivider(x1: 386, y1: 78, x2: 386, y2: 136, thickness: 1),
       ],
       defaultWidgetAssignments: {
         'header': 'enh_header',
         'stock': 'enh_stock',
         'calendar': 'enh_calendar',
-        'news': 'enh_news',
         'activity': 'enh_activity',
         'todos': 'enh_todos',
         'system': 'enh_system',
@@ -109,40 +97,39 @@ class EnhancedLayoutPresets {
     );
   }
 
-  /// Focus: header + one large primary zone + three supporting zones.
+  /// Focus: header + large primary panel + 2 supporting panels.
   ///
   /// ```
-  /// ┌────────── header (640×32) ──────────────┐
-  /// ├─────────────────────────────────────────┤
-  /// │   primary (640×204) — full width        │
-  /// ├──────────┬───────────┬──────────────────┤
-  /// │ calendar │ activity  │  todos           │
-  /// │ 210×140  │ 210×140   │  196×140         │
-  /// └──────────┴───────────┴──────────────────┘
+  /// ┌──────────────── header (576×18) ────────────────┐
+  /// ├───────────────────────────┬─────────────────────┤
+  /// │                           │ calendar (192×56)   │
+  /// │ primary (380×115)         ├─────────────────────┤
+  /// │                           │ activity (192×56)   │
+  /// └───────────────────────────┴─────────────────────┘
   /// ```
   static HudLayout focus() {
     return const HudLayout(
       id: focusId,
       name: 'Focus',
       zones: [
-        HudZone(id: 'header', x: 0, y: 0, width: 640, height: 32),
-        HudZone(id: 'primary', x: 0, y: 36, width: 640, height: 204),
-        HudZone(id: 'calendar', x: 0, y: 246, width: 210, height: 154),
-        HudZone(id: 'activity', x: 214, y: 246, width: 210, height: 154),
-        HudZone(id: 'todos', x: 428, y: 246, width: 212, height: 154),
+        HudZone(id: 'header', x: 0, y: 0, width: 576, height: 18),
+        HudZone(id: 'primary', x: 0, y: 21, width: 380, height: 115),
+        HudZone(id: 'calendar', x: 384, y: 21, width: 192, height: 56),
+        HudZone(id: 'activity', x: 384, y: 80, width: 192, height: 56),
       ],
       dividers: [
-        HudDivider(x1: 0, y1: 34, x2: 640, y2: 34, thickness: 1),
-        HudDivider(x1: 0, y1: 244, x2: 640, y2: 244, thickness: 1),
-        HudDivider(x1: 212, y1: 246, x2: 212, y2: 400, thickness: 1),
-        HudDivider(x1: 426, y1: 246, x2: 426, y2: 400, thickness: 1),
+        // Horizontal below header
+        HudDivider(x1: 0, y1: 19, x2: 576, y2: 19, thickness: 1),
+        // Vertical divider (full height of content area)
+        HudDivider(x1: 382, y1: 21, x2: 382, y2: 136, thickness: 1),
+        // Horizontal divider between right panels
+        HudDivider(x1: 384, y1: 78, x2: 576, y2: 78, thickness: 1),
       ],
       defaultWidgetAssignments: {
         'header': 'enh_header',
         'primary': 'enh_stock',
         'calendar': 'enh_calendar',
         'activity': 'enh_activity',
-        'todos': 'enh_todos',
       },
     );
   }
