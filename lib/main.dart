@@ -30,6 +30,12 @@ void main() async {
   // Initialize settings first (loads persisted preferences)
   await SettingsManager.instance.initialize();
 
+  // Restore engine mode from the active assistant profile
+  final engineModeName = SettingsManager.instance.effectiveEngineMode;
+  ConversationEngine.instance.setMode(
+    ConversationMode.values.byName(engineModeName),
+  );
+
   // Initialize SQLite database and run one-time migration (V2.2)
   // ignore: unnecessary_statements
   HelixDatabase.instance; // triggers LazyDatabase creation
