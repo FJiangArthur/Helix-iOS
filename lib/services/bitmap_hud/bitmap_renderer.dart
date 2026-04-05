@@ -25,21 +25,14 @@ class BitmapRenderer {
     final bitmapRect = ui.Rect.fromLTWH(
       0,
       0,
-      G1Display.bitmapWidth.toDouble(),
-      G1Display.bitmapHeight.toDouble(),
-    );
-    final canvas = ui.Canvas(recorder, bitmapRect);
-    canvas.scale(G1Display.bitmapScaleX, G1Display.bitmapScaleY);
-    final logicalRect = ui.Rect.fromLTWH(
-      0,
-      0,
       G1Display.width.toDouble(),
       G1Display.height.toDouble(),
     );
+    final canvas = ui.Canvas(recorder, bitmapRect);
 
     // Fill background black
     canvas.drawRect(
-      logicalRect,
+      bitmapRect,
       ui.Paint()..color = const ui.Color(0xFF000000),
     );
 
