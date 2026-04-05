@@ -449,22 +449,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildTemperatureSlider(),
               ]),
               const SizedBox(height: 20),
-              _buildSection(tr('Conversation', '对话'), Icons.chat, [
-                _buildToggle(
-                  tr('Auto-detect Questions', '自动检测问题'),
-                  tr('Listen for questions in conversations', '在对话中监听问题'),
-                  _settings.autoDetectQuestions,
-                  (v) => _settings.update((s) => s.autoDetectQuestions = v),
-                ),
-                const SizedBox(height: 8),
-                _buildToggle(
-                  tr('Auto-answer', '自动回答'),
-                  tr('Answer detected questions automatically', '自动回答检测到的问题'),
-                  _settings.autoAnswerQuestions,
-                  (v) => _settings.update((s) => s.autoAnswerQuestions = v),
-                ),
-              ]),
-              const SizedBox(height: 20),
               _buildSection(tr('Transcription', '语音转写'), Icons.record_voice_over, [
                 _buildTranscriptionBackendSelector(),
                 const SizedBox(height: 12),
