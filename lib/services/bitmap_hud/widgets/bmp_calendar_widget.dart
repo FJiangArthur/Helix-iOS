@@ -55,36 +55,24 @@ class BmpCalendarWidget extends BmpWidget {
 
   @override
   void renderToCanvas(ui.Canvas canvas, HudZone zone) {
-    const iconSize = 28.0;
+    const iconSize = 14.0;
     final w = zone.width.toDouble();
-    final h = zone.height.toDouble();
 
-    // Calendar icon top-left (local coords — canvas is pre-translated).
     HudDraw.icon(canvas, Offset.zero, HudIcon.calendar, iconSize);
 
-    // Title to the right of icon, truncated.
-    const titleX = iconSize + 6.0;
-    final maxTextW = w - iconSize - 10;
+    const titleX = iconSize + 4.0;
+    final maxTextW = w - iconSize - 8;
     final title = _title ?? 'No upcoming events';
-    HudDraw.text(
-      canvas, title, const Offset(titleX, 2),
-      fontSize: 18, weight: FontWeight.bold, maxWidth: maxTextW,
-    );
+    HudDraw.text(canvas, title, const Offset(titleX, 0),
+        fontSize: 11, weight: FontWeight.bold, maxWidth: maxTextW);
 
-    // Time + location on second line.
     final timeStr = _formatTime();
-    final locStr = _location != null && _location!.isNotEmpty
-        ? ' · $_location' : '';
+    final locStr = _location != null && _location!.isNotEmpty ? ' · $_location' : '';
     final subtitle = '$timeStr$locStr';
     if (subtitle.isNotEmpty) {
-      HudDraw.text(
-        canvas, subtitle, const Offset(titleX, 24),
-        fontSize: 14, maxWidth: maxTextW,
-      );
+      HudDraw.text(canvas, subtitle, const Offset(titleX, 14),
+          fontSize: 9, maxWidth: maxTextW);
     }
-
-    // Dashed separator at bottom.
-    HudDraw.dashedHLine(canvas, 0, h - 2, w);
   }
 
   // Helpers -------------------------------------------------------------------

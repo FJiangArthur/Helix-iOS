@@ -86,37 +86,21 @@ class BmpWeatherWidget extends BmpWidget {
   @override
   void renderToCanvas(ui.Canvas canvas, HudZone zone) {
     final icon = _iconForCode(_weatherCode);
-    const iconSize = 36.0;
+    const iconSize = 18.0;
     final w = zone.width.toDouble();
     final h = zone.height.toDouble();
 
-    // Icon on left, vertically centred (draw at local coords — canvas is pre-translated).
     final iconY = (h - iconSize) / 2;
     HudDraw.icon(canvas, Offset(0, iconY), icon, iconSize);
 
-    // Temperature text to the right of the icon.
-    final textX = iconSize + 6.0;
-    final tempStr = _tempCurrent != null
-        ? '${_tempCurrent!.round()}°'
-        : '--°';
-    HudDraw.text(
-      canvas,
-      tempStr,
-      Offset(textX, 2),
-      fontSize: 28,
-      weight: FontWeight.bold,
-      maxWidth: w - iconSize - 10,
-    );
+    final textX = iconSize + 4.0;
+    final tempStr = _tempCurrent != null ? '${_tempCurrent!.round()}°' : '--°';
+    HudDraw.text(canvas, tempStr, Offset(textX, 2),
+        fontSize: 16, weight: FontWeight.bold, maxWidth: w - iconSize - 8);
 
-    // Hi / Lo below.
     final hiLoStr = 'H:${_tempHigh?.round() ?? '--'}° L:${_tempLow?.round() ?? '--'}°';
-    HudDraw.text(
-      canvas,
-      hiLoStr,
-      Offset(textX, 34),
-      fontSize: 14,
-      maxWidth: w - iconSize - 10,
-    );
+    HudDraw.text(canvas, hiLoStr, Offset(textX, 20),
+        fontSize: 10, maxWidth: w - iconSize - 8);
   }
 
   // Helpers -------------------------------------------------------------------

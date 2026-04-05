@@ -44,27 +44,14 @@ class BmpBatteryWidget extends BmpWidget {
 
   @override
   void renderToCanvas(ui.Canvas canvas, HudZone zone) {
-    const iconSize = 28.0;
+    const iconSize = 18.0;
     final h = zone.height.toDouble();
 
-    // Centre vertically within zone (local coords — canvas is pre-translated).
     final iconY = (h - iconSize) / 2;
-    HudDraw.batteryIcon(
-      canvas,
-      Offset(0, iconY),
-      iconSize,
-      fillPercent: _level,
-    );
+    HudDraw.batteryIcon(canvas, Offset(0, iconY), iconSize, fillPercent: _level);
 
-    // Percentage text to the right.
     final pct = (_level * 100).round();
-    HudDraw.text(
-      canvas,
-      '$pct%',
-      Offset(iconSize + 4, iconY + 2),
-      fontSize: 22,
-      weight: FontWeight.bold,
-      maxWidth: zone.width - iconSize - 8,
-    );
+    HudDraw.text(canvas, '$pct%', Offset(iconSize + 4, iconY + 1),
+        fontSize: 14, weight: FontWeight.bold, maxWidth: zone.width - iconSize - 8);
   }
 }
