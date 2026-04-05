@@ -138,9 +138,9 @@ class DashboardService {
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
        _bitmapHideRenderer = bitmapHideRenderer ?? Proto.hideDashboard,
        _bitmapScreenHideRenderer =
-           bitmapScreenHideRenderer ?? (() => Proto.pushScreen(0x00)),
+           bitmapScreenHideRenderer ?? (() => Proto.pushScreenToConnectedSides(0x00)),
        _bitmapScreenHideDelay =
-           bitmapScreenHideDelay ?? const Duration(milliseconds: 150),
+           bitmapScreenHideDelay ?? const Duration(milliseconds: 250),
        _bitmapInvalidateCache =
            bitmapInvalidateCache ?? BitmapHudService.instance.invalidateCache,
        _bitmapSetOverlayVisible =
@@ -387,8 +387,13 @@ class DashboardService {
       }
       final screenHideOk = await _bitmapScreenHideRenderer();
       if (!screenHideOk) {
-        emitDeviceDiagnostic('BitmapHUD', 'dashboard screen hide failed');
-        return false;
+        // Screen-hide is cosmetic cleanup (clears text layer); the bitmap
+        // content is already hidden by _bitmapHideRenderer above. Log but
+        // continue so the dashboard state is properly cleaned up.
+        emitDeviceDiagnostic(
+          'BitmapHUD',
+          'dashboard screen hide failed (continuing)',
+        );
       }
     }
 
