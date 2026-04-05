@@ -56,6 +56,9 @@ class SettingsManager {
   /// When false, asks for confirmation first.
   bool autoAnswerQuestions = true;
 
+  /// When true, auto-answers detected questions and sends to glasses HUD.
+  bool answerAll = false;
+
   /// Conversation mode: 'passive', 'interview', 'general'.
   String conversationMode = 'general';
 
@@ -279,6 +282,9 @@ class SettingsManager {
     }
   }
 
+  /// Returns the ConversationMode name derived from the active profile.
+  String get effectiveEngineMode => resolveAssistantProfile().engineModeName;
+
   bool get usesOpenAIRealtimeSession =>
       transcriptionBackend == 'openai' && openAISessionMode == 'realtime';
 
@@ -311,6 +317,28 @@ class SettingsManager {
     _assistantProfiles = _restoreAssistantProfiles(
       prefs.getString('assistantProfiles'),
     );
+
+    // --- Migration: passive/proactive mode → answerAll toggle ---
+    final legacyMode = prefs.getString('conversationMode') ?? 'general';
+    final migrated = prefs.getBool('_modeToAnswerAllMigrated') ?? false;
+    if (!migrated) {
+      if (legacyMode == 'passive') {
+        answerAll = true;
+        assistantProfileId =
+            prefs.getString('assistantProfileId') ?? 'general';
+      } else if (legacyMode == 'proactive') {
+        answerAll = false;
+        assistantProfileId =
+            prefs.getString('assistantProfileId') ?? 'general';
+      } else {
+        // general/interview: preserve autoAnswerQuestions as answerAll
+        answerAll = prefs.getBool('autoAnswerQuestions') ?? true;
+      }
+      await prefs.setBool('_modeToAnswerAllMigrated', true);
+      await prefs.setBool('answerAll', answerAll);
+    } else {
+      answerAll = prefs.getBool('answerAll') ?? false;
+    }
 
     // Audio
     noiseReduction = prefs.getBool('noiseReduction') ?? true;
@@ -418,6 +446,7 @@ class SettingsManager {
     // Conversation
     await prefs.setBool('autoDetectQuestions', autoDetectQuestions);
     await prefs.setBool('autoAnswerQuestions', autoAnswerQuestions);
+    await prefs.setBool('answerAll', answerAll);
     await prefs.setString('conversationMode', conversationMode);
     await prefs.setString('assistantProfileId', assistantProfileId);
     await prefs.setString('defaultQuickAskPreset', defaultQuickAskPreset);
