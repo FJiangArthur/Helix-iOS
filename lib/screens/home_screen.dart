@@ -57,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   GlassesAnswerDeliveryState _glassesDeliveryState =
       GlassesAnswerPresenter.instance.currentState;
   String? _listeningError;
+  String? _rawListeningError;
+  bool _errorDetailExpanded = false;
   List<String> _followUpChips = const [];
 
   late AnimationController _pulseController;
@@ -134,6 +136,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }),
       _engine.transcriptSnapshotStream.listen((snapshot) {
         if (!mounted) return;
+        debugPrint('[HomeScreen] transcriptSnapshot: segments=${snapshot.finalizedSegments.length}, '
+            'transcript="${snapshot.fullTranscript.length > 60 ? snapshot.fullTranscript.substring(0, 60) : snapshot.fullTranscript}"');
         setState(() {
           _transcription = snapshot.fullTranscript;
           _transcriptEntries = snapshot.finalizedTimelineEntries;
@@ -200,10 +204,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ConversationListeningSession.instance.errorStream.listen((error) {
         if (!mounted) return;
         setState(() {
+          _rawListeningError = error;
           _listeningError = error == null
               ? null
               : _localizeListeningErrorMessage(error);
           if (error != null) {
+            _errorDetailExpanded = false;
             _manualAnalyzePending = false;
           }
         });
@@ -354,6 +360,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         if (!mounted) return;
         setState(() {
           _isRecording = false;
+          _rawListeningError = error.toString();
+          _errorDetailExpanded = false;
           _listeningError = _formatListeningError(error);
         });
       }
@@ -368,6 +376,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _providerError = null;
     _glassesDeliveryState = const GlassesAnswerDeliveryState.idle();
     _listeningError = null;
+    _rawListeningError = null;
+    _errorDetailExpanded = false;
     _followUpChips = const [];
     _showDetailLink = false;
     _recordingDuration = Duration.zero;
@@ -459,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildOverviewCard() {
-    final modeColor = _modeColor(_currentMode);
+    final modeColor = _profileColor(_assistantProfileId);
 
     return GlassCard(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -706,14 +716,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildModeSelector() {
+    final profiles = SettingsManager.instance.assistantProfiles;
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: ConversationMode.values.map((mode) {
-        final isSelected = mode == _currentMode;
-        final color = _modeColor(mode);
+      children: profiles.map((profile) {
+        final isSelected = profile.id == _assistantProfileId;
+        final color = _profileColor(profile.id);
         return GestureDetector(
-          onTap: () => _selectMode(mode),
+          onTap: () => _selectProfileChip(profile),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
@@ -730,13 +741,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             child: Text(
-              _modeLabel(mode),
+              profile.name,
               style: TextStyle(
                 color: isSelected
                     ? color
                     : Colors.white.withValues(alpha: 0.72),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
           ),
@@ -745,21 +756,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _selectMode(ConversationMode mode) {
-    if (_currentMode == mode) {
-      return;
-    }
+  void _selectProfileChip(AssistantProfile profile) {
+    if (profile.id == _assistantProfileId) return;
     _modeSwitchController
       ..reset()
       ..forward();
-    _engine.setMode(mode);
-    setState(() => _currentMode = mode);
+    _selectAssistantProfile(profile);
+  }
+
+  void _selectMode(ConversationMode mode) {
+    final profiles = SettingsManager.instance.assistantProfiles;
+    final match = profiles.firstWhere(
+      (p) => p.engineModeName == mode.name,
+      orElse: () => profiles.first,
+    );
+    _selectProfileChip(match);
   }
 
   bool get _canAnalyzeCurrentSession =>
       _segmentCount > 0 || _transcription.trim().isNotEmpty;
 
   Future<void> _handleAnalyzePressed() async {
+    debugPrint('[HomeScreen] _handleAnalyzePressed called, canAnalyze=$_canAnalyzeCurrentSession, '
+        'segmentCount=$_segmentCount, transcription="${_transcription.length > 40 ? _transcription.substring(0, 40) : _transcription}"');
     if (!_canAnalyzeCurrentSession) {
       return;
     }
@@ -794,6 +813,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     var showFollowUps = profile.showFollowUps;
     var showFactCheck = profile.showFactCheck;
     var showActionItems = profile.showActionItems;
+    var showWebSearch = profile.showWebSearch;
 
     showModalBottomSheet(
       context: context,
@@ -958,6 +978,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       showActionItems,
                       (v) => setSheetState(() => showActionItems = v),
                     ),
+                    const SizedBox(height: 8),
+                    buildToggle(
+                      'Web Search',
+                      'OpenAI Search for fact-checking',
+                      showWebSearch,
+                      (v) => setSheetState(() => showWebSearch = v),
+                    ),
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -992,6 +1019,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 showFollowUps: showFollowUps,
                                 showFactCheck: showFactCheck,
                                 showActionItems: showActionItems,
+                                showWebSearch: showWebSearch,
                               );
                               await SettingsManager.instance
                                   .saveAssistantProfile(updated);
@@ -1020,12 +1048,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildCollapsibleSectionHeader({
+    required String title,
+    required bool expanded,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.62),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          Icon(
+            expanded ? Icons.expand_less : Icons.expand_more,
+            size: 18,
+            color: Colors.white.withValues(alpha: 0.42),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _openAssistantSetupSheet() {
     var sheetProfile = _assistantProfile;
     var sheetPreset = _selectedPreset;
     var sheetAutoShowSummary = SettingsManager.instance.autoShowSummary;
     var sheetAutoShowFollowUps = SettingsManager.instance.autoShowFollowUps;
     var sheetMaxSentences = SettingsManager.instance.maxResponseSentences;
+    var automationExpanded = true;
+    var outputToolsExpanded = false;
 
     showModalBottomSheet<void>(
       context: context,
@@ -1040,7 +1100,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: GlassCard(
                   opacity: 0.18,
-                  borderColor: _modeColor(_currentMode).withValues(alpha: 0.24),
+                  borderColor: _profileColor(_assistantProfileId).withValues(alpha: 0.24),
                   padding: const EdgeInsets.all(18),
                   child: SingleChildScrollView(
                     child: Column(
@@ -1155,219 +1215,216 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        Text(
-                          _tr(
-                            en: 'TOOLING',
-                            zh: '工具配置',
-                            ja: 'ツール設定',
-                            ko: '도구 설정',
-                            es: 'HERRAMIENTAS',
-                            ru: 'ИНСТРУМЕНТЫ',
-                          ),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.62),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.1,
-                          ),
+                        _buildCollapsibleSectionHeader(
+                          title: _tr(en: 'AUTOMATION', zh: '自动化', ja: 'オートメーション', ko: '자동화', es: 'AUTOMATIZACION', ru: 'АВТОМАТИЗАЦИЯ'),
+                          expanded: automationExpanded,
+                          onTap: () => setSheetState(() => automationExpanded = !automationExpanded),
                         ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-tool-summary-toggle'),
-                          title: _tr(
-                            en: 'Summary Tool',
-                            zh: '摘要工具',
-                            ja: '要約ツール',
-                            ko: '요약 도구',
-                            es: 'Resumen',
-                            ru: 'Сводка',
+                        if (automationExpanded) ...[
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-auto-detect-toggle'),
+                            title: _tr(en: 'Auto Detect Questions', zh: '自动检测问题', ja: '質問自動検出', ko: '질문 자동 감지', es: 'Detectar preguntas', ru: 'Автообнаружение вопросов'),
+                            description: _tr(en: 'Listen for questions in conversations.', zh: '在对话中监听问题。', ja: '会話内の質問を検出します。', ko: '대화에서 질문을 감지합니다.', es: 'Escucha preguntas en las conversaciones.', ru: 'Слушает вопросы в разговорах.'),
+                            value: SettingsManager.instance.autoDetectQuestions,
+                            onTap: () async {
+                              final next = !SettingsManager.instance.autoDetectQuestions;
+                              await SettingsManager.instance.update((s) {
+                                s.autoDetectQuestions = next;
+                              });
+                              setSheetState(() {});
+                            },
                           ),
-                          description: _tr(
-                            en: 'Keep manual summary actions available for this profile.',
-                            zh: '为这个档案保留手动摘要能力。',
-                            ja: 'このプロフィールで手動要約を使えるようにします。',
-                            ko: '이 프로필에서 수동 요약 기능을 유지합니다.',
-                            es: 'Mantiene disponible el resumen manual en este perfil.',
-                            ru: 'Оставляет ручную сводку доступной для этого профиля.',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-auto-insights-toggle'),
+                            title: _tr(en: 'Auto Insights', zh: '自动洞察', ja: '自動インサイト', ko: '자동 인사이트', es: 'Insights automaticos', ru: 'Автоинсайты'),
+                            description: _tr(en: 'Surfaces conversation overview and insights on your phone.', zh: '在手机上自动展示对话概览和洞察。', ja: 'スマホに会話の概要とインサイトを表示します。', ko: '휴대폰에 대화 개요와 인사이트를 표시합니다.', es: 'Muestra resumen e insights de la conversacion en tu telefono.', ru: 'Показывает обзор разговора и инсайты на телефоне.'),
+                            value: sheetAutoShowSummary,
+                            onTap: () async {
+                              final nextValue = !sheetAutoShowSummary;
+                              setSheetState(() => sheetAutoShowSummary = nextValue);
+                              await SettingsManager.instance.update((settings) {
+                                settings.autoShowSummary = nextValue;
+                              });
+                            },
                           ),
-                          value: sheetProfile.showSummaryTool,
-                          onTap: () async {
-                            final updated = sheetProfile.copyWith(
-                              showSummaryTool: !sheetProfile.showSummaryTool,
-                            );
-                            setSheetState(() => sheetProfile = updated);
-                            await SettingsManager.instance.saveAssistantProfile(
-                              updated,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-tool-followups-toggle'),
-                          title: _tr(
-                            en: 'Follow-up Suggestions',
-                            zh: '追问建议',
-                            ja: 'フォローアップ提案',
-                            ko: '후속 질문 제안',
-                            es: 'Seguimientos',
-                            ru: 'Следующие вопросы',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-proactive-followups-toggle'),
+                            title: _tr(en: 'Proactive Follow-ups', zh: '主动追问', ja: 'プロアクティブフォローアップ', ko: '선제적 후속 질문', es: 'Seguimientos proactivos', ru: 'Проактивные вопросы'),
+                            description: _tr(en: 'Suggests follow-up questions to ask the other side.', zh: '自动建议向对方提问的后续问题。', ja: '相手に聞くフォローアップ質問を提案します。', ko: '상대방에게 할 후속 질문을 제안합니다.', es: 'Sugiere preguntas de seguimiento para la otra parte.', ru: 'Предлагает уточняющие вопросы для собеседника.'),
+                            value: sheetAutoShowFollowUps,
+                            onTap: () async {
+                              final nextValue = !sheetAutoShowFollowUps;
+                              setSheetState(() => sheetAutoShowFollowUps = nextValue);
+                              await SettingsManager.instance.update((settings) {
+                                settings.autoShowFollowUps = nextValue;
+                              });
+                            },
                           ),
-                          description: _tr(
-                            en: 'Surface contextual next questions for this profile.',
-                            zh: '为这个档案展示上下文追问建议。',
-                            ja: 'このプロフィール向けに文脈に沿った次の質問を表示します。',
-                            ko: '이 프로필에 맞는 맥락형 후속 질문을 표시합니다.',
-                            es: 'Muestra preguntas siguientes según el contexto.',
-                            ru: 'Показывает контекстные следующие вопросы для профиля.',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-answer-all-toggle'),
+                            title: _tr(en: 'Auto-Answer to Glasses', zh: '自动回答到眼镜', ja: 'メガネへ自動回答', ko: '안경으로 자동 응답', es: 'Respuesta automatica a gafas', ru: 'Автоответ на очки'),
+                            description: _tr(en: 'Auto-answers detected questions and sends to glasses HUD.', zh: '自动回答检测到的问题并发送到眼镜HUD。', ja: '検出した質問に自動回答しメガネHUDに送信します。', ko: '감지된 질문에 자동 응답하고 안경 HUD로 전송합니다.', es: 'Responde automaticamente y envia al HUD de las gafas.', ru: 'Автоматически отвечает на вопросы и отправляет на HUD очков.'),
+                            value: SettingsManager.instance.answerAll,
+                            onTap: () async {
+                              final next = !SettingsManager.instance.answerAll;
+                              await SettingsManager.instance.update((s) {
+                                s.answerAll = next;
+                                if (next && !s.autoDetectQuestions) {
+                                  s.autoDetectQuestions = true;
+                                }
+                              });
+                              setSheetState(() {});
+                            },
                           ),
-                          value: sheetProfile.showFollowUps,
-                          onTap: () async {
-                            final updated = sheetProfile.copyWith(
-                              showFollowUps: !sheetProfile.showFollowUps,
-                            );
-                            setSheetState(() => sheetProfile = updated);
-                            await SettingsManager.instance.saveAssistantProfile(
-                              updated,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-tool-factcheck-toggle'),
-                          title: _tr(
-                            en: 'Fact Check',
-                            zh: '事实核实',
-                            ja: 'ファクトチェック',
-                            ko: '사실 확인',
-                            es: 'Verificacion',
-                            ru: 'Проверка фактов',
-                          ),
-                          description: _tr(
-                            en: 'Expose verification actions when the answer looks risky.',
-                            zh: '在回答风险较高时暴露核实动作。',
-                            ja: '回答が危うい時に検証アクションを表示します。',
-                            ko: '답변이 위험해 보일 때 검증 동작을 노출합니다.',
-                            es: 'Muestra acciones de verificacion cuando la respuesta parece riesgosa.',
-                            ru: 'Показывает действия проверки, когда ответ выглядит рискованным.',
-                          ),
-                          value: sheetProfile.showFactCheck,
-                          onTap: () async {
-                            final updated = sheetProfile.copyWith(
-                              showFactCheck: !sheetProfile.showFactCheck,
-                            );
-                            setSheetState(() => sheetProfile = updated);
-                            await SettingsManager.instance.saveAssistantProfile(
-                              updated,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-tool-actionitems-toggle'),
-                          title: _tr(
-                            en: 'Action Items',
-                            zh: '行动项',
-                            ja: 'アクション項目',
-                            ko: '실행 항목',
-                            es: 'Acciones',
-                            ru: 'Пункты действий',
-                          ),
-                          description: _tr(
-                            en: 'Highlight extracted tasks and review signals on Home.',
-                            zh: '在主页高亮提取出的任务和复盘信号。',
-                            ja: 'ホームで抽出されたタスクとレビュー信号を強調します。',
-                            ko: '홈에서 추출된 작업과 리뷰 신호를 강조합니다.',
-                            es: 'Resalta tareas extraidas y senales de revision en Inicio.',
-                            ru: 'Подсвечивает извлеченные задачи и сигналы обзора на главном экране.',
-                          ),
-                          value: sheetProfile.showActionItems,
-                          onTap: () async {
-                            final updated = sheetProfile.copyWith(
-                              showActionItems: !sheetProfile.showActionItems,
-                            );
-                            setSheetState(() => sheetProfile = updated);
-                            await SettingsManager.instance.saveAssistantProfile(
-                              updated,
-                            );
-                          },
-                        ),
+                        ],
                         const SizedBox(height: 16),
-                        Text(
-                          _tr(
-                            en: 'AUTO SURFACES',
-                            zh: '自动展示',
-                            ja: '自動表示',
-                            ko: '자동 표시',
-                            es: 'SUPERFICIES AUTOMATICAS',
-                            ru: 'АВТОПОКАЗ',
-                          ),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.62),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.1,
-                          ),
+                        _buildCollapsibleSectionHeader(
+                          title: _tr(en: 'OUTPUT TOOLS', zh: '输出工具', ja: '出力ツール', ko: '출력 도구', es: 'HERRAMIENTAS DE SALIDA', ru: 'ИНСТРУМЕНТЫ ВЫВОДА'),
+                          expanded: outputToolsExpanded,
+                          onTap: () => setSheetState(() => outputToolsExpanded = !outputToolsExpanded),
                         ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-auto-summary-toggle'),
-                          title: _tr(
-                            en: 'Auto Insights',
-                            zh: '自动洞察',
-                            ja: '自動インサイト',
-                            ko: '자동 인사이트',
-                            es: 'Insights automaticos',
-                            ru: 'Автоинсайты',
+                        if (outputToolsExpanded) ...[
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-tool-summary-toggle'),
+                            title: _tr(
+                              en: 'Summary Tool',
+                              zh: '摘要工具',
+                              ja: '要約ツール',
+                              ko: '요약 도구',
+                              es: 'Resumen',
+                              ru: 'Сводка',
+                            ),
+                            description: _tr(
+                              en: 'Keep manual summary actions available for this profile.',
+                              zh: '为这个档案保留手动摘要能力。',
+                              ja: 'このプロフィールで手動要約を使えるようにします。',
+                              ko: '이 프로필에서 수동 요약 기능을 유지합니다.',
+                              es: 'Mantiene disponible el resumen manual en este perfil.',
+                              ru: 'Оставляет ручную сводку доступной для этого профиля.',
+                            ),
+                            value: sheetProfile.showSummaryTool,
+                            onTap: () async {
+                              final updated = sheetProfile.copyWith(
+                                showSummaryTool: !sheetProfile.showSummaryTool,
+                              );
+                              setSheetState(() => sheetProfile = updated);
+                              await SettingsManager.instance.saveAssistantProfile(
+                                updated,
+                              );
+                            },
                           ),
-                          description: _tr(
-                            en: 'Keep summary and insight surfaces expanded when useful.',
-                            zh: '在合适的时候自动展开摘要和洞察区。',
-                            ja: '必要なときに要約とインサイトを自動で表示します。',
-                            ko: '필요할 때 요약과 인사이트를 자동으로 펼칩니다.',
-                            es: 'Mantiene visibles los paneles de resumen e insights cuando son utiles.',
-                            ru: 'Автоматически раскрывает сводку и инсайты, когда это полезно.',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-tool-followups-toggle'),
+                            title: _tr(
+                              en: 'Follow-up Suggestions',
+                              zh: '追问建议',
+                              ja: 'フォローアップ提案',
+                              ko: '후속 질문 제안',
+                              es: 'Seguimientos',
+                              ru: 'Следующие вопросы',
+                            ),
+                            description: _tr(
+                              en: 'Surface contextual next questions for this profile.',
+                              zh: '为这个档案展示上下文追问建议。',
+                              ja: 'このプロフィール向けに文脈に沿った次の質問を表示します。',
+                              ko: '이 프로필에 맞는 맥락형 후속 질문을 표시합니다.',
+                              es: 'Muestra preguntas siguientes según el contexto.',
+                              ru: 'Показывает контекстные следующие вопросы для профиля.',
+                            ),
+                            value: sheetProfile.showFollowUps,
+                            onTap: () async {
+                              final updated = sheetProfile.copyWith(
+                                showFollowUps: !sheetProfile.showFollowUps,
+                              );
+                              setSheetState(() => sheetProfile = updated);
+                              await SettingsManager.instance.saveAssistantProfile(
+                                updated,
+                              );
+                            },
                           ),
-                          value: sheetAutoShowSummary,
-                          onTap: () async {
-                            final nextValue = !sheetAutoShowSummary;
-                            setSheetState(
-                              () => sheetAutoShowSummary = nextValue,
-                            );
-                            await SettingsManager.instance.update((settings) {
-                              settings.autoShowSummary = nextValue;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        AssistantSettingsToggleTile(
-                          key: const Key('home-setup-auto-followups-toggle'),
-                          title: _tr(
-                            en: 'Auto Follow-ups',
-                            zh: '自动追问',
-                            ja: '自動フォローアップ',
-                            ko: '자동 후속 질문',
-                            es: 'Seguimientos automaticos',
-                            ru: 'Автоследующие вопросы',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-tool-factcheck-toggle'),
+                            title: _tr(
+                              en: 'Fact Check',
+                              zh: '事实核实',
+                              ja: 'ファクトチェック',
+                              ko: '사실 확인',
+                              es: 'Verificacion',
+                              ru: 'Проверка фактов',
+                            ),
+                            description: _tr(
+                              en: 'Expose verification actions when the answer looks risky.',
+                              zh: '在回答风险较高时暴露核实动作。',
+                              ja: '回答が危うい時に検証アクションを表示します。',
+                              ko: '답변이 위험해 보일 때 검증 동작을 노출합니다.',
+                              es: 'Muestra acciones de verificacion cuando la respuesta parece riesgosa.',
+                              ru: 'Показывает действия проверки, когда ответ выглядит рискованным.',
+                            ),
+                            value: sheetProfile.showFactCheck,
+                            onTap: () async {
+                              final updated = sheetProfile.copyWith(
+                                showFactCheck: !sheetProfile.showFactCheck,
+                              );
+                              setSheetState(() => sheetProfile = updated);
+                              await SettingsManager.instance.saveAssistantProfile(
+                                updated,
+                              );
+                            },
                           ),
-                          description: _tr(
-                            en: 'Show the next-question deck as soon as it is ready.',
-                            zh: '一旦准备好，就自动展示下一步追问卡片。',
-                            ja: '次の質問デッキが準備でき次第すぐ表示します。',
-                            ko: '다음 질문 덱이 준비되면 바로 표시합니다.',
-                            es: 'Muestra el mazo de siguientes preguntas apenas este listo.',
-                            ru: 'Показывает колоду следующих вопросов сразу после готовности.',
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-tool-websearch-toggle'),
+                            title: _tr(en: 'Web Search', zh: '网络搜索', ja: 'ウェブ検索', ko: '웹 검색', es: 'Busqueda web', ru: 'Веб-поиск'),
+                            description: _tr(en: 'Use OpenAI Search API for fact-checking and grounding.', zh: '使用OpenAI搜索API进行事实核查和信息验证。', ja: 'OpenAI検索APIでファクトチェックと情報検証を行います。', ko: 'OpenAI 검색 API로 사실 확인과 정보 검증을 합니다.', es: 'Usa la API de busqueda de OpenAI para verificacion de hechos.', ru: 'Использует OpenAI Search API для проверки фактов.'),
+                            value: sheetProfile.showWebSearch,
+                            onTap: () async {
+                              final updated = sheetProfile.copyWith(
+                                showWebSearch: !sheetProfile.showWebSearch,
+                              );
+                              setSheetState(() => sheetProfile = updated);
+                              await SettingsManager.instance.saveAssistantProfile(
+                                updated,
+                              );
+                            },
                           ),
-                          value: sheetAutoShowFollowUps,
-                          onTap: () async {
-                            final nextValue = !sheetAutoShowFollowUps;
-                            setSheetState(
-                              () => sheetAutoShowFollowUps = nextValue,
-                            );
-                            await SettingsManager.instance.update((settings) {
-                              settings.autoShowFollowUps = nextValue;
-                            });
-                          },
-                        ),
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-tool-actionitems-toggle'),
+                            title: _tr(
+                              en: 'Action Items',
+                              zh: '行动项',
+                              ja: 'アクション項目',
+                              ko: '실행 항목',
+                              es: 'Acciones',
+                              ru: 'Пункты действий',
+                            ),
+                            description: _tr(
+                              en: 'Highlight extracted tasks and review signals on Home.',
+                              zh: '在主页高亮提取出的任务和复盘信号。',
+                              ja: 'ホームで抽出されたタスクとレビュー信号を強調します。',
+                              ko: '홈에서 추출된 작업과 리뷰 신호를 강조합니다.',
+                              es: 'Resalta tareas extraidas y senales de revision en Inicio.',
+                              ru: 'Подсвечивает извлеченные задачи и сигналы обзора на главном экране.',
+                            ),
+                            value: sheetProfile.showActionItems,
+                            onTap: () async {
+                              final updated = sheetProfile.copyWith(
+                                showActionItems: !sheetProfile.showActionItems,
+                              );
+                              setSheetState(() => sheetProfile = updated);
+                              await SettingsManager.instance.saveAssistantProfile(
+                                updated,
+                              );
+                            },
+                          ),
+                        ],
                         const SizedBox(height: 16),
                         Text(
                           _tr(
@@ -1456,6 +1513,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             ],
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(sheetContext).pop();
+                            _showSystemPromptEditor(sheetProfile);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.04),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_note_rounded, size: 20, color: Colors.white.withValues(alpha: 0.72)),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _tr(en: 'Customize Prompt', zh: '自定义提示词', ja: 'プロンプトをカスタマイズ', ko: '프롬프트 커스터마이즈', es: 'Personalizar Prompt', ru: 'Настроить промпт'),
+                                        style: TextStyle(
+                                          color: Colors.white.withValues(alpha: 0.88),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (sheetProfile.systemPrompt != null &&
+                                          sheetProfile.systemPrompt!.trim().isNotEmpty)
+                                        Text(
+                                          sheetProfile.systemPrompt!.trim().length > 40
+                                              ? '${sheetProfile.systemPrompt!.trim().substring(0, 40)}...'
+                                              : sheetProfile.systemPrompt!.trim(),
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.48),
+                                            fontSize: 11,
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          _tr(en: 'Using default prompt', zh: '使用默认提示词', ja: 'デフォルトプロンプトを使用', ko: '기본 프롬프트 사용', es: 'Usando prompt predeterminado', ru: 'Используется промпт по умолчанию'),
+                                          style: TextStyle(
+                                            color: Colors.white.withValues(alpha: 0.38),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right, size: 18, color: Colors.white.withValues(alpha: 0.42)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1465,6 +1578,157 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           },
         );
       },
+    );
+  }
+
+  void _showSystemPromptEditor(AssistantProfile profile) {
+    final controller = TextEditingController(text: profile.systemPrompt ?? '');
+    const maxChars = 2000;
+
+    final isChinese = SettingsManager.instance.language == 'zh';
+    final defaultPersona = isChinese
+        ? '你是智能眼镜上的对话伙伴，帮助用户进行更好的对话。'
+        : 'You are a conversation companion on smart glasses helping the user have better conversations.';
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: HelixTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20, right: 20, top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _tr(en: 'Custom System Prompt', zh: '自定义系统提示词', ja: 'カスタムシステムプロンプト', ko: '커스텀 시스템 프롬프트', es: 'Prompt de Sistema Personalizado', ru: 'Пользовательский системный промпт'),
+                      style: const TextStyle(
+                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _tr(
+                        en: 'Customize how the AI responds. Rules (sentence limit, format) are always enforced.',
+                        zh: '自定义AI的回复风格。规则（句数限制、格式）始终生效。',
+                        ja: 'AIの応答方法をカスタマイズします。ルール（文数制限、フォーマット）は常に適用されます。',
+                        ko: 'AI 응답 방식을 커스터마이즈합니다. 규칙(문장 수 제한, 형식)은 항상 적용됩니다.',
+                        es: 'Personaliza cómo responde la IA. Las reglas (límite de oraciones, formato) siempre se aplican.',
+                        ru: 'Настройте стиль ответов ИИ. Правила (лимит предложений, формат) всегда применяются.',
+                      ),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.52), fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildTemplateChip('Keep it brief', '简短回答', controller, setSheetState),
+                        _buildTemplateChip('Explain like I\'m 5', '像跟5岁小孩解释', controller, setSheetState),
+                        _buildTemplateChip('Technical detail', '技术细节', controller, setSheetState),
+                        _buildTemplateChip('Translate to Spanish', '翻译成西班牙语', controller, setSheetState),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: controller,
+                      maxLines: 8,
+                      maxLength: maxChars,
+                      onChanged: (_) => setSheetState(() {}),
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: defaultPersona,
+                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.22)),
+                        filled: true,
+                        fillColor: Colors.white.withValues(alpha: 0.06),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: HelixTheme.cyan.withValues(alpha: 0.5)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (controller.text.trim().isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              controller.clear();
+                              setSheetState(() {});
+                            },
+                            child: Text(
+                              _tr(en: 'Reset to default', zh: '恢复默认', ja: 'デフォルトに戻す', ko: '기본값으로 재설정', es: 'Restablecer predeterminado', ru: 'Сбросить по умолчанию'),
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.52)),
+                            ),
+                          ),
+                        const Spacer(),
+                        ElevatedButton(
+                          onPressed: () async {
+                            final text = controller.text.trim();
+                            final updated = text.isEmpty
+                                ? profile.copyWith(clearSystemPrompt: true)
+                                : profile.copyWith(systemPrompt: text);
+                            await SettingsManager.instance.saveAssistantProfile(updated);
+                            if (mounted) setState(() {});
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                          style: ElevatedButton.styleFrom(backgroundColor: HelixTheme.cyan),
+                          child: Text(_tr(en: 'Save', zh: '保存', ja: '保存', ko: '저장', es: 'Guardar', ru: 'Сохранить')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildTemplateChip(
+    String enLabel,
+    String zhLabel,
+    TextEditingController controller,
+    StateSetter setSheetState,
+  ) {
+    final label = _isChinese ? zhLabel : enLabel;
+    return GestureDetector(
+      onTap: () {
+        controller.text = _isChinese ? zhLabel : enLabel;
+        setSheetState(() {});
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 12),
+        ),
+      ),
     );
   }
 
@@ -1644,7 +1908,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildConversationArea() {
-    final modeColor = _modeColor(_currentMode);
+    final modeColor = _profileColor(_assistantProfileId);
     final showFollowUps =
         _assistantProfile.showFollowUps &&
         SettingsManager.instance.autoShowFollowUps &&
@@ -1996,50 +2260,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ru: 'НЕ УДАЛОСЬ ЗАПУСТИТЬ РАСШИФРОВКУ',
           );
 
-    return GlassCard(
-      opacity: 0.08,
-      borderColor: HelixTheme.error.withValues(alpha: 0.22),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: HelixTheme.error,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          if (isAudioOnly) ...[
-            Text(
-              _tr(
-                en: 'Local audio capture is still running and will be saved when you stop.',
-                zh: '本地音频仍在录制，停止后会自动保存。',
-                ja: 'ローカル音声の録音は継続中で、停止時に保存されます。',
-                ko: '로컬 오디오 녹음은 계속되며 중지하면 저장됩니다.',
-                es: 'La grabación de audio local sigue activa y se guardará al detenerla.',
-                ru: 'Локальная запись аудио продолжается и будет сохранена после остановки.',
-              ),
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.78),
-                fontSize: 12,
-                height: 1.35,
-              ),
+    final hasRawDetail = _rawListeningError != null &&
+        _rawListeningError!.trim().isNotEmpty &&
+        _rawListeningError!.trim() != _listeningError?.trim();
+
+    return GestureDetector(
+      onTap: hasRawDetail
+          ? () => setState(() => _errorDetailExpanded = !_errorDetailExpanded)
+          : null,
+      child: GlassCard(
+        opacity: 0.08,
+        borderColor: HelixTheme.error.withValues(alpha: 0.22),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      color: HelixTheme.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                ),
+                if (hasRawDetail)
+                  Icon(
+                    _errorDetailExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    color: Colors.white.withValues(alpha: 0.4),
+                    size: 16,
+                  ),
+              ],
             ),
             const SizedBox(height: 8),
-          ],
-          Text(
-            _listeningError!,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.84),
-              fontSize: 13,
-              height: 1.4,
+            if (isAudioOnly) ...[
+              Text(
+                _tr(
+                  en: 'Local audio capture is still running and will be saved when you stop.',
+                  zh: '本地音频仍在录制，停止后会自动保存。',
+                  ja: 'ローカル音声の録音は継続中で、停止時に保存されます。',
+                  ko: '로컬 오디오 녹음은 계속되며 중지하면 저장됩니다.',
+                  es: 'La grabación de audio local sigue activa y se guardará al detenerla.',
+                  ru: 'Локальная запись аудио продолжается и будет сохранена после остановки.',
+                ),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.78),
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Text(
+              _listeningError!,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.84),
+                fontSize: 13,
+                height: 1.4,
+              ),
             ),
-          ),
-        ],
+            if (hasRawDetail && _errorDetailExpanded) ...[
+              Divider(
+                color: Colors.white.withValues(alpha: 0.12),
+                height: 20,
+              ),
+              Text(
+                _rawListeningError!,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  fontSize: 11,
+                  fontFamily: 'Courier',
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -2847,10 +3149,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             '描述你克服过的一个挑战',
             '你的五年规划是什么？',
           ];
-        case ConversationMode.passive:
-          return ['什么是好的领导力？', '用简单的话解释量子计算', '今天的科技趋势是什么？', '机器学习是如何工作的？'];
-        case ConversationMode.proactive:
-          return ['开始录音后点问答', '围绕附近问题快速作答', '根据当前上下文给我回答'];
       }
     }
     switch (_currentMode) {
@@ -2869,19 +3167,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           'Why should we hire you?',
           'Describe a challenge you overcame',
           'Where do you see yourself in 5 years?',
-        ];
-      case ConversationMode.passive:
-        return [
-          'What makes a great leader?',
-          'Explain quantum computing simply',
-          'What are today\'s tech trends?',
-          'How does machine learning work?',
-        ];
-      case ConversationMode.proactive:
-        return [
-          'Start recording then tap Q&A',
-          'Answer the nearest live question',
-          'Reply from the latest context',
         ];
     }
   }
@@ -2910,7 +3195,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ? const Color(0xFFFFB547)
         : _isRecording
         ? const Color(0xFFFF6B6B)
-        : _modeColor(_currentMode);
+        : _profileColor(_assistantProfileId);
 
     return GlassCard(
       key: const Key('home-fixed-composer-dock'),
@@ -3055,6 +3340,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     await SettingsManager.instance.update((settings) {
       settings.assistantProfileId = profile.id;
     });
+    // Sync engine mode from profile
+    _engine.setMode(
+      ConversationMode.values.byName(profile.engineModeName),
+    );
   }
 
   void _selectPreset(AssistantQuickAskPreset preset) {
@@ -3225,10 +3514,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return '随便问点什么...';
         case ConversationMode.interview:
           return '练习："请做一下自我介绍..."';
-        case ConversationMode.passive:
-          return '提个问题...';
-        case ConversationMode.proactive:
-          return '输入问题或点问答...';
       }
     }
     switch (_currentMode) {
@@ -3236,10 +3521,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return 'Ask anything...';
       case ConversationMode.interview:
         return 'Practice: "Tell me about yourself..."';
-      case ConversationMode.passive:
-        return 'Ask a question...';
-      case ConversationMode.proactive:
-        return 'Type a question or tap Q&A...';
     }
   }
 
@@ -3357,16 +3638,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  Color _profileColor(String profileId) {
+    switch (profileId) {
+      case 'general':
+      case 'professional':
+        return HelixTheme.cyan;
+      case 'interview':
+      case 'technical':
+        return HelixTheme.purple;
+      case 'social':
+        return const Color(0xFF00FF88);
+      default:
+        return HelixTheme.cyan;
+    }
+  }
+
   Color _modeColor(ConversationMode mode) {
     switch (mode) {
       case ConversationMode.general:
         return HelixTheme.cyan;
       case ConversationMode.interview:
         return HelixTheme.purple;
-      case ConversationMode.passive:
-        return const Color(0xFF00FF88);
-      case ConversationMode.proactive:
-        return HelixTheme.amber;
     }
   }
 
@@ -3377,10 +3669,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           return '通用';
         case ConversationMode.interview:
           return '面试';
-        case ConversationMode.passive:
-          return '全程回答';
-        case ConversationMode.proactive:
-          return '按需回答';
       }
     }
 
@@ -3389,10 +3677,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return 'General';
       case ConversationMode.interview:
         return 'Interview';
-      case ConversationMode.passive:
-        return 'Answer All';
-      case ConversationMode.proactive:
-        return 'Answer On-demand';
     }
   }
 }
