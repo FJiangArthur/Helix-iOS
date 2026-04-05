@@ -76,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _selectedPreset = _presetFromId(settings.defaultQuickAskPreset);
     _assistantProfileId = settings.assistantProfileId;
     _engine.autoDetectQuestions = settings.autoDetectQuestions;
-    _engine.autoAnswerQuestions = settings.autoAnswerQuestions;
+    _engine.answerAll = settings.answerAll;
     _recordingCaptureState = _coordinator.currentCaptureState;
 
     _pulseController = AnimationController(
@@ -102,8 +102,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _checkApiKey();
         _engine.autoDetectQuestions =
             SettingsManager.instance.autoDetectQuestions;
-        _engine.autoAnswerQuestions =
-            SettingsManager.instance.autoAnswerQuestions;
+        _engine.answerAll =
+            SettingsManager.instance.answerAll;
         if (mounted) {
           setState(() {
             _assistantProfileId = SettingsManager.instance.assistantProfileId;
@@ -2371,7 +2371,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       : 'Генерируем ответ на обнаруженный вопрос.',
                 )
               : (_latestQuestionDetection != null &&
-                        !SettingsManager.instance.autoAnswerQuestions
+                        !SettingsManager.instance.answerAll
                     ? _tr(
                         en: 'A question was detected. Auto-answer is off, so no reply is being generated yet.',
                         zh: '已经检测到问题，但自动回答已关闭，因此暂时不会生成回复。',
