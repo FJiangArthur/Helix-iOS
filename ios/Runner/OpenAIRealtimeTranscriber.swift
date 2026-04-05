@@ -34,7 +34,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var webSocketTask: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var audioBuffer = Data()
-    private var sendTimer: Timer?
+    private let audioQueue = DispatchQueue(label: "com.helix.openai.audio")
+    private var sendTimerSource: DispatchSourceTimer?
     private var pingTimer: Timer?
     private var isConnected = false
     private var retryCount = 0
@@ -178,28 +179,46 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
     private var appendAudioLogCount = 0
     func appendAudio(_ pcmData: Data) {
-        audioBuffer.append(pcmData)
-        // Cap buffer at ~5 seconds of 24kHz mono PCM16 (240KB) to prevent unbounded growth
-        let maxBufferSize = 5 * 24000 * 2  // 240,000 bytes
-        if audioBuffer.count > maxBufferSize {
-            let overflow = audioBuffer.count - maxBufferSize
-            audioBuffer.removeFirst(overflow)
+        audioQueue.async {
+            self.audioBuffer.append(pcmData)
+            let maxBufferSize = 5 * 24000 * 2
+            if self.audioBuffer.count > maxBufferSize {
+                let overflow = self.audioBuffer.count - maxBufferSize
+                self.audioBuffer.removeFirst(overflow)
+            }
         }
         appendAudioLogCount += 1
         if appendAudioLogCount == 1 || appendAudioLogCount % 50 == 0 {
-            warningLog("[OpenAITranscriber] appendAudio #\(appendAudioLogCount) bufferBytes=\(audioBuffer.count) connected=\(isConnected)")
+            warningLog("[OpenAITranscriber] appendAudio #\(appendAudioLogCount)")
         }
     }
 
     func stop() {
         isStopping = true
-        sendTimer?.invalidate()
-        sendTimer = nil
+        sendTimerSource?.cancel()
+        sendTimerSource = nil
         pingTimer?.invalidate()
         pingTimer = nil
-        let hadBufferedAudio = !audioBuffer.isEmpty
-        flushAudioBuffer()
-        if hadBufferedAudio {
+
+        // Synchronously drain buffer
+        var remaining = Data()
+        audioQueue.sync {
+            remaining = self.audioBuffer
+            self.audioBuffer = Data()
+        }
+        if !remaining.isEmpty {
+            let dataToSend: Data
+            if inputAlready24kHz {
+                dataToSend = remaining
+            } else {
+                dataToSend = AudioResampler.resample(
+                    pcm16Data: remaining,
+                    fromRate: sourceSampleRate,
+                    toRate: targetSampleRate
+                )
+            }
+            let base64 = dataToSend.base64EncodedString()
+            sendEvent(["type": "input_audio_buffer.append", "audio": base64])
             sendEvent(["type": "input_audio_buffer.commit"])
         }
 
@@ -348,8 +367,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private func disconnect() {
         connectTimeoutWork?.cancel()
         connectTimeoutWork = nil
-        sendTimer?.invalidate()
-        sendTimer = nil
+        sendTimerSource?.cancel()
+        sendTimerSource = nil
         pingTimer?.invalidate()
         pingTimer = nil
         isConnected = false
@@ -398,13 +417,17 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     private func startSendTimer() {
-        sendTimer?.invalidate()
-        sendTimer = Timer.scheduledTimer(
-            withTimeInterval: sendIntervalMs / 1000.0,
-            repeats: true
-        ) { [weak self] _ in
+        sendTimerSource?.cancel()
+        sendTimerSource = nil
+
+        let timer = DispatchSource.makeTimerSource(queue: audioQueue)
+        timer.schedule(deadline: .now() + sendIntervalMs / 1000.0,
+                       repeating: sendIntervalMs / 1000.0)
+        timer.setEventHandler { [weak self] in
             self?.flushAudioBuffer()
         }
+        sendTimerSource = timer
+        timer.resume()
     }
 
     private func startPingTimer() {
@@ -428,10 +451,20 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
     private var flushLogCount = 0
     private func flushAudioBuffer() {
-        guard !audioBuffer.isEmpty, isConnected, sessionConfigured else { return }
+        var chunk = Data()
+        audioQueue.sync {
+            guard !self.audioBuffer.isEmpty else { return }
+            chunk = self.audioBuffer
+            self.audioBuffer = Data()
+        }
 
-        let chunk = audioBuffer
-        audioBuffer = Data()
+        guard !chunk.isEmpty, isConnected, sessionConfigured else {
+            if !chunk.isEmpty {
+                // Put it back if we can't send yet
+                audioQueue.async { self.audioBuffer = chunk + self.audioBuffer }
+            }
+            return
+        }
 
         let dataToSend: Data
         if inputAlready24kHz {
@@ -657,8 +690,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         guard isConnected else { return }
         guard !isStopping else {
             isConnected = false
-            sendTimer?.invalidate()
-            sendTimer = nil
+            sendTimerSource?.cancel()
+            sendTimerSource = nil
             pingTimer?.invalidate()
             pingTimer = nil
             resetConnectionArtifacts()
@@ -673,8 +706,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         }
 
         isConnected = false
-        sendTimer?.invalidate()
-        sendTimer = nil
+        sendTimerSource?.cancel()
+        sendTimerSource = nil
         pingTimer?.invalidate()
         pingTimer = nil
         lastDisconnectMessage = error.localizedDescription
