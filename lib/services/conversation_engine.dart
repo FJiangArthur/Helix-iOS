@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -57,6 +58,7 @@ class ConversationEngine {
   Timer? _analysisTimer;
   int _analysisToken = 0;
   int _responseToken = 0;
+  bool _isGeneratingResponse = false;
   bool _sessionStopHandled = false;
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
@@ -101,9 +103,8 @@ class ConversationEngine {
   bool get autoDetectQuestions => SettingsManager.instance.autoDetectQuestions;
   set autoDetectQuestions(bool v) =>
       SettingsManager.instance.autoDetectQuestions = v;
-  bool get autoAnswerQuestions => SettingsManager.instance.autoAnswerQuestions;
-  set autoAnswerQuestions(bool v) =>
-      SettingsManager.instance.autoAnswerQuestions = v;
+  bool get answerAll => SettingsManager.instance.answerAll;
+  set answerAll(bool v) => SettingsManager.instance.answerAll = v;
 
   // Streams
   final _transcriptionController = StreamController<String>.broadcast();
@@ -216,6 +217,7 @@ class ConversationEngine {
     TranscriptSource source = TranscriptSource.phone,
   }) {
     _cancelInFlightResponse();
+    _isGeneratingResponse = false;
     _resetLiveSessionState(clearConversationHistory: true);
     _isActive = true;
     _sessionStopHandled = false;
@@ -230,7 +232,7 @@ class ConversationEngine {
     _clearProviderError();
     _lastSavedConversationId = null;
     if (mode != null) setMode(mode);
-    if (_mode == ConversationMode.proactive) {
+    if (!answerAll) {
       _sessionContextManager.startSession();
     }
     _emitTranscriptSnapshot();
@@ -245,6 +247,7 @@ class ConversationEngine {
   /// Stop the engine
   void stop() {
     _cancelInFlightResponse();
+    _isGeneratingResponse = false;
     _isActive = false;
     _analysisToken++;
     _analysisTimer?.cancel();
@@ -299,6 +302,8 @@ class ConversationEngine {
 
     // Save any session that produced finalized transcript segments, even when
     // the websocket or downstream analysis failed before an assistant answer.
+    // Audio-only sessions (no transcript) are saved when the audio file path
+    // arrives via attachLatestAudioFilePath().
     if (hasTranscript) {
       _saveAndProcessConversation();
     }
@@ -427,13 +432,34 @@ class ConversationEngine {
     if (trimmedPath == null || trimmedPath.isEmpty) {
       return;
     }
-    final conversationId = _lastSavedConversationId;
-    if (conversationId == null) {
-      return;
-    }
 
     try {
       final db = database_pkg.HelixDatabase.instance;
+      var conversationId = _lastSavedConversationId;
+
+      // If no conversation was saved (e.g. transcription failed, audio-only
+      // fallback), create a minimal conversation record for the recording.
+      if (conversationId == null) {
+        conversationId = const Uuid().v4();
+        final now = DateTime.now().millisecondsSinceEpoch;
+        await db.conversationDao.insertConversation(
+          database_pkg.ConversationsCompanion.insert(
+            id: conversationId,
+            startedAt: now,
+            endedAt: drift.Value(now),
+            mode: drift.Value(_mode.name),
+            source: drift.Value('phone'),
+            audioFilePath: drift.Value(trimmedPath),
+          ),
+        );
+        _lastSavedConversationId = conversationId;
+        appLogger.i(
+          'Created audio-only conversation $conversationId',
+        );
+        _sessionSavedController.add(conversationId);
+        return;
+      }
+
       await db.conversationDao.updateConversation(
         database_pkg.ConversationsCompanion(
           id: drift.Value(conversationId),
@@ -463,6 +489,12 @@ class ConversationEngine {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
+    // While generating a response, suppress incoming partial updates.
+    // The native recognizer may still emit buffered results after pause —
+    // processing them here would clear the active answer flag and schedule
+    // a competing analysis cycle that cancels the in-flight response.
+    if (_isGeneratingResponse) return;
+
     // Clear active answer flag so touchpad reverts to pause/analyze
     EvenAI.hasActiveAnswer = false;
 
@@ -480,7 +512,7 @@ class ConversationEngine {
     _silenceSuggestionSent = false;
     _resetSilenceTimer();
 
-    if (autoDetectQuestions && _mode != ConversationMode.proactive) {
+    if (autoDetectQuestions && answerAll) {
       _scheduleTranscriptAnalysis();
     }
     if (_mode == ConversationMode.interview &&
@@ -613,7 +645,7 @@ class ConversationEngine {
     _runBackgroundAnalytics();
 
     // Analyze finalized text immediately.
-    if (autoDetectQuestions && _mode != ConversationMode.proactive) {
+    if (autoDetectQuestions && answerAll) {
       _scheduleTranscriptAnalysis(immediate: true);
     }
   }
@@ -737,8 +769,8 @@ class ConversationEngine {
   void _onSilenceDetected() {
     if (!_isActive || _silenceSuggestionSent) return;
     if (_currentTranscription.trim().isEmpty) return;
-    // In proactive mode, silence does NOT trigger automatic suggestions.
-    if (_mode == ConversationMode.proactive) return;
+    // When answerAll is off (on-demand mode), silence does NOT trigger automatic suggestions.
+    if (!answerAll) return;
 
     _silenceSuggestionSent = true;
     _generateProactiveSuggestion();
@@ -1033,12 +1065,12 @@ Return format (no markdown code blocks):
   // Proactive Mode: Manual trigger analysis
   // ---------------------------------------------------------------------------
 
-  /// Trigger a full-session proactive analysis.
+  /// Trigger a full-session on-demand analysis.
   ///
-  /// Called from [forceQuestionAnalysis] when in proactive mode or directly
+  /// Called from [forceQuestionAnalysis] when answerAll is off or directly
   /// from the app UI "Analyze" button.
-  Future<void> triggerProactiveAnalysis() async {
-    if (!_isActive || _mode != ConversationMode.proactive) return;
+  Future<void> triggerOnDemandAnalysis() async {
+    if (!_isActive || answerAll) return;
 
     _cancelInFlightResponse();
     _clearProviderError();
@@ -1451,12 +1483,13 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
       _recordDetectedQuestionTurn(detection);
 
       _aiResponseController.add('');
-      if (autoAnswerQuestions) {
+      if (answerAll) {
         final session = ConversationListeningSession.instance;
         final shouldPause = session.isRunning;
         if (shouldPause) session.pauseTranscription();
         final responseToken = _beginResponseCycle();
         _statusController.add(EngineStatus.thinking);
+        _isGeneratingResponse = true;
         try {
           await _generateResponse(
             detection.question,
@@ -1467,6 +1500,7 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
             responseToken: responseToken,
           );
         } finally {
+          _isGeneratingResponse = false;
           if (shouldPause) session.resumeTranscription();
         }
       }
@@ -1684,9 +1718,19 @@ $profileInstruction''';
     }
 
     final lowered = trimmed.toLowerCase();
-    return RegExp(
+    if (RegExp(
       r'^(what|when|where|why|who|whom|whose|which|how|can|could|would|should|do|does|did|is|are|am|will|have|has|had|may)\b',
-    ).hasMatch(lowered);
+    ).hasMatch(lowered)) {
+      return true;
+    }
+
+    // Chinese question markers (吗/呢/吧 at end, or question words anywhere)
+    if (RegExp(r'[吗嘛呢吧]$').hasMatch(trimmed) ||
+        RegExp(r'(什么|怎么|为什么|哪里|哪个|谁|几|多少|是否|能否|如何|何时|何处)').hasMatch(trimmed)) {
+      return true;
+    }
+
+    return false;
   }
 
   String _extractNearbyQuestionText(String text) {
@@ -1760,7 +1804,10 @@ $profileInstruction''';
   }
 
   Future<void> _runManualContextualQa() async {
+    debugPrint('[Engine] _runManualContextualQa called, isActive=$_isActive, '
+        'segments=${_finalizedSegments.length}, partial="${_partialTranscription.length > 40 ? _partialTranscription.substring(0, 40) : _partialTranscription}"');
     if (!_isActive) {
+      debugPrint('[Engine] _runManualContextualQa aborted: not active');
       return;
     }
 
@@ -1770,20 +1817,29 @@ $profileInstruction''';
     _cancelInFlightResponse();
 
     final transcriptWindow = _buildRecentTranscriptWindow();
+    debugPrint('[Engine] _runManualContextualQa transcriptWindow length=${transcriptWindow.length}');
     if (transcriptWindow.trim().isEmpty) {
+      debugPrint('[Engine] _runManualContextualQa aborted: empty transcript window');
       _statusController.add(
         _isActive ? EngineStatus.listening : EngineStatus.idle,
       );
       return;
     }
 
-    final detection = _buildManualQuestionDetection(transcriptWindow);
-    if (detection == null) {
-      _statusController.add(
-        _isActive ? EngineStatus.listening : EngineStatus.idle,
-      );
-      return;
-    }
+    final detection = _buildManualQuestionDetection(transcriptWindow) ??
+        // Fallback: the user explicitly pressed Q&A but no question pattern
+        // was detected (e.g. Chinese text without '？', or statements only).
+        // Use the tail of the transcript as the question so the LLM can
+        // still generate a contextual answer.
+        QuestionDetectionResult(
+          question: _finalizedSegments.isNotEmpty
+              ? _finalizedSegments.last.text
+              : transcriptWindow.length > 200
+                  ? transcriptWindow.substring(transcriptWindow.length - 200)
+                  : transcriptWindow,
+          questionExcerpt: '',
+          timestamp: DateTime.now(),
+        );
 
     _latestQuestionDetection = detection;
     _questionDetectionController.add(detection);
@@ -1805,6 +1861,7 @@ $profileInstruction''';
 
     final responseToken = _beginResponseCycle();
     _statusController.add(EngineStatus.thinking);
+    _isGeneratingResponse = true;
     try {
       await _generateResponse(
         detection.question,
@@ -1816,8 +1873,19 @@ $profileInstruction''';
         bypassRealtimeGuard: true,
       );
     } finally {
+      _isGeneratingResponse = false;
       if (shouldPause) {
         session.resumeTranscription();
+      }
+      // Re-arm the analysis timer so auto-detection resumes after a
+      // manual Q&A attempt (whether it succeeded or failed).  Without
+      // this, the timer cancelled at the top of this method is never
+      // rescheduled until new speech arrives — which the user perceives
+      // as "transcription stopped working."
+      if (_isActive &&
+          autoDetectQuestions &&
+          answerAll) {
+        _scheduleTranscriptAnalysis();
       }
     }
   }
@@ -2003,8 +2071,8 @@ $profileInstruction''';
 
       final finalResponse = responseText;
 
-      // In proactive mode, parse the JSON preamble and track the answered Q.
-      if (_mode == ConversationMode.proactive) {
+      // In on-demand mode, parse the JSON preamble and track the answered Q.
+      if (!answerAll) {
         _trackProactiveAnswer(finalResponse);
       }
 
@@ -2232,90 +2300,44 @@ Answer the detected question directly using the recent conversation context abov
     final langInstruction = isChinese
         ? '\n\nIMPORTANT: Always respond in Chinese (中文). Use natural, conversational Chinese.'
         : '';
-    final profileInstruction = _activeAssistantProfile().promptDirective(
-      isChinese: isChinese,
-    );
+    final profile = _activeAssistantProfile();
+    final profileInstruction = profile.promptDirective(isChinese: isChinese);
     final maxSentences = SettingsManager.instance.maxResponseSentences;
 
-    late final String basePrompt;
-    switch (_mode) {
-      case ConversationMode.interview:
-        if (isChinese) {
-          basePrompt = '''你是智能眼镜上的面试教练。直接给出用户应该说的话。
+    final persona = profile.systemPrompt?.trim().isNotEmpty == true
+        ? profile.systemPrompt!.trim()
+        : _defaultPersona(isChinese);
+    final rules = _modeRules(isChinese, maxSentences);
 
-规则：最多$maxSentences句话。直接输出应说的内容，禁止说"你可以说"或"建议回答"。只用可以直接开口说的自然语言。''';
-        } else {
-          basePrompt =
-              '''You are an interview coach on smart glasses. Output exactly what the user should say.
-
-Rules: Max $maxSentences sentences. Never write "you could say" or "try saying" — output the answer directly as speakable text.''';
-        }
-        break;
-
-      case ConversationMode.passive:
-        if (isChinese) {
-          basePrompt = '''你是智能眼镜上的对话助手，默默监听并在有用时介入。
-
-规则：最多$maxSentences句话。直接陈述事实或纠正。禁止说"你可以说"。不废话，不加前缀。''';
-        } else {
-          basePrompt =
-              '''You are a conversation assistant on smart glasses, silently listening and chiming in when useful.
-
-Rules: Max $maxSentences sentences. State facts or corrections directly. Never write "you could say" or any preamble. No filler.''';
-        }
-        break;
-
-      case ConversationMode.general:
-        if (isChinese) {
-          basePrompt = '''你是智能眼镜上的对话伙伴，帮助用户进行更好的对话。
-
-规则：最多$maxSentences句话。直接给出答案，禁止说"你可以说"或"这是建议"。用自然口语，不用列表格式。''';
-        } else {
-          basePrompt =
-              '''You are a conversation companion on smart glasses helping the user have better conversations.
-
-Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here's a suggestion". Use natural spoken language, no lists or formatting.''';
-        }
-        break;
-
-      case ConversationMode.proactive:
-        if (isChinese) {
-          basePrompt =
-              '''你是智能眼镜上的主动对话智能助手。
-你正在监听一场实时对话，并在用户请求时提供分析。
-
-你的任务（选择最合适的一个）：
-1. ANSWER：如果有未解答的问题需要帮助回答
-2. FACT_CHECK：如果有可能不正确的事实性声明
-3. INSIGHT：如果你能提供有帮助的背景信息或知识
-
-规则：
-- 简洁明了（最多$maxSentences句话）
-- 不要重复已经回答过的问题
-- 聚焦于对话中最近和最相关的部分
-- 用JSON前缀开头：{"action": "answer"|"fact_check"|"insight", "target": "..."}''';
-        } else {
-          basePrompt =
-              '''You are a proactive conversation intelligence assistant on smart glasses.
-You are listening to a live conversation and providing analysis when the user requests it.
-
-Your tasks (pick the most appropriate):
-1. ANSWER: If there are unanswered questions the wearer needs help with
-2. FACT_CHECK: If there are factual claims that may be incorrect
-3. INSIGHT: If you can provide helpful context or information
-
-Rules:
-- Be concise (max $maxSentences sentences)
-- Do NOT repeat previously answered questions
-- Focus on the most recent and relevant parts of the conversation
-- Start your response with a JSON preamble: {"action": "answer"|"fact_check"|"insight", "target": "..."}''';
-        }
-        break;
-    }
+    // For interview/technical profiles, always prepend STAR coaching context
+    final interviewPrefix = (profile.engineModeName == 'interview')
+        ? _interviewCoachingPrefix(isChinese)
+        : '';
 
     final kbContext = _getKbContext();
     final contextBlock = kbContext.isNotEmpty ? '\n\n$kbContext' : '';
-    return '$basePrompt$langInstruction\n\n$profileInstruction$contextBlock';
+    return '$interviewPrefix$persona\n\n$rules$langInstruction\n\n$profileInstruction$contextBlock';
+  }
+
+  String _defaultPersona(bool isChinese) {
+    if (isChinese) {
+      return '你是智能眼镜上的对话伙伴，帮助用户进行更好的对话。';
+    }
+    return 'You are a conversation companion on smart glasses helping the user have better conversations.';
+  }
+
+  String _interviewCoachingPrefix(bool isChinese) {
+    if (isChinese) {
+      return '你是智能眼镜上的面试教练。直接给出用户应该说的话。\n\n';
+    }
+    return 'You are an interview coach on smart glasses. Output exactly what the user should say.\n\n';
+  }
+
+  String _modeRules(bool isChinese, int maxSentences) {
+    if (isChinese) {
+      return '规则：最多$maxSentences句话。直接给出答案，禁止说"你可以说"或"这是建议"。用自然口语，不用列表格式。';
+    }
+    return 'Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here\'s a suggestion". Use natural spoken language, no lists or formatting.';
   }
 
   /// Send text to glasses HUD with proper pagination
@@ -2704,7 +2726,11 @@ Rules:
   /// This bypasses the realtime-session auto-analysis guard and always tries
   /// to answer the nearest current question using the smart answer path.
   Future<void> forceQuestionAnalysis() async {
-    await _runManualContextualQa();
+    if (!answerAll) {
+      await triggerOnDemandAnalysis();
+    } else {
+      await _runManualContextualQa();
+    }
   }
 
   /// Simulate a multi-segment transcription session for testing the full
@@ -2755,7 +2781,7 @@ Rules:
 }
 
 /// Conversation modes
-enum ConversationMode { general, interview, passive, proactive }
+enum ConversationMode { general, interview }
 
 enum TranscriptSource { phone, glasses }
 
