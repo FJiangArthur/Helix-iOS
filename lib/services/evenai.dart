@@ -5,6 +5,7 @@ import '../utils/app_logger.dart';
 import 'audio_buffer_manager.dart';
 import 'conversation_engine.dart';
 import 'conversation_listening_session.dart';
+import 'settings_manager.dart';
 import 'glasses_answer_presenter.dart';
 import 'glasses_protocol.dart';
 import 'hud_controller.dart';
@@ -271,8 +272,7 @@ class EvenAI {
 
   /// Manually trigger contextual Q&A from the latest transcript.
   static void _triggerManualQuestionDetection() {
-    final mode = ConversationEngine.instance.mode;
-    if (mode == ConversationMode.proactive) {
+    if (!SettingsManager.instance.answerAll) {
       _flashFeedback('Q&A REFRESH...');
     } else {
       _flashFeedback('Q&A...');
