@@ -318,6 +318,13 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     switch ((mode ?? '').trim().toLowerCase()) {
       case 'interview':
         return HelixTheme.purple;
+      case 'professional':
+        return HelixTheme.cyan;
+      case 'social':
+        return const Color(0xFF00FF88);
+      case 'technical':
+        return HelixTheme.purple;
+      // Historical fallbacks
       case 'passive':
       case 'answer all':
         return const Color(0xFF00FF88);

@@ -7,9 +7,13 @@ String conversationModeLabel(ConversationMode mode, {bool uppercase = false}) {
 String storedConversationModeLabel(String? mode, {bool uppercase = false}) {
   final label = switch ((mode ?? '').trim().toLowerCase()) {
     'interview' => 'Interview',
+    'technical' => 'Technical',
+    'professional' => 'Professional',
+    'social' => 'Social',
+    'general' || '' => 'General',
+    // Historical fallbacks for database rows
     'passive' => 'Answer All',
     'proactive' => 'Answer On-demand',
-    'general' || '' => 'General',
     final other when other.isNotEmpty =>
       other[0].toUpperCase() + other.substring(1),
     _ => 'General',
