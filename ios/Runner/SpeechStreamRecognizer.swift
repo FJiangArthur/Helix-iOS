@@ -200,6 +200,7 @@ class SpeechStreamRecognizer {
         }
 
         if backend == .whisper {
+            whisperTranscriber.transcriptionPrompt = transcriptionPrompt
             startWhisperRecognition(
                 identifier: identifier,
                 source: source,

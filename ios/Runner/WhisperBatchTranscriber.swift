@@ -22,6 +22,9 @@ class WhisperBatchTranscriber {
     /// Called with word-level timestamps for diarization.
     var onWordTimestamps: (([WhisperWord]) -> Void)?
 
+    /// Called with diarized speaker segments (speaker, text, start, end).
+    var onDiarizedSegment: ((String, String, Double, Double) -> Void)?
+
     /// Called on any HTTP or parsing error.
     var onError: ((String) -> Void)?
 
@@ -33,11 +36,20 @@ class WhisperBatchTranscriber {
     /// 2-letter language code sent to Whisper.
     var language: String = "en"
 
+    /// Model to use for transcription (whisper-1, gpt-4o-transcribe-diarize, etc.)
+    var model: String = "whisper-1"
+
+    /// Whether the current model supports native diarization.
+    var isDiarizeModel: Bool { model.contains("diarize") }
+
     /// RMS energy threshold below which a chunk is skipped (VAD gating).
     var vadEnergyThreshold: Float = 0.005
 
     /// OpenAI API key.
     var apiKey: String = ""
+
+    /// Optional transcription prompt for accuracy hints (domain vocabulary, names).
+    var transcriptionPrompt: String = ""
 
     // MARK: - State
 
@@ -90,10 +102,11 @@ class WhisperBatchTranscriber {
 
     // MARK: - Lifecycle
 
-    func start(apiKey: String, language: String = "en", chunkDurationSec: Double = 5.0) {
+    func start(apiKey: String, language: String = "en", chunkDurationSec: Double = 5.0, model: String = "whisper-1") {
         self.apiKey = apiKey
         self.language = language
         self.chunkDurationSec = chunkDurationSec
+        self.model = model
 
         bufferQueue.sync {
             self.ringBuffer = Data()
@@ -245,11 +258,19 @@ class WhisperBatchTranscriber {
 
         // Build multipart body
         var body = Data()
-        body.appendMultipartField(name: "model", value: "whisper-1", boundary: boundary)
+        body.appendMultipartField(name: "model", value: model, boundary: boundary)
         body.appendMultipartField(name: "language", value: language, boundary: boundary)
-        body.appendMultipartField(name: "response_format", value: "verbose_json", boundary: boundary)
-        body.appendMultipartField(name: "timestamp_granularities[]", value: "word", boundary: boundary)
-        body.appendMultipartField(name: "temperature", value: "0", boundary: boundary)
+        if isDiarizeModel {
+            body.appendMultipartField(name: "response_format", value: "diarized_json", boundary: boundary)
+            body.appendMultipartField(name: "chunking_strategy", value: "auto", boundary: boundary)
+        } else {
+            body.appendMultipartField(name: "response_format", value: "verbose_json", boundary: boundary)
+            body.appendMultipartField(name: "timestamp_granularities[]", value: "word", boundary: boundary)
+            body.appendMultipartField(name: "temperature", value: "0", boundary: boundary)
+        }
+        if !transcriptionPrompt.isEmpty {
+            body.appendMultipartField(name: "prompt", value: transcriptionPrompt, boundary: boundary)
+        }
 
         // File field
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -312,55 +333,104 @@ class WhisperBatchTranscriber {
                 return
             }
 
-            let text = json["text"] as? String ?? ""
-            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // Parse word-level timestamps
-            var words: [WhisperWord] = []
-            if let wordArray = json["words"] as? [[String: Any]] {
-                for wordDict in wordArray {
-                    guard let w = wordDict["word"] as? String,
-                          let start = wordDict["start"] as? Double,
-                          let end = wordDict["end"] as? Double else { continue }
-                    words.append(WhisperWord(word: w, start: start, end: end))
-                }
-            }
-
-            // Dedup words that overlap with the previous chunk's overlap region
-            let dedupedWords = deduplicateOverlap(words: words)
-
-            // Build text from deduped words if available, otherwise use full text
-            let outputText: String
-            if !dedupedWords.isEmpty {
-                outputText = dedupedWords.map { $0.word }.joined(separator: " ")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            if isDiarizeModel {
+                parseDiarizedResponse(json: json, chunkIndex: chunkIndex, isFinal: isFinal)
             } else {
-                outputText = trimmedText
-            }
-
-            // Update the last timestamp for next chunk's dedup
-            if let lastWord = dedupedWords.last ?? words.last {
-                lastChunkEndTimestamp = lastWord.end
-            }
-
-            debugLog(
-                "[WhisperBatch] Chunk \(chunkIndex) transcript received "
-                + "(chars=\(outputText.count), words=\(dedupedWords.count))"
-            )
-
-            DispatchQueue.main.async {
-                if !outputText.isEmpty {
-                    self.onTranscript?(outputText, isFinal)
-                }
-                if !dedupedWords.isEmpty {
-                    self.onWordTimestamps?(dedupedWords)
-                }
+                parseVerboseResponse(json: json, chunkIndex: chunkIndex, isFinal: isFinal)
             }
 
         } catch {
             warningLog("[WhisperBatch] JSON parse error: \(error.localizedDescription)")
             DispatchQueue.main.async {
                 self.onError?("Whisper JSON parse error: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func parseVerboseResponse(json: [String: Any], chunkIndex: Int, isFinal: Bool) {
+        let text = json["text"] as? String ?? ""
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Parse word-level timestamps
+        var words: [WhisperWord] = []
+        if let wordArray = json["words"] as? [[String: Any]] {
+            for wordDict in wordArray {
+                guard let w = wordDict["word"] as? String,
+                      let start = wordDict["start"] as? Double,
+                      let end = wordDict["end"] as? Double else { continue }
+                words.append(WhisperWord(word: w, start: start, end: end))
+            }
+        }
+
+        // Dedup words that overlap with the previous chunk's overlap region
+        let dedupedWords = deduplicateOverlap(words: words)
+
+        // Build text from deduped words if available, otherwise use full text
+        let outputText: String
+        if !dedupedWords.isEmpty {
+            outputText = dedupedWords.map { $0.word }.joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            outputText = trimmedText
+        }
+
+        // Update the last timestamp for next chunk's dedup
+        if let lastWord = dedupedWords.last ?? words.last {
+            lastChunkEndTimestamp = lastWord.end
+        }
+
+        debugLog(
+            "[WhisperBatch] Chunk \(chunkIndex) transcript received "
+            + "(chars=\(outputText.count), words=\(dedupedWords.count))"
+        )
+
+        DispatchQueue.main.async {
+            if !outputText.isEmpty {
+                self.onTranscript?(outputText, isFinal)
+            }
+            if !dedupedWords.isEmpty {
+                self.onWordTimestamps?(dedupedWords)
+            }
+        }
+    }
+
+    private func parseDiarizedResponse(json: [String: Any], chunkIndex: Int, isFinal: Bool) {
+        guard let segments = json["segments"] as? [[String: Any]] else {
+            // Fall back to plain text if segments aren't present
+            let text = (json["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                DispatchQueue.main.async {
+                    self.onTranscript?(text, isFinal)
+                }
+            }
+            return
+        }
+
+        var fullText = ""
+        for segment in segments {
+            let speaker = segment["speaker"] as? String ?? "Unknown"
+            let text = (segment["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let start = segment["start"] as? Double ?? 0
+            let end = segment["end"] as? Double ?? 0
+
+            guard !text.isEmpty else { continue }
+
+            if !fullText.isEmpty { fullText += " " }
+            fullText += text
+
+            DispatchQueue.main.async {
+                self.onDiarizedSegment?(speaker, text, start, end)
+            }
+        }
+
+        debugLog(
+            "[WhisperBatch] Chunk \(chunkIndex) diarized transcript "
+            + "(segments=\(segments.count), chars=\(fullText.count))"
+        )
+
+        if !fullText.isEmpty {
+            DispatchQueue.main.async {
+                self.onTranscript?(fullText, isFinal)
             }
         }
     }
