@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
 import '../models/hud_widget_config.dart';
+import '../services/bitmap_hud/bitmap_hud_service.dart';
+import '../services/bitmap_hud/bitmap_renderer.dart';
+import '../services/bitmap_hud/display_constants.dart';
 import '../services/bitmap_hud/enhanced_layout_presets.dart';
 import '../services/bitmap_hud/hud_layout_presets.dart';
 import '../services/dashboard_service.dart';
@@ -27,6 +31,10 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
 
   // Todo management
   final _todoController = TextEditingController();
+
+  // Bitmap preview
+  ui.Image? _previewImage;
+  bool _loadingPreview = false;
 
   @override
   void initState() {
@@ -53,6 +61,7 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
   void dispose() {
     _settingsSub?.cancel();
     _todoController.dispose();
+    _previewImage?.dispose();
     super.dispose();
   }
 
@@ -66,6 +75,103 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
   }
 
   int get _enabledCount => _configs.where((c) => c.enabled).length;
+
+  Future<void> _refreshPreview() async {
+    if (_loadingPreview) return;
+    setState(() => _loadingPreview = true);
+    try {
+      final service = BitmapHudService.instance;
+      final image = await BitmapRenderer.renderToImage(
+        service.activeLayout,
+        service.zoneWidgets,
+      );
+      _previewImage?.dispose();
+      if (mounted) {
+        setState(() {
+          _previewImage = image;
+          _loadingPreview = false;
+        });
+      } else {
+        image.dispose();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingPreview = false);
+    }
+  }
+
+  Widget _buildBitmapPreview() {
+    final isBitmapMode = _settings.hudRenderPath == 'bitmap' ||
+        _settings.hudRenderPath == 'enhanced';
+    if (!isBitmapMode) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: GlassCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.visibility, color: HelixTheme.cyan, size: 18),
+                const SizedBox(width: 8),
+                const Text(
+                  'Glasses Preview',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 13),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: _refreshPreview,
+                  icon: _loadingPreview
+                      ? const SizedBox(width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white54))
+                      : const Icon(Icons.refresh, size: 14),
+                  label: const Text('Refresh'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: HelixTheme.cyan,
+                    textStyle: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.black,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: AspectRatio(
+                aspectRatio: G1Display.width.toDouble() / G1Display.height,
+                child: _previewImage != null
+                    ? CustomPaint(
+                        painter: _GlassesPreviewPainter(_previewImage!),
+                        size: Size.infinite,
+                      )
+                    : Center(
+                        child: Text(
+                          'Tap Refresh to preview',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${G1Display.width}x${G1Display.height} · 1-bit · green micro-LED',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.3),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +191,8 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
           // Enhanced layout picker (when enhanced mode active)
           if (_settings.hudRenderPath == 'enhanced')
             _buildEnhancedLayoutPicker(),
+          // Bitmap preview
+          _buildBitmapPreview(),
           // Summary bar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -634,4 +742,28 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
       ],
     );
   }
+}
+
+class _GlassesPreviewPainter extends CustomPainter {
+  _GlassesPreviewPainter(this.image);
+  final ui.Image image;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Map white to green to simulate G1 micro-LED display
+    final greenPaint = Paint()
+      ..colorFilter = const ColorFilter.matrix(<double>[
+        0, 0, 0, 0, 0,     // R = 0
+        1, 0, 0, 0, 0,     // G = source R (white R=1 -> G=1)
+        0, 0, 0, 0, 0,     // B = 0
+        0, 0, 0, 1, 0,     // A = source A
+      ]);
+
+    final src = Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
+    final dst = Rect.fromLTWH(0, 0, size.width, size.height);
+    canvas.drawImageRect(image, src, dst, greenPaint);
+  }
+
+  @override
+  bool shouldRepaint(_GlassesPreviewPainter old) => old.image != image;
 }

@@ -106,4 +106,58 @@ class BitmapRenderer {
       G1Display.bitmapHeight,
     );
   }
+
+  /// Render to a [ui.Image] for phone-side preview display.
+  /// Returns a 576x136 image with white-on-black content.
+  static Future<ui.Image> renderToImage(
+    HudLayout layout,
+    Map<String, BmpWidget> zoneWidgets,
+  ) async {
+    final recorder = ui.PictureRecorder();
+    final bitmapRect = ui.Rect.fromLTWH(
+      0, 0,
+      G1Display.width.toDouble(),
+      G1Display.height.toDouble(),
+    );
+    final canvas = ui.Canvas(recorder, bitmapRect);
+
+    canvas.drawRect(bitmapRect, ui.Paint()..color = const ui.Color(0xFF000000));
+
+    for (final zone in layout.zones) {
+      final widget = zoneWidgets[zone.id];
+      if (widget == null) continue;
+
+      canvas.save();
+      canvas.clipRect(zone.toRect());
+      canvas.translate(zone.x.toDouble(), zone.y.toDouble());
+      try {
+        widget.renderToCanvas(canvas, zone);
+      } catch (_) {}
+      canvas.restore();
+    }
+
+    for (final divider in layout.dividers) {
+      if (divider.isVertical) {
+        HudDraw.vLine(canvas, divider.x1, divider.y1,
+            divider.y2 - divider.y1, thickness: divider.thickness);
+      } else if (divider.isHorizontal) {
+        HudDraw.hLine(canvas, divider.x1, divider.y1,
+            divider.x2 - divider.x1, thickness: divider.thickness);
+      } else {
+        canvas.drawLine(
+          ui.Offset(divider.x1, divider.y1),
+          ui.Offset(divider.x2, divider.y2),
+          ui.Paint()
+            ..color = const ui.Color(0xFFFFFFFF)
+            ..strokeWidth = divider.thickness
+            ..isAntiAlias = false,
+        );
+      }
+    }
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(G1Display.width, G1Display.height);
+    picture.dispose();
+    return image;
+  }
 }

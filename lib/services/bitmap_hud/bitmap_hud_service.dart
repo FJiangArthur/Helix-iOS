@@ -109,6 +109,12 @@ class BitmapHudService {
   /// Whether bitmap refresh is paused during active conversation.
   bool _conversationPaused = false;
 
+  /// Current active layout for preview rendering.
+  HudLayout get activeLayout => _activeLayout;
+
+  /// Current zone-to-widget mapping for preview rendering.
+  Map<String, BmpWidget> get zoneWidgets => Map.unmodifiable(_zoneWidgets);
+
   /// Whether bitmap HUD mode is active (bitmap or enhanced).
   bool get isEnabled {
     final path = SettingsManager.instance.hudRenderPath;
