@@ -41,47 +41,32 @@ class BmpEnhancedHeaderWidget extends BmpWidget {
     final data = EnhancedDataProvider.instance;
     final now = _now;
 
-    // Time
     final hour = now.hour.toString().padLeft(2, '0');
     final minute = now.minute.toString().padLeft(2, '0');
-    final timeStr = '$hour:$minute';
-    HudDraw.text(canvas, timeStr, const Offset(4, 2),
-        fontSize: 18, weight: FontWeight.bold);
+    HudDraw.text(canvas, '$hour:$minute', const Offset(2, 1), fontSize: 12, weight: FontWeight.bold);
 
-    // Date
     final weekday = _weekdays[now.weekday - 1].toUpperCase();
     final month = _months[now.month - 1].toUpperCase();
-    final dateStr = '$weekday $month ${now.day}';
-    HudDraw.text(canvas, dateStr, const Offset(76, 5), fontSize: 14);
+    HudDraw.text(canvas, '$weekday $month ${now.day}', const Offset(52, 2), fontSize: 10);
 
-    // Weather (centered area)
-    final tempStr = data.weatherTemp != null
-        ? '${data.weatherTemp!.round()}°F'
-        : '--°';
-    HudDraw.text(canvas, tempStr, Offset(w * 0.4, 5), fontSize: 14);
+    final tempStr = data.weatherTemp != null ? '${data.weatherTemp!.round()}°F' : '--°';
+    HudDraw.text(canvas, tempStr, Offset(w * 0.38, 2), fontSize: 10);
 
-    // Weather icon
     if (data.weatherCode != null) {
       final icon = _iconForCode(data.weatherCode!);
-      HudDraw.icon(canvas, Offset(w * 0.4 + 44, 1), icon, 18);
+      HudDraw.icon(canvas, Offset(w * 0.38 + 32, 0), icon, 14);
     }
 
-    // Battery (right side)
     final batPct = (data.phoneBattery * 100).round();
-    HudDraw.batteryIcon(canvas, Offset(w - 106, 2), 20,
-        fillPercent: data.phoneBattery);
-    HudDraw.text(canvas, '$batPct%', Offset(w - 82, 5), fontSize: 12);
+    HudDraw.batteryIcon(canvas, Offset(w - 80, 0), 14, fillPercent: data.phoneBattery);
+    HudDraw.text(canvas, '$batPct%', Offset(w - 64, 2), fontSize: 10);
 
-    // Notification count (far right)
     if (data.notificationCount > 0) {
-      final countStr = data.notificationCount > 99
-          ? '99+'
-          : '${data.notificationCount}';
-      HudDraw.icon(canvas, Offset(w - 42, 2), HudIcon.bell, 16);
-      HudDraw.text(canvas, countStr, Offset(w - 24, 5), fontSize: 12);
+      final countStr = data.notificationCount > 99 ? '99+' : '${data.notificationCount}';
+      HudDraw.icon(canvas, Offset(w - 32, 0), HudIcon.bell, 12);
+      HudDraw.text(canvas, countStr, Offset(w - 18, 2), fontSize: 10);
     }
 
-    // Bottom separator
     HudDraw.hLine(canvas, 0, h - 1, w, thickness: 1);
   }
 

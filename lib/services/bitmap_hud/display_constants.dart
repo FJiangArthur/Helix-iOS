@@ -4,9 +4,9 @@ import 'dart:ui';
 class G1Display {
   G1Display._();
 
-  /// Logical HUD design space used by the existing widget layouts.
-  static const int width = 640;
-  static const int height = 400;
+  /// Logical design space — matches physical BMP dimensions 1:1.
+  static const int width = 576;
+  static const int height = 136;
 
   /// Physical BMP dimensions accepted by the Even bitmap transport.
   static const int bitmapWidth = 576;
@@ -28,9 +28,6 @@ class G1Display {
 
   /// Total BMP file size.
   static const int totalBmpSize = headerSize + pixelDataSize; // 9856
-
-  static const double bitmapScaleX = bitmapWidth / width;
-  static const double bitmapScaleY = bitmapHeight / height;
 }
 
 /// A rectangular zone on the G1 display where a widget renders.

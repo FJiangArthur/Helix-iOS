@@ -445,5 +445,56 @@ void main() {
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';
     });
+
+    test('bitmap restore continues when screen hide fails', () async {
+      SettingsManager.instance.hudRenderPath = 'bitmap';
+      var bitmapHideCalls = 0;
+      var bitmapScreenHideCalls = 0;
+      var bitmapInvalidateCalls = 0;
+
+      final bitmapService = DashboardService(
+        bleManager: BleManager.get(),
+        hudController: HudController.instance,
+        conversationEngine: ConversationEngine.instance,
+        handoffMemory: HandoffMemory.instance,
+        settingsManager: SettingsManager.instance,
+        bitmapDeltaRenderer: () async => true,
+        bitmapFullRenderer: () async => true,
+        bitmapHideRenderer: () async {
+          bitmapHideCalls += 1;
+          return true;
+        },
+        bitmapScreenHideRenderer: () async {
+          bitmapScreenHideCalls += 1;
+          return false; // Simulate screen hide failure
+        },
+        bitmapScreenHideDelay: Duration.zero,
+        bitmapInvalidateCache: () {
+          bitmapInvalidateCalls += 1;
+        },
+        clock: () => DateTime(2026, 3, 12, 10, 0),
+        cooldown: const Duration(milliseconds: 200),
+        displayDuration: const Duration(milliseconds: 40),
+      );
+      await bitmapService.initialize();
+
+      await bitmapService.handleDeviceEvent(
+        headUpEvent(label: 'bitmap_screen_hide_fail'),
+      );
+
+      // Wait for auto-hide
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      expect(bitmapHideCalls, 1);
+      expect(bitmapScreenHideCalls, 1);
+      // State should be cleaned up despite screen hide failure
+      expect(bitmapService.state.isActive, isFalse);
+      expect(HudController.instance.currentIntent, HudIntent.idle);
+      // Cache should still be invalidated
+      expect(bitmapInvalidateCalls, 1);
+
+      bitmapService.dispose();
+      SettingsManager.instance.hudRenderPath = 'text';
+    });
   });
 }

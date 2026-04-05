@@ -109,36 +109,25 @@ class BmpStockWidget extends BmpWidget {
     final w = zone.width.toDouble();
     final h = zone.height.toDouble();
 
-    // Row 1: ticker name.
     final name = _companyName ?? symbol;
-    HudDraw.text(
-      canvas, name, Offset.zero,
-      fontSize: 16, weight: FontWeight.bold, maxWidth: w,
-    );
+    HudDraw.text(canvas, name, Offset.zero,
+        fontSize: 10, weight: FontWeight.bold, maxWidth: w);
 
-    // Row 2: price + change with arrow icon.
-    final priceStr = _currentPrice != null
-        ? _currentPrice!.toStringAsFixed(2) : '--';
+    final priceStr = _currentPrice != null ? _currentPrice!.toStringAsFixed(2) : '--';
     final sign = (_changeAmount ?? 0) >= 0 ? '+' : '';
     final changeStr = _changeAmount != null
-        ? '$sign${_changeAmount!.toStringAsFixed(2)}'
-          ' (${_changePercent!.toStringAsFixed(2)}%)'
+        ? '$sign${_changeAmount!.toStringAsFixed(2)} (${_changePercent!.toStringAsFixed(1)}%)'
         : '';
 
-    const arrowSize = 14.0;
-    final arrowIcon =
-        (_changeAmount ?? 0) >= 0 ? HudIcon.stockUp : HudIcon.stockDown;
-    HudDraw.icon(canvas, const Offset(0, 20), arrowIcon, arrowSize);
-    HudDraw.text(
-      canvas, '$priceStr  $changeStr',
-      const Offset(arrowSize + 4, 20),
-      fontSize: 14, maxWidth: w - arrowSize - 8,
-    );
+    const arrowSize = 10.0;
+    final arrowIcon = (_changeAmount ?? 0) >= 0 ? HudIcon.stockUp : HudIcon.stockDown;
+    HudDraw.icon(canvas, const Offset(0, 12), arrowIcon, arrowSize);
+    HudDraw.text(canvas, '$priceStr $changeStr', const Offset(arrowSize + 2, 12),
+        fontSize: 10, maxWidth: w - arrowSize - 4);
 
-    // Sparkline in remaining space.
     if (_intradayPrices.length >= 2) {
-      const chartTop = 40.0;
-      final chartHeight = h - 44;
+      const chartTop = 26.0;
+      final chartHeight = h - chartTop - 2;
       if (chartHeight > 4) {
         final bounds = ui.Rect.fromLTWH(0, chartTop, w, chartHeight);
         HudDraw.sparkline(canvas, bounds, _intradayPrices);

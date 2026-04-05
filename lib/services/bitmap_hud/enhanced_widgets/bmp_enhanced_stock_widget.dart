@@ -8,25 +8,13 @@ import '../../../utils/app_logger.dart';
 import '../bmp_widget.dart';
 import '../display_constants.dart';
 import '../draw_helpers.dart';
+import '../enhanced_data_provider.dart';
 
-/// Enhanced stock widget with large sparkline, day range bar, and watchlist.
+/// Enhanced stock widget — reads from EnhancedDataProvider.
 class BmpEnhancedStockWidget extends BmpWidget {
-  BmpEnhancedStockWidget({this.symbol = '^DJI', this.watchlist = const []});
+  BmpEnhancedStockWidget({this.symbol = '^DJI'});
 
   final String symbol;
-  final List<String> watchlist;
-
-  // Primary ticker data
-  String? _companyName;
-  double? _currentPrice;
-  double? _changeAmount;
-  double? _changePercent;
-  double? _dayHigh;
-  double? _dayLow;
-  List<double> _intradayPrices = [];
-
-  // Watchlist data
-  final List<_WatchlistItem> _watchlistItems = [];
 
   @override
   String get id => 'enh_stock';
@@ -39,22 +27,16 @@ class BmpEnhancedStockWidget extends BmpWidget {
 
   @override
   Future<void> refresh() async {
+    final data = EnhancedDataProvider.instance;
     try {
-      await _fetchQuote();
+      await _fetchQuote(data);
     } catch (e) {
       appLogger.w('EnhStock: quote fetch failed: $e');
     }
     try {
-      await _fetchIntraday();
+      await _fetchIntraday(data);
     } catch (e) {
       appLogger.w('EnhStock: intraday fetch failed: $e');
-    }
-    for (final ticker in watchlist.take(3)) {
-      try {
-        await _fetchWatchlistItem(ticker);
-      } catch (e) {
-        appLogger.w('EnhStock: watchlist $ticker failed: $e');
-      }
     }
     lastRefreshed = DateTime.now();
   }
@@ -77,143 +59,67 @@ class BmpEnhancedStockWidget extends BmpWidget {
     }
   }
 
-  Future<void> _fetchQuote() async {
+  Future<void> _fetchQuote(EnhancedDataProvider data) async {
     final result = await _fetchChart(symbol, '1d');
     if (result == null) return;
     final meta = result['meta'] as Map<String, dynamic>?;
     if (meta == null) return;
 
-    _companyName =
+    data.stockTicker =
         meta['shortName'] as String? ?? meta['symbol'] as String? ?? symbol;
-    _currentPrice = (meta['regularMarketPrice'] as num?)?.toDouble();
-    _dayHigh = (meta['regularMarketDayHigh'] as num?)?.toDouble();
-    _dayLow = (meta['regularMarketDayLow'] as num?)?.toDouble();
+    data.stockPrice = (meta['regularMarketPrice'] as num?)?.toDouble();
     final prevClose = (meta['chartPreviousClose'] as num?)?.toDouble();
-    if (_currentPrice != null && prevClose != null && prevClose != 0) {
-      _changeAmount = _currentPrice! - prevClose;
-      _changePercent = (_changeAmount! / prevClose) * 100;
+    if (data.stockPrice != null && prevClose != null && prevClose != 0) {
+      data.stockChange = data.stockPrice! - prevClose;
+      data.stockChangePercent = (data.stockChange! / prevClose) * 100;
     }
   }
 
-  Future<void> _fetchIntraday() async {
+  Future<void> _fetchIntraday(EnhancedDataProvider data) async {
     final result = await _fetchChart(symbol, '5m');
     if (result == null) return;
     final indicators = result['indicators'] as Map?;
     final quotes = (indicators?['quote'] as List?)?.firstOrNull as Map?;
     final closes = quotes?['close'] as List?;
     if (closes != null) {
-      _intradayPrices = closes
+      data.stockIntradayPrices = closes
           .where((e) => e != null)
           .map<double>((e) => (e as num).toDouble())
           .toList();
     }
   }
 
-  Future<void> _fetchWatchlistItem(String ticker) async {
-    final result = await _fetchChart(ticker, '1d');
-    if (result == null) return;
-    final meta = result['meta'] as Map<String, dynamic>?;
-    if (meta == null) return;
-
-    final price = (meta['regularMarketPrice'] as num?)?.toDouble();
-    final prevClose = (meta['chartPreviousClose'] as num?)?.toDouble();
-    double? changePct;
-    if (price != null && prevClose != null && prevClose != 0) {
-      changePct = ((price - prevClose) / prevClose) * 100;
-    }
-
-    // Update or add
-    _watchlistItems.removeWhere((i) => i.symbol == ticker);
-    _watchlistItems.add(_WatchlistItem(
-      symbol: ticker,
-      price: price,
-      changePercent: changePct,
-    ));
-  }
-
   @override
   void renderToCanvas(ui.Canvas canvas, HudZone zone) {
     final w = zone.width.toDouble();
     final h = zone.height.toDouble();
+    final data = EnhancedDataProvider.instance;
 
-    // Row 1: Company name + arrow icon
-    final name = _companyName ?? symbol;
-    final arrowIcon =
-        (_changeAmount ?? 0) >= 0 ? HudIcon.stockUp : HudIcon.stockDown;
-    HudDraw.icon(canvas, const Offset(0, 0), arrowIcon, 14);
-    HudDraw.text(canvas, name, const Offset(16, 0),
-        fontSize: 14, weight: FontWeight.bold, maxWidth: w - 20);
+    HudDraw.icon(canvas, Offset.zero, HudIcon.trending, 10);
+    HudDraw.text(canvas, 'STOCK', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
 
-    // Row 2: Large price + change
-    final priceStr =
-        _currentPrice != null ? _currentPrice!.toStringAsFixed(2) : '--';
-    HudDraw.text(canvas, priceStr, const Offset(0, 18),
-        fontSize: 22, weight: FontWeight.bold);
+    final ticker = data.stockTicker ?? '---';
+    final tickerSize = HudDraw.measure(ticker, fontSize: 9);
+    HudDraw.text(canvas, ticker, Offset(w - tickerSize.width - 2, 0), fontSize: 9);
 
-    final sign = (_changeAmount ?? 0) >= 0 ? '+' : '';
-    final changeStr = _changeAmount != null
-        ? '$sign${_changeAmount!.toStringAsFixed(2)} (${_changePercent!.toStringAsFixed(1)}%)'
-        : '';
-    final priceSize = HudDraw.measure(priceStr, fontSize: 22, weight: FontWeight.bold);
-    HudDraw.text(canvas, changeStr, Offset(priceSize.width + 8, 24),
-        fontSize: 12);
+    final priceStr = data.stockPrice != null ? data.stockPrice!.toStringAsFixed(2) : '--';
+    HudDraw.text(canvas, priceStr, const Offset(2, 12), fontSize: 12, weight: FontWeight.bold);
 
-    // Day range progress bar
-    if (_dayHigh != null && _dayLow != null && _currentPrice != null) {
-      final range = _dayHigh! - _dayLow!;
-      final progress = range > 0 ? (_currentPrice! - _dayLow!) / range : 0.5;
-      HudDraw.text(canvas, 'L:${_dayLow!.toStringAsFixed(0)}', const Offset(0, 44),
-          fontSize: 9);
-      HudDraw.progressBar(
-        canvas,
-        ui.Rect.fromLTWH(50, 44, w - 120, 10),
-        progress,
-      );
-      HudDraw.text(canvas, 'H:${_dayHigh!.toStringAsFixed(0)}',
-          Offset(w - 64, 44), fontSize: 9);
+    final change = data.stockChange;
+    if (change != null) {
+      final sign = change >= 0 ? '+' : '';
+      final pctStr = data.stockChangePercent != null
+          ? ' (${data.stockChangePercent!.toStringAsFixed(1)}%)'
+          : '';
+      HudDraw.text(canvas, '$sign${change.toStringAsFixed(2)}$pctStr', const Offset(2, 26), fontSize: 9);
     }
 
-    // Sparkline chart
-    if (_intradayPrices.length >= 2) {
-      final chartTop = 58.0;
-      final chartH = h - chartTop - (_watchlistItems.isNotEmpty ? 36 : 4);
-      if (chartH > 10) {
-        HudDraw.sparkline(
-          canvas, ui.Rect.fromLTWH(0, chartTop, w, chartH), _intradayPrices);
-      }
-    }
-
-    // Watchlist mini-table at bottom
-    if (_watchlistItems.isNotEmpty) {
-      final tableY = h - 32.0;
-      HudDraw.dashedHLine(canvas, 0, tableY - 4, w, thickness: 1);
-      final colW = w / 3;
-      for (int i = 0; i < _watchlistItems.length && i < 3; i++) {
-        final item = _watchlistItems[i];
-        final x = i * colW;
-        HudDraw.text(canvas, item.symbol, Offset(x, tableY),
-            fontSize: 10, weight: FontWeight.bold, maxWidth: colW);
-        final pStr = item.price != null
-            ? item.price!.toStringAsFixed(1)
-            : '--';
-        final cStr = item.changePercent != null
-            ? '${item.changePercent! >= 0 ? '+' : ''}${item.changePercent!.toStringAsFixed(1)}%'
-            : '';
-        HudDraw.text(canvas, '$pStr $cStr', Offset(x, tableY + 12),
-            fontSize: 9, maxWidth: colW);
+    if (data.stockIntradayPrices.length >= 2) {
+      final chartTop = 38.0;
+      final chartHeight = h - chartTop - 2;
+      if (chartHeight > 4) {
+        HudDraw.sparkline(canvas, ui.Rect.fromLTWH(2, chartTop, w - 4, chartHeight), data.stockIntradayPrices);
       }
     }
   }
-}
-
-class _WatchlistItem {
-  final String symbol;
-  final double? price;
-  final double? changePercent;
-
-  const _WatchlistItem({
-    required this.symbol,
-    this.price,
-    this.changePercent,
-  });
 }

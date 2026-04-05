@@ -27,6 +27,81 @@ class Proto {
     );
   }
 
+  /// Push screen command to both glasses independently.
+  ///
+  /// Unlike [pushScreen] which uses [BleManager.sendBoth] (short-circuits if L
+  /// fails), this sends to each connected side independently so R still
+  /// receives the command even when L times out.
+  static Future<bool> pushScreenToConnectedSides(int screenId) {
+    return _sendPushScreenToConnectedSides(
+      data: Uint8List.fromList([0xf4, screenId]),
+      leftConnected: BleManager.isConnectedL(),
+      rightConnected: BleManager.isConnectedR(),
+      requestSide: (lr, data, timeoutMs) =>
+          BleManager.request(data, lr: lr, timeoutMs: timeoutMs),
+    );
+  }
+
+  @visibleForTesting
+  static Future<bool> pushScreenToConnectedSidesForTest({
+    required int screenId,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) {
+    return _sendPushScreenToConnectedSides(
+      data: Uint8List.fromList([0xf4, screenId]),
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      requestSide: requestSide,
+    );
+  }
+
+  static Future<bool> _sendPushScreenToConnectedSides({
+    required Uint8List data,
+    required bool leftConnected,
+    required bool rightConnected,
+    required Future<BleReceive> Function(
+      String lr,
+      Uint8List data,
+      int timeoutMs,
+    )
+    requestSide,
+  }) async {
+    if (!leftConnected && !rightConnected) {
+      appLogger.d('pushScreenToConnectedSides skipped: no connected side');
+      return false;
+    }
+
+    bool leftSuccess = false;
+    if (leftConnected) {
+      final retL = await requestSide("L", data, 300);
+      leftSuccess = !retL.isTimeout &&
+          retL.data.length > 1 &&
+          retL.data[1] == 0xc9;
+    }
+
+    bool rightSuccess = false;
+    if (rightConnected) {
+      final retR = await requestSide("R", data, 300);
+      rightSuccess = !retR.isTimeout &&
+          retR.data.length > 1 &&
+          retR.data[1] == 0xc9;
+    }
+
+    return BleTransportPolicy.didAllConnectedTargetsSucceed(
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      leftSuccess: leftSuccess,
+      rightSuccess: rightSuccess,
+    );
+  }
+
   /// Returns the time consumed by the command and whether it is successful
   static Future<(int, bool)> micOn({String? lr}) async {
     var begin = Utils.getTimestampMs();

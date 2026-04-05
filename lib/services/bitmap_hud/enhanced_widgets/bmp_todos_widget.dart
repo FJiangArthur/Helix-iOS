@@ -31,66 +31,44 @@ class BmpTodosWidget extends BmpWidget {
     final h = zone.height.toDouble();
     final items = TodosWidget.cachedTodos;
 
-    // Title
-    HudDraw.icon(canvas, Offset.zero, HudIcon.todo, 16);
-    HudDraw.text(canvas, 'TODOS', const Offset(20, 0),
-        fontSize: 12, weight: FontWeight.bold);
+    HudDraw.icon(canvas, Offset.zero, HudIcon.todo, 10);
+    HudDraw.text(canvas, 'TODOS', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
 
     if (items.isEmpty) {
-      HudDraw.text(canvas, 'No todos', const Offset(4, 22),
-          fontSize: 13, maxWidth: w - 8);
+      HudDraw.text(canvas, 'No todos', const Offset(2, 14), fontSize: 10, maxWidth: w - 4);
       return;
     }
 
-    // Progress bar
     final doneCount = items.where((i) => i['done'] == true).length;
     final total = items.length;
     final progress = total > 0 ? doneCount / total : 0.0;
-    final progressLabel = '$doneCount/$total done';
-    HudDraw.text(canvas, progressLabel, Offset(w - 70, 0), fontSize: 10);
-    HudDraw.progressBar(
-      canvas,
-      ui.Rect.fromLTWH(4, 18, w - 8, 8),
-      progress,
-    );
+    HudDraw.text(canvas, '$doneCount/$total', Offset(w - 32, 0), fontSize: 9);
+    HudDraw.progressBar(canvas, ui.Rect.fromLTWH(2, 12, w - 4, 4), progress);
 
-    // Todo items with checkboxes
-    var yOffset = 32.0;
-    const itemH = 18.0;
-    const checkSize = 12.0;
+    var yOffset = 20.0;
+    const itemH = 12.0;
+    const checkSize = 8.0;
     final maxItems = ((h - yOffset) / itemH).floor();
 
     for (int i = 0; i < items.length && i < maxItems; i++) {
       final item = items[i];
       final done = item['done'] as bool? ?? false;
-      final text = item['text'] as String? ?? '';
+      var text = item['text'] as String? ?? '';
+      if (text.length > 20) text = '${text.substring(0, 17)}...';
 
-      // Checkbox
-      HudDraw.checkbox(canvas, Offset(4, yOffset + 1), checkSize, done);
+      HudDraw.checkbox(canvas, Offset(2, yOffset), checkSize, done);
+      HudDraw.text(canvas, text, Offset(14, yOffset), fontSize: 9, maxWidth: w - 18);
 
-      // Text (strikethrough effect for done items)
-      var displayText = text;
-      if (displayText.length > 24) {
-        displayText = '${displayText.substring(0, 21)}...';
-      }
-      HudDraw.text(canvas, displayText, Offset(22, yOffset),
-          fontSize: 12, maxWidth: w - 26);
-
-      // Strikethrough line for completed items
       if (done) {
-        final textSize = HudDraw.measure(displayText, fontSize: 12);
-        HudDraw.hLine(canvas, 22, yOffset + textSize.height / 2,
-            textSize.width.clamp(0, w - 26), thickness: 1);
+        final textSize = HudDraw.measure(text, fontSize: 9);
+        HudDraw.hLine(canvas, 14, yOffset + textSize.height / 2,
+            textSize.width.clamp(0, w - 18), thickness: 1);
       }
-
       yOffset += itemH;
     }
 
-    // Show remaining count if truncated
     if (items.length > maxItems) {
-      final remaining = items.length - maxItems;
-      HudDraw.text(canvas, '+$remaining more', Offset(4, yOffset),
-          fontSize: 9);
+      HudDraw.text(canvas, '+${items.length - maxItems} more', Offset(2, yOffset), fontSize: 8);
     }
   }
 }

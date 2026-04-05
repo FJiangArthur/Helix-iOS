@@ -31,77 +31,27 @@ class BmpSystemWidget extends BmpWidget {
     final w = zone.width.toDouble();
     final data = EnhancedDataProvider.instance;
 
-    // Title
-    HudDraw.icon(canvas, Offset.zero, HudIcon.phone, 16);
-    HudDraw.text(
-      canvas,
-      'SYSTEM',
-      const Offset(20, 0),
-      fontSize: 12,
-      weight: FontWeight.bold,
-    );
+    HudDraw.icon(canvas, Offset.zero, HudIcon.phone, 10);
+    HudDraw.text(canvas, 'SYSTEM', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
 
-    var yOffset = 22.0;
-    final barWidth = w - 60;
+    var yOffset = 14.0;
+    final barWidth = w - 40;
 
-    // Phone battery
-    HudDraw.text(canvas, 'Phone', Offset(4, yOffset), fontSize: 11);
+    HudDraw.text(canvas, 'Phone', Offset(2, yOffset), fontSize: 9);
     final phonePct = (data.phoneBattery * 100).round();
-    HudDraw.text(canvas, '$phonePct%', Offset(w - 30, yOffset), fontSize: 11);
-    yOffset += 14;
-    HudDraw.progressBar(
-      canvas,
-      ui.Rect.fromLTWH(4, yOffset, barWidth, 10),
-      data.phoneBattery,
-    );
-    HudDraw.batteryIcon(
-      canvas,
-      Offset(barWidth + 10, yOffset - 4),
-      18,
-      fillPercent: data.phoneBattery,
-    );
-    yOffset += 18;
+    HudDraw.text(canvas, '$phonePct%', Offset(w - 24, yOffset), fontSize: 9);
+    yOffset += 12;
+    HudDraw.progressBar(canvas, ui.Rect.fromLTWH(2, yOffset, barWidth, 6), data.phoneBattery);
+    yOffset += 10;
 
-    // Glasses battery
-    HudDraw.text(canvas, 'Glasses', Offset(4, yOffset), fontSize: 11);
+    HudDraw.text(canvas, 'Glasses', Offset(2, yOffset), fontSize: 9);
     final glassPct = (data.glassesBattery * 100).round();
-    HudDraw.text(canvas, '$glassPct%', Offset(w - 30, yOffset), fontSize: 11);
-    yOffset += 14;
-    HudDraw.progressBar(
-      canvas,
-      ui.Rect.fromLTWH(4, yOffset, barWidth, 10),
-      data.glassesBattery,
-    );
-    HudDraw.batteryIcon(
-      canvas,
-      Offset(barWidth + 10, yOffset - 4),
-      18,
-      fillPercent: data.glassesBattery,
-    );
-    yOffset += 22;
+    HudDraw.text(canvas, '$glassPct%', Offset(w - 24, yOffset), fontSize: 9);
+    yOffset += 12;
+    HudDraw.progressBar(canvas, ui.Rect.fromLTWH(2, yOffset, barWidth, 6), data.glassesBattery);
+    yOffset += 10;
 
-    // BLE Connection status
-    HudDraw.text(canvas, 'BLE', Offset(4, yOffset), fontSize: 11);
-    if (data.bleConnected) {
-      HudDraw.icon(canvas, Offset(36, yOffset - 2), HudIcon.wifi, 14);
-      HudDraw.text(canvas, 'Connected', Offset(54, yOffset), fontSize: 11);
-    } else {
-      HudDraw.text(canvas, 'Disconnected', Offset(36, yOffset), fontSize: 11);
-    }
-    yOffset += 18;
-
-    // Session uptime
-    if (_sessionStart != null) {
-      final uptime = DateTime.now().difference(_sessionStart!);
-      final hours = uptime.inHours;
-      final mins = uptime.inMinutes % 60;
-      HudDraw.text(canvas, 'Uptime', Offset(4, yOffset), fontSize: 11);
-      HudDraw.text(
-        canvas,
-        '${hours}h ${mins}m',
-        Offset(54, yOffset),
-        fontSize: 11,
-      );
-    }
+    HudDraw.text(canvas, 'BLE', Offset(2, yOffset), fontSize: 9);
+    HudDraw.text(canvas, data.bleConnected ? 'OK' : 'OFF', Offset(24, yOffset), fontSize: 9);
   }
 }

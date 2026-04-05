@@ -46,6 +46,13 @@ class EnhancedDataProvider {
   bool activityAvailable = false;
   DateTime? _activityRefreshedAt;
 
+  // Stock data
+  String? stockTicker;
+  double? stockPrice;
+  double? stockChange;
+  double? stockChangePercent;
+  List<double> stockIntradayPrices = [];
+
   // News headlines
   List<String> newsHeadlines = [];
   DateTime? _newsRefreshedAt;

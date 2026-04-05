@@ -68,6 +68,101 @@ void main() {
     });
   });
 
+  group('Proto.pushScreenToConnectedSidesForTest', () {
+    BleReceive ack() {
+      final r = BleReceive();
+      r.data = Uint8List.fromList([0xf4, 0xc9]);
+      return r;
+    }
+
+    BleReceive nack() {
+      final r = BleReceive();
+      r.data = Uint8List.fromList([0xf4, 0x00]);
+      return r;
+    }
+
+    BleReceive timeout() {
+      final r = BleReceive();
+      r.isTimeout = true;
+      return r;
+    }
+
+    test('sends to both sides independently when both connected', () async {
+      final sides = <String>[];
+
+      final result = await Proto.pushScreenToConnectedSidesForTest(
+        screenId: 0x00,
+        leftConnected: true,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          sides.add(lr);
+          return ack();
+        },
+      );
+
+      expect(result, isTrue);
+      expect(sides, ['L', 'R']);
+    });
+
+    test('R still gets command when L times out', () async {
+      final sides = <String>[];
+
+      final result = await Proto.pushScreenToConnectedSidesForTest(
+        screenId: 0x00,
+        leftConnected: true,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          sides.add(lr);
+          return lr == 'L' ? timeout() : ack();
+        },
+      );
+
+      // Both sides were attempted
+      expect(sides, ['L', 'R']);
+      // Returns false because L (connected) failed
+      expect(result, isFalse);
+    });
+
+    test('succeeds when only R is connected', () async {
+      final sides = <String>[];
+
+      final result = await Proto.pushScreenToConnectedSidesForTest(
+        screenId: 0x01,
+        leftConnected: false,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          sides.add(lr);
+          return ack();
+        },
+      );
+
+      expect(result, isTrue);
+      expect(sides, ['R']);
+    });
+
+    test('fails when connected side returns nack', () async {
+      final result = await Proto.pushScreenToConnectedSidesForTest(
+        screenId: 0x00,
+        leftConnected: true,
+        rightConnected: false,
+        requestSide: (lr, data, timeoutMs) async => nack(),
+      );
+
+      expect(result, isFalse);
+    });
+
+    test('returns false when no sides are connected', () async {
+      final result = await Proto.pushScreenToConnectedSidesForTest(
+        screenId: 0x00,
+        leftConnected: false,
+        rightConnected: false,
+        requestSide: (lr, data, timeoutMs) async => ack(),
+      );
+
+      expect(result, isFalse);
+    });
+  });
+
   group('Proto.hideDashboardForTest', () {
     test('sends the dashboard hide packet to connected sides', () async {
       final sent = <String, Uint8List>{};

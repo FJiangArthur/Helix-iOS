@@ -68,24 +68,13 @@ class BmpClockWidget extends BmpWidget {
     final w = zone.width.toDouble();
     final h = zone.height.toDouble();
 
-    // Date line at top
-    HudDraw.text(canvas, dateStr, Offset(8, 8), fontSize: 20, maxWidth: w - 16);
+    HudDraw.text(canvas, dateStr, const Offset(4, 2), fontSize: 10, maxWidth: w - 8);
 
-    // Large time — centered vertically in remaining space
-    final timeSize = HudDraw.measure(
-      timeStr,
-      fontSize: 64,
-      weight: FontWeight.bold,
-    );
+    final timeFontSize = h > 60 ? 28.0 : 20.0;
+    final timeSize = HudDraw.measure(timeStr, fontSize: timeFontSize, weight: FontWeight.bold);
     final tx = (w - timeSize.width) / 2;
-    final ty = 36 + (h - 36 - timeSize.height) / 2;
+    final ty = 14 + (h - 14 - timeSize.height) / 2;
 
-    HudDraw.text(
-      canvas,
-      timeStr,
-      Offset(tx, ty),
-      fontSize: 64,
-      weight: FontWeight.bold,
-    );
+    HudDraw.text(canvas, timeStr, Offset(tx, ty), fontSize: timeFontSize, weight: FontWeight.bold);
   }
 }
