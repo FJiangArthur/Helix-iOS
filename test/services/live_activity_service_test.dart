@@ -54,7 +54,7 @@ void main() {
     test(
       'starts, updates, and stops the live activity for an active session',
       () async {
-        modeController.add(ConversationMode.proactive);
+        modeController.add(ConversationMode.general);
         recordingController.add(true);
         statusController.add(EngineStatus.listening);
         durationController.add(const Duration(seconds: 5));
@@ -71,7 +71,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(methodCalls.first.$1, 'startLiveActivity');
-        expect(methodCalls.first.$2['mode'], 'proactive');
+        expect(methodCalls.first.$2['mode'], 'general');
 
         final updateCalls = methodCalls
             .where((call) => call.$1 == 'updateLiveActivity')

@@ -62,22 +62,24 @@ void main() {
     });
   });
 
-  group('B3 - Passive mode', () {
-    test('no auto-detection in passive mode', () async {
+  group('B3 - Answer All off (on-demand mode)', () {
+    test('no auto-detection when answerAll is off', () async {
       engine.autoDetectQuestions = true;
-      engine.start(mode: ConversationMode.passive);
+      engine.answerAll = false;
+      engine.start(mode: ConversationMode.general);
 
       engine.onTranscriptionFinalized(
         'What do you think about artificial intelligence?',
       );
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
-      // In passive mode, question detection should not fire
+      // With answerAll off, auto-detection scheduling is skipped
       expect(recorder.questionDetections, isEmpty);
     });
 
-    test('manual askQuestion still works in passive mode', () async {
-      engine.start(mode: ConversationMode.passive);
+    test('manual askQuestion still works with answerAll off', () async {
+      engine.answerAll = false;
+      engine.start(mode: ConversationMode.general);
       provider.enqueueStreamResponse(
         const FakeStreamResponse(['AI is fascinating.']),
       );
@@ -91,10 +93,11 @@ void main() {
     });
 
     test(
-      'manual contextual Q&A in passive mode answers from transcript context without a detection-only round trip',
+      'manual contextual Q&A answers from transcript context without a detection-only round trip',
       () async {
         engine.autoDetectQuestions = false;
-        engine.start(mode: ConversationMode.passive);
+        engine.answerAll = true;
+        engine.start(mode: ConversationMode.general);
         engine.onTranscriptionFinalized('We are reviewing the launch plan.');
         engine.onTranscriptionFinalized('What is the rollout plan?');
 

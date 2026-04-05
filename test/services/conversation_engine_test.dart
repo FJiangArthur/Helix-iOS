@@ -197,7 +197,7 @@ void main() {
       SettingsManager.instance.language = 'en';
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = true;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -539,8 +539,8 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions =
-          false; // Don't auto-answer so we can isolate detection
+      SettingsManager.instance.answerAll =
+          true; // answerAll must be true for auto-detection to fire
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -849,7 +849,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -884,10 +884,16 @@ void main() {
     test('same question after restart is NOT deduplicated', () async {
       // Restarting the engine resets _lastHandledQuestionKey, so the same
       // question should be accepted again.
+      SettingsManager.instance.sentimentMonitorEnabled = false;
+      SettingsManager.instance.entityMemoryEnabled = false;
       await configureFakeLlm(
         responses: [
           '{"shouldRespond": true, "question": "What time is lunch?", "questionExcerpt": "What time is lunch?"}',
+          // post-response analysis (chips/fact-check) after first auto-answer
+          '{"chips": [], "factCheck": "null"}',
           '{"shouldRespond": true, "question": "What time is lunch?", "questionExcerpt": "What time is lunch?"}',
+          // post-response analysis after second auto-answer
+          '{"chips": [], "factCheck": "null"}',
         ],
       );
 
@@ -896,14 +902,14 @@ void main() {
 
       engine.start(source: TranscriptSource.phone);
       engine.onTranscriptionFinalized('What time is lunch?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       // Restart resets deduplication state.
       engine.stop();
       engine.clearHistory();
       engine.start(source: TranscriptSource.phone);
       engine.onTranscriptionFinalized('What time is lunch?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       await sub.cancel();
 
@@ -913,10 +919,16 @@ void main() {
 
     test('different questions are both accepted', () async {
       // Two distinct questions should both produce detection results.
+      SettingsManager.instance.sentimentMonitorEnabled = false;
+      SettingsManager.instance.entityMemoryEnabled = false;
       await configureFakeLlm(
         responses: [
           '{"shouldRespond": true, "question": "What time is lunch?", "questionExcerpt": "What time is lunch?"}',
+          // post-response analysis after first auto-answer
+          '{"chips": [], "factCheck": "null"}',
           '{"shouldRespond": true, "question": "Where is the meeting?", "questionExcerpt": "Where is the meeting?"}',
+          // post-response analysis after second auto-answer
+          '{"chips": [], "factCheck": "null"}',
         ],
       );
 
@@ -925,9 +937,9 @@ void main() {
 
       engine.start(source: TranscriptSource.phone);
       engine.onTranscriptionFinalized('What time is lunch?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
       engine.onTranscriptionFinalized('Where is the meeting?');
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       await sub.cancel();
 
@@ -954,7 +966,7 @@ void main() {
       SettingsManager.instance.assistantProfileId = 'general';
       SettingsManager.instance.language = 'en';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = true;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1041,7 +1053,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1141,7 +1153,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1245,7 +1257,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = true;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1385,7 +1397,7 @@ void main() {
       SettingsManager.instance.assistantProfileId = 'general';
       SettingsManager.instance.language = 'en';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1464,7 +1476,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = false;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();
@@ -1514,7 +1526,7 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'transcription';
       SettingsManager.instance.autoDetectQuestions = true;
-      SettingsManager.instance.autoAnswerQuestions = true;
+      SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
       engine.clearHistory();
       engine.stop();

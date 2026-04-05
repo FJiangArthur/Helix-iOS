@@ -33,7 +33,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       // Queue order for the full detection -> response -> post-analysis pipeline:
@@ -75,7 +75,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       // Detection -> Answer -> Post-analysis with factCheck: null
@@ -116,7 +116,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       provider.enqueueResponse(
@@ -155,7 +155,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       // Detection -> Answer -> Post-analysis with a factual correction
@@ -189,7 +189,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       provider.enqueueResponse(
@@ -227,7 +227,7 @@ void main() {
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
       engine.autoDetectQuestions = true;
-      engine.autoAnswerQuestions = true;
+      engine.answerAll = true;
       engine.start();
 
       provider.enqueueResponse(

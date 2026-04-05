@@ -90,7 +90,7 @@ void main() {
       ..language = 'en'
       ..uiLanguage = 'en'
       ..autoDetectQuestions = true
-      ..autoAnswerQuestions = true
+      ..answerAll = true
       ..autoShowFollowUps = true
       ..autoShowSummary = true
       ..preferredMicSource = 'auto';

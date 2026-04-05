@@ -28,12 +28,13 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 350));
   });
 
-  group('B4 - Proactive mode triggerProactiveAnalysis', () {
-    test('proactive analysis produces streamed response', () async {
+  group('B4 - On-demand analysis (answerAll off)', () {
+    test('on-demand analysis produces streamed response', () async {
       engine.autoDetectQuestions = false;
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
-      engine.start(mode: ConversationMode.proactive);
+      engine.answerAll = false;
+      engine.start(mode: ConversationMode.general);
 
       // Build up conversation context with finalized segments
       engine.onTranscriptionFinalized(
@@ -46,9 +47,9 @@ void main() {
         'Sarah asked whether we have enough training resources.',
       );
 
-      // The triggerProactiveAnalysis method calls _generateResponse which
+      // The triggerOnDemandAnalysis method calls _generateResponse which
       // uses streamWithTools (stream). Enqueue the streaming response.
-      // The proactive response includes a JSON preamble on the first line.
+      // The on-demand response includes a JSON preamble on the first line.
       provider.enqueueStreamResponse(
         FakeStreamResponse([
           '{"action": "answer", "target": "training resources"}\n',
@@ -64,14 +65,15 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
 
       final response = await responseFuture;
       expect(response, contains('workshops'));
     });
 
-    test('proactive analysis does nothing when engine is not active', () async {
+    test('on-demand analysis does nothing when engine is not active', () async {
       engine.autoDetectQuestions = false;
+      engine.answerAll = false;
       // Do NOT call engine.start() — engine is inactive
       engine.stop();
 
@@ -81,17 +83,18 @@ void main() {
         ]),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
       // Should not have called the LLM at all
       expect(provider.streamCallCount, 0);
     });
 
-    test('proactive analysis does nothing in non-proactive mode', () async {
+    test('on-demand analysis does nothing when answerAll is on', () async {
       engine.autoDetectQuestions = false;
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
+      engine.answerAll = true;
       engine.start(mode: ConversationMode.general);
 
       engine.onTranscriptionFinalized('Some context for analysis.');
@@ -102,20 +105,21 @@ void main() {
         ]),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
-      // triggerProactiveAnalysis returns early if not in proactive mode
+      // triggerOnDemandAnalysis returns early if answerAll is on
       expect(provider.streamCallCount, 0);
     });
 
     test(
-      'manual contextual Q&A in proactive mode cancels the in-flight answer and refreshes with the latest nearby question',
+      'manual contextual Q&A with answerAll off cancels the in-flight answer and refreshes with the latest nearby question',
       () async {
         engine.autoDetectQuestions = false;
         SettingsManager.instance.sentimentMonitorEnabled = false;
         SettingsManager.instance.entityMemoryEnabled = false;
-        engine.start(mode: ConversationMode.proactive);
+        engine.answerAll = false;
+        engine.start(mode: ConversationMode.general);
 
         engine.onTranscriptionFinalized('We are discussing the beta rollout.');
         engine.onTranscriptionFinalized('What is the rollout plan?');
@@ -166,17 +170,18 @@ void main() {
   });
 
   group('B5 - Answered questions not repeated', () {
-    test('answered questions list grows after proactive response', () async {
+    test('answered questions list grows after on-demand response', () async {
       engine.autoDetectQuestions = false;
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
-      engine.start(mode: ConversationMode.proactive);
+      engine.answerAll = false;
+      engine.start(mode: ConversationMode.general);
 
       engine.onTranscriptionFinalized(
         'What frameworks does the team use for front-end development?',
       );
 
-      // First proactive analysis — JSON preamble tracks the answered question
+      // First on-demand analysis — JSON preamble tracks the answered question
       provider.enqueueStreamResponse(
         FakeStreamResponse([
           '{"action": "answer", "target": "front-end frameworks"}\n',
@@ -191,10 +196,10 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
       await responseFuture;
 
-      // Allow the proactive answer tracking to complete
+      // Allow the on-demand answer tracking to complete
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
       // The SessionContextManager should have recorded the answered question
@@ -206,7 +211,8 @@ void main() {
       engine.autoDetectQuestions = false;
       SettingsManager.instance.sentimentMonitorEnabled = false;
       SettingsManager.instance.entityMemoryEnabled = false;
-      engine.start(mode: ConversationMode.proactive);
+      engine.answerAll = false;
+      engine.start(mode: ConversationMode.general);
 
       engine.onTranscriptionFinalized(
         'Tell me about your deployment pipeline.',
@@ -226,7 +232,7 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
       await firstResponse;
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
@@ -250,7 +256,7 @@ void main() {
         timeout: const Duration(seconds: 5),
       );
 
-      await engine.triggerProactiveAnalysis();
+      await engine.triggerOnDemandAnalysis();
       await secondResponse;
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
@@ -260,7 +266,7 @@ void main() {
         greaterThan(answeredCountAfterFirst),
       );
 
-      // Verify the LLM was called twice (once for each proactive analysis)
+      // Verify the LLM was called twice (once for each on-demand analysis)
       expect(provider.streamCallCount, greaterThanOrEqualTo(2));
 
       // Verify the second call's context is different from the first

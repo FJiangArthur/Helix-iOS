@@ -88,7 +88,7 @@ void main() {
       ..defaultQuickAskPreset = 'concise'
       ..language = 'en'
       ..autoDetectQuestions = true
-      ..autoAnswerQuestions = true
+      ..answerAll = true
       ..autoShowFollowUps = true
       ..autoShowSummary = true
       ..preferredMicSource = 'auto';
@@ -115,13 +115,14 @@ void main() {
       expect(find.text('AI PROVIDER'), findsOneWidget);
     });
 
-    testWidgets('Conversation section is present', (tester) async {
+    testWidgets('Conversation section moved to Tune sheet', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('CONVERSATION'), findsOneWidget);
+      // CONVERSATION section was removed from settings (moved to Tune sheet)
+      expect(find.text('CONVERSATION'), findsNothing);
     });
 
     testWidgets('Transcription section is present', (tester) async {
@@ -142,22 +143,17 @@ void main() {
       expect(find.text('AI TOOLS'), findsOneWidget);
     });
 
-    testWidgets('Auto-detect Questions toggle exists', (tester) async {
+    testWidgets('Auto-detect and Auto-answer toggles moved to Tune sheet', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: SettingsScreen())),
       );
       await tester.pump();
 
-      expect(find.text('Auto-detect Questions'), findsOneWidget);
-    });
-
-    testWidgets('Auto-answer toggle exists', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: SettingsScreen())),
-      );
-      await tester.pump();
-
-      expect(find.text('Auto-answer'), findsOneWidget);
+      // These toggles were moved from Settings to the Tune sheet
+      expect(find.text('Auto-detect Questions'), findsNothing);
+      expect(find.text('Auto-answer'), findsNothing);
     });
 
     testWidgets('Language selector is present', (tester) async {

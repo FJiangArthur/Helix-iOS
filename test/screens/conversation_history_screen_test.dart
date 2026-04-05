@@ -42,7 +42,7 @@ void main() {
       overrides: {
         'transcriptionBackend': 'openai',
         'autoDetectQuestions': true,
-        'autoAnswerQuestions': true,
+        'answerAll': true,
         'cloudProcessingEnabled': false,
       },
     );

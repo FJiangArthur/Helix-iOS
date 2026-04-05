@@ -24,7 +24,7 @@ void main() {
     engine = setup.engine;
     provider = setup.provider;
     SettingsManager.instance.autoDetectQuestions = true;
-    SettingsManager.instance.autoAnswerQuestions = true;
+    SettingsManager.instance.answerAll = true;
     recorder = StreamRecorder(engine);
   });
 

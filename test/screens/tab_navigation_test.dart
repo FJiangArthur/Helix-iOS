@@ -115,7 +115,7 @@ void main() {
       ..defaultQuickAskPreset = 'concise'
       ..language = 'en'
       ..autoDetectQuestions = true
-      ..autoAnswerQuestions = true
+      ..answerAll = true
       ..autoShowFollowUps = true
       ..autoShowSummary = true
       ..preferredMicSource = 'auto';
