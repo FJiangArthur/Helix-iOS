@@ -8,6 +8,8 @@ class AssistantProfile {
     this.showFollowUps = true,
     this.showFactCheck = true,
     this.showActionItems = true,
+    this.showWebSearch = true,
+    this.systemPrompt,
   });
 
   final String id;
@@ -18,6 +20,18 @@ class AssistantProfile {
   final bool showFollowUps;
   final bool showFactCheck;
   final bool showActionItems;
+  final bool showWebSearch;
+  final String? systemPrompt;
+
+  String get engineModeName {
+    switch (id) {
+      case 'interview':
+      case 'technical':
+        return 'interview';
+      default:
+        return 'general';
+    }
+  }
 
   static const List<AssistantProfile> defaults = [
     AssistantProfile(
@@ -45,6 +59,12 @@ class AssistantProfile {
       description: 'Optimized for concise, persuasive speaking support.',
       answerStyle: 'Confident, structured, and evidence-backed.',
     ),
+    AssistantProfile(
+      id: 'technical',
+      name: 'Technical',
+      description: 'Technical interviews: code, system design, problem-solving.',
+      answerStyle: 'Precise, structured, and implementation-focused.',
+    ),
   ];
 
   factory AssistantProfile.fromMap(Map<String, dynamic> map) {
@@ -60,6 +80,8 @@ class AssistantProfile {
       showFollowUps: map['showFollowUps'] as bool? ?? true,
       showFactCheck: map['showFactCheck'] as bool? ?? true,
       showActionItems: map['showActionItems'] as bool? ?? true,
+      showWebSearch: map['showWebSearch'] as bool? ?? true,
+      systemPrompt: map['systemPrompt'] as String?,
     );
   }
 
@@ -72,6 +94,8 @@ class AssistantProfile {
     'showFollowUps': showFollowUps,
     'showFactCheck': showFactCheck,
     'showActionItems': showActionItems,
+    'showWebSearch': showWebSearch,
+    if (systemPrompt != null) 'systemPrompt': systemPrompt,
   };
 
   AssistantProfile copyWith({
@@ -83,6 +107,9 @@ class AssistantProfile {
     bool? showFollowUps,
     bool? showFactCheck,
     bool? showActionItems,
+    bool? showWebSearch,
+    String? systemPrompt,
+    bool clearSystemPrompt = false,
   }) {
     return AssistantProfile(
       id: id ?? this.id,
@@ -93,6 +120,8 @@ class AssistantProfile {
       showFollowUps: showFollowUps ?? this.showFollowUps,
       showFactCheck: showFactCheck ?? this.showFactCheck,
       showActionItems: showActionItems ?? this.showActionItems,
+      showWebSearch: showWebSearch ?? this.showWebSearch,
+      systemPrompt: clearSystemPrompt ? null : (systemPrompt ?? this.systemPrompt),
     );
   }
 
