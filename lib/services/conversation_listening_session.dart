@@ -192,9 +192,25 @@ class ConversationListeningSession {
           ? 'glasses'
           : 'microphone';
       final settings = SettingsManager.instance;
+
+      // Models that use the batch REST API (whisper path) regardless of
+      // the selected backend setting.
+      final isBatchApiModel =
+          settings.transcriptionModel.contains('diarize') ||
+          settings.transcriptionModel == 'whisper-1';
+      // Route to batch when transport is "48kHz Batch Proc" and model supports it.
+      final isBatchTransport =
+          settings.transcriptionTransport == '48kHz Batch Proc' &&
+          (settings.transcriptionModel == 'gpt-4o-transcribe' ||
+           settings.transcriptionModel == 'gpt-4o-mini-transcribe');
+      final effectiveBackend = (isBatchApiModel || isBatchTransport)
+          ? 'whisper'
+          : settings.transcriptionBackend;
+
       String? apiKey;
       String? systemPrompt;
-      if (settings.transcriptionBackend == 'openai') {
+      if (effectiveBackend == 'openai' ||
+          effectiveBackend == 'whisper') {
         try {
           apiKey = await settings.getApiKey('openai');
         } catch (e) {
@@ -213,7 +229,7 @@ class ConversationListeningSession {
       appLogger.d(
         '[ListeningSession] Calling startEvenAI — '
         'lang=$langCode, source=$sourceStr, '
-        'backend=${settings.transcriptionBackend}, '
+        'backend=$effectiveBackend, '
         'sessionMode=${settings.openAISessionMode}, '
         'model=${settings.transcriptionModel}'
         '${voiceEnabled ? ", voice=$voiceName" : ""}',
@@ -222,13 +238,15 @@ class ConversationListeningSession {
         await _invokeMethod('startEvenAI', {
           'language': langCode,
           'source': sourceStr,
-          'backend': settings.transcriptionBackend,
+          'backend': effectiveBackend,
           'sessionMode': settings.openAISessionMode,
           'apiKey': apiKey,
           'model': settings.transcriptionModel,
           'systemPrompt': systemPrompt,
+          'transcriptionPrompt': settings.transcriptionPrompt,
+          'vadSensitivity': settings.vadSensitivity,
           if (voiceEnabled) 'voice': voiceName,
-          if (settings.transcriptionBackend == 'whisper') ...{
+          if (effectiveBackend == 'whisper') ...{
             'enableDiarization': settings.enableDiarization,
             'whisperChunkDurationSec': settings.whisperChunkDurationSec,
           },

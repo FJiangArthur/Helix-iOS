@@ -112,7 +112,13 @@ class SettingsManager {
   String openAISessionMode = 'transcription';
 
   /// Model for OpenAI transcription.
-  String transcriptionModel = 'gpt-4o-mini-transcribe';
+  String transcriptionModel = 'gpt-4o-transcribe';
+
+  /// Transport mode for OpenAI transcription: '24kHz Realtime' or '48kHz Batch Proc'.
+  String transcriptionTransport = '24kHz Realtime';
+
+  /// Optional prompt for transcription accuracy (domain vocabulary, names, etc.).
+  String transcriptionPrompt = '';
 
   /// Optional prompt override for OpenAI realtime conversation mode.
   String? openAIRealtimePrompt;
@@ -321,11 +327,14 @@ class SettingsManager {
           prefs.getString('openAISessionMode') ?? 'transcription';
     }
     transcriptionModel =
-        prefs.getString('transcriptionModel') ?? 'gpt-4o-mini-transcribe';
+        prefs.getString('transcriptionModel') ?? 'gpt-4o-transcribe';
     openAIRealtimePrompt = prefs.getString('openAIRealtimePrompt');
     preferredMicSource = prefs.getString('preferredMicSource') ?? 'auto';
     enableDiarization = prefs.getBool('enableDiarization') ?? false;
     whisperChunkDurationSec = prefs.getInt('whisperChunkDurationSec') ?? 5;
+    transcriptionTransport =
+        prefs.getString('transcriptionTransport') ?? '24kHz Realtime';
+    transcriptionPrompt = prefs.getString('transcriptionPrompt') ?? '';
 
     // Glasses
     autoConnect = prefs.getBool('autoConnect') ?? true;
@@ -443,6 +452,8 @@ class SettingsManager {
     await prefs.setString('preferredMicSource', preferredMicSource);
     await prefs.setBool('enableDiarization', enableDiarization);
     await prefs.setInt('whisperChunkDurationSec', whisperChunkDurationSec);
+    await prefs.setString('transcriptionTransport', transcriptionTransport);
+    await prefs.setString('transcriptionPrompt', transcriptionPrompt);
 
     // Glasses
     await prefs.setBool('autoConnect', autoConnect);

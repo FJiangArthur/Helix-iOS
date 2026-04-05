@@ -512,6 +512,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           child: Text('gpt-4o-transcribe'),
                         ),
                         DropdownMenuItem(
+                          value: 'gpt-4o-transcribe-diarize',
+                          child: Text('gpt-4o-transcribe-diarize'),
+                        ),
+                        DropdownMenuItem(
                           value: 'whisper-1',
                           child: Text('whisper-1'),
                         ),
@@ -529,6 +533,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           _settings.update((s) => s.transcriptionModel = value);
                         }
                       },
+                    ),
+                  ),
+                if (_settings.transcriptionBackend == 'openai' &&
+                    _settings.openAISessionMode == 'transcription')
+                  ListTile(
+                    title: const Text('Transport'),
+                    trailing: DropdownButton<String>(
+                      value: _settings.transcriptionTransport,
+                      dropdownColor: const Color(0xFF1A1F35),
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: '24kHz Realtime',
+                          child: Text('24kHz Realtime'),
+                        ),
+                        DropdownMenuItem(
+                          value: '48kHz Batch Proc',
+                          child: Text('48kHz Batch Proc'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          _settings.update(
+                              (s) => s.transcriptionTransport = value);
+                        }
+                      },
+                    ),
+                  ),
+                if (_settings.transcriptionBackend == 'openai')
+                  ListTile(
+                    title: const Text('Transcription Prompt'),
+                    subtitle: Text(
+                      _settings.transcriptionPrompt.isEmpty
+                          ? 'None (tap to add vocabulary hints)'
+                          : _settings.transcriptionPrompt.length > 50
+                              ? '${_settings.transcriptionPrompt.substring(0, 50)}...'
+                              : _settings.transcriptionPrompt,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () => _showTranscriptionPromptDialog(),
+                      child: const Text('Edit'),
                     ),
                   ),
                 if (_settings.transcriptionBackend == 'openai' &&
@@ -1915,6 +1964,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Colors.white.withValues(alpha: 0.4),
               fontSize: 14,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTranscriptionPromptDialog() {
+    final controller =
+        TextEditingController(text: _settings.transcriptionPrompt);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1F35),
+        title: const Text('Transcription Prompt'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Add vocabulary hints to improve accuracy. '
+              'Include names, technical terms, or topics discussed.',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: 'e.g. Names: Art, Helix. Topics: AI, smart glasses.',
+                hintStyle: TextStyle(color: Colors.white24),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              _settings
+                  .update((s) => s.transcriptionPrompt = controller.text.trim());
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
           ),
         ],
       ),
