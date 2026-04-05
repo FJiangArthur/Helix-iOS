@@ -30,50 +30,25 @@ class BmpNewsWidget extends BmpWidget {
     final h = zone.height.toDouble();
     final headlines = EnhancedDataProvider.instance.newsHeadlines;
 
-    // Title
-    HudDraw.icon(canvas, Offset.zero, HudIcon.news, 16);
-    HudDraw.text(canvas, 'NEWS', const Offset(20, 0),
-        fontSize: 12, weight: FontWeight.bold);
+    HudDraw.icon(canvas, Offset.zero, HudIcon.news, 10);
+    HudDraw.text(canvas, 'NEWS', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
 
     if (headlines.isEmpty) {
-      HudDraw.text(canvas, 'No headlines', const Offset(4, 22),
-          fontSize: 13, maxWidth: w - 8);
+      HudDraw.text(canvas, 'No headlines', const Offset(2, 14), fontSize: 10, maxWidth: w - 4);
       return;
     }
 
-    // Calculate how many headlines fit
-    final availableH = h - 20;
-    final lineH = 16.0;
-    // Each headline takes ~2 lines (title wraps) + separator
-    final maxHeadlines = (availableH / (lineH * 2 + 8)).floor().clamp(1, 5);
+    var yOffset = 14.0;
+    final maxChars = (w / 6).floor();
+    final maxHeadlines = ((h - yOffset) / 14).floor().clamp(1, 5);
 
-    var yOffset = 20.0;
     for (int i = 0; i < headlines.length && i < maxHeadlines; i++) {
       var headline = headlines[i];
+      if (headline.length > maxChars) headline = '${headline.substring(0, maxChars - 3)}...';
 
-      // Calculate max chars that fit in width at font size 12
-      final maxChars = (w / 7).floor(); // ~7px per char at size 12
-      if (headline.length > maxChars * 2) {
-        headline = '${headline.substring(0, maxChars * 2 - 3)}...';
-      }
-
-      // Source label
-      HudDraw.text(canvas, '[$i]', Offset(0, yOffset),
-          fontSize: 9);
-
-      // Headline text (may wrap)
-      final rendered = HudDraw.text(canvas, headline, Offset(20, yOffset),
-          fontSize: 12, maxWidth: w - 24);
-      yOffset += rendered.height + 4;
-
-      // Dashed separator
-      if (i < headlines.length - 1 && i < maxHeadlines - 1) {
-        HudDraw.dashedHLine(canvas, 0, yOffset, w,
-            dashWidth: 4, gapWidth: 3, thickness: 1);
-        yOffset += 6;
-      }
-
-      if (yOffset > h - 10) break;
+      HudDraw.text(canvas, headline, Offset(2, yOffset), fontSize: 9, maxWidth: w - 4);
+      yOffset += 14;
+      if (yOffset > h - 4) break;
     }
   }
 }
