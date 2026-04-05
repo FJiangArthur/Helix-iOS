@@ -1018,7 +1018,18 @@ class SpeechStreamRecognizer {
         guard activeInputSource == .glassesPcm else { return }
         guard !isPaused else { return }
         if activeBackend == .openai {
-            openaiTranscriber.appendAudio(pcmData)
+            // VAD gating: skip silent BLE audio to save tokens
+            let rms = computeBufferRMS(pcmData)
+            if rms >= Self.micVadThreshold {
+                lastVoiceActivityTime = Date()
+                consecutiveSilenceDuration = 0
+                openaiTranscriber.appendAudio(pcmData)
+            } else {
+                let silenceElapsed = Date().timeIntervalSince(lastVoiceActivityTime)
+                if silenceElapsed < Self.vadTrailingBufferSec {
+                    openaiTranscriber.appendAudio(pcmData)
+                }
+            }
             return
         }
         if activeBackend == .whisper {
