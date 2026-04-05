@@ -166,6 +166,8 @@ class SpeechStreamRecognizer {
         realtimeConversation: Bool = false,
         systemPrompt: String? = nil,
         voice: String = "alloy",
+        vadSensitivity: Double = 0.5,
+        transcriptionPrompt: String = "",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         log("Starting recognition language=\(identifier) source=\(source) backend=\(backend.rawValue)")
@@ -178,6 +180,10 @@ class SpeechStreamRecognizer {
         activeBackend = backend
         pendingSpeechEvents.removeAll()
         shouldBufferSpeechEvents = true
+
+        // Map vadSensitivity (0.0-1.0, higher=more sensitive) to threshold (0.2-0.6, lower=more sensitive)
+        openaiTranscriber.vadThreshold = 0.6 - (vadSensitivity * 0.4)
+        openaiTranscriber.transcriptionPrompt = transcriptionPrompt
 
         if backend == .openai {
             startOpenAIRecognition(

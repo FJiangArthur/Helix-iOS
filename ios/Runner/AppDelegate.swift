@@ -62,6 +62,9 @@ import NaturalLanguage
                 let realtimeConversation =
                     sessionMode == "realtime" || backendStr == "openaiRealtime"
 
+                let vadSensitivity = args["vadSensitivity"] as? Double ?? 0.5
+                let transcriptionPrompt = args["transcriptionPrompt"] as? String ?? ""
+
                 let enableDiarization = args["enableDiarization"] as? Bool ?? false
                 let noiseReduction = args["noiseReduction"] as? Bool ?? false
                 let chunkDurationSec = args["chunkDurationSec"] as? Double ?? 5.0
@@ -92,7 +95,9 @@ import NaturalLanguage
                     model: model,
                     realtimeConversation: realtimeConversation,
                     systemPrompt: systemPrompt,
-                    voice: voice
+                    voice: voice,
+                    vadSensitivity: vadSensitivity,
+                    transcriptionPrompt: transcriptionPrompt
                 ) { startResult in
                     switch startResult {
                     case .success:

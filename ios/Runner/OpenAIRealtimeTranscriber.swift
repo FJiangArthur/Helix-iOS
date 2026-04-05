@@ -53,6 +53,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var connectTimeoutWork: DispatchWorkItem?
     private var lastDisconnectMessage: String?
     private var isStopping = false
+    /// VAD threshold override. Mapped from user's vadSensitivity setting.
+    var vadThreshold: Double = 0.35
+    /// Transcription prompt for accuracy hints.
+    var transcriptionPrompt: String = ""
     /// Stale-partial detection: tracks consecutive identical transcription emissions
     /// to detect when the OpenAI API stops making progress and needs a reconnect.
     private var lastEmittedPartialText = ""
@@ -83,21 +87,26 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     private func sessionConfigEvent(for resolvedLang: String) -> [String: Any] {
+        var transcriptionConfig: [String: Any] = [
+            "model": model,
+            "language": resolvedLang,
+        ]
+        if !transcriptionPrompt.isEmpty {
+            transcriptionConfig["prompt"] = transcriptionPrompt
+        }
+
         switch mode {
         case .transcriptionOnly:
             return [
                 "type": "transcription_session.update",
                 "session": [
                     "input_audio_format": "pcm16",
-                    "input_audio_transcription": [
-                        "model": model,
-                        "language": resolvedLang,
-                    ],
+                    "input_audio_transcription": transcriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
+                        "threshold": vadThreshold,
+                        "prefix_padding_ms": 500,
+                        "silence_duration_ms": 1000,
                     ],
                 ],
             ]
@@ -110,15 +119,12 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     "output_audio_format": "pcm16",
                     "instructions": systemInstructions,
                     "input_audio_format": "pcm16",
-                    "input_audio_transcription": [
-                        "model": model,
-                        "language": resolvedLang,
-                    ],
+                    "input_audio_transcription": transcriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 800,
+                        "threshold": vadThreshold,
+                        "prefix_padding_ms": 500,
+                        "silence_duration_ms": 1200,
                     ],
                 ],
             ]
