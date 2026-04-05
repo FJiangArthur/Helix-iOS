@@ -96,11 +96,11 @@ class BmpEnhancedStockWidget extends BmpWidget {
     final data = EnhancedDataProvider.instance;
 
     HudDraw.icon(canvas, Offset.zero, HudIcon.trending, 10);
-    HudDraw.text(canvas, 'STOCK', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
+    HudDraw.text(canvas, 'STOCK', const Offset(12, 0), fontSize: 10, weight: FontWeight.bold);
 
     final ticker = data.stockTicker ?? '---';
-    final tickerSize = HudDraw.measure(ticker, fontSize: 9);
-    HudDraw.text(canvas, ticker, Offset(w - tickerSize.width - 2, 0), fontSize: 9);
+    final tickerSize = HudDraw.measure(ticker, fontSize: 10);
+    HudDraw.text(canvas, ticker, Offset(w - tickerSize.width - 2, 0), fontSize: 10);
 
     final priceStr = data.stockPrice != null ? data.stockPrice!.toStringAsFixed(2) : '--';
     HudDraw.text(canvas, priceStr, const Offset(2, 12), fontSize: 12, weight: FontWeight.bold);
@@ -111,7 +111,7 @@ class BmpEnhancedStockWidget extends BmpWidget {
       final pctStr = data.stockChangePercent != null
           ? ' (${data.stockChangePercent!.toStringAsFixed(1)}%)'
           : '';
-      HudDraw.text(canvas, '$sign${change.toStringAsFixed(2)}$pctStr', const Offset(2, 26), fontSize: 9);
+      HudDraw.text(canvas, '$sign${change.toStringAsFixed(2)}$pctStr', const Offset(2, 26), fontSize: 10);
     }
 
     if (data.stockIntradayPrices.length >= 2) {

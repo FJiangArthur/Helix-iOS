@@ -382,19 +382,10 @@ class DashboardService {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
         return false;
       }
-      if (_bitmapScreenHideDelay > Duration.zero) {
-        await Future<void>.delayed(_bitmapScreenHideDelay);
-      }
-      final screenHideOk = await _bitmapScreenHideRenderer();
-      if (!screenHideOk) {
-        // Screen-hide is cosmetic cleanup (clears text layer); the bitmap
-        // content is already hidden by _bitmapHideRenderer above. Log but
-        // continue so the dashboard state is properly cleaned up.
-        emitDeviceDiagnostic(
-          'BitmapHUD',
-          'dashboard screen hide failed (continuing)',
-        );
-      }
+      // The 0x26 dashboard visibility command is sufficient to clear the
+      // bitmap overlay — the Even Realities SDK does not send an additional
+      // pushScreen(0xF4) after hiding. Skip the screen-hide step entirely
+      // to avoid the timeout failure that was blocking state recovery.
     }
 
     switch (previousIntent) {

@@ -67,8 +67,8 @@ class BmpActivityWidget extends BmpWidget {
 
   void _drawCenteredLabel(ui.Canvas canvas, double cx, double y,
       String value, String label, double maxW) {
-    final valueSize = HudDraw.measure(value, fontSize: 8, weight: FontWeight.bold);
+    final valueSize = HudDraw.measure(value, fontSize: 10, weight: FontWeight.bold);
     HudDraw.text(canvas, value, Offset(cx - valueSize.width / 2, y),
-        fontSize: 8, weight: FontWeight.bold, maxWidth: maxW);
+        fontSize: 10, weight: FontWeight.bold, maxWidth: maxW);
   }
 }

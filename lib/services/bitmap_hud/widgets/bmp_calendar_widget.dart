@@ -71,7 +71,7 @@ class BmpCalendarWidget extends BmpWidget {
     final subtitle = '$timeStr$locStr';
     if (subtitle.isNotEmpty) {
       HudDraw.text(canvas, subtitle, const Offset(titleX, 14),
-          fontSize: 9, maxWidth: maxTextW);
+          fontSize: 10, maxWidth: maxTextW);
     }
   }
 

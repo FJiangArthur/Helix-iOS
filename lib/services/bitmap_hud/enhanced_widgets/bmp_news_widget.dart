@@ -31,7 +31,7 @@ class BmpNewsWidget extends BmpWidget {
     final headlines = EnhancedDataProvider.instance.newsHeadlines;
 
     HudDraw.icon(canvas, Offset.zero, HudIcon.news, 10);
-    HudDraw.text(canvas, 'NEWS', const Offset(12, 0), fontSize: 9, weight: FontWeight.bold);
+    HudDraw.text(canvas, 'NEWS', const Offset(12, 0), fontSize: 10, weight: FontWeight.bold);
 
     if (headlines.isEmpty) {
       HudDraw.text(canvas, 'No headlines', const Offset(2, 14), fontSize: 10, maxWidth: w - 4);
@@ -46,7 +46,7 @@ class BmpNewsWidget extends BmpWidget {
       var headline = headlines[i];
       if (headline.length > maxChars) headline = '${headline.substring(0, maxChars - 3)}...';
 
-      HudDraw.text(canvas, headline, Offset(2, yOffset), fontSize: 9, maxWidth: w - 4);
+      HudDraw.text(canvas, headline, Offset(2, yOffset), fontSize: 10, maxWidth: w - 4);
       yOffset += 14;
       if (yOffset > h - 4) break;
     }

@@ -335,7 +335,9 @@ void main() {
       expect(HudController.instance.currentIntent, HudIntent.idle);
       expect(exitCalls, 0);
       expect(bitmapHideCalls, 1);
-      expect(bitmapScreenHideCalls, 1);
+      // Screen hide (pushScreen 0xF4) is no longer called — the 0x26 dashboard
+      // visibility command is sufficient per the Even Realities SDK.
+      expect(bitmapScreenHideCalls, 0);
       expect(bitmapInvalidateCalls, 1);
 
       await bitmapService.hideDashboard(
@@ -345,7 +347,7 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'text';
     });
 
-    test('bitmap auto-hide defers text screen clear after dashboard hide', () async {
+    test('bitmap auto-hide uses only dashboard visibility command', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapHideCalls = 0;
       var bitmapScreenHideCalls = 0;
@@ -377,20 +379,18 @@ void main() {
 
       await bitmapService.initialize();
       await bitmapService.handleDeviceEvent(
-        headUpEvent(label: 'bitmap_delayed_screen_clear'),
+        headUpEvent(label: 'bitmap_no_screen_clear'),
       );
 
-      await Future<void>.delayed(const Duration(milliseconds: 55));
+      await Future<void>.delayed(const Duration(milliseconds: 80));
 
+      // Only the 0x26 dashboard hide is sent; pushScreen (0xF4) is skipped
+      // per the Even Realities SDK protocol.
       expect(bitmapHideCalls, 1);
       expect(bitmapScreenHideCalls, 0);
 
-      await Future<void>.delayed(const Duration(milliseconds: 40));
-
-      expect(bitmapScreenHideCalls, 1);
-
       await bitmapService.hideDashboard(
-        source: 'test.bitmapDelayedScreenClear.teardown',
+        source: 'test.bitmapNoScreenClear.teardown',
       );
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';
@@ -446,10 +446,9 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'text';
     });
 
-    test('bitmap restore continues when screen hide fails', () async {
+    test('bitmap hide cleans up state with only dashboard visibility command', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapHideCalls = 0;
-      var bitmapScreenHideCalls = 0;
       var bitmapInvalidateCalls = 0;
 
       final bitmapService = DashboardService(
@@ -464,10 +463,6 @@ void main() {
           bitmapHideCalls += 1;
           return true;
         },
-        bitmapScreenHideRenderer: () async {
-          bitmapScreenHideCalls += 1;
-          return false; // Simulate screen hide failure
-        },
         bitmapScreenHideDelay: Duration.zero,
         bitmapInvalidateCache: () {
           bitmapInvalidateCalls += 1;
@@ -479,18 +474,16 @@ void main() {
       await bitmapService.initialize();
 
       await bitmapService.handleDeviceEvent(
-        headUpEvent(label: 'bitmap_screen_hide_fail'),
+        headUpEvent(label: 'bitmap_hide_cleanup'),
       );
 
       // Wait for auto-hide
       await Future<void>.delayed(const Duration(milliseconds: 80));
 
       expect(bitmapHideCalls, 1);
-      expect(bitmapScreenHideCalls, 1);
-      // State should be cleaned up despite screen hide failure
+      // State properly cleaned up using only the 0x26 command
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
-      // Cache should still be invalidated
       expect(bitmapInvalidateCalls, 1);
 
       bitmapService.dispose();

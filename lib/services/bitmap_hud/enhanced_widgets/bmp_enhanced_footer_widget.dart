@@ -51,14 +51,14 @@ class BmpEnhancedFooterWidget extends BmpWidget {
     }
     if (eventText.length > 30) eventText = '${eventText.substring(0, 27)}...';
     HudDraw.icon(canvas, const Offset(2, 3), HudIcon.calendar, 10);
-    HudDraw.text(canvas, eventText, const Offset(14, 3), fontSize: 9, maxWidth: w * 0.5);
+    HudDraw.text(canvas, eventText, const Offset(14, 3), fontSize: 10, maxWidth: w * 0.5);
 
     HudDraw.text(canvas, '·', Offset(w * 0.52, 2), fontSize: 10);
 
     if (data.activityAvailable) {
       final stepsStr = _formatNumber(data.steps);
       HudDraw.icon(canvas, Offset(w * 0.56, 3), HudIcon.steps, 10);
-      HudDraw.text(canvas, '$stepsStr steps', Offset(w * 0.56 + 12, 3), fontSize: 9);
+      HudDraw.text(canvas, '$stepsStr steps', Offset(w * 0.56 + 12, 3), fontSize: 10);
     }
 
     if (data.bleConnected) {
