@@ -55,7 +55,7 @@ The activity is **already gated on `RecordingCoordinator.isRecording`** and is *
 
 ### 1.6 Deployment target
 
-`IPHONEOS_DEPLOYMENT_TARGET = 16.2` across all targets. **Interactive Live Activity buttons require iOS 17.0+** (`Button(intent:)` and `LiveActivityIntent`). Decision: bump the **widget extension target only** to iOS 17.0; keep the Runner app at 16.2 so non-interactive activities still work on iOS 16.2–16.7. The widget bundle's `availability` will gate buttons via `if #available(iOS 17, *)`.
+`IPHONEOS_DEPLOYMENT_TARGET = 26.0` across all targets. Interactive `LiveActivityIntent` buttons (iOS 17+) are unconditionally available. No `@available` gating, no version-branched UI, no fallback path. Remove any earlier audit notes that suggested bumping the widget target — moot.
 
 ---
 
@@ -66,7 +66,6 @@ Three intents live in a new file, **`ios/HelixLiveActivity/HelixLiveActivityInte
 ```swift
 import AppIntents
 
-@available(iOS 17.0, *)
 struct AskQuestionIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Ask Question"
     func perform() async throws -> some IntentResult {
@@ -75,7 +74,6 @@ struct AskQuestionIntent: LiveActivityIntent {
     }
 }
 
-@available(iOS 17.0, *)
 struct PauseTranscriptionIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Pause"
     func perform() async throws -> some IntentResult {
@@ -84,7 +82,6 @@ struct PauseTranscriptionIntent: LiveActivityIntent {
     }
 }
 
-@available(iOS 17.0, *)
 struct ResumeTranscriptionIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Resume"
     func perform() async throws -> some IntentResult {
@@ -260,7 +257,7 @@ Handled by `cleanupStaleActivities` at next launch (§1.2).
 
 ## 10. Testing Strategy
 
-iOS Simulator supports Live Activities since iOS 16.2 (tap the Lock Screen with the activity visible). Interactive buttons need iOS 17+ simulator runtime.
+iOS 26 Simulator supports Live Activities and interactive buttons natively (tap the Lock Screen with the activity visible).
 
 ### 10.1 Manual
 
@@ -292,8 +289,7 @@ Per CLAUDE.md, run `bash scripts/run_gate.sh` after touching `live_activity_serv
 
 1. Add `HelixLiveActivityIntentBridge.swift` (Darwin name constants + post helper). Include in both targets.
 2. Add the three `LiveActivityIntent` types.
-3. Wire the widget UI buttons (gated `if #available(iOS 17, *)`).
-4. Bump widget extension deployment target to iOS 17.
+3. Wire the widget UI buttons (no availability gating; deployment target is iOS 26).
 5. Register/teardown Darwin observers in `AppDelegate`; add the `liveActivityButtonPressed` outbound call.
 6. Add `BleManager.setLiveActivityCallHandler` shim.
 7. Wire `LiveActivityService._handleNativeCall` → engine/coordinator actions.
