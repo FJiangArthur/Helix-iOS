@@ -400,6 +400,8 @@ Per `CLAUDE.md`, after editing `conversation_engine.dart` run the full gate:
 
 ## 10. Out of scope
 
+- **Cost in the Live Activity.** The Live Activity surface (Lock Screen + Dynamic Island, see Spec C) must NOT show cost — not in any region, not in the minimal/compact/expanded variants. Cost lives only in the in-app UI (recording bar pill + history list + breakdown sheet). Spec C must not add cost fields to `HelixLiveActivityAttributes`.
+- **Cost on the glasses HUD.** Same rule: never on the glasses.
 - Multi-currency display.
 - Per-user budgets / spending caps / alerts (good follow-on spec).
 - Backfilling cost for conversations recorded before the
