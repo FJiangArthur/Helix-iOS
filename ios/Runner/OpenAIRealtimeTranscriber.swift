@@ -109,7 +109,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     "input_audio_transcription": transcriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
-                        "threshold": vadThreshold,
+                        "threshold": NSDecimalNumber(string: String(format: "%.6f", vadThreshold)),
                         "prefix_padding_ms": 500,
                         "silence_duration_ms": 1000,
                     ],
@@ -127,7 +127,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     "input_audio_transcription": transcriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
-                        "threshold": vadThreshold,
+                        "threshold": NSDecimalNumber(string: String(format: "%.6f", vadThreshold)),
                         "prefix_padding_ms": 500,
                         "silence_duration_ms": 1200,
                     ],
@@ -194,6 +194,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     func stop() {
+        dispatchPrecondition(condition: .notOnQueue(audioQueue))
         isStopping = true
         sendTimerSource?.cancel()
         sendTimerSource = nil
@@ -386,7 +387,14 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     /// is not lost during the brief reconnect window.
     private func reconnectSession() {
         debugLog("[OpenAITranscriber] Reconnecting session to recover from stale transcription")
-        let savedAudio = audioBuffer  // preserve in-flight audio
+
+        // Drain audioBuffer on its queue to avoid a data race with appendAudio/flushAudioBuffer
+        var savedAudio = Data()
+        audioQueue.sync {
+            savedAudio = self.audioBuffer
+            self.audioBuffer = Data()
+        }
+
         disconnect()
 
         // Reset transcript state for the new session
@@ -402,7 +410,9 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             case .success:
                 // Re-inject any audio that arrived during reconnect
                 if !savedAudio.isEmpty {
-                    self.audioBuffer.append(savedAudio)
+                    self.audioQueue.async {
+                        self.audioBuffer = savedAudio + self.audioBuffer
+                    }
                 }
                 self.debugLog("[OpenAITranscriber] Reconnect succeeded")
             case .failure(let error):
@@ -450,19 +460,17 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     private var flushLogCount = 0
+    // Called exclusively from sendTimerSource on audioQueue
     private func flushAudioBuffer() {
-        var chunk = Data()
-        audioQueue.sync {
-            guard !self.audioBuffer.isEmpty else { return }
-            chunk = self.audioBuffer
-            self.audioBuffer = Data()
-        }
+        dispatchPrecondition(condition: .onQueue(audioQueue))
 
-        guard !chunk.isEmpty, isConnected, sessionConfigured else {
-            if !chunk.isEmpty {
-                // Put it back if we can't send yet
-                audioQueue.async { self.audioBuffer = chunk + self.audioBuffer }
-            }
+        guard !audioBuffer.isEmpty else { return }
+        let chunk = audioBuffer
+        audioBuffer = Data()
+
+        guard isConnected, sessionConfigured else {
+            // Put it back if we can't send yet
+            audioBuffer = chunk + audioBuffer
             return
         }
 
@@ -499,9 +507,15 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         do {
             let data = try JSONSerialization.data(withJSONObject: event)
             let message = URLSessionWebSocketTask.Message.string(String(data: data, encoding: .utf8)!)
-            task.send(message) { error in
-                if let error = error {
-                    self.warningLog("[OpenAITranscriber] Send error: \(error.localizedDescription)")
+            task.send(message) { [weak self] error in
+                guard let self, let error else { return }
+                self.warningLog("[OpenAITranscriber] Send error (\(eventType)): \(error.localizedDescription)")
+                // Audio send failures indicate a dead socket — trigger reconnect
+                // rather than silently dropping subsequent chunks
+                if eventType == "input_audio_buffer.append" {
+                    DispatchQueue.main.async {
+                        self.handleDisconnect(error: error)
+                    }
                 }
             }
         } catch {

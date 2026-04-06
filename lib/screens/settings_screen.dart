@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../services/g1_debug_service.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
@@ -726,6 +727,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildInfoTile(tr('Version', '版本'), '1.0.0'),
                 _buildInfoTile(tr('Build', '构建'), '1'),
               ]),
+              const SizedBox(height: 20),
+              _buildDebugSection(),
               const SizedBox(height: 80),
             ],
           ),
@@ -1901,6 +1904,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
           activeTrackColor: HelixTheme.cyan,
           inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
         ),
+      ],
+    );
+  }
+
+  Widget _buildDebugSection() {
+    final debugService = G1DebugService.instance;
+    return _buildSection(
+      tr('G1 Debug', 'G1 调试'),
+      Icons.bug_report,
+      [
+        _buildToggle(
+          tr('Debug Logging', '调试日志'),
+          tr(
+            'Enable firmware debug output from glasses',
+            '启用眼镜固件调试输出',
+          ),
+          _settings.g1DebugLogging,
+          (value) async {
+            await debugService.toggle(value);
+            setState(() {});
+          },
+        ),
+        if (_settings.g1DebugLogging) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                tr('Debug Output', '调试输出'),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  debugService.clearLogs();
+                  setState(() {});
+                },
+                child: Text(
+                  tr('Clear', '清除'),
+                  style: TextStyle(
+                    color: HelixTheme.cyan.withValues(alpha: 0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          StreamBuilder<String>(
+            stream: debugService.debugMessages,
+            builder: (context, snapshot) {
+              final lines = debugService.logBuffer;
+              return Container(
+                height: 200,
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                  ),
+                ),
+                child: lines.isEmpty
+                    ? Center(
+                        child: Text(
+                          tr(
+                            'No debug messages yet',
+                            '暂无调试消息',
+                          ),
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        reverse: true,
+                        itemCount: lines.length,
+                        itemBuilder: (context, index) {
+                          final line =
+                              lines[lines.length - 1 - index];
+                          return Padding(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 1),
+                            child: Text(
+                              line,
+                              style: const TextStyle(
+                                color: Color(0xFF00FF88),
+                                fontSize: 10,
+                                fontFamily: 'monospace',
+                                height: 1.4,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              );
+            },
+          ),
+        ],
       ],
     );
   }

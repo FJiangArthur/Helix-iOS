@@ -21,7 +21,7 @@ class TextService {
   TextService._();
 
   /// Text transfer uses the dedicated text-display state instead of the AI result view.
-  int _screenCodeForPage() => HudDisplayState.textPage();
+  int _screenCodeForPage(int pageIndex) => HudDisplayState.textPageForIndex(pageIndex);
 
   Future startSendText(String text, {String source = 'unknown'}) async {
     final content = text.trim();
@@ -43,7 +43,7 @@ class TextService {
 
     if (list.length <= 1) {
       final singlePage = list.isNotEmpty ? list[0] : '';
-      final isSuccess = await doSendText(singlePage, _screenCodeForPage(), 0);
+      final isSuccess = await doSendText(singlePage, _screenCodeForPage(0), 0);
       clear();
       if (isSuccess) {
         HandoffMemory.instance.markDelivered(note: 'Single-page handoff complete');
@@ -62,7 +62,7 @@ class TextService {
     String startScreenWords = list[0];
     bool isSuccess = await doSendText(
       startScreenWords,
-      _screenCodeForPage(),
+      _screenCodeForPage(0),
       0,
     );
     if (isSuccess && list.length > 1) {
@@ -114,7 +114,7 @@ class TextService {
 
       final isSuccess = await doSendText(
         list[_currentLine],
-        _screenCodeForPage(),
+        _screenCodeForPage(_currentLine),
         0,
       );
 

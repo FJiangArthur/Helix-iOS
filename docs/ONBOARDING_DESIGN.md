@@ -108,13 +108,69 @@ Relevant files:
 - `ios/Runner/OpenAIRealtimeTranscriber.swift`
 
 Responsibilities:
-
+$$
 - own the iOS speech recognizer bridge
 - manage microphone authorization
 - emit speech events over Flutter event channels
 - optionally use OpenAI realtime transcription in native code
 
 ## Design Flows
+
+```mermaid
+flowchart LR
+  subgraph Flutter["Flutter Layer"]
+    UI["Home / EvenAI / Quick Ask"]
+    Boot["main.dart bootstraps settings, BLE, DB, HUD, LLM"]
+    Settings["SettingsManager"]
+    Session["ConversationListeningSession"]
+    Engine["ConversationEngine"]
+    LLM["LlmService<br/>provider + model routing"]$$
+    HUD["TextPaginator + Proto.sendEvenAIData"]
+    DB["Drift + SharedPreferences"]
+    Post["Follow-up chips<br/>Fact-check<br/>Sentiment / Entity<br/>Cloud pipeline trigger"]
+  end
+
+  subgraph Native["iOS Native Layer"]
+    AppDelegate["AppDelegate<br/>method.bluetooth + eventSpeechRecognize"]
+    Speech["SpeechStreamRecognizer"]
+    Apple["Apple Speech<br/>cloud / on-device"]
+    Whisper["Whisper batch"]
+    OpenAI["OpenAI Realtime transcriber<br/>transcription or conversation mode"]
+    BLE["BluetoothManager<br/>dual L/R BLE + glasses mic PCM"]
+  end
+
+  Boot --> Settings
+  Boot --> LLM
+  Boot --> Engine
+
+  UI -->|"live listen"| Session
+  UI -->|"text prompt"| Engine
+  Settings --> Session
+  Settings --> Engine
+
+  Session -->|"startEvenAI / pause / resume / stop"| AppDelegate
+  AppDelegate --> Speech
+
+  BLE -->|"glasses PCM"| Speech
+  Speech --> Apple
+  Speech --> Whisper
+  Speech --> OpenAI
+
+  Speech -->|"partial/final transcript events"| Session
+  OpenAI -->|"realtime aiResponse deltas"| Session
+
+  Session -->|"onTranscriptionUpdate / onTranscriptionFinalized"| Engine
+  Engine -->|"question detection + context build + prompt policy"| LLM
+  LLM -->|"streaming answer / tool loop"| Engine
+
+  Engine -->|"streamed / final answer"| HUD
+  HUD --> BLE
+
+  Engine --> DB
+  Engine --> Post
+  DB --> Post
+
+```
 
 ### Flow A: Spoken Question To HUD Answer
 

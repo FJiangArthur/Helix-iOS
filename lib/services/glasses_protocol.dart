@@ -13,7 +13,22 @@ class HudDisplayState {
   static int aiFrame({required bool isStreaming}) =>
       (isStreaming ? _aiShowing : _aiComplete) | _displayNewContent;
 
+  static int aiFrameForPage({
+    required bool isStreaming,
+    required int pageIndex,
+    required int totalPages,
+  }) {
+    if (!isStreaming) return _aiComplete;
+    if (pageIndex == 0) return _aiShowing | _displayNewContent;
+    return _aiShowing;
+  }
+
   static int textPage() => _textShow | _displayNewContent;
+
+  static int textPageForIndex(int pageIndex) {
+    if (pageIndex == 0) return _textShow | _displayNewContent;
+    return _textShow;
+  }
 
   static int dashboardCard() => _textShow | _displayNewContent;
 }

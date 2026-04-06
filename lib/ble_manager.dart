@@ -52,6 +52,11 @@ class BleManager {
   final _deviceEventController = StreamController<BleDeviceEvent>.broadcast();
   Stream<BleDeviceEvent> get deviceEventStream => _deviceEventController.stream;
 
+  final _statusMessageController =
+      StreamController<BleStatusMessage>.broadcast();
+  Stream<BleStatusMessage> get statusMessageStream =>
+      _statusMessageController.stream;
+
   void _updateConnectionState(BleConnectionState state) {
     _connectionState = state;
     _connectionStateController.add(state);
@@ -177,6 +182,10 @@ class BleManager {
 
   void setMethodCallHandler() {
     _channel.setMethodCallHandler(_methodCallHandler);
+    // Signal native side that Dart is ready to receive events.
+    // Replays any glassesConnected events that fired during BLE restoration
+    // before this handler was registered.
+    _channel.invokeMethod('dartReady', null);
   }
 
   Future<void> _methodCallHandler(MethodCall call) async {
@@ -229,7 +238,7 @@ class BleManager {
 
   int tryTime = 0;
   bool _conversationActive = false;
-  int _heartbeatIntervalSeconds = 8;
+  int _heartbeatIntervalSeconds = 5;
   static const int _idleHeartbeatInterval = 30;
   static const int _failureHeartbeatInterval = 8;
 
@@ -367,6 +376,16 @@ class BleManager {
       );
     }
 
+    if (res.getCmd() == 0x22) {
+      final statusMsg = BleStatusMessage.fromReceive(res);
+      if (statusMsg != null) {
+        _statusMessageController.add(statusMsg);
+        appLogger.i(
+          'BleManager status message -> event=${statusMsg.eventCode}, dashboard=${statusMsg.dashboardMode}, pane=${statusMsg.paneMode}, page=${statusMsg.panePage}',
+        );
+      }
+    }
+
     final deviceEvent = BleDeviceEvent.fromReceive(res);
     if (deviceEvent != null) {
       _deviceEventController.add(deviceEvent);
@@ -394,6 +413,13 @@ class BleManager {
         case BleDeviceEventKind.headUp:
         case BleDeviceEventKind.headDown:
         case BleDeviceEventKind.glassesConnectSuccess:
+        case BleDeviceEventKind.batteryLevel:
+        case BleDeviceEventKind.chargingStatus:
+        case BleDeviceEventKind.tripleTapLeft:
+        case BleDeviceEventKind.tripleTapRight:
+        case BleDeviceEventKind.rightTouchpadHeld:
+        case BleDeviceEventKind.dashboardOpened:
+        case BleDeviceEventKind.dashboardClosed:
         case BleDeviceEventKind.unknownDeviceOrder:
           appLogger.d(
             'BleManager discovery event retained for dashboard diagnostics: ${deviceEvent.label}',

@@ -142,5 +142,4 @@ Future<void> _initializeLlmService() async {
   // Apply conversation settings
   final engine = ConversationEngine.instance;
   engine.autoDetectQuestions = settings.autoDetectQuestions;
-  engine.autoAnswerQuestions = settings.autoAnswerQuestions;
 }

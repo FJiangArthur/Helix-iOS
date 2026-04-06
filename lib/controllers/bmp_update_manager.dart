@@ -24,7 +24,19 @@ class BmpUpdateManager {
   static const int _cmdBmpComplete = 0x20;
   static const List<int> _bmpStorageAddress = [0x00, 0x1c, 0x00, 0x00];
   static const List<int> _bmpCompletePayload = [0x20, 0x0d, 0x0e];
-  static const int _iosChunkDelayMs = 8;
+  // Inter-chunk pacing for the BMP data stream.
+  //
+  // The G1 firmware writes received BMP chunks into external flash via an
+  // internal queue. If we stream chunks faster than the flash write thread can
+  // drain them, the queue overflows and chunks are silently dropped — the
+  // glasses then compute a CRC over partial data and respond with status 0xca
+  // (CRC mismatch), causing every bitmap upload to fail. Evidence in the
+  // device log: repeated `ext_flash_write(): flash write fail!` and
+  // `enqueue_file(): enqueue_file is full` during streaming, followed by a
+  // mismatching `try_to_save_file(): crc cal end crc32_value` and a 0x16 ack
+  // with byte[5]=0xca. 25ms gives the flash write queue enough headroom to
+  // keep up with our 50-chunk uploads on iOS.
+  static const int _iosChunkDelayMs = 25;
   static const int _defaultChunkDelayMs = 5;
 
   /// Default timeout per chunk for dashboard transfers (ms).
@@ -163,7 +175,12 @@ class BmpUpdateManager {
     required _BmpRequestSide requestSide,
   }) async {
     final completePacket = Uint8List.fromList(_bmpCompletePayload);
-    final requestTimeoutMs = timeoutMs < 1000 ? 1000 : timeoutMs;
+    // Bump the floor to 2500ms: after streaming 50+ chunks withoutResponse,
+    // the BLE TX queue on iOS can be backed up several hundred ms.  The old
+    // 1000ms floor was timing out before the glasses had drained the queue
+    // and sent their ACK, causing "bitmap show failed" even on successful
+    // transfers.
+    final requestTimeoutMs = timeoutMs < 2500 ? 2500 : timeoutMs;
     final completeResp = await requestSide(
       lr,
       completePacket,

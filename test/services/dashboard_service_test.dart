@@ -288,6 +288,7 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapInvalidateCalls = 0;
       var bitmapHideCalls = 0;
+      var bitmapScreenClearCalls = 0;
       var bitmapScreenHideCalls = 0;
 
       final bitmapService = DashboardService(
@@ -307,6 +308,9 @@ void main() {
         bitmapHideRenderer: () async {
           bitmapHideCalls += 1;
           return true;
+        },
+        bitmapScreenClearRenderer: () async {
+          bitmapScreenClearCalls += 1;
         },
         bitmapScreenHideRenderer: () async {
           bitmapScreenHideCalls += 1;
@@ -335,10 +339,12 @@ void main() {
       expect(HudController.instance.currentIntent, HudIntent.idle);
       expect(exitCalls, 0);
       expect(bitmapHideCalls, 1);
-      // Screen hide (pushScreen 0xF4) is no longer called — the 0x26 dashboard
-      // visibility command is sufficient per the Even Realities SDK.
+      // 0x18 bitmap clear is sent after the 0x26 dashboard visibility command.
+      expect(bitmapScreenClearCalls, 1);
       expect(bitmapScreenHideCalls, 0);
-      expect(bitmapInvalidateCalls, 1);
+      // Cache is preserved when restoring to idle — glasses retain the last
+      // uploaded frame at 0x001C0000, so the next show can delta-send.
+      expect(bitmapInvalidateCalls, 0);
 
       await bitmapService.hideDashboard(
         source: 'test.bitmapDashboard.teardown',
@@ -347,9 +353,10 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'text';
     });
 
-    test('bitmap auto-hide uses only dashboard visibility command', () async {
+    test('bitmap auto-hide sends 0x26 then 0x18 clear', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapHideCalls = 0;
+      var bitmapScreenClearCalls = 0;
       var bitmapScreenHideCalls = 0;
 
       final bitmapService = DashboardService(
@@ -366,6 +373,9 @@ void main() {
         bitmapHideRenderer: () async {
           bitmapHideCalls += 1;
           return true;
+        },
+        bitmapScreenClearRenderer: () async {
+          bitmapScreenClearCalls += 1;
         },
         bitmapScreenHideRenderer: () async {
           bitmapScreenHideCalls += 1;
@@ -384,9 +394,10 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 80));
 
-      // Only the 0x26 dashboard hide is sent; pushScreen (0xF4) is skipped
-      // per the Even Realities SDK protocol.
+      // 0x26 dashboard visibility + 0x18 bitmap clear are both sent.
+      // pushScreen (0xF4) is not used.
       expect(bitmapHideCalls, 1);
+      expect(bitmapScreenClearCalls, 1);
       expect(bitmapScreenHideCalls, 0);
 
       await bitmapService.hideDashboard(
@@ -446,9 +457,10 @@ void main() {
       SettingsManager.instance.hudRenderPath = 'text';
     });
 
-    test('bitmap hide cleans up state with only dashboard visibility command', () async {
+    test('bitmap hide cleans up state with 0x26 + 0x18 commands', () async {
       SettingsManager.instance.hudRenderPath = 'bitmap';
       var bitmapHideCalls = 0;
+      var bitmapScreenClearCalls = 0;
       var bitmapInvalidateCalls = 0;
 
       final bitmapService = DashboardService(
@@ -462,6 +474,9 @@ void main() {
         bitmapHideRenderer: () async {
           bitmapHideCalls += 1;
           return true;
+        },
+        bitmapScreenClearRenderer: () async {
+          bitmapScreenClearCalls += 1;
         },
         bitmapScreenHideDelay: Duration.zero,
         bitmapInvalidateCache: () {
@@ -481,10 +496,12 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 80));
 
       expect(bitmapHideCalls, 1);
-      // State properly cleaned up using only the 0x26 command
+      expect(bitmapScreenClearCalls, 1);
       expect(bitmapService.state.isActive, isFalse);
       expect(HudController.instance.currentIntent, HudIntent.idle);
-      expect(bitmapInvalidateCalls, 1);
+      // Cache preserved on idle restore (see selective invalidation in
+      // DashboardService._restoreBitmapRoute).
+      expect(bitmapInvalidateCalls, 0);
 
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';

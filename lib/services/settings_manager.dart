@@ -240,6 +240,13 @@ class SettingsManager {
   String theme = 'dark';
 
   // ---------------------------------------------------------------------------
+  // Debug Settings
+  // ---------------------------------------------------------------------------
+
+  /// Whether G1 glasses debug logging is enabled (sends 0x23 0x6C command).
+  bool g1DebugLogging = false;
+
+  // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
 
@@ -410,6 +417,9 @@ class SettingsManager {
 
     // UI
     theme = prefs.getString('theme') ?? 'dark';
+
+    // Debug
+    g1DebugLogging = prefs.getBool('g1DebugLogging') ?? false;
   }
 
   // ---------------------------------------------------------------------------
@@ -532,6 +542,9 @@ class SettingsManager {
 
     // UI
     await prefs.setString('theme', theme);
+
+    // Debug
+    await prefs.setBool('g1DebugLogging', g1DebugLogging);
 
     _changesController.add(this);
   }

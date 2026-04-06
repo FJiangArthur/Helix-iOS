@@ -173,6 +173,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     /// Whether noise reduction is applied to incoming glasses audio.
     var noiseReductionEnabled = false
 
+    /// Queued glassesConnected events that fired before Dart was ready.
+    private var pendingConnectionEvents: [[String: String]] = []
+    /// Whether the Dart method handler has signaled readiness.
+    private var dartHandlerReady = false
+
     var leftPeripheral: CBPeripheral?
     var leftUUIDStr: String?
     var rightPeripheral: CBPeripheral?
@@ -410,6 +415,69 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             rightPeripheral?.setNotifyValue(true, for: rightRChar)
             writeData(writeData: Data([0x4d, 0x01]), lr: "R")
         }
+
+        // Notify Dart that this side is ready (characteristics discovered).
+        notifyGlassesConnectedIfReady(side: side)
+    }
+
+    /// Sends glassesConnected to Dart once a side's write characteristic is ready.
+    ///
+    /// Called from didDiscoverCharacteristics so the Dart layer only marks a
+    /// side as connected after it can actually receive BLE writes.
+    private func notifyGlassesConnectedIfReady(side: String?) {
+        guard let side = side,
+              let deviceName = (side == "L"
+                  ? deviceNameByPeripheralId[leftPeripheral?.identifier ?? UUID()]
+                  : deviceNameByPeripheralId[rightPeripheral?.identifier ?? UUID()]) else {
+            return
+        }
+
+        // Only notify once the write characteristic is available.
+        let sideReady = (side == "L" && leftWChar != nil) ||
+                        (side == "R" && rightWChar != nil)
+        guard sideReady else { return }
+
+        let currentPair = connectedDevices[deviceName]
+        let bothCharacteristicsReady = leftWChar != nil && rightWChar != nil
+
+        var args: [String: String]
+        if bothCharacteristicsReady,
+           let leftP = currentPair?.0, let rightP = currentPair?.1 {
+            persistConnectedDevice(deviceName: deviceName, left: leftP, right: rightP)
+            print("glassesConnected both sides deviceName=\(deviceName)")
+            args = [
+                "leftDeviceName": leftP.name ?? "",
+                "rightDeviceName": rightP.name ?? "",
+                "status": "connected"
+            ]
+        } else {
+            print("glassesConnected partial side=\(side) deviceName=\(deviceName)")
+            args = [
+                "leftDeviceName": currentPair?.0?.name ?? "",
+                "rightDeviceName": currentPair?.1?.name ?? "",
+                "connectedSide": side,
+                "partial": "true",
+                "status": "connected"
+            ]
+        }
+
+        if dartHandlerReady {
+            channel.invokeMethod("glassesConnected", arguments: args)
+        } else {
+            print("glassesConnected queued (Dart not ready yet)")
+            pendingConnectionEvents.append(args)
+        }
+    }
+
+    /// Called by Dart after its method handler is registered.
+    /// Replays any connection events that fired before Dart was ready.
+    func onDartReady() {
+        dartHandlerReady = true
+        for args in pendingConnectionEvents {
+            print("glassesConnected replayed: \(args)")
+            channel.invokeMethod("glassesConnected", arguments: args)
+        }
+        pendingConnectionEvents.removeAll()
     }
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
@@ -426,6 +494,12 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func writeData(writeData: Data, cbPeripheral: CBPeripheral? = nil, lr: String? = nil) {
+        // [G1DBG] Hex dump every outbound BLE write so we can trace the exact
+        // bytes reaching the glasses in Xcode Console.  Filter with "[G1DBG]".
+        let hex = writeData.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
+        let cmd = writeData.first.map { String(format: "0x%02x", $0) } ?? "??"
+        NSLog("[G1DBG] TX lr=\(lr ?? "both") cmd=\(cmd) len=\(writeData.count) hex=\(hex)")
+
         print(
             "writeData lr=\(lr ?? "both") bytes=\(writeData.count) "
                 + "leftPeripheral=\(leftPeripheral != nil) rightPeripheral=\(rightPeripheral != nil) "
@@ -502,6 +576,23 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         guard !data.isEmpty else {
             print("Warning: Received empty BLE payload")
             return
+        }
+
+        // [G1DBG] Hex dump every inbound RX packet (except mic audio which is
+        // too noisy).  0xF4 packets are the glasses' own debug stream — dump
+        // them as ASCII so the firmware's internal messages are visible.
+        if data[0] != 0xF1 {
+            let side = sideByPeripheralId[cbPeripheral?.identifier ?? UUID()] ?? "?"
+            let hex = data.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
+            let cmd = String(format: "0x%02x", data[0])
+            NSLog("[G1DBG] RX side=\(side) cmd=\(cmd) len=\(data.count) hex=\(hex)")
+            if data[0] == 0xF4, data.count > 1 {
+                let body = data.subdata(in: 1..<data.count)
+                let trimmed = body.prefix(while: { $0 != 0 })
+                if let text = String(data: trimmed, encoding: .utf8), !text.isEmpty {
+                    NSLog("[G1DBG] RX side=\(side) DEBUG: \(text)")
+                }
+            }
         }
 
         let rspCommand = AG_BLE_REQ(rawValue: data[0])
@@ -613,28 +704,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             "connectPeripheral side=\(side) deviceName=\(deviceName) "
                 + "leftConnected=\(pair.0 != nil) rightConnected=\(pair.1 != nil)"
         )
-
-        let currentPair = connectedDevices[deviceName]
-        if let leftP = currentPair?.0, let rightP = currentPair?.1 {
-            // Both sides connected
-            persistConnectedDevice(deviceName: deviceName, left: leftP, right: rightP)
-            print("glassesConnected both sides deviceName=\(deviceName)")
-            channel.invokeMethod("glassesConnected", arguments: [
-                "leftDeviceName": leftP.name ?? "",
-                "rightDeviceName": rightP.name ?? "",
-                "status": "connected"
-            ])
-        } else {
-            // Partial connection - first side connected
-            print("glassesConnected partial side=\(side) deviceName=\(deviceName)")
-            channel.invokeMethod("glassesConnected", arguments: [
-                "leftDeviceName": currentPair?.0?.name ?? "",
-                "rightDeviceName": currentPair?.1?.name ?? "",
-                "connectedSide": side,
-                "partial": "true",
-                "status": "connected"
-            ])
-        }
+        // glassesConnected is deferred to didDiscoverCharacteristics so the
+        // Dart side only marks a side as ready once its write characteristic
+        // has been discovered. Sending the event here would race with
+        // characteristic discovery, causing writes to fail with nil wChar.
     }
 
     private func markPeripheralDisconnected(_ peripheral: CBPeripheral) {

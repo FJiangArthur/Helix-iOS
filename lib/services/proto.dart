@@ -163,6 +163,10 @@ class Proto {
       }
     }
 
+    if (leftConnected) {
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+
     bool isSuccessR = false;
     if (rightConnected) {
       isSuccessR = await BleManager.requestList(
@@ -383,6 +387,35 @@ class Proto {
     return !receive.isTimeout &&
         receive.data.length > 1 &&
         receive.data[1].toInt() == 0xc9;
+  }
+
+  // NOTE: Factory head-up dashboard suppression is not possible on the
+  // current G1 firmware. We previously sent a 0x08 Head-Up Action / Global /
+  // "Do Nothing" command on connect, per protocol research Section 11.3, but
+  // device logs show the firmware ignores the write and replies with the
+  // current action (0x00 = Show Dashboard) — i.e. on this firmware revision
+  // 0x08/Global appears to be read-only. The factory dashboard always
+  // renders briefly on head-up regardless. The only mitigation is to push
+  // our bitmap fast enough to overwrite it.
+
+  /// Clear the bitmap screen by sending 0x18 to both connected sides.
+  ///
+  /// Uses fire-and-forget [BleManager.sendData] instead of request/ACK to
+  /// avoid the timeout that was blocking state recovery when using the
+  /// request-based [exit] method.
+  static Future<void> clearBitmapScreen({
+    Duration interSideDelay = const Duration(milliseconds: 100),
+  }) async {
+    final data = Uint8List.fromList([0x18]);
+    if (BleManager.isConnectedL()) {
+      await BleManager.sendData(data, lr: 'L');
+    }
+    if (BleManager.isConnectedR()) {
+      if (BleManager.isConnectedL() && interSideDelay > Duration.zero) {
+        await Future<void>.delayed(interSideDelay);
+      }
+      await BleManager.sendData(data, lr: 'R');
+    }
   }
 
   /// Hide the glasses dashboard overlay.

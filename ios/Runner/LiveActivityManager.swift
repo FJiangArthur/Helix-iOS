@@ -76,4 +76,18 @@ class LiveActivityManager {
         currentActivity = nil
         print("[LiveActivity] Ended")
     }
+
+    /// End all Live Activities for this app — cleans up stale activities
+    /// that survived an app crash or force-kill.
+    func cleanupStaleActivities() {
+        let activities = Activity<HelixLiveActivityAttributes>.activities
+        guard !activities.isEmpty else { return }
+        print("[LiveActivity] Cleaning up \(activities.count) stale activities")
+        for activity in activities {
+            Task {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+        currentActivity = nil
+    }
 }

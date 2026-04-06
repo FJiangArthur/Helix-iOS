@@ -9,7 +9,8 @@ void main() {
       expect(BleTransportPolicy.attemptsForRetryCount(3), 4);
     });
 
-    test('delivery only succeeds when every connected side succeeds', () {
+    test('delivery succeeds when at least one connected side succeeds', () {
+      // Both connected, both succeed
       expect(
         BleTransportPolicy.didAllConnectedTargetsSucceed(
           leftConnected: true,
@@ -20,6 +21,7 @@ void main() {
         isTrue,
       );
 
+      // Both connected, only L succeeds (R characteristic not ready)
       expect(
         BleTransportPolicy.didAllConnectedTargetsSucceed(
           leftConnected: true,
@@ -27,9 +29,32 @@ void main() {
           leftSuccess: true,
           rightSuccess: false,
         ),
+        isTrue,
+      );
+
+      // Both connected, only R succeeds
+      expect(
+        BleTransportPolicy.didAllConnectedTargetsSucceed(
+          leftConnected: true,
+          rightConnected: true,
+          leftSuccess: false,
+          rightSuccess: true,
+        ),
+        isTrue,
+      );
+
+      // Both connected, both fail
+      expect(
+        BleTransportPolicy.didAllConnectedTargetsSucceed(
+          leftConnected: true,
+          rightConnected: true,
+          leftSuccess: false,
+          rightSuccess: false,
+        ),
         isFalse,
       );
 
+      // Only L connected, L succeeds
       expect(
         BleTransportPolicy.didAllConnectedTargetsSucceed(
           leftConnected: true,
@@ -40,6 +65,7 @@ void main() {
         isTrue,
       );
 
+      // Neither connected
       expect(
         BleTransportPolicy.didAllConnectedTargetsSucceed(
           leftConnected: false,

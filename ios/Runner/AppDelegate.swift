@@ -15,7 +15,12 @@ import NaturalLanguage
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         // Audio session and microphone permissions are deferred until user starts recording
-        
+
+        // Clean up any Live Activities that survived a previous app crash/force-kill
+        if #available(iOS 16.2, *) {
+            LiveActivityManager.shared.cleanupStaleActivities()
+        }
+
         GeneratedPluginRegistrant.register(with: self)
 
         guard let controller = resolveFlutterViewController() else {
@@ -48,6 +53,9 @@ import NaturalLanguage
                 if let params = call.arguments as? [String: Any] {
                     bluetoothManager.sendData(params: params)
                 }
+                result(nil)
+            case "dartReady":
+                bluetoothManager.onDartReady()
                 result(nil)
             case "startEvenAI":
                 let args = call.arguments as? [String: Any] ?? [:]
@@ -148,6 +156,14 @@ import NaturalLanguage
             case "resumeEvenAI":
                 SpeechStreamRecognizer.shared.resumeRecognition()
                 result("Resumed Even AI speech recognition")
+            case "sendDebugControl":
+                if let params = call.arguments as? [String: Any],
+                   let enable = params["enable"] as? Bool {
+                    let data = Data([0x23, 0x6C, enable ? 0x00 : 0xC1])
+                    bluetoothManager.writeData(writeData: data, lr: "L")
+                    bluetoothManager.writeData(writeData: data, lr: "R")
+                }
+                result(nil)
             case "startLiveActivity":
                 if #available(iOS 16.2, *) {
                     let args = call.arguments as? [String: Any]

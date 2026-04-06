@@ -323,7 +323,7 @@ class GlassesAnswerPresenter {
   ) {
     return Proto.sendEvenAIData(
       text,
-      newScreen: HudDisplayState.textPage(),
+      newScreen: HudDisplayState.textPageForIndex(currentWindow - 1),
       pos: 0,
       current_page_num: currentWindow,
       max_page_num: totalWindows,

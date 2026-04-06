@@ -66,7 +66,11 @@ class BleTransportPolicy {
     return retryCount + 1;
   }
 
-  /// A delivery only counts as successful when every connected side succeeds.
+  /// A delivery succeeds when at least one connected side succeeds.
+  ///
+  /// G1 glasses relay data between L and R internally, so a single-side
+  /// delivery is sufficient. Requiring both sides would cause total failure
+  /// when one side's write characteristic hasn't been discovered yet.
   static bool didAllConnectedTargetsSucceed({
     required bool leftConnected,
     required bool rightConnected,
@@ -76,7 +80,7 @@ class BleTransportPolicy {
     if (!leftConnected && !rightConnected) {
       return false;
     }
-    return (!leftConnected || leftSuccess) && (!rightConnected || rightSuccess);
+    return (leftConnected && leftSuccess) || (rightConnected && rightSuccess);
   }
 }
 
@@ -84,8 +88,15 @@ enum BleDeviceEventKind {
   exitFunc,
   pageBack,
   pageForward,
+  tripleTapLeft,
+  tripleTapRight,
   headUp,
   headDown,
+  batteryLevel,
+  chargingStatus,
+  rightTouchpadHeld,
+  dashboardOpened,
+  dashboardClosed,
   glassesConnectSuccess,
   evenaiStart,
   evenaiRecordOver,
@@ -100,6 +111,7 @@ class BleDeviceEvent {
     required this.data,
     required this.timestamp,
     required this.label,
+    this.payload,
   });
 
   final BleDeviceEventKind kind;
@@ -108,6 +120,7 @@ class BleDeviceEvent {
   final Uint8List data;
   final DateTime timestamp;
   final String label;
+  final int? payload;
 
   bool get isDashboardTrigger =>
       kind == BleDeviceEventKind.headUp || kind == BleDeviceEventKind.headDown;
@@ -118,6 +131,10 @@ class BleDeviceEvent {
     BleReceive receive, {
     DateTime? timestamp,
   }) {
+    if (receive.getCmd() == 0x22) {
+      return _parseStatusMessage(receive, timestamp: timestamp);
+    }
+
     if (!receive.isDeviceOrder || receive.notifyIndex == null) {
       return null;
     }
@@ -161,6 +178,48 @@ class BleDeviceEvent {
         timestamp: eventTimestamp,
         label: 'head_down',
       ),
+      4 => BleDeviceEvent(
+        kind: BleDeviceEventKind.tripleTapLeft,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'triple_tap_left',
+      ),
+      5 => BleDeviceEvent(
+        kind: BleDeviceEventKind.tripleTapRight,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'triple_tap_right',
+      ),
+      0x09 => BleDeviceEvent(
+        kind: BleDeviceEventKind.chargingStatus,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'charging_status',
+        payload: receive.data.length > 2 ? receive.data[2] : null,
+      ),
+      0x0A => BleDeviceEvent(
+        kind: BleDeviceEventKind.batteryLevel,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'battery_level',
+        payload: receive.data.length > 2 ? receive.data[2] : null,
+      ),
+      0x12 => BleDeviceEvent(
+        kind: BleDeviceEventKind.rightTouchpadHeld,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'right_touchpad_held',
+      ),
       17 => BleDeviceEvent(
         kind: BleDeviceEventKind.glassesConnectSuccess,
         notifyIndex: notifyIndex,
@@ -168,6 +227,22 @@ class BleDeviceEvent {
         data: receive.data,
         timestamp: eventTimestamp,
         label: 'glasses_connect_success',
+      ),
+      0x1E => BleDeviceEvent(
+        kind: BleDeviceEventKind.dashboardOpened,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'dashboard_opened',
+      ),
+      0x1F => BleDeviceEvent(
+        kind: BleDeviceEventKind.dashboardClosed,
+        notifyIndex: notifyIndex,
+        side: side,
+        data: receive.data,
+        timestamp: eventTimestamp,
+        label: 'dashboard_closed',
       ),
       23 => BleDeviceEvent(
         kind: BleDeviceEventKind.evenaiStart,
@@ -194,6 +269,103 @@ class BleDeviceEvent {
         label: 'unknown_device_order_$notifyIndex',
       ),
     };
+  }
+
+  static BleDeviceEvent? _parseStatusMessage(
+    BleReceive receive, {
+    DateTime? timestamp,
+  }) {
+    final data = receive.data;
+    if (data.length < 2) return null;
+
+    final size = data[1];
+    final side = receive.lr;
+    final eventTimestamp = timestamp ?? DateTime.now();
+
+    if (size == 0x0A && data.length >= 10) {
+      final eventCode = data[4];
+      if (eventCode == 0x01) {
+        return BleDeviceEvent(
+          kind: BleDeviceEventKind.headUp,
+          notifyIndex: 0x22,
+          side: side,
+          data: data,
+          timestamp: eventTimestamp,
+          label: 'status_head_up',
+        );
+      }
+    } else if (size == 0x08 && data.length >= 8) {
+      final eventCode = data[4];
+      if (eventCode == 0x02) {
+        return BleDeviceEvent(
+          kind: BleDeviceEventKind.pageForward,
+          notifyIndex: 0x22,
+          side: side,
+          data: data,
+          timestamp: eventTimestamp,
+          label: 'status_right_tap',
+        );
+      }
+    }
+
+    return null;
+  }
+}
+
+class BleStatusMessage {
+  const BleStatusMessage({
+    required this.side,
+    required this.eventCode,
+    required this.dashboardMode,
+    required this.paneMode,
+    required this.panePage,
+    required this.timestamp,
+    this.unreadCount,
+    this.lowPower,
+  });
+
+  final String side;
+  final int eventCode;
+  final int dashboardMode;
+  final int paneMode;
+  final int panePage;
+  final DateTime timestamp;
+  final int? unreadCount;
+  final int? lowPower;
+
+  static BleStatusMessage? fromReceive(
+    BleReceive receive, {
+    DateTime? timestamp,
+  }) {
+    final data = receive.data;
+    if (data.isEmpty || data[0] != 0x22 || data.length < 2) return null;
+
+    final size = data[1];
+    final eventTimestamp = timestamp ?? DateTime.now();
+
+    if (size == 0x0A && data.length >= 10) {
+      return BleStatusMessage(
+        side: receive.lr,
+        eventCode: data[4],
+        unreadCount: data[5],
+        lowPower: data[6],
+        dashboardMode: data[7],
+        paneMode: data[8],
+        panePage: data[9],
+        timestamp: eventTimestamp,
+      );
+    } else if (size == 0x08 && data.length >= 8) {
+      return BleStatusMessage(
+        side: receive.lr,
+        eventCode: data[4],
+        dashboardMode: data[5],
+        paneMode: data[6],
+        panePage: data[7],
+        timestamp: eventTimestamp,
+      );
+    }
+
+    return null;
   }
 }
 

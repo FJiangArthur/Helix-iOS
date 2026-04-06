@@ -182,7 +182,9 @@ class SpeechStreamRecognizer {
         shouldBufferSpeechEvents = true
 
         // Map vadSensitivity (0.0-1.0, higher=more sensitive) to threshold (0.2-0.6, lower=more sensitive)
-        openaiTranscriber.vadThreshold = 0.6 - (vadSensitivity * 0.4)
+        // Round to 6 decimal places to avoid OpenAI's 16-decimal-place limit
+        let rawThreshold = 0.6 - (vadSensitivity * 0.4)
+        openaiTranscriber.vadThreshold = (rawThreshold * 1_000_000).rounded() / 1_000_000
         openaiTranscriber.transcriptionPrompt = transcriptionPrompt
 
         if backend == .openai {

@@ -94,6 +94,11 @@ class ConversationEngine {
   DateTime? _lastGlassesFlush;
   static const _minFlushInterval = Duration(milliseconds: 200);
 
+  // Streaming HUD state: avoid re-sending full canvas on every token flush
+  int _lastStreamedByteLength = 0;
+  bool _isFirstStreamFrame = true;
+  int _lastStreamedPageIndex = 0;
+
   // Progressive sentence finalization: track how many complete sentences
   // from the current Apple recognition segment we've already finalized.
   int _segmentSentencesFinalized = 0;
@@ -1958,6 +1963,11 @@ $profileInstruction''';
       Future<void> flushChain = Future<void>.value();
       final glassesConnected = _glassesConnectionChecker();
 
+      // Reset streaming HUD state for new AI response
+      _isFirstStreamFrame = true;
+      _lastStreamedByteLength = 0;
+      _lastStreamedPageIndex = 0;
+
       Future<void> flushPendingDelta() {
         flushTimer?.cancel();
         flushTimer = null;
@@ -2340,21 +2350,60 @@ Answer the detected question directly using the recent conversation context abov
     return 'Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here\'s a suggestion". Use natural spoken language, no lists or formatting.';
   }
 
-  /// Send text to glasses HUD with proper pagination
+  /// Send text to glasses HUD with proper pagination.
+  ///
+  /// Uses a hybrid screen-code strategy during streaming to avoid the
+  /// scroll-up glitch caused by re-sending a full new-canvas code on every
+  /// token flush:
+  ///   - First flush of a new response  -> 0x31 (AI showing + new canvas)
+  ///   - Subsequent same-page flushes   -> 0x30 (AI showing, existing canvas)
+  ///     with `pos` set to the UTF-8 byte offset of new content
+  ///   - Page change during streaming   -> 0x31 again for the new page
+  ///   - Streaming complete             -> 0x40 (AI complete)
   Future<void> _sendToGlasses(String text, {required bool isStreaming}) async {
     final paginator = TextPaginator.instance;
     paginator.paginateText(text);
 
-    final screenCode = HudDisplayState.aiFrame(isStreaming: isStreaming);
-    final currentPage = paginator.pageCount > 0 ? paginator.pageCount : 1;
+    final totalPages = paginator.pageCount > 0 ? paginator.pageCount : 1;
+    final currentPageIndex = totalPages - 1;
+    final pageText =
+        paginator.currentPageText.isNotEmpty ? paginator.currentPageText : text;
+
+    // Determine the screen code based on streaming state.
+    int screenCode;
+    int pos;
+
+    if (!isStreaming) {
+      // Final frame — AI complete.
+      screenCode = HudDisplayState.aiFrameForPage(
+        isStreaming: false,
+        pageIndex: currentPageIndex,
+        totalPages: totalPages,
+      );
+      pos = 0;
+      _isFirstStreamFrame = true; // reset for next response
+    } else if (_isFirstStreamFrame ||
+        currentPageIndex != _lastStreamedPageIndex) {
+      // New canvas on first frame or when text overflows to a new page.
+      screenCode = 0x31; // AI showing + new canvas
+      _isFirstStreamFrame = false;
+      _lastStreamedPageIndex = currentPageIndex;
+      _lastStreamedByteLength = utf8.encode(pageText).length;
+      pos = 0;
+    } else {
+      // Same page, subsequent flush — append only.
+      screenCode = 0x30; // AI showing, existing canvas
+      pos = _lastStreamedByteLength;
+      _lastStreamedByteLength = utf8.encode(pageText).length;
+    }
 
     try {
       await Proto.sendEvenAIData(
-        paginator.currentPageText.isNotEmpty ? paginator.currentPageText : text,
+        pageText,
         newScreen: screenCode,
-        pos: 0,
-        current_page_num: currentPage,
-        max_page_num: paginator.pageCount,
+        pos: pos,
+        current_page_num: currentPageIndex + 1,
+        max_page_num: totalPages,
       );
     } catch (e) {
       appLogger.e('Failed to send to glasses', error: e);

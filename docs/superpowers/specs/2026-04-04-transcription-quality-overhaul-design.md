@@ -45,10 +45,10 @@ For the batch path with phone mic:
 - Server receives full-bandwidth audio and does its own high-quality conversion
 
 Add a new setting `transcriptionTransport` with values:
-- `"realtime"` — Realtime WebSocket (streaming partials, lower latency)
-- `"batch"` — Batch REST API (best audio quality, slightly higher latency)
+- `"24kHz Realtime"` — Realtime WebSocket (streaming partials, lower latency)
+- `"48kHz Batch Proc"` — Batch REST API (best audio quality, slightly higher latency)
 
-Default: `"realtime"`. Exposed in Settings so the user can A/B test.
+Default: `"24kHz Realtime"`. Exposed in Settings so the user can A/B test.
 
 When `transcriptionTransport == "batch"` and model is `gpt-4o-transcribe` or `gpt-4o-mini-transcribe`, `ConversationListeningSession` sets backend to `"whisper"` (reusing the existing batch path) with the selected model name.
 

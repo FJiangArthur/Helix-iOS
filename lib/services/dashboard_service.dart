@@ -97,6 +97,7 @@ typedef DashboardTextRenderer = Future<bool> Function(String text);
 typedef DashboardExitRenderer = Future<bool> Function();
 typedef BitmapDashboardRenderer = Future<bool> Function();
 typedef BitmapDashboardHideRenderer = Future<bool> Function();
+typedef BitmapDashboardScreenClearRenderer = Future<void> Function();
 typedef BitmapDashboardScreenHideRenderer = Future<bool> Function();
 typedef BitmapDashboardInvalidator = void Function();
 typedef BitmapDashboardVisibilitySetter = void Function(bool visible);
@@ -114,6 +115,7 @@ class DashboardService {
     BitmapDashboardRenderer? bitmapDeltaRenderer,
     BitmapDashboardRenderer? bitmapFullRenderer,
     BitmapDashboardHideRenderer? bitmapHideRenderer,
+    BitmapDashboardScreenClearRenderer? bitmapScreenClearRenderer,
     BitmapDashboardScreenHideRenderer? bitmapScreenHideRenderer,
     Duration? bitmapScreenHideDelay,
     BitmapDashboardInvalidator? bitmapInvalidateCache,
@@ -137,6 +139,8 @@ class DashboardService {
        _bitmapFullRenderer =
            bitmapFullRenderer ?? BitmapHudService.instance.pushFull,
        _bitmapHideRenderer = bitmapHideRenderer ?? Proto.hideDashboard,
+       _bitmapScreenClearRenderer =
+           bitmapScreenClearRenderer ?? Proto.clearBitmapScreen,
        _bitmapScreenHideRenderer =
            bitmapScreenHideRenderer ?? (() => Proto.pushScreenToConnectedSides(0x00)),
        _bitmapScreenHideDelay =
@@ -161,6 +165,7 @@ class DashboardService {
   final BitmapDashboardRenderer _bitmapDeltaRenderer;
   final BitmapDashboardRenderer _bitmapFullRenderer;
   final BitmapDashboardHideRenderer _bitmapHideRenderer;
+  final BitmapDashboardScreenClearRenderer _bitmapScreenClearRenderer;
   final BitmapDashboardScreenHideRenderer _bitmapScreenHideRenderer;
   final Duration _bitmapScreenHideDelay;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
@@ -382,10 +387,12 @@ class DashboardService {
         emitDeviceDiagnostic('BitmapHUD', 'dashboard hide send failed');
         return false;
       }
-      // The 0x26 dashboard visibility command is sufficient to clear the
-      // bitmap overlay — the Even Realities SDK does not send an additional
-      // pushScreen(0xF4) after hiding. Skip the screen-hide step entirely
-      // to avoid the timeout failure that was blocking state recovery.
+      // Send 0x18 (clear screen / bitmap hide) after the 0x26 dashboard
+      // visibility command.  The protocol spec (Section 5.6) documents 0x18
+      // as the bitmap clear command. We use fire-and-forget sendData here
+      // instead of the request-based Proto.exit() to avoid the ACK timeout
+      // that was previously blocking state recovery.
+      await _bitmapScreenClearRenderer();
     }
 
     switch (previousIntent) {
@@ -418,10 +425,24 @@ class DashboardService {
         break;
     }
 
-    // Any bitmap hide that hands off to text/native routes leaves the device
-    // frame unknown to the bitmap renderer, so the next bitmap show must
-    // rebuild from a full frame.
-    _bitmapInvalidateCache();
+    // Only invalidate the bitmap cache when handing off to a text/native
+    // route that overwrites the glasses screen buffer (quickAsk, notification,
+    // liveListening, textTransfer). When restoring to idle/dashboard the
+    // glasses still hold our last uploaded frame at 0x001C0000, so the next
+    // bitmap show can delta-send with zero changed chunks for near-instant
+    // display and near-zero BLE traffic.
+    switch (previousIntent) {
+      case HudIntent.quickAsk:
+      case HudIntent.notification:
+      case HudIntent.liveListening:
+      case HudIntent.textTransfer:
+        _bitmapInvalidateCache();
+        break;
+      case HudIntent.idle:
+      case HudIntent.dashboard:
+        // Preserve cache — glasses still have our last frame in memory.
+        break;
+    }
     return true;
   }
 
