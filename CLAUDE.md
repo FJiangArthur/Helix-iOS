@@ -112,8 +112,10 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 - G1 uses dual BLE connections (L/R glasses) via `MethodChannel('method.bluetooth')`
 - Touchpad events: `notifyIndex` 0=exit, 1=pageBack/Forward (L/R), 2=headUp, 3=headDown, 23=evenaiStart, 24=evenaiRecordOver
 - EvenAI protocol: multi-packet chunking (191 bytes/packet) with sequence numbers
-- Packet header: `[cmd, syncSeq, maxSeq, seq, newScreen, pos(2B), currentPage, maxPage, ...data]`
-- Screen codes: `0x01` new content, `0x30` AI streaming, `0x40` AI complete, `0x70` text page
+- **BLE command byte for the AI/text family is `0x4E`** (`SEND_RESULT`). The values below are NOT separate commands — they are values of the 5th header byte (`screen_status` = `ScreenAction | AIStatus`).
+- Packet header: `[0x4E, syncSeq, maxSeq, seq, screen_status, new_char_pos_hi, new_char_pos_lo, currentPage, maxPage, ...data]`
+- `screen_status` values: `0x01` NEW_CONTENT, `0x30` DISPLAYING (auto-advance), `0x40` DISPLAY_COMPLETE, `0x50` MANUAL_MODE (suppress firmware auto-advance — Helix unused), `0x60` NETWORK_ERROR (Helix unused), `0x70` text mode
+- `new_char_pos` is hard-coded `0` in every reference implementation (official Even Realities demo + community Python SDK). It is **not an append offset** — likely a highlight position. Pagination is 100% phone-driven by re-pushing whole pages with updated `current_page_num`.
 - Text HUD: 488px max width, 21pt font, 5 lines per page
 - Bitmap HUD: Full widget-based rendering via `BitmapHudService`
 
