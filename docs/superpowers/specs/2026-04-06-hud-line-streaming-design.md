@@ -6,13 +6,32 @@
 
 ---
 
-## Open questions
+## Protocol findings (2026-04-06 research, resolves prior open questions 1 & 2)
 
-1. **Does the G1 firmware actually honor a non-zero `pos` as an append offset on screen code `0x30`, or does it still treat the body as a full canvas replacement?** Today's code sets `pos` but still passes the entire `pageText` through `Proto.sendEvenAIData`, so the wire payload grows every flush. We need a hardware test (or vendor confirmation) before committing to "ship only the new line bytes." If firmware ignores `pos` and always overwrites, the win is purely BLE-byte savings on smaller payloads, not a true incremental append.
-2. **Is there a dedicated "append" subcode** in the EvenAI command space (0x4E family) beyond 0x30/0x31/0x40/0x70? Vendor protocol docs are not in-tree.
-3. **Glyph advance caching:** does Flutter's `TextPainter` expose per-glyph advances cheaply, or do we need a measurement micro-cache keyed by character?
-4. **Multi-codepoint graphemes (emoji, CJK combining):** does the existing paginator handle them correctly today? Line streaming must not split inside a grapheme cluster.
-5. **Fact-check correction (Spec A) — does it replace the last sentence in place, or push a new page?** That decision changes whether line streaming needs a "rewrite line N" operation in addition to "append line N+1."
+Two independent reference implementations — Even Realities' official `EvenDemoApp` (Flutter) and the community `emingenc/even_glasses` (Python) — were inspected. Verdicts (high confidence):
+
+- **No append semantics on `pos`.** Both implementations hard-code `pos = 0` in every call site. There is no evidence the firmware treats a non-zero `pos` as an append offset; its likely meaning is "highlight offset within the current page," not "insert at byte N." **Spec B does not rely on `pos != 0` append.**
+- **No scroll / view-window command exists.** Pagination is 100% phone-driven by re-pushing whole pages with updated `current_page_num` / `max_page_num`.
+- **The actual BLE command byte for the AI/text family is `0x4E`.** The values Helix has been calling "screen codes" (`0x30`, `0x40`, `0x70`, etc.) are actually values of the 5th header byte (`screen_status` = `ScreenAction | AIStatus`). Helix's existing code happens to work because the layout is compatible, but the spec uses correct nomenclature from here on.
+- **Status byte values, complete table** (community SDK + official demo):
+
+| Value | Meaning | Helix uses |
+|---|---|---|
+| `0x01` | `ScreenAction.NEW_CONTENT` | yes |
+| `0x30` | `AIStatus.DISPLAYING` (auto-advance mode) | yes |
+| `0x40` | `AIStatus.DISPLAY_COMPLETE` (final page of an answer) | yes |
+| `0x50` | `AIStatus.MANUAL_MODE` (suppress firmware auto-advance during user paging) | **no** |
+| `0x60` | `AIStatus.NETWORK_ERROR` | **no** |
+| `0x70` | text mode (non-AI text page) | yes |
+
+- **Firmware is a dumb framebuffer keyed by `current_page_num`.** No page retention. Re-push is mandatory on every advance. There is no "push the whole answer once and let the firmware paginate" path.
+
+## Open questions (still open)
+
+1. **Glyph advance caching is not needed.** Resolved: reuse `TextPaginator.splitIntoLines` on the unsent tail (~80 chars typical, ~160 worst case). Sub-millisecond, byte-for-byte agreement with the final-page rendering. No glyph cache, no `TextPainter.getBoxesForRange` micro-cache.
+2. **Multi-codepoint graphemes (emoji, CJK combining):** does the existing paginator handle them correctly today? Line streaming must not split inside a grapheme cluster. (Unchanged from prior spec.)
+3. **Fact-check correction (Spec A) — does it replace the last sentence in place, or push a new page?** Spec A says fact-check pushes via the same arbiter; if it lands as a new high-priority slot, the existing `cancel()` + new-session path handles it. If Spec A wants in-place replacement of the last line, this spec needs a "rewrite line N" operation. Spec A authors please confirm.
+4. **Should Helix start sending `MANUAL_MODE 0x50` on touchpad page navigation?** Out of scope for this spec, but flag as a follow-on: today Helix may be relying on side effects of `0x30`/`0x40` for paging behavior that the official app handles via `0x50`.
 
 ---
 
@@ -48,7 +67,11 @@
 
 ## 2. Locked decision
 
-Stream **one visual line at a time**. A "line" is the chunk of text that fills one wrapped row at the HUD's 488 px / 21 pt rendering. Tokens accumulate in a buffer; the buffer is only flushed to BLE when it has produced **at least one completed visual line** that has not yet been sent. The flushed payload is the new line(s) only — not the full page. Page transitions are handled via the existing 0x31 "new canvas" code; intra-page line additions use 0x30 with `pos` set to the running byte offset.
+Stream **one visual line at a time**. A "line" is the chunk of text that fills one wrapped row at the HUD's 488 px / 21 pt rendering. Tokens accumulate in a buffer; the buffer is only flushed to BLE when it has produced **at least one completed visual line** that has not yet been sent.
+
+**The win is flush-rate reduction, not byte-payload reduction.** Per the protocol findings above, the firmware does not support partial-page append, so each flush still re-pushes the full current-page text via cmd `0x4E` + `screen_status = 0x01 | 0x30`. What changes versus today is that flushes now happen on line completion (~2/sec for typical streaming) instead of on the 14-char/75ms threshold (~13/sec). That is a **6-7× reduction in BLE writes** with identical per-write payload size.
+
+This matches what L/R serialization with 400 ms inter-side gap can actually drain — today's higher flush rate is silently coalesced by latency, so reducing it costs nothing in perceived UX and frees radio time for other BLE traffic.
 
 This applies to the normal LLM stream, to Spec A prefetched answers (which arrive pre-rendered and are flushed line-at-a-time on activation), and to Spec A fact-check corrections.
 
@@ -103,40 +126,44 @@ class HudStreamSession {
 Behavior:
 
 - `appendDelta` updates `_pendingTail`, runs the paginator-on-tail check (§3), promotes any completed lines into `_lines`, and calls `_emit(...)` once per "batch of newly committed lines."
-- `_emit` decides between:
-  - **First frame on page** → 0x31 (new canvas), `pos = 0`, payload = the new lines joined by `\n`.
-  - **Subsequent same-page** → 0x30, `pos = _pageByteLength` (the offset *before* appending), payload = only the newly committed lines (prefixed with `\n` if `_lines` was non-empty before this batch).
-  - **Page just filled** → after emitting the line that completed line 5, advance `_pageIndex++`, reset `_lines`, `_pageByteLength`, send 0x31 for the next page with whatever already lives in `_pendingTail` (if non-empty, which is rare — usually nothing).
-- `finish()` flushes any non-empty `_pendingTail` as a final partial-line append on the current page, then sends a single 0x40 frame with the page text (the firmware needs the "complete" sentinel; payload can be empty body if append model holds, otherwise full final page — see Open Question 1).
-- `cancel()` is called by Spec A's preemption hook. It tears down state without sending 0x40; the new `HudStreamSession` for the replacement response will issue 0x31 and overwrite the canvas naturally.
+- `_emit` always sends the **full current-page text** via cmd `0x4E`, `pos = 0`. The status byte distinguishes the cases:
+  - **First frame on page** → `screen_status = 0x01 | 0x30` (`NEW_CONTENT | DISPLAYING`), payload = joined committed lines + pending tail.
+  - **Subsequent same-page** → `screen_status = 0x30`, payload = joined committed lines + pending tail (the entire current page so far). Identical to today's behavior except gated on line completion, not per-token.
+  - **Page just filled** → emit the now-full page once with `0x01 | 0x30`, advance `_pageIndex++`, reset `_lines`, send the next page's first frame with whatever lives in `_pendingTail` (typically empty).
+- `finish()` flushes any non-empty `_pendingTail` once more (full current page), then sends a single frame with `screen_status = 0x40` (`DISPLAY_COMPLETE`) containing the full final page — the firmware needs the complete sentinel.
+- `cancel()` is called by Spec A's preemption hook. It tears down state without sending `0x40`; the new `HudStreamSession` for the replacement response will issue a `0x01 | 0x30` first frame which the firmware treats as a fresh canvas.
+
+The `_pageByteLength` field is removed from the state — it was only useful for the dead append-offset path.
 
 ---
 
-## 5. Incremental packet protocol
+## 5. Packet protocol — corrected nomenclature
 
 ### What `glasses_protocol.dart` actually defines
 
-`HudDisplayState` only encodes the *screen code byte* (0x01 / 0x30 / 0x40 / 0x70 plus `aiFrameForPage` helper). The actual multi-packet framing lives in `EvenaiProto.evenaiMultiPackListV2` (called from `Proto.sendEvenAIData`). The header per CLAUDE.md is:
+`HudDisplayState` encodes the `screen_status` byte (`0x01`, `0x30`, `0x40`, `0x70`) plus the `aiFrameForPage` helper. Helix's existing code calls these "screen codes" but per the protocol findings above, the **actual BLE command byte is `0x4E`** for the entire AI/text family — `0x30`/`0x40`/`0x70` are values of the 5th header byte (`screen_status`), not separate commands. The framing lives in `EvenaiProto.evenaiMultiPackListV2`. Header layout:
 
 ```
-[cmd, syncSeq, maxSeq, seq, newScreen, pos_lo, pos_hi, currentPage, maxPage, ...data]
+[0x4E, syncSeq, maxSeq, seq, screen_status, new_char_pos_hi, new_char_pos_lo, currentPage, maxPage, ...data]
 ```
 
-`pos` is already wired through. **No new screen code is required** for line streaming — 0x30 + non-zero `pos` is the existing "append at offset" affordance. What we are actually changing is the **payload semantics**: today `data` carries the full page; tomorrow `data` carries only the bytes from `pos` to end-of-current-page-so-far.
+The `new_char_pos` field's documented purpose (per `even_glasses/models.py`) is "new character position" — likely a highlight offset for the firmware to animate freshly arrived text. **It is not an append offset.** Both the official demo and the community SDK hard-code it to 0 in every call site.
 
-### Required change to `Proto.sendEvenAIData`
+### What changes in `Proto.sendEvenAIData`
 
-Add an optional named parameter `Uint8List? appendBytes`. When provided, it bypasses `utf8.encode(text)` and ships exactly those bytes as the body. `text` is still passed for logging. Old call sites (final-page, text-mode HUD) are unchanged.
+**Nothing in the wire format.** No new parameter, no new screen code. The existing `text` argument and `pos = 0` semantics are kept.
 
-Pending Open Question 1: if the firmware ignores `pos` and always treats body as full-canvas, we fall back to "send the smallest legal payload" — which means still sending the full page text per flush, and the win is reduced to "fewer flushes per response" (one per completed line, not one per 14 chars). That alone is still a significant BLE-radio win.
+What changes is the **flush trigger** in `ConversationEngine._streamToGlasses` (and the new `HudStreamSession` that owns it): instead of calling `_sendToGlasses` on every 14-char/75ms tick, call it only when the unsent token tail has produced at least one new completed visual line. The payload is still the full current-page text. The win is purely flush-rate reduction.
+
+A future spec may revisit `screen_status = 0x50 MANUAL_MODE` for touchpad paging and `screen_status = 0x60 NETWORK_ERROR` for provider failures — neither is in scope here.
 
 ### Packet layout (illustrative only)
 
 ```
-0x4E | syncSeq | maxSeq | seq | 0x30 | pos_lo | pos_hi | curPage | maxPage | <new line bytes incl. leading '\n'>
+0x4E | syncSeq | maxSeq | seq | 0x01|0x30 | 0 | 0 | curPage | maxPage | <full current page bytes>
 ```
 
-For a typical 60-char line, this fits in a single 191-byte packet — no fragmentation, single ACK round-trip per side.
+A 5-line page at ~60 chars/line is ~300 bytes → 2 packets at 191 bytes/packet, fragmented and reassembled by `evenaiMultiPackListV2` as today.
 
 ---
 
@@ -144,13 +171,13 @@ For a typical 60-char line, this fits in a single 191-byte packet — no fragmen
 
 When the line that just completed is line 5 of the current page:
 
-1. Emit the 0x30 append for that 5th line on page N (so the user sees the page fill).
-2. Immediately afterward, issue a 0x31 "new canvas" frame for page N+1 with payload = whatever is currently in `_pendingTail` (typically empty; if mid-token-burst, may already contain the start of line 1 of the new page).
-3. Reset `_lines`, `_pageByteLength`, increment `_pageIndex`, set `_firstFrameSent = false` (because the 0x31 we just issued counts as "first frame on this new page" — actually set it `true` after emit).
+1. Emit the full page-N text once with `screen_status = 0x01 | 0x30` (so the user sees the page fill).
+2. Immediately afterward, issue a fresh `0x01 | 0x30` frame for page N+1 with `current_page_num = N+1`, `max_page_num` updated, payload = whatever is currently in `_pendingTail` (typically empty; if mid-token-burst, may already contain the start of line 1 of the new page).
+3. Reset `_lines`, increment `_pageIndex`.
 
 We do not pre-emptively flip the page before line 5 is visible. The user should see "...line 5" complete on page N before the firmware swaps canvases.
 
-For multi-page final answers, the existing touchpad pagination still works because the final 0x40 frame and the `current_page_num`/`max_page_num` header are unchanged.
+For multi-page final answers, the existing touchpad pagination still works because the final `0x40` frame and the `current_page_num` / `max_page_num` header are unchanged.
 
 ---
 
@@ -158,13 +185,13 @@ For multi-page final answers, the existing touchpad pagination still works becau
 
 | Case | Handling |
 |---|---|
-| Stream ends mid-line (no newline trigger) | `finish()` flushes `_pendingTail` as a 0x30 append on the current page, then sends 0x40. |
-| Stream cancelled mid-line (Spec A preemption) | `cancel()` drops `_pendingTail`, does not send 0x40. The new session's first 0x31 overwrites. |
+| Stream ends mid-line (no newline trigger) | `finish()` flushes `_pendingTail` once with the full current page (`0x01 | 0x30`), then sends `0x40` with the same full final page. |
+| Stream cancelled mid-line (Spec A preemption) | `cancel()` drops `_pendingTail`, does not send `0x40`. The new session's first `0x01 | 0x30` frame overwrites the canvas. |
 | Single token wider than 488 px (very long URL, no spaces) | `splitIntoLines` already breaks on word boundaries only — a single oversize "word" becomes one line that exceeds the width. **Acceptance:** v1 lets it overflow visually, matching today. Follow-up: hard-break long unbroken runs at the byte level. Tracked as a known limitation, not a blocker. |
 | Token contains a literal `\n` | Treat `\n` as a forced line break: split `_pendingTail` at the newline, promote the left side as a completed line immediately (even if narrower than 488 px). |
 | Empty delta | No-op. |
-| Final frame coincides with a page boundary | Send the page's last 0x30, then 0x40 for that same page. Do not advance to a phantom empty page N+1. |
-| Final answer is exactly empty | Send 0x40 with empty body so the HUD knows the response completed. |
+| Final frame coincides with a page boundary | Send the page's last `0x01 | 0x30`, then `0x40` for that same page. Do not advance to a phantom empty page N+1. |
+| Final answer is exactly empty | Send `0x40` with empty body so the HUD knows the response completed. |
 | Backend retransmits / duplicates a token | Idempotency is the LLM provider's job. `HudStreamSession` trusts its input. |
 
 ---
@@ -176,9 +203,9 @@ BLE write throughput on G1 is the binding constraint: serialized L-then-R with a
 Still, if the LLM produces lines faster than BLE drains:
 
 1. `HudStreamSession.appendDelta` is `async` and awaits the previous emit's `Future` before issuing the next. Tokens continue to accumulate in `_pendingTail` and `_lines` while the wire is busy.
-2. **Coalescing rule:** if `_lines` has 2+ uncommitted-to-wire entries when the wire frees up, emit them in a single 0x30 packet (still smaller than the full page). This means slow BLE → fewer, fatter frames; fast BLE → one frame per line.
-3. **No dropping.** Every committed line must reach the glasses; partial loss would desync the `pos` offset and corrupt the canvas.
-4. If the wire is so slow that the entire response finishes before the first page is fully sent, `finish()` waits on the in-flight emit and then sends 0x40. Worst case: user sees an instant final page rather than a stream — degraded UX, not a bug.
+2. **Coalescing rule:** if multiple lines complete during one in-flight emit, the next emit just sends the full current-page text — which now includes all the newly completed lines. No special "batch lines into one packet" logic needed; the protocol is already whole-page.
+3. **No dropping.** Every emit must reach the glasses; the firmware is a dumb framebuffer and the next emit is the source of truth for the canvas.
+4. If the wire is so slow that the entire response finishes before the first page is fully sent, `finish()` waits on the in-flight emit and then sends the final `0x40` frame. Worst case: user sees an instant final page rather than a stream — degraded UX, not a bug.
 
 A `Completer`-based single-slot queue inside `HudStreamSession` is sufficient. No external queue manager.
 
@@ -191,26 +218,23 @@ No hardware required. Inject a `HudPacketSink` interface into `HudStreamSession`
 ```dart
 abstract class HudPacketSink {
   Future<void> send({
-    required int screenCode,
-    required int pos,
+    required int screenStatus, // 0x01|0x30, 0x30, 0x40, etc.
     required int pageIndex,
     required int totalPages,
-    required Uint8List body,
-    required String debugText,
+    required String pageText,
   });
 }
 ```
 
 Production binding wraps `Proto.sendEvenAIData`. Tests use `RecordingHudPacketSink` which appends each call to a list. Assertions:
 
-1. **Packet count:** streaming a 3-line response produces exactly 3 same-page emits + 1 final 0x40 (4 total), not N-tokens emits.
-2. **Incremental content:** for each 0x30 emit, `pos` equals the cumulative byte length of all previously emitted bodies on this page.
-3. **No prefix re-send:** concatenating all bodies on a page reproduces the final page text exactly, with no duplicated bytes.
-4. **Page boundary:** streaming 7 lines produces 5 emits on page 0, a 0x31 on page 1, then 2 more 0x30 emits on page 1.
-5. **Cancel mid-stream:** `cancel()` results in zero further emits, no 0x40.
-6. **Wire-agreement:** for a fixed input, the final accumulated page text from line streaming equals `TextPaginator.instance.paginateText(input)` page-by-page (drift guard).
-7. **Long token:** an unbroken 100-char token produces one (oversized) line emit and does not loop.
-8. **Backpressure:** sink configured to await a manual `Completer` — feed 30 tokens fast, verify no dropped lines, verify coalescing into fewer-than-30 emits.
+1. **Flush rate:** streaming a 3-line response produces exactly 3 streaming emits + 1 final `0x40` (4 total), regardless of token count.
+2. **Page text monotonic growth:** within a page, each successive emit's `pageText` is a strict prefix-extension of the previous (no rewrites, no truncation).
+3. **Final page agreement:** the last streaming emit's `pageText` equals `TextPaginator.instance.paginateText(input).last` for that page (drift guard).
+4. **Page boundary:** streaming 7 lines produces 5 emits on page 0 (the last with `0x01 | 0x30` containing the full 5-line page), then 2 more emits on page 1, then `0x40`.
+5. **Cancel mid-stream:** `cancel()` results in zero further emits, no `0x40`.
+6. **Long token:** an unbroken 100-char token produces one (oversized) line emit and does not loop.
+7. **Backpressure:** sink configured to await a manual `Completer` — feed 30 tokens fast, verify no lost lines and that coalesced emits still send the full current page.
 
 Tests live in `test/services/hud_stream_session_test.dart`. No changes to the `lib/services/conversation_engine.dart` test surface beyond replacing `_glassesSender` injection with a `HudStreamSession` factory.
 
@@ -219,7 +243,7 @@ Tests live in `test/services/hud_stream_session_test.dart`. No changes to the `l
 ## 10. Migration notes
 
 1. Land `HudStreamSession` and `HudPacketSink` with full unit coverage. Keep `_sendToGlasses` as-is.
-2. Add an `appendBytes` parameter to `Proto.sendEvenAIData`. Existing callers unaffected.
-3. Behind a `SettingsManager.flag('hud.lineStreaming', default: false)` gate, route streaming responses through `HudStreamSession` instead of the old flush loop. Final-frame and text-HUD path stay on `_sendToGlasses`.
-4. Hardware QA on a real G1 pair: confirm `pos`+append actually appends. If yes, ship enabled. If no, fall back to "fewer flushes, full page bodies" mode (keep the line-completion gating, drop the `appendBytes` optimization) and document Open Question 1 as resolved-negative.
-5. Remove `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` from `ConversationEngine` once the flag is on by default for one release.
+2. Behind a `SettingsManager.flag('hud.lineStreaming', default: false)` gate, route streaming responses through `HudStreamSession` instead of the old per-token flush loop. Final-frame and text-HUD path stay on `_sendToGlasses`.
+3. Hardware QA on a real G1 pair: verify the line-gated cadence visibly improves streaming feel and reduces flicker. No protocol risk to validate — wire format is unchanged from today.
+4. Flip the flag default to `true` after one release.
+5. Remove `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` from `ConversationEngine`.
