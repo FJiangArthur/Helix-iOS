@@ -142,7 +142,61 @@ Steps:
 - [ ] Run `flutter test test/services/ble_transport_policy_test.dart` and confirm all tests pass (no behavior change).
 - [ ] `git add lib/services/conversation_listening_session.dart && git commit -m "feat(diag): timestamp dart speech-event arrivals"`
 
-### Task 0.5 — Capture diagnostic logs and write conclusion doc
+### Task 0.5 — Wire G1DebugService into diagnostic harness
+
+Purpose: correlate firmware-side 0xF4 debug frames against phone-side timing so the Phase 0 capture can distinguish "gap downstream of BLE" from "gap in Dart / platform-channel / audio". Uses the pre-existing singleton at `lib/services/g1_debug_service.dart` — do NOT rewrite it.
+
+**Files**
+- Read (do not modify): `lib/services/g1_debug_service.dart`
+- Modify: `lib/services/conversation_listening_session.dart` (the same listener touched in Task 0.4 — this is where Dart-side `[helix-diag] dart-event ...` logs are emitted, so firmware frames land in the same log stream with comparable timestamps).
+
+Steps:
+
+- [ ] Instrumentation check (replaces a failing test — the diagnostic harness has no unit test surface). Before making changes, `flutter run -d <sim-id> --dart-define=HELIX_DEBUG_TRANSCRIPTION_TIMING=true`, speak for 5 s, and confirm `grep '\[helix-diag\] firmware' <captured.log>` returns ZERO lines. This proves the wiring is absent.
+- [ ] In `lib/services/conversation_listening_session.dart`, add imports at the top:
+      ```dart
+      import 'package:flutter_helix/services/g1_debug_service.dart';
+      import 'package:flutter_helix/services/answers/_debug_timing.dart';
+      ```
+      (The second import may already exist from Task 0.4 — do not duplicate.)
+- [ ] Add a private field and subscription handle to the session class:
+      ```dart
+      StreamSubscription<String>? _g1DebugDiagSub;
+      ```
+- [ ] In the method that starts a listening session (the same method whose EventChannel listener was instrumented in Task 0.4), immediately after the EventChannel subscription is wired, add:
+      ```dart
+      if (kDebugTranscriptionTiming) {
+        // Phase 0 diagnostic: correlate firmware-side 0xF4 debug frames with
+        // phone-side speech events. G1DebugService.enable() sends the
+        // 0x23 0x6C 0x00 firmware debug-enable command and parses incoming
+        // 0xF4 frames as null-terminated ASCII on its debugMessages stream.
+        unawaited(G1DebugService.instance.enable());
+        _g1DebugDiagSub = G1DebugService.instance.debugMessages.listen((line) {
+          // Monotonic microsecond timestamp aligned with the dart-event logs
+          // emitted in Task 0.4 so both streams sort into one timeline.
+          // ignore: avoid_print
+          print('[helix-diag] firmware us=${DateTime.now().microsecondsSinceEpoch} '
+                'line=$line');
+        });
+      }
+      ```
+      If `dart:async` is not already imported for `unawaited`, add `import 'dart:async';`.
+- [ ] In the method that stops / disposes the listening session, add the matching cleanup BEFORE any existing teardown that tears down the BLE stack (G1DebugService listens on `BleManager.get().eventBleReceive`, so it must disable while BLE is still up):
+      ```dart
+      if (_g1DebugDiagSub != null) {
+        await _g1DebugDiagSub!.cancel();
+        _g1DebugDiagSub = null;
+        // Turn firmware debug logging back off so release users are never
+        // left with 0xF4 traffic on the BLE link.
+        await G1DebugService.instance.disable();
+      }
+      ```
+- [ ] Run `flutter analyze lib/services/conversation_listening_session.dart` and confirm output ends with `No issues found!`.
+- [ ] Run `flutter test test/services/ble_transport_policy_test.dart` and confirm all tests pass (the wiring is gated on `kDebugTranscriptionTiming` so production behavior is unchanged).
+- [ ] Re-run the instrumentation check from the first step: `flutter run -d <sim-id> --dart-define=HELIX_DEBUG_TRANSCRIPTION_TIMING=true`, speak for 5 s while connected to glasses, and confirm `grep '\[helix-diag\] firmware' <captured.log>` now returns one or more lines interleaved with `[helix-diag] dart-event` lines. Expected sample line: `[helix-diag] firmware us=1712345678901234 line=[12:34:56.789] <firmware message>`.
+- [ ] `git add lib/services/conversation_listening_session.dart && git commit -m "feat(diag): wire G1DebugService into phase 0 timing harness"`
+
+### Task 0.6 — Capture diagnostic logs and write conclusion doc
 
 **Files**
 - Create: `docs/research/2026-04-06-transcription-gap-diagnosis.md`
@@ -154,7 +208,7 @@ Steps:
 - [ ] Create `docs/research/2026-04-06-transcription-gap-diagnosis.md` containing: (a) the captured raw log block in a fenced code block, (b) a small table of derived gap measurements (max gap in tap timestamps, max gap in dart-event timestamps, time from press to first observed gap), (c) a one-line conclusion of the form `Conclusion: implement Fix A` OR `Conclusion: implement Fix B` OR `Conclusion: implement both`.
 - [ ] `git add docs/research/2026-04-06-transcription-gap-diagnosis.md && git commit -m "docs(diag): phase 0 transcription gap diagnosis"`
 
-### Task 0.6 — Phase 0 gate
+### Task 0.7 — Phase 0 gate
 
 Steps:
 
@@ -1178,7 +1232,7 @@ Steps:
 - Spec §4.4 debounce → 1b.8.
 - Spec §5 light contract → 1a.2 (parser + prompt) and 1b.10 (cadence + coalesce + backoff).
 - Spec §6 cancellation → 1b.2 (generation discard) + 1b.10 (light token bump on stop/start).
-- Spec §7.1 diagnosis → Phase 0 (six tasks).
+- Spec §7.1 diagnosis → Phase 0 (seven tasks).
 - Spec §7.2 Fix A → Phase 1c-A; Fix B → Phase 1c-B; both planned in parallel, executor picks per Phase 0 conclusion.
 - Spec §8 error matrix → 1b.7 (smart error) + 1a.2/1b.10 (light parse and network errors).
 - Spec §9 testing → arbiter (1b.1-1b.7), light contract (1a.2), debounce (1b.8), regression (2.1).
