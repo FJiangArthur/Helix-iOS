@@ -188,7 +188,28 @@ class BleManager {
     _channel.invokeMethod('dartReady', null);
   }
 
+  static void Function(String buttonId)? _liveActivityButtonHandler;
+
+  /// Register a Dart-side handler for `liveActivityButtonPressed` MethodChannel
+  /// calls forwarded by AppDelegate's Darwin observer.
+  static void setLiveActivityCallHandler(
+    void Function(String buttonId) handler,
+  ) {
+    _liveActivityButtonHandler = handler;
+  }
+
   Future<void> _methodCallHandler(MethodCall call) async {
+    if (call.method == 'liveActivityButtonPressed') {
+      final args = call.arguments;
+      String? id;
+      if (args is Map) {
+        id = args['button'] as String?;
+      }
+      if (id != null) {
+        _liveActivityButtonHandler?.call(id);
+      }
+      return;
+    }
     switch (call.method) {
       case 'glassesConnected':
         _onGlassesConnected(call.arguments);

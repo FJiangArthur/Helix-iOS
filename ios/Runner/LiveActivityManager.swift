@@ -3,7 +3,6 @@ import Foundation
 
 /// Manages the Helix Live Activity lifecycle: start, update, end.
 /// Called from AppDelegate via method channel from Dart.
-@available(iOS 16.2, *)
 class LiveActivityManager {
     static let shared = LiveActivityManager()
 

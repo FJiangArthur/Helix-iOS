@@ -64,6 +64,7 @@ void main() {
             questionExcerpt: 'What is the rollout plan?',
             timestamp: DateTime.fromMillisecondsSinceEpoch(1700000000000),
             askedBy: 'other',
+            priority: QuestionPriority.manual,
           ),
         );
         answerController.add('The rollout starts next week.');

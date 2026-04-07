@@ -140,6 +140,17 @@ class RecordingCoordinator {
     return null;
   }
 
+  /// Pause the active transcription stream without tearing down the
+  /// recording session. Used by the Live Activity Pause button.
+  void pauseTranscription() {
+    ConversationListeningSession.instance.pauseTranscription();
+  }
+
+  /// Resume the transcription stream after [pauseTranscription].
+  void resumeTranscription() {
+    ConversationListeningSession.instance.resumeTranscription();
+  }
+
   /// Start a voice note recording session.
   ///
   /// Uses [RecordingMode.voiceNote] — transcription only, no full pipeline.

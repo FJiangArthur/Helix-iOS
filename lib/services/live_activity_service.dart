@@ -21,6 +21,9 @@ class LiveActivityService {
     required Stream<String> aiResponseStream,
     required LiveActivityInvokeMethod invokeMethod,
     ConversationMode? initialMode,
+    Future<void> Function()? onAskQuestion,
+    Future<void> Function()? onPause,
+    Future<void> Function()? onResume,
   }) : _recordingStateStream = recordingStateStream,
        _durationStream = durationStream,
        _statusStream = statusStream,
@@ -28,6 +31,9 @@ class LiveActivityService {
        _questionDetectionStream = questionDetectionStream,
        _aiResponseStream = aiResponseStream,
        _invokeMethod = invokeMethod,
+       _onAskQuestion = onAskQuestion,
+       _onPause = onPause,
+       _onResume = onResume,
        _currentMode = initialMode ?? ConversationMode.general;
 
   factory LiveActivityService.instance() {
@@ -43,6 +49,9 @@ class LiveActivityService {
         aiResponseStream: engine.aiResponseStream,
         invokeMethod: BleManager.invokeMethod<void>,
         initialMode: engine.mode,
+        onAskQuestion: () => engine.handleQAButtonPressed(),
+        onPause: () async => coordinator.pauseTranscription(),
+        onResume: () async => coordinator.resumeTranscription(),
       );
     }();
   }
@@ -57,6 +66,9 @@ class LiveActivityService {
     required Stream<String> aiResponseStream,
     required LiveActivityInvokeMethod invokeMethod,
     ConversationMode? initialMode,
+    Future<void> Function()? onAskQuestion,
+    Future<void> Function()? onPause,
+    Future<void> Function()? onResume,
   }) {
     return LiveActivityService._(
       recordingStateStream: recordingStateStream,
@@ -67,6 +79,9 @@ class LiveActivityService {
       aiResponseStream: aiResponseStream,
       invokeMethod: invokeMethod,
       initialMode: initialMode,
+      onAskQuestion: onAskQuestion,
+      onPause: onPause,
+      onResume: onResume,
     );
   }
 
@@ -77,17 +92,25 @@ class LiveActivityService {
   final Stream<QuestionDetectionResult> _questionDetectionStream;
   final Stream<String> _aiResponseStream;
   final LiveActivityInvokeMethod _invokeMethod;
+  final Future<void> Function()? _onAskQuestion;
+  final Future<void> Function()? _onPause;
+  final Future<void> Function()? _onResume;
 
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
   bool _initialized = false;
   bool _isRecording = false;
   bool _isActivityStarted = false;
+  bool _isPaused = false;
   ConversationMode _currentMode = ConversationMode.general;
   EngineStatus _currentStatus = EngineStatus.idle;
   Duration _currentDuration = Duration.zero;
   String _currentQuestion = '';
   String _currentAnswer = '';
+  // TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
+  // lands and merges. Tracks the priority of the most recent question event
+  // so that auto-detected answers stay off the Live Activity surface.
+  QuestionPriority? _lastQuestionPriority;
 
   void initialize() {
     if (_initialized) return;
@@ -101,7 +124,35 @@ class LiveActivityService {
       _questionDetectionStream.listen(_handleQuestionDetected),
       _aiResponseStream.listen(_handleAnswerUpdated),
     ]);
+
+    BleManager.setLiveActivityCallHandler(_handleNativeButton);
   }
+
+  void _handleNativeButton(String buttonId) {
+    switch (buttonId) {
+      case 'askQuestion':
+        unawaited(_onAskQuestion?.call() ?? Future<void>.value());
+        break;
+      case 'pauseTranscription':
+        _isPaused = true;
+        unawaited(_onPause?.call() ?? Future<void>.value());
+        if (_isActivityStarted) {
+          unawaited(_updateActivity());
+        }
+        break;
+      case 'resumeTranscription':
+        _isPaused = false;
+        unawaited(_onResume?.call() ?? Future<void>.value());
+        if (_isActivityStarted) {
+          unawaited(_updateActivity());
+        }
+        break;
+    }
+  }
+
+  @visibleForTesting
+  void debugDispatchNativeButton(String buttonId) =>
+      _handleNativeButton(buttonId);
 
   Future<void> debugDispose() async {
     for (final subscription in _subscriptions) {
@@ -115,10 +166,20 @@ class LiveActivityService {
     _currentAnswer = '';
     _currentDuration = Duration.zero;
     _currentStatus = EngineStatus.idle;
+    _isPaused = false;
+    _lastQuestionPriority = null;
   }
 
-  void _handleModeChanged(ConversationMode mode) {
+  void _handleModeChanged(ConversationMode mode) async {
+    final previous = _currentMode;
     _currentMode = mode;
+    // ActivityAttributes.mode is immutable after activity start; restart so
+    // the new mode banner / icon takes effect.
+    if (_isActivityStarted && previous != mode) {
+      await _stopActivity();
+      await _startActivity();
+      return;
+    }
     if (_isActivityStarted) {
       unawaited(_updateActivity());
     }
@@ -153,6 +214,12 @@ class LiveActivityService {
   }
 
   void _handleQuestionDetected(QuestionDetectionResult detection) {
+    // TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
+    // lands and merges. Auto-detected questions never reach the Live Activity.
+    _lastQuestionPriority = detection.priority;
+    if (detection.priority == QuestionPriority.autoDetected) {
+      return;
+    }
     _currentQuestion = detection.question.trim();
     _currentAnswer = '';
     if (_isActivityStarted) {
@@ -161,6 +228,12 @@ class LiveActivityService {
   }
 
   void _handleAnswerUpdated(String answer) {
+    // Gate answers on the priority of the most recent question. If we never
+    // saw a non-auto question, suppress.
+    if (_lastQuestionPriority == null ||
+        _lastQuestionPriority == QuestionPriority.autoDetected) {
+      return;
+    }
     final trimmed = answer.trim();
     if (trimmed.isEmpty) return;
     _currentAnswer = trimmed;
@@ -186,11 +259,12 @@ class LiveActivityService {
 
   Future<void> _updateActivity() async {
     if (!_isActivityStarted) return;
+    final statusPayload = _isPaused ? 'paused' : _currentStatus.name;
     await _invokeMethod('updateLiveActivity', <String, dynamic>{
       'mode': _currentMode.name,
       'question': _currentQuestion,
       'answer': _currentAnswer,
-      'status': _currentStatus.name,
+      'status': statusPayload,
       'duration': _currentDuration.inSeconds,
     });
   }

@@ -10,7 +10,7 @@ struct HelixLiveActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         let question: String   // Detected question or "Listening..."
         let answer: String     // AI response (truncated for display)
-        let status: String     // "listening", "thinking", "answered"
+        let status: String     // "listening", "thinking", "answered", "paused"
         let duration: Int      // Recording duration in seconds
     }
 }

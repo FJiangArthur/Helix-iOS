@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -31,18 +32,40 @@ struct HelixLiveActivityWidget: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    if !context.state.answer.isEmpty {
-                        Text(context.state.answer)
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.8))
-                            .lineLimit(3)
-                    } else if context.state.status == "thinking" {
-                        HStack(spacing: 4) {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                            Text("Thinking...")
+                    VStack(spacing: 6) {
+                        if !context.state.answer.isEmpty {
+                            Text(context.state.answer)
                                 .font(.caption2)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.white.opacity(0.8))
+                                .lineLimit(3)
+                        } else if context.state.status == "thinking" {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                Text("Thinking...")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        HStack(spacing: 16) {
+                            Button(intent: AskQuestionIntent()) {
+                                Image(systemName: "questionmark.circle.fill")
+                                    .foregroundColor(.cyan)
+                            }
+                            .buttonStyle(.plain)
+                            if context.state.status == "paused" {
+                                Button(intent: ResumeTranscriptionIntent()) {
+                                    Image(systemName: "play.circle.fill")
+                                        .foregroundColor(.green)
+                                }
+                                .buttonStyle(.plain)
+                            } else {
+                                Button(intent: PauseTranscriptionIntent()) {
+                                    Image(systemName: "pause.circle.fill")
+                                        .foregroundColor(.yellow)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }
@@ -124,6 +147,36 @@ struct HelixLiveActivityWidget: Widget {
                         .foregroundColor(.white.opacity(0.5))
                 }
             }
+
+            HStack(spacing: 12) {
+                Button(intent: AskQuestionIntent()) {
+                    Label("Ask", systemImage: "questionmark.circle.fill")
+                        .labelStyle(.iconOnly)
+                        .font(.title2)
+                        .foregroundColor(.cyan)
+                }
+                .buttonStyle(.plain)
+
+                if context.state.status == "paused" {
+                    Button(intent: ResumeTranscriptionIntent()) {
+                        Label("Resume", systemImage: "play.circle.fill")
+                            .labelStyle(.iconOnly)
+                            .font(.title2)
+                            .foregroundColor(.green)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button(intent: PauseTranscriptionIntent()) {
+                        Label("Pause", systemImage: "pause.circle.fill")
+                            .labelStyle(.iconOnly)
+                            .font(.title2)
+                            .foregroundColor(.yellow)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(.top, 4)
         }
         .padding(16)
         .background(Color.black)

@@ -1768,6 +1768,10 @@ $profileInstruction''';
           questionExcerpt: excerpt,
           timestamp: DateTime.now(),
           askedBy: currentDetection.askedBy,
+          // TODO(plan-A): remove shim once feat/2026-04-06-priority-rework
+          // Phase 1a lands and merges. Manual builder always means user
+          // explicitly triggered a Q&A request.
+          priority: QuestionPriority.manual,
         );
       }
     }
@@ -1797,6 +1801,9 @@ $profileInstruction''';
           question,
         ),
         timestamp: DateTime.now(),
+        // TODO(plan-A): remove shim once feat/2026-04-06-priority-rework
+        // Phase 1a lands and merges.
+        priority: QuestionPriority.manual,
       );
     }
 
@@ -2752,6 +2759,16 @@ Answer the detected question directly using the recent conversation context abov
     }
   }
 
+  /// Entry point for the QA button (Live Activity, BLE touchpad, etc).
+  ///
+  /// TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
+  /// lands and merges. Plan A introduces the canonical
+  /// `handleQAButtonPressed()` on `ConversationEngine`; until then this
+  /// thin wrapper just forwards to the existing manual contextual Q&A path.
+  Future<void> handleQAButtonPressed() async {
+    await _runManualContextualQa();
+  }
+
   /// Simulate a multi-segment transcription session for testing the full
   /// pipeline on the simulator (which has no real microphone).
   /// Each segment is emitted as partial updates then finalized, with gaps
@@ -2837,18 +2854,40 @@ class TranscriptSegment {
   });
 }
 
+/// Origin / priority of a detected question.
+///
+/// TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
+/// lands and merges — at that point this enum will be the canonical version
+/// already defined by Plan A and we can drop this duplicate.
+enum QuestionPriority {
+  /// User explicitly asked (via tap, voice command, or QA button).
+  manual,
+
+  /// Background auto-detection from conversation transcript.
+  autoDetected,
+
+  /// Fact-check pass over an existing answer.
+  factCheck,
+}
+
 class QuestionDetectionResult {
   const QuestionDetectionResult({
     required this.question,
     required this.questionExcerpt,
     required this.timestamp,
     this.askedBy = 'other',
+    this.priority = QuestionPriority.autoDetected,
   });
 
   final String question;
   final String questionExcerpt;
   final DateTime timestamp;
   final String askedBy;
+
+  /// TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
+  /// lands and merges. Default is `autoDetected` to match the dominant
+  /// detection path today (the engine's parser path).
+  final QuestionPriority priority;
 }
 
 /// A proactive suggestion emitted when silence is detected

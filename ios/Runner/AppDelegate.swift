@@ -9,6 +9,7 @@ import NaturalLanguage
 @objc class AppDelegate: FlutterAppDelegate {
     private var speechEventSink: FlutterEventSink?
     private var realtimeAudioEventSink: FlutterEventSink?
+    private var bluetoothChannel: FlutterMethodChannel?
 
     override func application(
         _ application: UIApplication,
@@ -30,7 +31,10 @@ import NaturalLanguage
 
         // Setup real Bluetooth manager
         let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
-        
+        self.bluetoothChannel = channel
+
+        registerLiveActivityButtonObservers()
+
         // Initialize BluetoothManager with the Flutter channel (like EvenDemoApp)
         let bluetoothManager = BluetoothManager.configure(channel: channel)
         
@@ -165,27 +169,21 @@ import NaturalLanguage
                 }
                 result(nil)
             case "startLiveActivity":
-                if #available(iOS 16.2, *) {
-                    let args = call.arguments as? [String: Any]
-                    let mode = args?["mode"] as? String ?? "General"
-                    LiveActivityManager.shared.startActivity(mode: mode)
-                }
+                let args = call.arguments as? [String: Any]
+                let mode = args?["mode"] as? String ?? "General"
+                LiveActivityManager.shared.startActivity(mode: mode)
                 result(nil)
             case "updateLiveActivity":
-                if #available(iOS 16.2, *) {
-                    let args = call.arguments as? [String: Any] ?? [:]
-                    LiveActivityManager.shared.updateActivity(
-                        question: args["question"] as? String ?? "",
-                        answer: args["answer"] as? String ?? "",
-                        status: args["status"] as? String ?? "listening",
-                        duration: args["duration"] as? Int ?? 0
-                    )
-                }
+                let args = call.arguments as? [String: Any] ?? [:]
+                LiveActivityManager.shared.updateActivity(
+                    question: args["question"] as? String ?? "",
+                    answer: args["answer"] as? String ?? "",
+                    status: args["status"] as? String ?? "listening",
+                    duration: args["duration"] as? Int ?? 0
+                )
                 result(nil)
             case "stopLiveActivity":
-                if #available(iOS 16.2, *) {
-                    LiveActivityManager.shared.endActivity()
-                }
+                LiveActivityManager.shared.endActivity()
                 result(nil)
             default:
                 result(FlutterMethodNotImplemented)
@@ -355,6 +353,55 @@ import NaturalLanguage
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    private func registerLiveActivityButtonObservers() {
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        let callback: CFNotificationCallback = { _, observer, name, _, _ in
+            guard let observer = observer, let name = name else { return }
+            let delegate = Unmanaged<AppDelegate>.fromOpaque(observer).takeUnretainedValue()
+            let raw = name.rawValue as String
+            DispatchQueue.main.async {
+                delegate.forwardLiveActivityButton(rawName: raw)
+            }
+        }
+        for button in [
+            HelixLiveActivityIntentBridge.Button.askQuestion,
+            .pauseTranscription,
+            .resumeTranscription,
+        ] {
+            CFNotificationCenterAddObserver(
+                center,
+                observer,
+                callback,
+                button.rawValue as CFString,
+                nil,
+                .deliverImmediately
+            )
+        }
+    }
+
+    private func forwardLiveActivityButton(rawName: String) {
+        guard let button = HelixLiveActivityIntentBridge.Button(rawValue: rawName) else { return }
+        let id: String
+        switch button {
+        case .askQuestion:         id = "askQuestion"
+        case .pauseTranscription:  id = "pauseTranscription"
+        case .resumeTranscription: id = "resumeTranscription"
+        }
+        bluetoothChannel?.invokeMethod(
+            "liveActivityButtonPressed",
+            arguments: ["button": id]
+        )
+    }
+
+    override func applicationWillTerminate(_ application: UIApplication) {
+        CFNotificationCenterRemoveEveryObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque()
+        )
+        super.applicationWillTerminate(application)
     }
 
     private func resolveFlutterViewController() -> FlutterViewController? {
