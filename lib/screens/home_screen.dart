@@ -230,13 +230,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!_scrollController.hasClients) return;
+      final pos = _scrollController.position;
+      // If the user has scrolled up (e.g. to read earlier transcript while
+      // a streaming answer is rendering), don't yank them back to the bottom
+      // on every transcript update.  64px tolerance covers minor jitter.
+      final distanceFromBottom = pos.maxScrollExtent - pos.pixels;
+      if (distanceFromBottom > 64) return;
+      _scrollController.animateTo(
+        pos.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     });
   }
 

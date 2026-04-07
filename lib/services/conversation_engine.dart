@@ -1853,11 +1853,13 @@ $profileInstruction''';
     _recordDetectedQuestionTurn(detection);
 
     _aiResponseController.add('');
-    final session = ConversationListeningSession.instance;
-    final shouldPause = session.isRunning;
-    if (shouldPause) {
-      session.pauseTranscription();
-    }
+    // NB: previously paused the listening session for the duration of the
+    // Q&A LLM call to avoid feedback when voice responses are enabled.
+    // That had the (much worse) side effect of dropping the user's live
+    // speech for several seconds on every Q&A press.  We now keep the
+    // recognizer running throughout — any voice-response feedback should
+    // be handled in the voice assistant pipeline, not by killing all
+    // transcription.
 
     final responseToken = _beginResponseCycle();
     _statusController.add(EngineStatus.thinking);
@@ -1874,9 +1876,6 @@ $profileInstruction''';
       );
     } finally {
       _isGeneratingResponse = false;
-      if (shouldPause) {
-        session.resumeTranscription();
-      }
       // Re-arm the analysis timer so auto-detection resumes after a
       // manual Q&A attempt (whether it succeeded or failed).  Without
       // this, the timer cancelled at the top of this method is never

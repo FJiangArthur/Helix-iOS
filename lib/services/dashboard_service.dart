@@ -692,6 +692,16 @@ class DashboardService {
     }
 
     if (_isInConversation) {
+      // Suppress conversation-stats refresh while the AI is actively
+      // streaming (or thinking) so the dashboard text writes do not race
+      // the streaming-answer writes on the same 0x4e channel.  The two
+      // producers would otherwise stomp on each other and the firmware
+      // tears down the AI screen on every dashboard frame, causing the
+      // visible "flashing" between dashboard and AI overlay.
+      if (_engineStatus == EngineStatus.thinking ||
+          _engineStatus == EngineStatus.responding) {
+        return;
+      }
       // Refresh conversation stats snapshot
       final snapshot = _composeSnapshot(_clock());
       final renderOk = await _renderPage(snapshot.hudText, 1, 1);
