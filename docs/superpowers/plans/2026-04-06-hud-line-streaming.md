@@ -2,225 +2,349 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Reduce BLE write rate to the G1 glasses by ~6-7x during LLM streaming responses by gating flushes on visual-line completion instead of per-token.
+**Goal:** Reduce BLE write rate during LLM streaming by gating flushes on visual-line completion instead of per-token, while extracting the existing streaming HUD state off `ConversationEngine` into a dedicated `HudStreamSession` class with proper test coverage.
 
-**Architecture:** Introduce a `HudStreamSession` class that owns per-stream HUD state (currently 3 fields on `ConversationEngine` at `lib/services/conversation_engine.dart:98-100`). It buffers tokens, runs the existing `TextPaginator.splitIntoLines` on the unsent tail to detect line completion, and only emits to BLE on line boundaries. The wire format and `Proto.sendEvenAIData` API are unchanged — only the flush trigger moves. A `HudPacketSink` interface is injected so unit tests can run without BLE.
+**Architecture:** Absorb the existing `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` fields on `ConversationEngine` into a new `HudStreamSession` class. Change the flush trigger from the current per-token debounce (75ms / 14 chars) to per-completed-visual-line, using `TextPaginator.splitIntoLines` on the unsent tail. The wire format and per-page screen code logic already landed in checkpoint `10905f7` — nothing changes there.
 
 **Tech Stack:** Flutter 3.35+, Dart, iOS 26 deployment target
 
-**Depends on:** Spec A (Priority Pipeline) for the `HudStreamSession.cancel()` preemption hook.
+**Scope note:** The per-page screen codes, correct `current_page_num`, and 400ms inter-side delay are ALREADY LANDED in checkpoint `10905f7`. Do not re-implement them. See spec §1 "What the in-flight work already fixes."
 
-**Source spec:** `docs/superpowers/specs/2026-04-06-hud-line-streaming-design.md` (commit 293baac, corrected for G1 protocol findings — no append semantics, wire format unchanged).
+**Depends on:** Spec A (Priority Pipeline) for `HudStreamSession.cancel()` preemption hook.
+
+**Source spec:** `docs/superpowers/specs/2026-04-06-hud-line-streaming-design.md` (reconciled commit `dfb2001`, audited against branch checkpoint `10905f7`).
 
 ---
 
 ## File structure
 
 **New files:**
-- `lib/services/hud_stream_session.dart` — `HudPacketSink` abstract interface, `ProtoHudPacketSink` production binding, `HudStreamSession` state machine.
-- `test/services/hud_stream_session_test.dart` — unit tests with `RecordingHudPacketSink`.
+- `lib/services/hud_stream_session.dart` — `HudPacketSink` interface, `ProtoHudPacketSink` production binding, `HudStreamSession` state machine.
+- `test/services/hud_stream_session_test.dart` — unit tests with `RecordingHudPacketSink` and `ManualHudPacketSink`.
 
 **Modified files:**
-- `lib/services/conversation_engine.dart` — Phase 2: route streaming through `HudStreamSession` behind a flag in `_streamToGlasses` (line ~2413). Phase 4: delete `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` (lines 98-100) and dead branches in `_sendToGlasses` (lines ~2383-2398).
-- `lib/services/settings_manager.dart` — add `bool get hudLineStreamingEnabled` backed by SharedPreferences key `hud.lineStreaming`, default `false` (Phase 2), default `true` (Phase 3 flip).
+- `lib/services/conversation_engine.dart` — Phase 2: route `_streamToGlasses` (~line 2413) through `HudStreamSession` behind a flag. Phase 3 (cleanup): delete the three streaming HUD fields at lines 98-100 and the dead branch in `_sendToGlasses` (~lines 2363-2411).
+- `lib/services/settings_manager.dart` — add `hudLineStreamingEnabled` flag backed by SharedPreferences key `hud.lineStreaming`.
 
-**Unchanged (verified):**
-- `lib/services/proto.dart` (`sendEvenAIData` at line 121): no signature change.
-- `lib/services/glasses_protocol.dart`: `HudDisplayState` unchanged.
-- `lib/services/text_paginator.dart`: `splitIntoLines` at line 100, `linesPerPage = 5` at line 13.
+**Unchanged (verified — in-flight checkpoint `10905f7` already fixes these):**
+- `lib/services/proto.dart` — `sendEvenAIData` + 400ms inter-side delay (lines 166-168). **No edits.**
+- `lib/services/glasses_protocol.dart` — `aiFrameForPage` + `textPageForIndex`. **No edits.**
+- `lib/services/text_paginator.dart` — `splitIntoLines` (lines 100-126), `linesPerPage = 5`. **No edits.**
 
 ---
 
-## Phase 1 — HudStreamSession with unit coverage (no wiring)
+## Phase 1 — HudStreamSession + HudPacketSink with full unit coverage (no wiring)
 
-### Task 1.1 — Create skeleton file and failing interface test
+### Task 1.1 — Skeleton + failing empty-stream test
 
-- [ ] Create `lib/services/hud_stream_session.dart` with:
-  - `abstract class HudPacketSink` declaring `Future<void> send({required int screenStatus, required int pageIndex, required int totalPages, required String pageText})`.
-  - Empty `class HudStreamSession { HudStreamSession({required this.sink}); final HudPacketSink sink; }`.
-- [ ] Create `test/services/hud_stream_session_test.dart` with a `RecordingHudPacketSink implements HudPacketSink` that records every `send` call into a public `List<({int screenStatus, int pageIndex, int totalPages, String pageText})> calls`.
-- [ ] Add a first test: `test('empty stream finish sends single 0x40 with empty body', ...)` that constructs a `HudStreamSession`, calls `await session.finish()`, and expects exactly one emitted frame with `screenStatus == 0x40` and `pageText == ''`.
-- [ ] Run: `flutter test test/services/hud_stream_session_test.dart` — **expect FAIL** (method `finish` not implemented).
-- [ ] Commit: `test: add failing HudStreamSession skeleton test`.
+- [ ] Create `lib/services/hud_stream_session.dart`:
+  ```dart
+  import 'dart:async';
+  import 'package:helix/services/proto.dart';
+  import 'package:helix/services/text_paginator.dart';
 
-### Task 1.2 — Minimal appendDelta/finish/cancel methods
+  abstract class HudPacketSink {
+    Future<void> send({
+      required int screenStatus,
+      required int pageIndex,
+      required int totalPages,
+      required String pageText,
+    });
+  }
 
-- [ ] In `hud_stream_session.dart`, add private fields per spec §4: `int _pageIndex = 0`, `final List<String> _lines = []`, `String _pendingTail = ''`, `bool _firstFrameSent = false`, `bool _cancelled = false`, `Completer<void>? _inFlight`.
-- [ ] Implement `Future<void> appendDelta(String delta)`, `Future<void> finish()`, `Future<void> cancel()` as stubs that satisfy the empty-stream test: `finish()` awaits `_drainInFlight()` then calls `sink.send(screenStatus: 0x40, pageIndex: 0, totalPages: 1, pageText: '')` when cancelled==false.
-- [ ] Run: `flutter test test/services/hud_stream_session_test.dart` — **expect PASS**.
-- [ ] Run: `flutter analyze` — expect 0 errors.
+  class HudStreamSession {
+    HudStreamSession({required this.sink});
+    final HudPacketSink sink;
+  }
+  ```
+- [ ] Create `test/services/hud_stream_session_test.dart` with:
+  ```dart
+  class RecordingHudPacketSink implements HudPacketSink {
+    final List<({int screenStatus, int pageIndex, int totalPages, String pageText})> calls = [];
+    @override
+    Future<void> send({required int screenStatus, required int pageIndex, required int totalPages, required String pageText}) async {
+      calls.add((screenStatus: screenStatus, pageIndex: pageIndex, totalPages: totalPages, pageText: pageText));
+    }
+  }
+
+  void main() {
+    test('empty stream finish sends one 0x40 with empty body', () async {
+      final sink = RecordingHudPacketSink();
+      final session = HudStreamSession(sink: sink);
+      await session.finish();
+      expect(sink.calls, hasLength(1));
+      expect(sink.calls.single.screenStatus, 0x40);
+      expect(sink.calls.single.pageText, '');
+    });
+  }
+  ```
+- [ ] Run `flutter test test/services/hud_stream_session_test.dart` — **expect FAIL** (`finish` undefined).
+- [ ] Commit: `test: failing HudStreamSession skeleton`.
+
+### Task 1.2 — Minimal appendDelta / finish / cancel
+
+- [ ] In `hud_stream_session.dart`, add private state per spec §4:
+  ```dart
+  int _pageIndex = 0;
+  final List<String> _lines = [];
+  String _pendingTail = '';
+  bool _firstFrameSent = false;
+  bool _cancelled = false;
+  Future<void> _inFlight = Future.value();
+  ```
+- [ ] Add stub methods `appendDelta(String delta)`, `finish()`, `cancel()`. `finish()` should await `_inFlight`, then if `!_cancelled` call `sink.send(screenStatus: 0x40, pageIndex: 0, totalPages: 1, pageText: '')`.
+- [ ] Run `flutter test test/services/hud_stream_session_test.dart` — **expect PASS**.
+- [ ] Run `flutter analyze` — expect 0 errors.
 - [ ] Commit: `feat: HudStreamSession skeleton with empty-stream finish`.
 
-### Task 1.3 — Line detection via splitIntoLines on unsent tail
+### Task 1.3 — Line detection + monotonic flush (core test case)
 
-- [ ] Add test `test('3-line response produces 3 streaming + 1 final emit', ...)`: feed a long enough string in one `appendDelta` that `TextPaginator.instance.splitIntoLines(input)` returns exactly 3 lines, then `finish()`. Assert:
-  - `calls.length == 4`
-  - `calls[0].screenStatus == (0x01 | 0x30)` (first frame)
-  - `calls[1].screenStatus == 0x30`, `calls[2].screenStatus == 0x30`
-  - `calls[3].screenStatus == 0x40`
-  - Each streaming `pageText` is a prefix-extension of the previous (monotonic growth).
+- [ ] Add test (asserts spec §9 items 1 and 2):
+  ```dart
+  test('3-line response produces 3 streaming emits + final 0x40, monotonic growth', () async {
+    final sink = RecordingHudPacketSink();
+    final session = HudStreamSession(sink: sink);
+    // Pick input whose splitIntoLines yields exactly 3 lines at 488px / 21pt.
+    const input = 'The quick brown fox jumps over the lazy dog. '
+        'Pack my box with five dozen liquor jugs. '
+        'How vexingly quick daft zebras jump today.';
+    // Feed token-by-token (one char at a time) to prove per-token flushing is gone.
+    for (final ch in input.split('')) {
+      await session.appendDelta(ch);
+    }
+    await session.finish();
+
+    expect(sink.calls.length, 4, reason: 'exactly 3 streaming + 1 final');
+    expect(sink.calls[0].screenStatus, 0x01 | 0x30);
+    expect(sink.calls[1].screenStatus, 0x30);
+    expect(sink.calls[2].screenStatus, 0x30);
+    expect(sink.calls[3].screenStatus, 0x40);
+
+    // Monotonic prefix growth.
+    for (var i = 1; i < 3; i++) {
+      expect(sink.calls[i].pageText.startsWith(sink.calls[i - 1].pageText), isTrue);
+    }
+  });
+  ```
 - [ ] Run — **expect FAIL**.
-- [ ] Implement in `appendDelta`:
-  1. If `_cancelled` return.
-  2. If `delta.isEmpty` return.
-  3. `_pendingTail += delta`.
-  4. Handle literal `\n` in `_pendingTail` by splitting on `\n` and promoting all-but-last segments as forced line breaks (append each to `_lines` directly).
-  5. Compute `candidate = _pendingTail` (the active line — `_lines` already hold sent text, so the unsent tail alone is what gets re-wrapped).
-  6. `final wrapped = TextPaginator.instance.splitIntoLines(candidate);`
-  7. If `wrapped.length >= 2`: move all but the last into `_lines`, set `_pendingTail = wrapped.last`, call `_emit(streaming: true)`.
-  8. If `_lines.length >= TextPaginator.linesPerPage` (5): handle page boundary per Task 1.5.
-- [ ] Implement `_emit({required bool streaming})`:
-  - `final pageText = [..._lines, if (_pendingTail.isNotEmpty) _pendingTail].join('\n');`
-  - `int status;`
-  - If `streaming && !_firstFrameSent` → `status = 0x01 | 0x30; _firstFrameSent = true;`
-  - Else if `streaming` → `status = 0x30;`
-  - Else → `status = 0x40;`
-  - Serialize on `_inFlight` completer: await previous, then await `sink.send(...)`, then complete.
-  - `totalPages` is `_pageIndex + 1` (monotonic — grows when a new page starts).
-- [ ] Implement `finish()` to flush a trailing non-empty `_pendingTail` as one more streaming emit, then emit `0x40` with the full current page.
+- [ ] Implement `appendDelta`:
+  1. Early-return if `_cancelled` or `delta.isEmpty`.
+  2. For each character, handle literal `\n`: split `_pendingTail` on `\n`, promoting each non-final segment to a completed line via `_commitLine(segment)`; keep the remainder as the new `_pendingTail`.
+  3. Append non-newline text to `_pendingTail`.
+  4. Run `final wrapped = TextPaginator.instance.splitIntoLines(_pendingTail);`.
+  5. If `wrapped.length >= 2`, for each all-but-last entry call `_commitLine(entry)`; set `_pendingTail = wrapped.last`; emit once via `_emitStreaming()`.
+- [ ] Implement `_commitLine(String line)`:
+  - `_lines.add(line);`
+  - If `_lines.length == TextPaginator.linesPerPage` — defer page-boundary handling to Task 1.5.
+- [ ] Implement `_emitStreaming()`:
+  - Serialize through `_inFlight`:
+    ```dart
+    final prev = _inFlight;
+    final completer = Completer<void>();
+    _inFlight = completer.future;
+    await prev;
+    if (_cancelled) { completer.complete(); return; }
+    final int status = _firstFrameSent ? 0x30 : (0x01 | 0x30);
+    _firstFrameSent = true;
+    final pageText = _pageTextSnapshot();
+    try {
+      await sink.send(
+        screenStatus: status,
+        pageIndex: _pageIndex,
+        totalPages: _pageIndex + 1,
+        pageText: pageText,
+      );
+    } finally {
+      completer.complete();
+    }
+    ```
+- [ ] Implement `String _pageTextSnapshot() => [..._lines, if (_pendingTail.isNotEmpty) _pendingTail].join('\n');`
+- [ ] Implement `finish()`:
+  - Await `_inFlight`.
+  - If `_cancelled`, return.
+  - If `_pendingTail.isNotEmpty` or `_lines.isNotEmpty`, issue one more streaming emit so the last in-progress line lands with `0x30`.
+  - Then issue a final emit with `screenStatus: 0x40, pageIndex: _pageIndex, totalPages: _pageIndex + 1, pageText: _pageTextSnapshot()`, serialized through `_inFlight`.
 - [ ] Run — **expect PASS**.
-- [ ] Run: `flutter analyze` — 0 errors.
+- [ ] Run `flutter analyze` — 0 errors.
 - [ ] Commit: `feat: HudStreamSession line-gated flush via splitIntoLines`.
 
-### Task 1.4 — Final-page agreement (drift guard)
+### Task 1.4 — Final-page agreement drift guard (spec §9 item 3)
 
-- [ ] Add test `test('final streaming emit matches TextPaginator last page', ...)`: feed a multi-line input, `finish()`, assert the last streaming emit's `pageText` equals `TextPaginator.instance.paginateText(input).last` (using the paginator's exposed last-page accessor — verify the public surface in `text_paginator.dart` and adjust the call if needed).
-- [ ] Run — expect PASS if implementation is correct; if not, fix by ensuring `_lines` + `_pendingTail` join uses the same `\n` separator the paginator uses internally.
+- [ ] Add test:
+  ```dart
+  test('last streaming emit pageText equals TextPaginator last page', () async {
+    final sink = RecordingHudPacketSink();
+    final session = HudStreamSession(sink: sink);
+    const input = 'Some multi-line answer text that wraps across several visual rows '
+        'at 488 pixels by 21 point and finishes on a partial line.';
+    for (final ch in input.split('')) {
+      await session.appendDelta(ch);
+    }
+    await session.finish();
+    final pages = TextPaginator.instance.paginateText(input);
+    final lastStreaming = sink.calls.lastWhere((c) => c.screenStatus != 0x40);
+    expect(lastStreaming.pageText, pages.last);
+  });
+  ```
+- [ ] Run — expect PASS (or fix join separator if it drifts from the paginator's internal newline).
 - [ ] Commit: `test: HudStreamSession final page matches TextPaginator`.
 
-### Task 1.5 — Page boundary (5-line overflow)
+### Task 1.5 — Page boundary (spec §9 item 4)
 
-- [ ] Add test `test('7 lines produces page 0 full then page 1 partial then 0x40', ...)`: feed enough text for 7 wrapped lines in small deltas. Assert the emit sequence per spec §6:
-  - Emits 1-4: page 0, `screenStatus == 0x30` (or 0x01|0x30 for the first), `pageIndex == 0`, `totalPages == 1`.
-  - Emit 5: page 0 full with 5 lines, `screenStatus == 0x30`, `pageIndex == 0`, `totalPages == 1`.
-  - Emit 6: page 1 first frame, `screenStatus == (0x01 | 0x30)`, `pageIndex == 1`, `totalPages == 2`.
-  - Emit 7: page 1 second line, `screenStatus == 0x30`, `pageIndex == 1`.
-  - Final: `0x40` on page 1.
+- [ ] Add test: feed enough characters to produce 7 wrapped lines, then `finish()`. Assert:
+  - 5 emits with `pageIndex == 0` (first has `0x01|0x30`, rest `0x30`), the 5th containing the full 5-line page.
+  - 2 emits with `pageIndex == 1` (first `0x01|0x30`, second `0x30`).
+  - Final `0x40` on `pageIndex == 1`, `totalPages == 2`.
 - [ ] Run — **expect FAIL**.
-- [ ] In `appendDelta`, after promoting a completed line: if `_lines.length == TextPaginator.linesPerPage`, call `_emit(streaming: true)` (page N full frame), then `_pageIndex++`, `_lines.clear()`, reset `_firstFrameSent = false` so the next emit sends `0x01 | 0x30`.
+- [ ] In `_commitLine`, when `_lines.length == TextPaginator.linesPerPage`:
+  1. Call `_emitStreaming()` to push the now-full page one last time (still `0x30` since first frame already sent).
+  2. Await that emit.
+  3. `_pageIndex++; _lines.clear(); _firstFrameSent = false;` — next emit will send `0x01|0x30` on the new page.
+- [ ] Ensure `_emitStreaming`'s `totalPages` calculation uses `_pageIndex + 1` so page 1 frames correctly report `totalPages: 2`.
 - [ ] Run — **expect PASS**.
 - [ ] Commit: `feat: HudStreamSession page boundary handling`.
 
-### Task 1.6 — Cancel mid-stream
+### Task 1.6 — Cancel mid-stream (spec §9 item 5)
 
-- [ ] Add test `test('cancel mid-stream drops buffer and sends no 0x40', ...)`: feed 2 lines worth of deltas, call `cancel()`, then try further `appendDelta` and `finish()`. Assert no `0x40` ever emitted and calls after `cancel()` are no-ops.
-- [ ] Run — expect current pass/fail; implement: `cancel()` sets `_cancelled = true`, clears `_lines` and `_pendingTail`, awaits `_inFlight` but issues no new send. `finish()` and `appendDelta` early-return when `_cancelled`.
+- [ ] Add test: feed ~2 lines, call `cancel()`, then `appendDelta('more')` and `finish()`. Assert no `0x40` emitted after cancel and no further emits from post-cancel calls.
+- [ ] Implement `cancel()`:
+  ```dart
+  Future<void> cancel() async {
+    _cancelled = true;
+    _lines.clear();
+    _pendingTail = '';
+    await _inFlight;
+  }
+  ```
+  `appendDelta` and `finish` already early-return on `_cancelled`.
 - [ ] Run — **expect PASS**.
 - [ ] Commit: `feat: HudStreamSession cancel preemption`.
 
-### Task 1.7 — Long token (100-char unbroken run)
+### Task 1.7 — Long-token + backpressure + production sink
 
-- [ ] Add test `test('100-char unbroken token emits one oversized line, no loop', ...)`: feed a single `appendDelta` with a 100-character string containing no spaces. Assert:
-  - Test completes in <1s (no infinite loop).
-  - At most one streaming emit before `finish()`, plus the final `0x40`.
-  - The single line in the emit equals the 100-char input verbatim.
-- [ ] Run — if implementation already handles this (since `splitIntoLines` returns `[input]` as a single oversized line with length 1), expect PASS. If not, guard `wrapped.length >= 2` check — single-line output leaves it in `_pendingTail` until `finish()`.
-- [ ] Commit: `test: HudStreamSession long-token acceptance`.
-
-### Task 1.8 — Backpressure coalescing
-
-- [ ] Add test `test('slow sink coalesces rapid tokens without losing lines', ...)`: use a `ManualHudPacketSink` whose `send` returns a `Completer<void>.future` captured by the test. Feed 30 tokens fast (each one character), then complete the first in-flight emit. Assert:
-  - No dropped lines: final committed `pageText` contains every character fed.
-  - No emit was ever called while a previous emit was pending.
-  - After all completers resolve and `finish()` awaits, last frame is `0x40`.
-- [ ] Run — may fail if `_inFlight` serialization wasn't wired correctly in Task 1.3. Fix by ensuring every `_emit` awaits `_inFlight?.future` before calling `sink.send`, and installs a new completer it resolves after.
-- [ ] Run — **expect PASS**.
-- [ ] Run: `flutter analyze` — 0 errors.
-- [ ] Commit: `feat: HudStreamSession single-slot backpressure queue`.
-
-### Task 1.9 — Production sink binding
-
-- [ ] In `hud_stream_session.dart`, add `class ProtoHudPacketSink implements HudPacketSink` whose `send` calls `Proto.sendEvenAIData(pageText, newScreen: screenStatus, pos: 0, current_page_num: pageIndex + 1, max_page_num: totalPages)`.
-- [ ] Add a smoke test that constructs `ProtoHudPacketSink` and asserts it is a `HudPacketSink` (compile-level check only — do not invoke BLE).
-- [ ] Run: `flutter analyze` — 0 errors.
-- [ ] Run: `flutter test test/services/hud_stream_session_test.dart` — all green.
-- [ ] Commit: `feat: ProtoHudPacketSink production binding`.
+- [ ] **Long token test (spec §9 item 6):** feed one `appendDelta` with a 100-char unbroken run (no spaces). Assert test completes <1s, and that the oversized line is held in `_pendingTail` (no streaming emit yet because `wrapped.length == 1`), then `finish()` produces one streaming emit containing the run followed by `0x40`.
+- [ ] **Backpressure test (spec §9 item 7):** add `ManualHudPacketSink`:
+  ```dart
+  class ManualHudPacketSink implements HudPacketSink {
+    final List<Completer<void>> pending = [];
+    final List<({int screenStatus, int pageIndex, int totalPages, String pageText})> calls = [];
+    @override
+    Future<void> send({required int screenStatus, required int pageIndex, required int totalPages, required String pageText}) {
+      calls.add((screenStatus: screenStatus, pageIndex: pageIndex, totalPages: totalPages, pageText: pageText));
+      final c = Completer<void>();
+      pending.add(c);
+      return c.future;
+    }
+  }
+  ```
+  Feed 30 one-char tokens fast without awaiting, then drain `pending` in order. Assert:
+  - No two sends are ever in flight simultaneously (each new call arrives only after the previous completer resolved).
+  - The final committed `pageText` contains every character fed.
+  - `finish()` lands with `0x40`.
+- [ ] **Production sink binding:** in `hud_stream_session.dart` add
+  ```dart
+  class ProtoHudPacketSink implements HudPacketSink {
+    @override
+    Future<void> send({required int screenStatus, required int pageIndex, required int totalPages, required String pageText}) {
+      return Proto.sendEvenAIData(
+        pageText,
+        newScreen: screenStatus,
+        pos: 0,
+        current_page_num: pageIndex + 1,
+        max_page_num: totalPages,
+      );
+    }
+  }
+  ```
+  Verify the argument names against the actual `Proto.sendEvenAIData` signature in `lib/services/proto.dart:121` and fix any naming mismatch — do **not** change `proto.dart`. Add a compile-level smoke test: `expect(ProtoHudPacketSink(), isA<HudPacketSink>());`.
+- [ ] Run `flutter test test/services/hud_stream_session_test.dart` — all green.
+- [ ] Run `flutter analyze` — 0 errors.
+- [ ] Commit: `feat: HudStreamSession long-token, backpressure, ProtoHudPacketSink`.
 
 ---
 
-## Phase 2 — Wire into ConversationEngine behind a flag
+## Phase 2 — Wire into ConversationEngine behind a flag (default off)
 
-### Task 2.1 — Add SettingsManager flag
+### Task 2.1 — SettingsManager flag
 
 - [ ] In `lib/services/settings_manager.dart`, add:
-  - Private key constant `static const _kHudLineStreaming = 'hud.lineStreaming';`
-  - `bool get hudLineStreamingEnabled => _prefs.getBool(_kHudLineStreaming) ?? false;`
-  - `set hudLineStreamingEnabled(bool v) => _prefs.setBool(_kHudLineStreaming, v);`
-- [ ] Add test in `test/services/settings_manager_test.dart` (or nearest equivalent) asserting default is `false` and setter persists.
-- [ ] Run: `flutter test test/services/settings_manager_test.dart && flutter analyze`.
+  ```dart
+  static const _kHudLineStreaming = 'hud.lineStreaming';
+  bool get hudLineStreamingEnabled => _prefs.getBool(_kHudLineStreaming) ?? false;
+  set hudLineStreamingEnabled(bool v) => _prefs.setBool(_kHudLineStreaming, v);
+  ```
+  (Match the surrounding style in that file — use secure storage or plain prefs consistently with other bool flags.)
+- [ ] Run `flutter analyze` — 0 errors.
 - [ ] Commit: `feat: add hud.lineStreaming settings flag (default off)`.
 
-### Task 2.2 — Route streaming through HudStreamSession in ConversationEngine
+### Task 2.2 — Route `_streamToGlasses` through HudStreamSession
 
-- [ ] Read `lib/services/conversation_engine.dart:2413-2415` (`_streamToGlasses`) and the streaming buffer flush site (per CLAUDE.md ~line 1994, 2136) to confirm call sites that pass `isStreaming: true`.
-- [ ] Add `HudStreamSession? _hudStreamSession;` as a private field on `ConversationEngine`.
+- [ ] Read `lib/services/conversation_engine.dart:94-100` (existing `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex`) and `_sendToGlasses` at 2363-2411 and `_streamToGlasses` at 2413, plus all `_streamToGlasses(..., isStreaming: true)` call sites (expected around lines 692, 959, 1986, 2078 per reconciled spec §1).
+- [ ] Add private fields to `ConversationEngine`:
+  ```dart
+  HudStreamSession? _hudStreamSession;
+  String _hudStreamAccumulated = '';
+  HudPacketSink Function()? _hudPacketSinkFactoryForTest; // test seam
+  ```
 - [ ] Modify `_streamToGlasses(String text, {required bool isStreaming})`:
-  - If `!SettingsManager.instance.hudLineStreamingEnabled` → unchanged (call `_glassesSender`).
+  - If `!SettingsManager.instance.hudLineStreamingEnabled`: unchanged — fall through to the existing `_sendToGlasses` code path.
   - Else if `isStreaming`:
-    - If `_hudStreamSession == null`, create one with a `ProtoHudPacketSink`.
-    - Compute `delta` as the new suffix of `text` versus a tracked `_hudStreamAccumulated` field; call `_hudStreamSession!.appendDelta(delta)`.
-  - Else (final frame): `await _hudStreamSession?.finish(); _hudStreamSession = null; _hudStreamAccumulated = '';`.
-- [ ] Add a hook used by Spec A / new response start: when `_startNewResponse` (or equivalent; locate by grepping for where `_isFirstStreamFrame = true` is reset) fires, call `_hudStreamSession?.cancel(); _hudStreamSession = null; _hudStreamAccumulated = '';`.
-- [ ] Expose a test seam: allow tests to inject a `HudPacketSink` factory to replace `ProtoHudPacketSink` in tests that exercise the flag path.
-- [ ] Run: `flutter analyze` — 0 errors.
-- [ ] Run: `flutter test test/` — all pass (flag default false means existing tests unaffected).
-- [ ] Run: `bash scripts/run_gate.sh` (required — `conversation_engine.dart` is on the FULL gate list).
+    - If `_hudStreamSession == null`:
+      - `final sink = (_hudPacketSinkFactoryForTest ?? () => ProtoHudPacketSink())();`
+      - `_hudStreamSession = HudStreamSession(sink: sink);`
+      - `_hudStreamAccumulated = '';`
+    - Compute `final delta = text.substring(_hudStreamAccumulated.length);` (guard against non-prefix updates — if `!text.startsWith(_hudStreamAccumulated)`, cancel and restart the session).
+    - `_hudStreamAccumulated = text;`
+    - `await _hudStreamSession!.appendDelta(delta);`
+    - Return without calling `_sendToGlasses`.
+  - Else (final frame): `await _hudStreamSession?.finish(); _hudStreamSession = null; _hudStreamAccumulated = '';` then return. Do **not** call `_sendToGlasses` on the final when the flag is on — `finish()` owns the `0x40` write.
+- [ ] New-response preemption: locate where the existing `_isFirstStreamFrame = true` reset fires (Grep for `_isFirstStreamFrame = true` and the "new response starting" site). Alongside that reset, when the flag is on, add:
+  ```dart
+  if (SettingsManager.instance.hudLineStreamingEnabled) {
+    final old = _hudStreamSession;
+    _hudStreamSession = null;
+    _hudStreamAccumulated = '';
+    unawaited(old?.cancel());
+  }
+  ```
+- [ ] Run `flutter analyze` — 0 errors.
+- [ ] Run `flutter test test/` — all pass (flag default false, existing tests untouched).
+- [ ] Run `bash scripts/run_gate.sh` — MANDATORY (touching `conversation_engine.dart`).
 - [ ] Commit: `feat: route streaming HUD through HudStreamSession behind flag`.
 
 ### Task 2.3 — Integration test with flag on
 
-- [ ] In `test/services/conversation_engine_test.dart` (or a new file), add a test that flips `hudLineStreamingEnabled = true`, injects a `RecordingHudPacketSink`, feeds a fake LLM stream of three paragraphs worth of tokens through the engine, and asserts flush count is roughly 1 per visual line (not 1 per token).
-- [ ] Run: `flutter test && flutter analyze`.
-- [ ] Run: `bash scripts/run_gate.sh`.
+- [ ] In `test/services/conversation_engine_test.dart` (or a new `conversation_engine_hud_stream_test.dart` if the existing file does not already build an engine under test), add a test that:
+  1. Sets `SettingsManager.instance.hudLineStreamingEnabled = true`.
+  2. Injects a `RecordingHudPacketSink` via `engine._hudPacketSinkFactoryForTest = () => sink;` (or a public test seam equivalent — add one if none exists).
+  3. Drives `_streamToGlasses` with a sequence of incrementally-growing strings mimicking LLM token arrival (e.g., feed each substring `text.substring(0, n)` for `n` in `1..text.length`).
+  4. Asserts emit count roughly equals `splitIntoLines(text).length + 1` (not `text.length`), confirming per-token flushing is gone.
+  5. Cleans up by resetting the flag to `false` in `tearDown`.
+- [ ] Run `flutter test test/services/conversation_engine_test.dart`.
+- [ ] Run `bash scripts/run_gate.sh`.
 - [ ] Commit: `test: conversation_engine line-streaming integration`.
 
 ---
 
-## Phase 3 — Hardware QA and flag flip
+## Phase 3 — Cleanup dead state (after one release with flag on by default)
 
-### Task 3.1 — Hardware QA on a real G1 pair
+> This phase lands after hardware QA and a release where the flag default flips to `true` via a trivial edit in `settings_manager.dart`. That flag flip is intentionally **not** a separate task here — it is a one-line change owned by release management, not by this plan.
 
-- [ ] Manual test plan (not automated):
-  1. Pair a real G1 L+R pair with a debug build. Set `hudLineStreamingEnabled = true` via a temporary debug toggle in settings or via shared_preferences direct write.
-  2. Ask a question that elicits a ~3-paragraph streaming answer from the default LLM provider.
-  3. Observe: streaming cadence should advance roughly one visual line at a time (~2 Hz), not token-by-token. Flicker from full-page re-pushes should be noticeably reduced.
-  4. Repeat with a 2-page answer to verify page-boundary transition is clean (page 0 fills, page 1 starts with a `0x01|0x30` frame, final `0x40` lands on the correct page).
-  5. Mid-stream, trigger a cancellation (new question) and verify no stale `0x40` lands and the new response starts cleanly.
-  6. Verify touchpad paging on the final multi-page answer still works (unchanged protocol).
-- [ ] Capture notes in `docs/learning.md` under a new "HUD line streaming QA 2026-04-06" entry.
-- [ ] Commit: `docs: HUD line-streaming hardware QA notes`.
+### Task 3.1 — Delete dead streaming HUD fields
 
-### Task 3.2 — Flip flag default to true
-
-- [ ] In `lib/services/settings_manager.dart`, change `hudLineStreamingEnabled` default from `false` to `true`.
-- [ ] Update the settings_manager test expectations for the new default.
-- [ ] Run: `flutter test && flutter analyze`.
-- [ ] Run: `bash scripts/run_gate.sh`.
-- [ ] Commit: `feat: enable HUD line streaming by default`.
-
----
-
-## Phase 4 — Cleanup dead state
-
-### Task 4.1 — Remove dead streaming HUD fields from ConversationEngine
-
-- [ ] In `lib/services/conversation_engine.dart`, delete lines 98-100:
+- [ ] In `lib/services/conversation_engine.dart` lines 94-100, delete:
   - `int _lastStreamedByteLength = 0;`
   - `bool _isFirstStreamFrame = true;`
   - `int _lastStreamedPageIndex = 0;`
-- [ ] In `_sendToGlasses` (line ~2363), delete the dead streaming branch (the `_isFirstStreamFrame` / `0x31` / `_lastStreamedByteLength` logic at lines ~2383-2398). The method should now only handle the non-streaming final-frame / text HUD path, simplifying to a single `Proto.sendEvenAIData` call with `screenCode` derived from `HudDisplayState.aiFrameForPage(isStreaming: false, ...)`.
-- [ ] Verify nothing else reads those fields (grep across the repo).
-- [ ] Run: `flutter analyze` — 0 errors.
-- [ ] Run: `flutter test test/` — all pass.
-- [ ] Run: `bash scripts/run_gate.sh`.
+- [ ] In `_sendToGlasses` (lines 2363-2411), delete the branch that reads/writes those three fields. The method should now handle only the non-streaming / text-HUD final-frame path, delegating streaming entirely to `HudStreamSession`. Any remaining call site that passed `isStreaming: true` into `_sendToGlasses` must be routed through `_streamToGlasses` instead.
+- [ ] Grep the repo for the deleted identifiers to confirm zero references remain.
+- [ ] Delete the `!hudLineStreamingEnabled` fallback branch in `_streamToGlasses` from Task 2.2 — streaming always goes through `HudStreamSession` now.
+- [ ] Consider deleting the `SettingsManager.hudLineStreamingEnabled` flag entirely, or downgrading it to a kill-switch that stays in place for one more release — flag this as a judgment call in the commit message.
+- [ ] Run `flutter analyze` — 0 errors.
+- [ ] Run `flutter test test/`.
+- [ ] Run `bash scripts/run_gate.sh`.
+- [ ] Run `flutter build ios --simulator --no-codesign` — must succeed.
 - [ ] Commit: `refactor: drop dead streaming HUD state from ConversationEngine`.
-
-### Task 4.2 — Final validation sweep
-
-- [ ] Run the full validation gate: `bash scripts/run_gate.sh`.
-- [ ] Run: `flutter build ios --simulator --no-codesign` — must succeed.
-- [ ] Confirm all 7 test assertions from spec §9 are covered (see mapping below).
-- [ ] Commit: `chore: final validation for HUD line streaming`.
 
 ---
 
@@ -228,20 +352,21 @@
 
 | Spec requirement | Task |
 |---|---|
-| 1. Flush rate: 3-line → 4 total emits | Task 1.3 |
-| 2. Page text monotonic prefix growth | Task 1.3 |
-| 3. Final-page agreement with `paginateText(input).last` | Task 1.4 |
-| 4. Page boundary: 7 lines → expected sequence | Task 1.5 |
-| 5. Cancel mid-stream: no further emits, no 0x40 | Task 1.6 |
-| 6. Long token: one oversized emit, no loop | Task 1.7 |
-| 7. Backpressure: manual Completer, 30 tokens, no loss | Task 1.8 |
+| 1. Flush rate — 3-line → 4 total emits | Task 1.3 |
+| 2. Monotonic prefix growth within a page | Task 1.3 |
+| 3. Final page matches `paginateText(input).last` | Task 1.4 |
+| 4. Page boundary — 7 lines → expected sequence | Task 1.5 |
+| 5. Cancel mid-stream — no further emits, no 0x40 | Task 1.6 |
+| 6. Long token — one oversized line, no loop | Task 1.7 |
+| 7. Backpressure — manual Completer, 30 tokens, no loss | Task 1.7 |
 
 ## Self-review checklist
 
-- Wire format: cmd `0x4E`, `new_char_pos = 0`, `screen_status` from {`0x01|0x30`, `0x30`, `0x40`}. No new `Proto.sendEvenAIData` parameter. Confirmed in Task 1.9 and Task 2.2.
-- No append semantics on `pos` — every emit ships the full current-page text. Confirmed in `_emit` design in Task 1.3.
-- No new screen code. Only status-byte values already recognized by the firmware.
-- `HudStreamSession` owns all per-stream HUD state; `ConversationEngine` fields at lines 98-100 are deleted in Phase 4.
-- Flag-gated rollout with hardware QA before default flip.
-- Every code-touching task lists exact file + line range and ends with `flutter analyze` and (for `conversation_engine.dart`) `bash scripts/run_gate.sh`.
-- Edge cases from spec §7 covered: empty delta (Task 1.3 early return), literal `\n` (Task 1.3 forced break), long token (Task 1.7), cancel (Task 1.6), final page boundary (Task 1.5 plus finish behavior in Task 1.3).
+- Wire format unchanged: cmd `0x4E`, `pos = 0`, status in {`0x01|0x30`, `0x30`, `0x40`}. `proto.dart` and `glasses_protocol.dart` are untouched.
+- Per-page screen codes, correct `current_page_num`, and 400ms inter-side delay are NOT re-implemented — they live in checkpoint `10905f7` already.
+- `HudStreamSession` absorbs the three fields currently at `conversation_engine.dart:94-100`. It does not introduce parallel state.
+- The `_pageByteLength` / append-offset field from the original Spec B draft is deliberately absent (see reconciled spec §4).
+- Every §9 test requirement maps to a concrete task above.
+- Every code-touching task ends with `flutter analyze` and, for `conversation_engine.dart` edits, `bash scripts/run_gate.sh` (CLAUDE.md mandatory full-gate list).
+- Edge cases (empty delta, literal `\n`, long token, cancel, final on page boundary, empty answer) covered by Tasks 1.3, 1.5, 1.6, 1.7.
+- Flag-gated rollout: default `false` in Phase 2, flipped by release management before Phase 3 cleanup lands.
