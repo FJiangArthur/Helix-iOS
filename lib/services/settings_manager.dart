@@ -98,6 +98,12 @@ class SettingsManager {
   /// VAD sensitivity, 0.0 - 1.0.
   double vadSensitivity = 0.5;
 
+  /// Whether streaming HUD writes are flushed on completed visual line
+  /// boundaries (via [HudStreamSession]) instead of the legacy per-token
+  /// debounce. Off by default; flipped to true once hardware QA validates the
+  /// new cadence on real G1 glasses.
+  bool hudLineStreamingEnabled = false;
+
   // ---------------------------------------------------------------------------
   // Transcription Settings
   // ---------------------------------------------------------------------------
@@ -351,6 +357,7 @@ class SettingsManager {
     noiseReduction = prefs.getBool('noiseReduction') ?? true;
     voiceActivityDetection = prefs.getBool('voiceActivityDetection') ?? true;
     vadSensitivity = prefs.getDouble('vadSensitivity') ?? 0.5;
+    hudLineStreamingEnabled = prefs.getBool('hud.lineStreaming') ?? false;
 
     // Transcription
     transcriptionBackend = prefs.getString('transcriptionBackend') ?? 'openai';
@@ -474,6 +481,7 @@ class SettingsManager {
     await prefs.setBool('noiseReduction', noiseReduction);
     await prefs.setBool('voiceActivityDetection', voiceActivityDetection);
     await prefs.setDouble('vadSensitivity', vadSensitivity);
+    await prefs.setBool('hud.lineStreaming', hudLineStreamingEnabled);
 
     // Transcription
     await prefs.setString('transcriptionBackend', transcriptionBackend);
