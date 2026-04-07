@@ -96,22 +96,35 @@ void main() {
       expect(finalCalls, hasLength(1));
       expect(
         streamingCalls.length,
-        lessThanOrEqualTo(lines.length),
-        reason: 'flushes are line-gated, not token-gated',
+        lessThanOrEqualTo(lines.length + 1),
+        reason: 'flushes are line-gated, not token-gated '
+            '(one per line + at most one tail flush in finish())',
+      );
+      expect(
+        streamingCalls.length,
+        lessThan(input.length),
+        reason: 'must be far fewer than per-token rate',
       );
 
-      // First streaming frame must assert NEW_CONTENT.
-      expect(streamingCalls.first.screenStatus, 0x01 | 0x30);
-      // Subsequent streaming frames on same page omit NEW_CONTENT.
-      for (var i = 1; i < streamingCalls.length; i++) {
-        expect(streamingCalls[i].screenStatus, 0x30);
+      // First streaming frame on each page must assert NEW_CONTENT;
+      // subsequent same-page frames omit it.
+      final seenPages = <int>{};
+      for (final call in streamingCalls) {
+        final isFirstOnPage = seenPages.add(call.pageIndex);
+        expect(
+          call.screenStatus,
+          isFirstOnPage ? 0x01 | 0x30 : 0x30,
+        );
       }
-      // Monotonic prefix growth within the page.
+      // Monotonic prefix growth within a page (resets at page boundary).
       for (var i = 1; i < streamingCalls.length; i++) {
+        if (streamingCalls[i].pageIndex != streamingCalls[i - 1].pageIndex) {
+          continue;
+        }
         expect(
           streamingCalls[i].pageText.startsWith(streamingCalls[i - 1].pageText),
           isTrue,
-          reason: 'page text must grow as prefix-extension',
+          reason: 'page text must grow as prefix-extension within a page',
         );
       }
     },
@@ -208,28 +221,28 @@ void main() {
       () async {
     final sink = ManualHudPacketSink();
     final session = HudStreamSession(sink: sink);
-    // Feed 30 single-char tokens fast without awaiting.
+    // Feed 30 single-char tokens fast without awaiting; each appendDelta
+    // returns a Future that suspends inside _emitStreaming once the sink call
+    // is in flight.
     final futures = <Future<void>>[];
     for (var i = 0; i < 30; i++) {
       futures.add(session.appendDelta('a '));
     }
-    // Drain pending sink calls one by one.
-    while (sink.pending.isNotEmpty || sink.calls.length < 1) {
-      if (sink.pending.isEmpty) {
-        await Future<void>.delayed(Duration.zero);
-        continue;
-      }
-      // At any point only one call should be in flight (single-slot queue).
+    // Allow microtasks to drain so the first sink.send is registered.
+    for (var step = 0; step < 200; step++) {
+      await Future<void>.delayed(Duration.zero);
+      if (sink.pending.isEmpty) break;
+      // Single-slot queue: never more than one in-flight at a time.
       expect(sink.pending.length, lessThanOrEqualTo(1));
       sink.pending.removeAt(0).complete();
-      await Future<void>.delayed(Duration.zero);
     }
     await Future.wait(futures);
     final finishFuture = session.finish();
-    // Drain finish emits.
-    while (sink.pending.isNotEmpty) {
-      sink.pending.removeAt(0).complete();
+    for (var step = 0; step < 50; step++) {
       await Future<void>.delayed(Duration.zero);
+      if (sink.pending.isEmpty) break;
+      expect(sink.pending.length, lessThanOrEqualTo(1));
+      sink.pending.removeAt(0).complete();
     }
     await finishFuture;
     expect(sink.calls.last.screenStatus, 0x40);
