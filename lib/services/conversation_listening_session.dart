@@ -152,9 +152,13 @@ class ConversationListeningSession {
                 (payload['usageModel'] as String?)?.trim().isNotEmpty == true
                 ? (payload['usageModel'] as String).trim()
                 : SettingsManager.instance.transcriptionModel;
+            final providerId =
+                (payload['usageProvider'] as String?)?.trim().isNotEmpty == true
+                ? (payload['usageProvider'] as String).trim()
+                : 'openai';
             if (operationType == 'transcription') {
               _engine.onTranscriptionUsage(
-                providerId: 'openai',
+                providerId: providerId,
                 modelId: modelId,
                 usage: LlmUsage.fromJson(usageMap),
               );

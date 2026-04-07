@@ -35,6 +35,10 @@ class Conversations extends Table {
   TextColumn get source =>
       text().withDefault(const Constant('phone'))(); // phone/glasses
   TextColumn get audioFilePath => text().nullable()();
+  IntColumn get costSmartUsdMicros => integer().nullable()();
+  IntColumn get costLightUsdMicros => integer().nullable()();
+  IntColumn get costTranscriptionUsdMicros => integer().nullable()();
+  IntColumn get costTotalUsdMicros => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -70,6 +74,8 @@ class ConversationAiCostEntries extends Table {
   TextColumn get status => text().withDefault(const Constant('completed'))();
   IntColumn get startedAt => integer()();
   IntColumn get completedAt => integer().nullable()();
+  TextColumn get modelRole =>
+      text().nullable()(); // 'smart' | 'light' | 'transcription'
 
   @override
   Set<Column> get primaryKey => {id};
@@ -255,7 +261,7 @@ class HelixDatabase extends _$HelixDatabase {
   HelixDatabase.testWith(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -323,6 +329,19 @@ class HelixDatabase extends _$HelixDatabase {
       }
       if (from < 3) {
         await m.addColumn(conversations, conversations.audioFilePath);
+      }
+      if (from < 4) {
+        await m.addColumn(conversations, conversations.costSmartUsdMicros);
+        await m.addColumn(conversations, conversations.costLightUsdMicros);
+        await m.addColumn(
+          conversations,
+          conversations.costTranscriptionUsdMicros,
+        );
+        await m.addColumn(conversations, conversations.costTotalUsdMicros);
+        await m.addColumn(
+          conversationAiCostEntries,
+          conversationAiCostEntries.modelRole,
+        );
       }
     },
   );

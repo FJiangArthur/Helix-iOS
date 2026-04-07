@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import '../llm/llm_provider.dart';
+import 'pricing_registry.dart';
+import 'session_cost_snapshot.dart';
 
 class ConversationCostEntry {
   ConversationCostEntry({
@@ -13,6 +17,7 @@ class ConversationCostEntry {
     required this.status,
     this.costUsd,
     this.completedAt,
+    this.modelRole,
   });
 
   final String id;
@@ -24,19 +29,31 @@ class ConversationCostEntry {
   final String status;
   final double? costUsd;
   final DateTime? completedAt;
+  final ModelRole? modelRole;
 }
 
 class ConversationCostTracker {
   final List<ConversationCostEntry> _entries = [];
   final Uuid _uuid = const Uuid();
+  final StreamController<SessionCostSnapshot> _snapshots =
+      StreamController<SessionCostSnapshot>.broadcast();
+  SessionCostSnapshot _current = SessionCostSnapshot.zero;
 
   List<ConversationCostEntry> get entries => List.unmodifiable(_entries);
 
-  double get totalCostUsd =>
-      _entries.fold<double>(0, (sum, entry) => sum + (entry.costUsd ?? 0));
+  double get totalCostUsd => _current.totalUsd;
+
+  Stream<SessionCostSnapshot> get snapshots => _snapshots.stream;
+  SessionCostSnapshot get current => _current;
 
   void reset() {
     _entries.clear();
+    _current = SessionCostSnapshot.zero;
+    _snapshots.add(_current);
+  }
+
+  void dispose() {
+    _snapshots.close();
   }
 
   void recordCompleted({
@@ -48,6 +65,7 @@ class ConversationCostTracker {
     DateTime? startedAt,
     DateTime? completedAt,
     String? status,
+    ModelRole? modelRole,
   }) {
     _entries.add(
       ConversationCostEntry(
@@ -60,71 +78,58 @@ class ConversationCostTracker {
         completedAt: completedAt ?? DateTime.now(),
         status: status ?? (costUsd == null ? 'usage_only' : 'completed'),
         costUsd: costUsd,
+        modelRole: modelRole,
       ),
+    );
+    _current = _foldEntries();
+    _snapshots.add(_current);
+  }
+
+  SessionCostSnapshot _foldEntries() {
+    var smart = 0.0;
+    var light = 0.0;
+    var transcription = 0.0;
+    var unpriced = 0;
+    for (final e in _entries) {
+      if (e.costUsd == null) {
+        unpriced += 1;
+        continue;
+      }
+      // null modelRole on legacy / pre-Spec-A entries is treated as smart.
+      final role = e.modelRole ?? ModelRole.smart;
+      switch (role) {
+        case ModelRole.smart:
+          smart += e.costUsd!;
+          break;
+        case ModelRole.light:
+          light += e.costUsd!;
+          break;
+        case ModelRole.transcription:
+          transcription += e.costUsd!;
+          break;
+      }
+    }
+    return SessionCostSnapshot(
+      smartUsd: smart,
+      lightUsd: light,
+      transcriptionUsd: transcription,
+      unpricedCallCount: unpriced,
     );
   }
 }
 
+/// Deprecated: use [PricingRegistry] instead. Kept as a thin shim until
+/// downstream call sites are migrated.
+@Deprecated('Use PricingRegistry.instance.calculateCostUsd instead')
 class OpenAiPricingRegistry {
-  static const Map<String, _OpenAiPricing> _pricingByModel = {
-    'gpt-5.4': _OpenAiPricing(
-      inputPerMillionUsd: 1.25,
-      cachedInputPerMillionUsd: 0.125,
-      outputPerMillionUsd: 10.0,
-    ),
-    'gpt-5.4-mini': _OpenAiPricing(
-      inputPerMillionUsd: 0.25,
-      cachedInputPerMillionUsd: 0.025,
-      outputPerMillionUsd: 2.0,
-    ),
-    'gpt-5.4-nano': _OpenAiPricing(
-      inputPerMillionUsd: 0.05,
-      cachedInputPerMillionUsd: 0.005,
-      outputPerMillionUsd: 0.4,
-    ),
-    'gpt-4o-mini-transcribe': _OpenAiPricing(audioInputPerMillionUsd: 3.0),
-  };
-
   static double? calculateCostUsd({
     required String modelId,
     required LlmUsage usage,
   }) {
-    final pricing = _pricingByModel[modelId];
-    if (pricing == null) return null;
-
-    var total = 0.0;
-    if (usage.inputTokens > 0) {
-      final nonCachedInput = (usage.inputTokens - usage.cachedInputTokens)
-          .clamp(0, usage.inputTokens);
-      total += (nonCachedInput / 1000000) * pricing.inputPerMillionUsd;
-    }
-    if (usage.cachedInputTokens > 0) {
-      total +=
-          (usage.cachedInputTokens / 1000000) *
-          pricing.cachedInputPerMillionUsd;
-    }
-    if (usage.outputTokens > 0) {
-      total += (usage.outputTokens / 1000000) * pricing.outputPerMillionUsd;
-    }
-    if (usage.audioInputTokens > 0) {
-      total +=
-          (usage.audioInputTokens / 1000000) * pricing.audioInputPerMillionUsd;
-    }
-
-    return total == 0 ? null : total;
+    return PricingRegistry.instance.calculateCostUsd(
+      providerId: 'openai',
+      modelId: modelId,
+      usage: usage,
+    );
   }
-}
-
-class _OpenAiPricing {
-  const _OpenAiPricing({
-    this.inputPerMillionUsd = 0,
-    this.cachedInputPerMillionUsd = 0,
-    this.outputPerMillionUsd = 0,
-    this.audioInputPerMillionUsd = 0,
-  });
-
-  final double inputPerMillionUsd;
-  final double cachedInputPerMillionUsd;
-  final double outputPerMillionUsd;
-  final double audioInputPerMillionUsd;
 }

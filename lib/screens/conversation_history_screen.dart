@@ -12,7 +12,9 @@ import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../utils/transcript_timestamps.dart';
+import '../services/cost/session_cost_snapshot.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/session_cost_breakdown_sheet.dart';
 
 class ConversationHistoryScreen extends StatefulWidget {
   const ConversationHistoryScreen({super.key});
@@ -868,6 +870,8 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   Icons.bolt_outlined,
                   '${session.assistantCount} ${tr('AI replies', 'AI 回复')}',
                 ),
+                if (session.costTotalUsdMicros != null)
+                  _buildCostChip(session),
                 if (session.reviewSignalCount > 0)
                   _buildMetaChip(
                     Icons.description_outlined,
@@ -1061,6 +1065,31 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCostChip(AssistantSessionMeta session) {
+    final micros = session.costTotalUsdMicros ?? 0;
+    final label = micros == 0
+        ? 'Free'
+        : '\$${(micros / 1e6).toStringAsFixed(4)}';
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () => _showCostBreakdown(session),
+      child: _buildMetaChip(Icons.payments_outlined, label),
+    );
+  }
+
+  void _showCostBreakdown(AssistantSessionMeta session) {
+    final snapshot = SessionCostSnapshot(
+      smartUsd: (session.costSmartUsdMicros ?? 0) / 1e6,
+      lightUsd: (session.costLightUsdMicros ?? 0) / 1e6,
+      transcriptionUsd: (session.costTranscriptionUsdMicros ?? 0) / 1e6,
+    );
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A24),
+      builder: (_) => SessionCostBreakdownSheet(snapshot: snapshot),
     );
   }
 

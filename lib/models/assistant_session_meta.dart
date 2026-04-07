@@ -24,6 +24,10 @@ class AssistantSessionMeta {
     required this.searchableText,
     required this.fullTranscript,
     this.isFavorite = false,
+    this.costSmartUsdMicros,
+    this.costLightUsdMicros,
+    this.costTranscriptionUsdMicros,
+    this.costTotalUsdMicros,
   });
 
   factory AssistantSessionMeta.fromTurns(
@@ -104,6 +108,10 @@ class AssistantSessionMeta {
     String? summary,
     List<AssistantProfile> profiles = const [],
     bool isFavorite = false,
+    int? costSmartUsdMicros,
+    int? costLightUsdMicros,
+    int? costTranscriptionUsdMicros,
+    int? costTotalUsdMicros,
   }) {
     final first = timelineEntries.first;
     final last = timelineEntries.last;
@@ -180,6 +188,10 @@ class AssistantSessionMeta {
           .map((entry) => '${entry.displayLabel}: ${entry.text}')
           .join('\n\n'),
       isFavorite: isFavorite,
+      costSmartUsdMicros: costSmartUsdMicros,
+      costLightUsdMicros: costLightUsdMicros,
+      costTranscriptionUsdMicros: costTranscriptionUsdMicros,
+      costTotalUsdMicros: costTotalUsdMicros,
     );
   }
 
@@ -203,6 +215,10 @@ class AssistantSessionMeta {
   final String searchableText;
   final String fullTranscript;
   final bool isFavorite;
+  final int? costSmartUsdMicros;
+  final int? costLightUsdMicros;
+  final int? costTranscriptionUsdMicros;
+  final int? costTotalUsdMicros;
 
   int get turnCount => turns.length;
   bool get hasActionItems => actionItems.isNotEmpty;
@@ -230,6 +246,10 @@ class AssistantSessionMeta {
       searchableText: searchableText,
       fullTranscript: fullTranscript,
       isFavorite: isFavorite ?? this.isFavorite,
+      costSmartUsdMicros: costSmartUsdMicros,
+      costLightUsdMicros: costLightUsdMicros,
+      costTranscriptionUsdMicros: costTranscriptionUsdMicros,
+      costTotalUsdMicros: costTotalUsdMicros,
     );
   }
 

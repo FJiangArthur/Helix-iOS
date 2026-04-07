@@ -143,6 +143,47 @@ class $ConversationsTable extends Conversations
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _costSmartUsdMicrosMeta =
+      const VerificationMeta('costSmartUsdMicros');
+  @override
+  late final GeneratedColumn<int> costSmartUsdMicros = GeneratedColumn<int>(
+    'cost_smart_usd_micros',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _costLightUsdMicrosMeta =
+      const VerificationMeta('costLightUsdMicros');
+  @override
+  late final GeneratedColumn<int> costLightUsdMicros = GeneratedColumn<int>(
+    'cost_light_usd_micros',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _costTranscriptionUsdMicrosMeta =
+      const VerificationMeta('costTranscriptionUsdMicros');
+  @override
+  late final GeneratedColumn<int> costTranscriptionUsdMicros =
+      GeneratedColumn<int>(
+        'cost_transcription_usd_micros',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _costTotalUsdMicrosMeta =
+      const VerificationMeta('costTotalUsdMicros');
+  @override
+  late final GeneratedColumn<int> costTotalUsdMicros = GeneratedColumn<int>(
+    'cost_total_usd_micros',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -157,6 +198,10 @@ class $ConversationsTable extends Conversations
     silenceEnded,
     source,
     audioFilePath,
+    costSmartUsdMicros,
+    costLightUsdMicros,
+    costTranscriptionUsdMicros,
+    costTotalUsdMicros,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -255,6 +300,42 @@ class $ConversationsTable extends Conversations
         ),
       );
     }
+    if (data.containsKey('cost_smart_usd_micros')) {
+      context.handle(
+        _costSmartUsdMicrosMeta,
+        costSmartUsdMicros.isAcceptableOrUnknown(
+          data['cost_smart_usd_micros']!,
+          _costSmartUsdMicrosMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cost_light_usd_micros')) {
+      context.handle(
+        _costLightUsdMicrosMeta,
+        costLightUsdMicros.isAcceptableOrUnknown(
+          data['cost_light_usd_micros']!,
+          _costLightUsdMicrosMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cost_transcription_usd_micros')) {
+      context.handle(
+        _costTranscriptionUsdMicrosMeta,
+        costTranscriptionUsdMicros.isAcceptableOrUnknown(
+          data['cost_transcription_usd_micros']!,
+          _costTranscriptionUsdMicrosMeta,
+        ),
+      );
+    }
+    if (data.containsKey('cost_total_usd_micros')) {
+      context.handle(
+        _costTotalUsdMicrosMeta,
+        costTotalUsdMicros.isAcceptableOrUnknown(
+          data['cost_total_usd_micros']!,
+          _costTotalUsdMicrosMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -312,6 +393,22 @@ class $ConversationsTable extends Conversations
         DriftSqlType.string,
         data['${effectivePrefix}audio_file_path'],
       ),
+      costSmartUsdMicros: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cost_smart_usd_micros'],
+      ),
+      costLightUsdMicros: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cost_light_usd_micros'],
+      ),
+      costTranscriptionUsdMicros: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cost_transcription_usd_micros'],
+      ),
+      costTotalUsdMicros: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}cost_total_usd_micros'],
+      ),
     );
   }
 
@@ -334,6 +431,10 @@ class Conversation extends DataClass implements Insertable<Conversation> {
   final bool silenceEnded;
   final String source;
   final String? audioFilePath;
+  final int? costSmartUsdMicros;
+  final int? costLightUsdMicros;
+  final int? costTranscriptionUsdMicros;
+  final int? costTotalUsdMicros;
   const Conversation({
     required this.id,
     required this.startedAt,
@@ -347,6 +448,10 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     required this.silenceEnded,
     required this.source,
     this.audioFilePath,
+    this.costSmartUsdMicros,
+    this.costLightUsdMicros,
+    this.costTranscriptionUsdMicros,
+    this.costTotalUsdMicros,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -374,6 +479,20 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     map['source'] = Variable<String>(source);
     if (!nullToAbsent || audioFilePath != null) {
       map['audio_file_path'] = Variable<String>(audioFilePath);
+    }
+    if (!nullToAbsent || costSmartUsdMicros != null) {
+      map['cost_smart_usd_micros'] = Variable<int>(costSmartUsdMicros);
+    }
+    if (!nullToAbsent || costLightUsdMicros != null) {
+      map['cost_light_usd_micros'] = Variable<int>(costLightUsdMicros);
+    }
+    if (!nullToAbsent || costTranscriptionUsdMicros != null) {
+      map['cost_transcription_usd_micros'] = Variable<int>(
+        costTranscriptionUsdMicros,
+      );
+    }
+    if (!nullToAbsent || costTotalUsdMicros != null) {
+      map['cost_total_usd_micros'] = Variable<int>(costTotalUsdMicros);
     }
     return map;
   }
@@ -404,6 +523,19 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       audioFilePath: audioFilePath == null && nullToAbsent
           ? const Value.absent()
           : Value(audioFilePath),
+      costSmartUsdMicros: costSmartUsdMicros == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costSmartUsdMicros),
+      costLightUsdMicros: costLightUsdMicros == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costLightUsdMicros),
+      costTranscriptionUsdMicros:
+          costTranscriptionUsdMicros == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costTranscriptionUsdMicros),
+      costTotalUsdMicros: costTotalUsdMicros == null && nullToAbsent
+          ? const Value.absent()
+          : Value(costTotalUsdMicros),
     );
   }
 
@@ -425,6 +557,12 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       silenceEnded: serializer.fromJson<bool>(json['silenceEnded']),
       source: serializer.fromJson<String>(json['source']),
       audioFilePath: serializer.fromJson<String?>(json['audioFilePath']),
+      costSmartUsdMicros: serializer.fromJson<int?>(json['costSmartUsdMicros']),
+      costLightUsdMicros: serializer.fromJson<int?>(json['costLightUsdMicros']),
+      costTranscriptionUsdMicros: serializer.fromJson<int?>(
+        json['costTranscriptionUsdMicros'],
+      ),
+      costTotalUsdMicros: serializer.fromJson<int?>(json['costTotalUsdMicros']),
     );
   }
   @override
@@ -443,6 +581,12 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       'silenceEnded': serializer.toJson<bool>(silenceEnded),
       'source': serializer.toJson<String>(source),
       'audioFilePath': serializer.toJson<String?>(audioFilePath),
+      'costSmartUsdMicros': serializer.toJson<int?>(costSmartUsdMicros),
+      'costLightUsdMicros': serializer.toJson<int?>(costLightUsdMicros),
+      'costTranscriptionUsdMicros': serializer.toJson<int?>(
+        costTranscriptionUsdMicros,
+      ),
+      'costTotalUsdMicros': serializer.toJson<int?>(costTotalUsdMicros),
     };
   }
 
@@ -459,6 +603,10 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     bool? silenceEnded,
     String? source,
     Value<String?> audioFilePath = const Value.absent(),
+    Value<int?> costSmartUsdMicros = const Value.absent(),
+    Value<int?> costLightUsdMicros = const Value.absent(),
+    Value<int?> costTranscriptionUsdMicros = const Value.absent(),
+    Value<int?> costTotalUsdMicros = const Value.absent(),
   }) => Conversation(
     id: id ?? this.id,
     startedAt: startedAt ?? this.startedAt,
@@ -474,6 +622,18 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     audioFilePath: audioFilePath.present
         ? audioFilePath.value
         : this.audioFilePath,
+    costSmartUsdMicros: costSmartUsdMicros.present
+        ? costSmartUsdMicros.value
+        : this.costSmartUsdMicros,
+    costLightUsdMicros: costLightUsdMicros.present
+        ? costLightUsdMicros.value
+        : this.costLightUsdMicros,
+    costTranscriptionUsdMicros: costTranscriptionUsdMicros.present
+        ? costTranscriptionUsdMicros.value
+        : this.costTranscriptionUsdMicros,
+    costTotalUsdMicros: costTotalUsdMicros.present
+        ? costTotalUsdMicros.value
+        : this.costTotalUsdMicros,
   );
   Conversation copyWithCompanion(ConversationsCompanion data) {
     return Conversation(
@@ -497,6 +657,18 @@ class Conversation extends DataClass implements Insertable<Conversation> {
       audioFilePath: data.audioFilePath.present
           ? data.audioFilePath.value
           : this.audioFilePath,
+      costSmartUsdMicros: data.costSmartUsdMicros.present
+          ? data.costSmartUsdMicros.value
+          : this.costSmartUsdMicros,
+      costLightUsdMicros: data.costLightUsdMicros.present
+          ? data.costLightUsdMicros.value
+          : this.costLightUsdMicros,
+      costTranscriptionUsdMicros: data.costTranscriptionUsdMicros.present
+          ? data.costTranscriptionUsdMicros.value
+          : this.costTranscriptionUsdMicros,
+      costTotalUsdMicros: data.costTotalUsdMicros.present
+          ? data.costTotalUsdMicros.value
+          : this.costTotalUsdMicros,
     );
   }
 
@@ -514,7 +686,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           ..write('isProcessed: $isProcessed, ')
           ..write('silenceEnded: $silenceEnded, ')
           ..write('source: $source, ')
-          ..write('audioFilePath: $audioFilePath')
+          ..write('audioFilePath: $audioFilePath, ')
+          ..write('costSmartUsdMicros: $costSmartUsdMicros, ')
+          ..write('costLightUsdMicros: $costLightUsdMicros, ')
+          ..write('costTranscriptionUsdMicros: $costTranscriptionUsdMicros, ')
+          ..write('costTotalUsdMicros: $costTotalUsdMicros')
           ..write(')'))
         .toString();
   }
@@ -533,6 +709,10 @@ class Conversation extends DataClass implements Insertable<Conversation> {
     silenceEnded,
     source,
     audioFilePath,
+    costSmartUsdMicros,
+    costLightUsdMicros,
+    costTranscriptionUsdMicros,
+    costTotalUsdMicros,
   );
   @override
   bool operator ==(Object other) =>
@@ -549,7 +729,11 @@ class Conversation extends DataClass implements Insertable<Conversation> {
           other.isProcessed == this.isProcessed &&
           other.silenceEnded == this.silenceEnded &&
           other.source == this.source &&
-          other.audioFilePath == this.audioFilePath);
+          other.audioFilePath == this.audioFilePath &&
+          other.costSmartUsdMicros == this.costSmartUsdMicros &&
+          other.costLightUsdMicros == this.costLightUsdMicros &&
+          other.costTranscriptionUsdMicros == this.costTranscriptionUsdMicros &&
+          other.costTotalUsdMicros == this.costTotalUsdMicros);
 }
 
 class ConversationsCompanion extends UpdateCompanion<Conversation> {
@@ -565,6 +749,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
   final Value<bool> silenceEnded;
   final Value<String> source;
   final Value<String?> audioFilePath;
+  final Value<int?> costSmartUsdMicros;
+  final Value<int?> costLightUsdMicros;
+  final Value<int?> costTranscriptionUsdMicros;
+  final Value<int?> costTotalUsdMicros;
   final Value<int> rowid;
   const ConversationsCompanion({
     this.id = const Value.absent(),
@@ -579,6 +767,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.silenceEnded = const Value.absent(),
     this.source = const Value.absent(),
     this.audioFilePath = const Value.absent(),
+    this.costSmartUsdMicros = const Value.absent(),
+    this.costLightUsdMicros = const Value.absent(),
+    this.costTranscriptionUsdMicros = const Value.absent(),
+    this.costTotalUsdMicros = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ConversationsCompanion.insert({
@@ -594,6 +786,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     this.silenceEnded = const Value.absent(),
     this.source = const Value.absent(),
     this.audioFilePath = const Value.absent(),
+    this.costSmartUsdMicros = const Value.absent(),
+    this.costLightUsdMicros = const Value.absent(),
+    this.costTranscriptionUsdMicros = const Value.absent(),
+    this.costTotalUsdMicros = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        startedAt = Value(startedAt);
@@ -610,6 +806,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Expression<bool>? silenceEnded,
     Expression<String>? source,
     Expression<String>? audioFilePath,
+    Expression<int>? costSmartUsdMicros,
+    Expression<int>? costLightUsdMicros,
+    Expression<int>? costTranscriptionUsdMicros,
+    Expression<int>? costTotalUsdMicros,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -625,6 +825,14 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       if (silenceEnded != null) 'silence_ended': silenceEnded,
       if (source != null) 'source': source,
       if (audioFilePath != null) 'audio_file_path': audioFilePath,
+      if (costSmartUsdMicros != null)
+        'cost_smart_usd_micros': costSmartUsdMicros,
+      if (costLightUsdMicros != null)
+        'cost_light_usd_micros': costLightUsdMicros,
+      if (costTranscriptionUsdMicros != null)
+        'cost_transcription_usd_micros': costTranscriptionUsdMicros,
+      if (costTotalUsdMicros != null)
+        'cost_total_usd_micros': costTotalUsdMicros,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -642,6 +850,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     Value<bool>? silenceEnded,
     Value<String>? source,
     Value<String?>? audioFilePath,
+    Value<int?>? costSmartUsdMicros,
+    Value<int?>? costLightUsdMicros,
+    Value<int?>? costTranscriptionUsdMicros,
+    Value<int?>? costTotalUsdMicros,
     Value<int>? rowid,
   }) {
     return ConversationsCompanion(
@@ -657,6 +869,11 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
       silenceEnded: silenceEnded ?? this.silenceEnded,
       source: source ?? this.source,
       audioFilePath: audioFilePath ?? this.audioFilePath,
+      costSmartUsdMicros: costSmartUsdMicros ?? this.costSmartUsdMicros,
+      costLightUsdMicros: costLightUsdMicros ?? this.costLightUsdMicros,
+      costTranscriptionUsdMicros:
+          costTranscriptionUsdMicros ?? this.costTranscriptionUsdMicros,
+      costTotalUsdMicros: costTotalUsdMicros ?? this.costTotalUsdMicros,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -700,6 +917,20 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
     if (audioFilePath.present) {
       map['audio_file_path'] = Variable<String>(audioFilePath.value);
     }
+    if (costSmartUsdMicros.present) {
+      map['cost_smart_usd_micros'] = Variable<int>(costSmartUsdMicros.value);
+    }
+    if (costLightUsdMicros.present) {
+      map['cost_light_usd_micros'] = Variable<int>(costLightUsdMicros.value);
+    }
+    if (costTranscriptionUsdMicros.present) {
+      map['cost_transcription_usd_micros'] = Variable<int>(
+        costTranscriptionUsdMicros.value,
+      );
+    }
+    if (costTotalUsdMicros.present) {
+      map['cost_total_usd_micros'] = Variable<int>(costTotalUsdMicros.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -721,6 +952,10 @@ class ConversationsCompanion extends UpdateCompanion<Conversation> {
           ..write('silenceEnded: $silenceEnded, ')
           ..write('source: $source, ')
           ..write('audioFilePath: $audioFilePath, ')
+          ..write('costSmartUsdMicros: $costSmartUsdMicros, ')
+          ..write('costLightUsdMicros: $costLightUsdMicros, ')
+          ..write('costTranscriptionUsdMicros: $costTranscriptionUsdMicros, ')
+          ..write('costTotalUsdMicros: $costTotalUsdMicros, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1437,6 +1672,17 @@ class $ConversationAiCostEntriesTable extends ConversationAiCostEntries
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _modelRoleMeta = const VerificationMeta(
+    'modelRole',
+  );
+  @override
+  late final GeneratedColumn<String> modelRole = GeneratedColumn<String>(
+    'model_role',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1454,6 +1700,7 @@ class $ConversationAiCostEntriesTable extends ConversationAiCostEntries
     status,
     startedAt,
     completedAt,
+    modelRole,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1590,6 +1837,12 @@ class $ConversationAiCostEntriesTable extends ConversationAiCostEntries
         ),
       );
     }
+    if (data.containsKey('model_role')) {
+      context.handle(
+        _modelRoleMeta,
+        modelRole.isAcceptableOrUnknown(data['model_role']!, _modelRoleMeta),
+      );
+    }
     return context;
   }
 
@@ -1662,6 +1915,10 @@ class $ConversationAiCostEntriesTable extends ConversationAiCostEntries
         DriftSqlType.int,
         data['${effectivePrefix}completed_at'],
       ),
+      modelRole: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model_role'],
+      ),
     );
   }
 
@@ -1688,6 +1945,7 @@ class ConversationAiCostEntry extends DataClass
   final String status;
   final int startedAt;
   final int? completedAt;
+  final String? modelRole;
   const ConversationAiCostEntry({
     required this.id,
     required this.conversationId,
@@ -1704,6 +1962,7 @@ class ConversationAiCostEntry extends DataClass
     required this.status,
     required this.startedAt,
     this.completedAt,
+    this.modelRole,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1726,6 +1985,9 @@ class ConversationAiCostEntry extends DataClass
     map['started_at'] = Variable<int>(startedAt);
     if (!nullToAbsent || completedAt != null) {
       map['completed_at'] = Variable<int>(completedAt);
+    }
+    if (!nullToAbsent || modelRole != null) {
+      map['model_role'] = Variable<String>(modelRole);
     }
     return map;
   }
@@ -1751,6 +2013,9 @@ class ConversationAiCostEntry extends DataClass
       completedAt: completedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(completedAt),
+      modelRole: modelRole == null && nullToAbsent
+          ? const Value.absent()
+          : Value(modelRole),
     );
   }
 
@@ -1775,6 +2040,7 @@ class ConversationAiCostEntry extends DataClass
       status: serializer.fromJson<String>(json['status']),
       startedAt: serializer.fromJson<int>(json['startedAt']),
       completedAt: serializer.fromJson<int?>(json['completedAt']),
+      modelRole: serializer.fromJson<String?>(json['modelRole']),
     );
   }
   @override
@@ -1796,6 +2062,7 @@ class ConversationAiCostEntry extends DataClass
       'status': serializer.toJson<String>(status),
       'startedAt': serializer.toJson<int>(startedAt),
       'completedAt': serializer.toJson<int?>(completedAt),
+      'modelRole': serializer.toJson<String?>(modelRole),
     };
   }
 
@@ -1815,6 +2082,7 @@ class ConversationAiCostEntry extends DataClass
     String? status,
     int? startedAt,
     Value<int?> completedAt = const Value.absent(),
+    Value<String?> modelRole = const Value.absent(),
   }) => ConversationAiCostEntry(
     id: id ?? this.id,
     conversationId: conversationId ?? this.conversationId,
@@ -1831,6 +2099,7 @@ class ConversationAiCostEntry extends DataClass
     status: status ?? this.status,
     startedAt: startedAt ?? this.startedAt,
     completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    modelRole: modelRole.present ? modelRole.value : this.modelRole,
   );
   ConversationAiCostEntry copyWithCompanion(
     ConversationAiCostEntriesCompanion data,
@@ -1869,6 +2138,7 @@ class ConversationAiCostEntry extends DataClass
       completedAt: data.completedAt.present
           ? data.completedAt.value
           : this.completedAt,
+      modelRole: data.modelRole.present ? data.modelRole.value : this.modelRole,
     );
   }
 
@@ -1889,7 +2159,8 @@ class ConversationAiCostEntry extends DataClass
           ..write('currency: $currency, ')
           ..write('status: $status, ')
           ..write('startedAt: $startedAt, ')
-          ..write('completedAt: $completedAt')
+          ..write('completedAt: $completedAt, ')
+          ..write('modelRole: $modelRole')
           ..write(')'))
         .toString();
   }
@@ -1911,6 +2182,7 @@ class ConversationAiCostEntry extends DataClass
     status,
     startedAt,
     completedAt,
+    modelRole,
   );
   @override
   bool operator ==(Object other) =>
@@ -1930,7 +2202,8 @@ class ConversationAiCostEntry extends DataClass
           other.currency == this.currency &&
           other.status == this.status &&
           other.startedAt == this.startedAt &&
-          other.completedAt == this.completedAt);
+          other.completedAt == this.completedAt &&
+          other.modelRole == this.modelRole);
 }
 
 class ConversationAiCostEntriesCompanion
@@ -1950,6 +2223,7 @@ class ConversationAiCostEntriesCompanion
   final Value<String> status;
   final Value<int> startedAt;
   final Value<int?> completedAt;
+  final Value<String?> modelRole;
   final Value<int> rowid;
   const ConversationAiCostEntriesCompanion({
     this.id = const Value.absent(),
@@ -1967,6 +2241,7 @@ class ConversationAiCostEntriesCompanion
     this.status = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.completedAt = const Value.absent(),
+    this.modelRole = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ConversationAiCostEntriesCompanion.insert({
@@ -1985,6 +2260,7 @@ class ConversationAiCostEntriesCompanion
     this.status = const Value.absent(),
     required int startedAt,
     this.completedAt = const Value.absent(),
+    this.modelRole = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        conversationId = Value(conversationId),
@@ -2008,6 +2284,7 @@ class ConversationAiCostEntriesCompanion
     Expression<String>? status,
     Expression<int>? startedAt,
     Expression<int>? completedAt,
+    Expression<String>? modelRole,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2026,6 +2303,7 @@ class ConversationAiCostEntriesCompanion
       if (status != null) 'status': status,
       if (startedAt != null) 'started_at': startedAt,
       if (completedAt != null) 'completed_at': completedAt,
+      if (modelRole != null) 'model_role': modelRole,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2046,6 +2324,7 @@ class ConversationAiCostEntriesCompanion
     Value<String>? status,
     Value<int>? startedAt,
     Value<int?>? completedAt,
+    Value<String?>? modelRole,
     Value<int>? rowid,
   }) {
     return ConversationAiCostEntriesCompanion(
@@ -2064,6 +2343,7 @@ class ConversationAiCostEntriesCompanion
       status: status ?? this.status,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,
+      modelRole: modelRole ?? this.modelRole,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2116,6 +2396,9 @@ class ConversationAiCostEntriesCompanion
     if (completedAt.present) {
       map['completed_at'] = Variable<int>(completedAt.value);
     }
+    if (modelRole.present) {
+      map['model_role'] = Variable<String>(modelRole.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2140,6 +2423,7 @@ class ConversationAiCostEntriesCompanion
           ..write('status: $status, ')
           ..write('startedAt: $startedAt, ')
           ..write('completedAt: $completedAt, ')
+          ..write('modelRole: $modelRole, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6349,6 +6633,10 @@ typedef $$ConversationsTableCreateCompanionBuilder =
       Value<bool> silenceEnded,
       Value<String> source,
       Value<String?> audioFilePath,
+      Value<int?> costSmartUsdMicros,
+      Value<int?> costLightUsdMicros,
+      Value<int?> costTranscriptionUsdMicros,
+      Value<int?> costTotalUsdMicros,
       Value<int> rowid,
     });
 typedef $$ConversationsTableUpdateCompanionBuilder =
@@ -6365,6 +6653,10 @@ typedef $$ConversationsTableUpdateCompanionBuilder =
       Value<bool> silenceEnded,
       Value<String> source,
       Value<String?> audioFilePath,
+      Value<int?> costSmartUsdMicros,
+      Value<int?> costLightUsdMicros,
+      Value<int?> costTranscriptionUsdMicros,
+      Value<int?> costTotalUsdMicros,
       Value<int> rowid,
     });
 
@@ -6524,6 +6816,26 @@ class $$ConversationsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<int> get costSmartUsdMicros => $composableBuilder(
+    column: $table.costSmartUsdMicros,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get costLightUsdMicros => $composableBuilder(
+    column: $table.costLightUsdMicros,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get costTranscriptionUsdMicros => $composableBuilder(
+    column: $table.costTranscriptionUsdMicros,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get costTotalUsdMicros => $composableBuilder(
+    column: $table.costTotalUsdMicros,
+    builder: (column) => ColumnFilters(column),
+  );
+
   Expression<bool> conversationSegmentsRefs(
     Expression<bool> Function($$ConversationSegmentsTableFilterComposer f) f,
   ) {
@@ -6670,6 +6982,26 @@ class $$ConversationsTableOrderingComposer
     column: $table.audioFilePath,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get costSmartUsdMicros => $composableBuilder(
+    column: $table.costSmartUsdMicros,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get costLightUsdMicros => $composableBuilder(
+    column: $table.costLightUsdMicros,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get costTranscriptionUsdMicros => $composableBuilder(
+    column: $table.costTranscriptionUsdMicros,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get costTotalUsdMicros => $composableBuilder(
+    column: $table.costTotalUsdMicros,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ConversationsTableAnnotationComposer
@@ -6722,6 +7054,26 @@ class $$ConversationsTableAnnotationComposer
 
   GeneratedColumn<String> get audioFilePath => $composableBuilder(
     column: $table.audioFilePath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get costSmartUsdMicros => $composableBuilder(
+    column: $table.costSmartUsdMicros,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get costLightUsdMicros => $composableBuilder(
+    column: $table.costLightUsdMicros,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get costTranscriptionUsdMicros => $composableBuilder(
+    column: $table.costTranscriptionUsdMicros,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get costTotalUsdMicros => $composableBuilder(
+    column: $table.costTotalUsdMicros,
     builder: (column) => column,
   );
 
@@ -6850,6 +7202,10 @@ class $$ConversationsTableTableManager
                 Value<bool> silenceEnded = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String?> audioFilePath = const Value.absent(),
+                Value<int?> costSmartUsdMicros = const Value.absent(),
+                Value<int?> costLightUsdMicros = const Value.absent(),
+                Value<int?> costTranscriptionUsdMicros = const Value.absent(),
+                Value<int?> costTotalUsdMicros = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion(
                 id: id,
@@ -6864,6 +7220,10 @@ class $$ConversationsTableTableManager
                 silenceEnded: silenceEnded,
                 source: source,
                 audioFilePath: audioFilePath,
+                costSmartUsdMicros: costSmartUsdMicros,
+                costLightUsdMicros: costLightUsdMicros,
+                costTranscriptionUsdMicros: costTranscriptionUsdMicros,
+                costTotalUsdMicros: costTotalUsdMicros,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6880,6 +7240,10 @@ class $$ConversationsTableTableManager
                 Value<bool> silenceEnded = const Value.absent(),
                 Value<String> source = const Value.absent(),
                 Value<String?> audioFilePath = const Value.absent(),
+                Value<int?> costSmartUsdMicros = const Value.absent(),
+                Value<int?> costLightUsdMicros = const Value.absent(),
+                Value<int?> costTranscriptionUsdMicros = const Value.absent(),
+                Value<int?> costTotalUsdMicros = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsCompanion.insert(
                 id: id,
@@ -6894,6 +7258,10 @@ class $$ConversationsTableTableManager
                 silenceEnded: silenceEnded,
                 source: source,
                 audioFilePath: audioFilePath,
+                costSmartUsdMicros: costSmartUsdMicros,
+                costLightUsdMicros: costLightUsdMicros,
+                costTranscriptionUsdMicros: costTranscriptionUsdMicros,
+                costTotalUsdMicros: costTotalUsdMicros,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -7429,6 +7797,7 @@ typedef $$ConversationAiCostEntriesTableCreateCompanionBuilder =
       Value<String> status,
       required int startedAt,
       Value<int?> completedAt,
+      Value<String?> modelRole,
       Value<int> rowid,
     });
 typedef $$ConversationAiCostEntriesTableUpdateCompanionBuilder =
@@ -7448,6 +7817,7 @@ typedef $$ConversationAiCostEntriesTableUpdateCompanionBuilder =
       Value<String> status,
       Value<int> startedAt,
       Value<int?> completedAt,
+      Value<String?> modelRole,
       Value<int> rowid,
     });
 
@@ -7566,6 +7936,11 @@ class $$ConversationAiCostEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get modelRole => $composableBuilder(
+    column: $table.modelRole,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$ConversationsTableFilterComposer get conversationId {
     final $$ConversationsTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -7669,6 +8044,11 @@ class $$ConversationAiCostEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get modelRole => $composableBuilder(
+    column: $table.modelRole,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$ConversationsTableOrderingComposer get conversationId {
     final $$ConversationsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -7760,6 +8140,9 @@ class $$ConversationAiCostEntriesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get modelRole =>
+      $composableBuilder(column: $table.modelRole, builder: (column) => column);
+
   $$ConversationsTableAnnotationComposer get conversationId {
     final $$ConversationsTableAnnotationComposer composer = $composerBuilder(
       composer: this,
@@ -7838,6 +8221,7 @@ class $$ConversationAiCostEntriesTableTableManager
                 Value<String> status = const Value.absent(),
                 Value<int> startedAt = const Value.absent(),
                 Value<int?> completedAt = const Value.absent(),
+                Value<String?> modelRole = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationAiCostEntriesCompanion(
                 id: id,
@@ -7855,6 +8239,7 @@ class $$ConversationAiCostEntriesTableTableManager
                 status: status,
                 startedAt: startedAt,
                 completedAt: completedAt,
+                modelRole: modelRole,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7874,6 +8259,7 @@ class $$ConversationAiCostEntriesTableTableManager
                 Value<String> status = const Value.absent(),
                 required int startedAt,
                 Value<int?> completedAt = const Value.absent(),
+                Value<String?> modelRole = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationAiCostEntriesCompanion.insert(
                 id: id,
@@ -7891,6 +8277,7 @@ class $$ConversationAiCostEntriesTableTableManager
                 status: status,
                 startedAt: startedAt,
                 completedAt: completedAt,
+                modelRole: modelRole,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

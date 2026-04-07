@@ -10,6 +10,8 @@ import '../utils/app_logger.dart';
 import 'bitmap_hud/bitmap_hud_service.dart';
 import 'cloud_pipeline_service.dart';
 import 'cost/conversation_cost_tracker.dart';
+import 'cost/pricing_registry.dart';
+import 'cost/session_cost_snapshot.dart';
 import 'database/helix_database.dart' as database_pkg;
 import 'session_context_manager.dart';
 import 'text_paginator.dart';
@@ -67,6 +69,11 @@ class ConversationEngine {
   String? _lastSavedConversationId;
   final ConversationCostTracker _conversationCostTracker =
       ConversationCostTracker();
+
+  Stream<SessionCostSnapshot> get costSnapshots =>
+      _conversationCostTracker.snapshots;
+  SessionCostSnapshot get currentCostSnapshot =>
+      _conversationCostTracker.current;
 
   // Knowledge Base context cache
   String _cachedKbContext = '';
@@ -373,9 +380,26 @@ class ConversationEngine {
                 completedAt: drift.Value(
                   entry.completedAt?.millisecondsSinceEpoch,
                 ),
+                modelRole: drift.Value(entry.modelRole?.name),
               ),
             );
       }
+
+      // Write per-session cost totals onto the Conversations row.
+      final snap = _conversationCostTracker.current;
+      int micros(double usd) => (usd * 1e6).round();
+      await (db.update(db.conversations)
+            ..where((c) => c.id.equals(conversationId)))
+          .write(
+            database_pkg.ConversationsCompanion(
+              costSmartUsdMicros: drift.Value(micros(snap.smartUsd)),
+              costLightUsdMicros: drift.Value(micros(snap.lightUsd)),
+              costTranscriptionUsdMicros: drift.Value(
+                micros(snap.transcriptionUsd),
+              ),
+              costTotalUsdMicros: drift.Value(micros(snap.totalUsd)),
+            ),
+          );
 
       // Trigger cloud pipeline asynchronously
       CloudPipelineService.instance.processConversation(conversationId);
@@ -527,18 +551,21 @@ class ConversationEngine {
     required String modelId,
     required LlmUsage usage,
   }) {
-    if (!usage.hasAnyUsage) return;
+    // Apple zero-cost transcription emits empty usage; we still want to
+    // record it so the breakdown shows "Free" for Apple sessions.
+    if (!usage.hasAnyUsage && providerId != 'apple') return;
+    final costUsd = PricingRegistry.instance.calculateCostUsd(
+      providerId: providerId,
+      modelId: modelId,
+      usage: usage,
+    );
     _conversationCostTracker.recordCompleted(
       operationType: AiOperationType.transcription,
       providerId: providerId,
       modelId: modelId,
       usage: usage,
-      costUsd: providerId == 'openai'
-          ? OpenAiPricingRegistry.calculateCostUsd(
-              modelId: modelId,
-              usage: usage,
-            )
-          : null,
+      costUsd: costUsd,
+      modelRole: ModelRole.transcription,
     );
   }
 
@@ -2176,12 +2203,12 @@ $profileInstruction''';
       providerId: metadata.providerId,
       modelId: metadata.modelId,
       usage: metadata.usage,
-      costUsd: metadata.providerId == 'openai'
-          ? OpenAiPricingRegistry.calculateCostUsd(
-              modelId: metadata.modelId,
-              usage: metadata.usage,
-            )
-          : null,
+      costUsd: PricingRegistry.instance.calculateCostUsd(
+        providerId: metadata.providerId,
+        modelId: metadata.modelId,
+        usage: metadata.usage,
+      ),
+      modelRole: metadata.modelRole,
     );
   }
 

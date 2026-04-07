@@ -1,3 +1,7 @@
+import '../cost/session_cost_snapshot.dart';
+
+export '../cost/session_cost_snapshot.dart' show ModelRole;
+
 /// Abstract interface for LLM providers.
 ///
 /// Each provider (OpenAI, Anthropic, etc.) implements this interface
@@ -155,12 +159,14 @@ class LlmResponseMetadata {
     required this.modelId,
     required this.usage,
     this.operationType,
+    this.modelRole,
   });
 
   final String providerId;
   final String modelId;
   final LlmUsage usage;
   final AiOperationType? operationType;
+  final ModelRole? modelRole;
 }
 
 /// Represents a single message in a chat conversation.

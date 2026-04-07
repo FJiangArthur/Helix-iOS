@@ -14,6 +14,7 @@ import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/session_cost_badge.dart';
 import '../widgets/home_assistant_modules.dart';
 import '../widgets/status_indicator.dart';
 import '../app.dart';
@@ -2553,6 +2554,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
+                    if (_isRecording) ...[
+                      const SizedBox(width: 6),
+                      SessionCostBadge(),
+                    ],
                     if (isAudioOnly)
                       Container(
                         padding: const EdgeInsets.symmetric(

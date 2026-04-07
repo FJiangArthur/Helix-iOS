@@ -317,6 +317,7 @@ class SpeechStreamRecognizer {
                     }
 
                     if result.isFinal {
+                        self.emitAppleTranscriptionUsage()
                         self.cleanupRecognition(deactivateSession: true)
                     }
                 }
@@ -381,6 +382,7 @@ class SpeechStreamRecognizer {
         let currentText = lastRecognizedText
         if !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             emitTranscript(currentText, isFinal: true)
+            emitAppleTranscriptionUsage()
         }
 
         // Prepare the new recognizer and request BEFORE tearing down the old
@@ -430,6 +432,7 @@ class SpeechStreamRecognizer {
                     }
 
                     if result.isFinal {
+                        self.emitAppleTranscriptionUsage()
                         self.cleanupRecognition(deactivateSession: true)
                     }
                 }
@@ -1263,7 +1266,29 @@ class SpeechStreamRecognizer {
             "usage": usage,
             "usageOperationType": usage["operationType"] as? String ?? "",
             "usageModel": usage["model"] as? String ?? "",
+            "usageProvider": usage["provider"] as? String ?? "",
             "isUsageEvent": true,
+        ])
+    }
+
+    /// Emit a zero-cost usage event for an Apple Cloud / Apple On-Device
+    /// final result so the Dart cost tracker records a "Free" transcription
+    /// entry. No native pricing is computed — Dart's PricingRegistry
+    /// resolves the Apple entry to 0.0 USD.
+    private func emitAppleTranscriptionUsage() {
+        let modelId: String
+        switch activeBackend {
+        case .appleCloud:
+            modelId = "cloud"
+        case .appleOnDevice:
+            modelId = "on-device"
+        default:
+            return
+        }
+        emitUsage([
+            "operationType": "transcription",
+            "provider": "apple",
+            "model": modelId,
         ])
     }
 

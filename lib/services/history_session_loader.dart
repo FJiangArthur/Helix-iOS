@@ -60,6 +60,10 @@ class HistorySessionLoader {
             summary: conversation.summary,
             profiles: profiles,
             isFavorite: favoriteIds.contains(conversation.id),
+            costSmartUsdMicros: conversation.costSmartUsdMicros,
+            costLightUsdMicros: conversation.costLightUsdMicros,
+            costTranscriptionUsdMicros: conversation.costTranscriptionUsdMicros,
+            costTotalUsdMicros: conversation.costTotalUsdMicros,
           ),
         );
         continue;
@@ -68,6 +72,10 @@ class HistorySessionLoader {
       sessions.add(
         AssistantSessionMeta(
           id: conversation.id,
+          costSmartUsdMicros: conversation.costSmartUsdMicros,
+          costLightUsdMicros: conversation.costLightUsdMicros,
+          costTranscriptionUsdMicros: conversation.costTranscriptionUsdMicros,
+          costTotalUsdMicros: conversation.costTotalUsdMicros,
           turns: const [],
           timelineEntries: const [],
           modeLabel: historyModeLabel(conversation.mode),
