@@ -14,6 +14,7 @@ import 'database/helix_database.dart' as database_pkg;
 import 'session_context_manager.dart';
 import 'text_paginator.dart';
 import 'hud_controller.dart';
+import 'hud_stream_session.dart';
 import 'provider_error_state.dart';
 import 'proto.dart';
 import 'glasses_protocol.dart';
@@ -2387,8 +2388,78 @@ Answer the detected question directly using the recent conversation context abov
     }
   }
 
+  // ---- HUD line-streaming (flag-gated, default off) -----------------------
+  HudStreamSession? _hudStreamSession;
+  String _hudStreamAccumulated = '';
+  HudPacketSink Function()? _hudPacketSinkFactoryForTest;
+
+  /// Test seam: inject a custom HudPacketSink factory used by the line-
+  /// streaming path. Set to null to restore the production [ProtoHudPacketSink].
+  static void setHudPacketSinkFactoryForTest(
+    HudPacketSink Function()? factory,
+  ) {
+    instance._hudPacketSinkFactoryForTest = factory;
+  }
+
   Future<void> _streamToGlasses(String text, {required bool isStreaming}) {
-    return _glassesSender(text, isStreaming: isStreaming);
+    if (!SettingsManager.instance.hudLineStreamingEnabled) {
+      return _glassesSender(text, isStreaming: isStreaming);
+    }
+    return _streamToGlassesViaSession(text, isStreaming: isStreaming);
+  }
+
+  Future<void> _streamToGlassesViaSession(
+    String text, {
+    required bool isStreaming,
+  }) async {
+    if (!isStreaming) {
+      final session = _hudStreamSession;
+      _hudStreamSession = null;
+      _hudStreamAccumulated = '';
+      if (session == null) {
+        // No active session — fall through to legacy sender so the final
+        // text-HUD path still wins for non-streaming writes.
+        await _glassesSender(text, isStreaming: false);
+        return;
+      }
+      await session.finish();
+      return;
+    }
+
+    // Streaming branch.
+    if (_hudStreamSession == null) {
+      final factory = _hudPacketSinkFactoryForTest;
+      final HudPacketSink sink = factory != null
+          ? factory()
+          : const ProtoHudPacketSink();
+      _hudStreamSession = HudStreamSession(sink: sink);
+      _hudStreamAccumulated = '';
+    }
+
+    // Compute delta. The LLM streaming loop passes accumulated snapshots
+    // (each call's `text` extends the previous). The realtime API path passes
+    // raw deltas. Detect snapshot-mode via prefix check; otherwise treat the
+    // input as a raw delta to append.
+    String delta;
+    if (text.startsWith(_hudStreamAccumulated)) {
+      delta = text.substring(_hudStreamAccumulated.length);
+      _hudStreamAccumulated = text;
+    } else {
+      delta = text;
+      _hudStreamAccumulated = _hudStreamAccumulated + text;
+    }
+    if (delta.isEmpty) return;
+    await _hudStreamSession!.appendDelta(delta);
+  }
+
+  void _resetHudStreamSession() {
+    if (!SettingsManager.instance.hudLineStreamingEnabled) return;
+    final old = _hudStreamSession;
+    _hudStreamSession = null;
+    _hudStreamAccumulated = '';
+    if (old != null) {
+      unawaited(old.cancel());
+    }
   }
 
   /// Get LlmService instance (lazy to avoid import cycles)
@@ -2534,11 +2605,13 @@ Answer the detected question directly using the recent conversation context abov
     _latestAssistantResponse = '';
     _latestAssistantResponseTimestamp = null;
     _responseToken++;
+    _resetHudStreamSession();
     return _responseToken;
   }
 
   void _cancelInFlightResponse() {
     _responseToken++;
+    _resetHudStreamSession();
   }
 
   bool _isResponseCurrent(int token) => token == _responseToken;
