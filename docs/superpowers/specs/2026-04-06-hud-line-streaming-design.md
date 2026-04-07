@@ -6,9 +6,20 @@
 
 ---
 
-## Protocol findings (2026-04-06 research, resolves prior open questions 1 & 2)
+## Protocol findings
 
-Two independent reference implementations — Even Realities' official `EvenDemoApp` (Flutter) and the community `emingenc/even_glasses` (Python) — were inspected. Verdicts (high confidence):
+The authoritative protocol reference for this project is now `docs/research/g1-ble-protocol-consolidated.md` (synthesized 2026-04-05 from 10+ open-source SDKs including the JohnRThomas EvenDemoApp wiki, `emingenc/even_glasses`, `emingenc/even_realities_g1`, `lohmuller/even-g1-java-sdk`, Even Realities' official `EvenDemoApp`, AugmentOS, `binarythinktank/eveng1_python_sdk`, `rodrigofalvarez/g1-basis-android`, `meyskens/fahrplan`). That document supersedes the ad-hoc notes below. Spec B reads §1 (UART), §2 (dual glass), and §5 (Text / AI Result `0x4E`) from the consolidated doc as source of truth.
+
+What the consolidated doc adds beyond Spec B's original audit — all **out of scope** for this spec but worth noting so callers know where to look:
+
+- Complete phone→glasses outgoing command map (§3), including brightness `0x01`, silent mode `0x03`, whitelist `0x04`, dashboard set `0x06`, nav `0x0A`, mic `0x0E`, BMP `0x15`/`0x16`/`0x20`, notes `0x1E`, heartbeat `0x25`, hardware `0x26`, wear `0x27`, battery query `0x2C`, notification `0x4B`/`0x4C`/`0x4F`, init `0x4D`, our `0x4E`, dashboard position `0x50`, push screen `0xF4`, clear/AI stop `0xF5`.
+- Complete glasses→phone incoming map: `0x0E` mic response, `0x22` status, `0xF1` audio, `0xF5` touchpad/gesture events (full subcmd table including `0x0A` battery level, `0x09` charging, `0x1E`/`0x1F` dashboard open/close, `0x17`/`0x18` EvenAI start/stop).
+- Heartbeat packet layout (§4, 6 bytes, 5 s interval, 1500 ms timeout).
+- Bitmap/image protocol (§6): 576×136, 1-bit, `0x15` chunks, `0x16` CRC-32/XZ over `storageAddress+data`, `0x20 0x0D 0x0E` complete signal, 194-byte chunks, L-then-R sequential (not interleaved), 8 ms inter-chunk (iOS).
+- Notification protocol `0x4B` chunking (§7), dashboard subcommand map (§8), hardware settings subcommands (§9), touchpad event table (§10), mic/audio LC3 protocol (§11), quick notes (§12), SN decoding (§13), charging case serial (§14), error handling and reconnection timeouts (§15).
+- Comparison with Helix-iOS (§18): confirms our BMP framing, CRC algorithm, storage address, text header format, screen status codes, and dual-side routing all match reference implementations.
+
+Spec B's own protocol observations (retained from 2026-04-06 independent review of the official `EvenDemoApp` and `emingenc/even_glasses`), all of which the consolidated doc also confirms:
 
 - **No append semantics on `pos`.** Both implementations hard-code `pos = 0` in every call site. There is no evidence the firmware treats a non-zero `pos` as an append offset; its likely meaning is "highlight offset within the current page," not "insert at byte N." **Spec B does not rely on `pos != 0` append.**
 - **No scroll / view-window command exists.** Pagination is 100% phone-driven by re-pushing whole pages with updated `current_page_num` / `max_page_num`.
@@ -37,31 +48,43 @@ Two independent reference implementations — Even Realities' official `EvenDemo
 
 ## 1. Current behavior audit
 
-### Token → BLE path
+> **Updated 2026-04-06 to reflect the in-flight partial fixes already present on the branch** (checkpoint `10905f7`). The original audit was written against an earlier snapshot and overstated the remaining win.
+
+### Token → BLE path (as of checkpoint 10905f7)
 
 1. LLM provider (`lib/services/llm/*`) emits delta tokens on the response stream.
-2. `ConversationEngine` accumulates them in `_realtimeResponseBuffer` and runs a debounced flush loop (`_responseFlushInterval = 75ms`, `_responseFlushThreshold = 14` chars). See `conversation_engine.dart:84-85, 1994, 2136`.
-3. Each flush calls `_streamToGlasses(fullBufferSoFar, isStreaming: true)` → `_sendToGlasses` (`conversation_engine.dart:2363`).
-4. `_sendToGlasses` re-paginates the **entire** accumulated text via `TextPaginator.instance.paginateText(text)` and grabs the **last** page (`currentPageText`).
-5. It then picks a screen code:
-   - first frame or page change → `0x31` (new canvas), `pos = 0`
-   - same page subsequent flush → `0x30`, `pos = _lastStreamedByteLength` (UTF-8 byte offset of previously sent content)
-6. It calls `Proto.sendEvenAIData(pageText, newScreen: …, pos: …)` (`proto.dart:121`).
-7. `sendEvenAIData` UTF-8-encodes **the full `pageText`** and chunks it into 191-byte packets via `EvenaiProto.evenaiMultiPackListV2`. The same packet stream is then sent to L and R sides serially with a 400ms gap.
-8. Streaming complete → one final call with `0x40`.
+2. `ConversationEngine` accumulates them in `_realtimeResponseBuffer` and runs a debounced flush loop (`_responseFlushInterval = 75ms`, `_responseFlushThreshold = 14` chars).
+3. Each flush calls `_streamToGlasses(fullBufferSoFar, isStreaming: true)` → `_sendToGlasses` (`lib/services/conversation_engine.dart:2363`).
+4. `_sendToGlasses` paginates the full accumulated text and takes the last page.
+5. Screen status byte is now chosen via `HudDisplayState.aiFrameForPage(...)` (`lib/services/glasses_protocol.dart:16-24`):
+   - Non-streaming final → `0x40` (`_aiComplete`)
+   - Streaming, `pageIndex == 0` → `0x31` (`_aiShowing | _displayNewContent`)
+   - Streaming, subsequent pages → `0x30` (`_aiShowing`, no new-canvas bit)
+6. `current_page_num` is now the **actual** current page index + 1 (`conversation_engine.dart:2405`), not `totalPages` as it used to be.
+7. `Proto.sendEvenAIData` UTF-8-encodes the full current-page text, chunks into 191-byte `0x4E` packets via `EvenaiProto.evenaiMultiPackListV2`, and sends to L, **awaits a 400 ms inter-side delay** (`lib/services/proto.dart:166-168`), then sends to R.
+8. `Proto.clearBitmapScreen` (`proto.dart:406-419`) exists as a fire-and-forget `0x18` helper for tearing down without waiting on ACK.
 
-### What is wasted
+### What the in-flight work already fixes (no longer Spec B's problem)
 
-- **`pageText` always contains every byte of the current page.** Even though `pos` advertises the offset of "new content," the wire payload still carries bytes `[0..pos)`. The intent of incremental streaming is correct on paper but is not reflected in the bytes leaving the phone.
-- Re-pagination on every flush re-runs `TextPainter.layout()` over the entire accumulated response. Cheap individually, expensive at 13 flushes/sec across a multi-paragraph answer.
-- L and R writes are serialized with a 400ms inter-side delay, so the effective HUD frame rate is bounded near ~2 Hz regardless of how often we flush. Any flush we issue beyond that rate is silently coalesced by latency.
-- Each flush causes the glasses firmware to re-render the same prefix bytes it already has, which is observed (and the original motivation for this spec) as flicker / wasted radio time.
+These items were previously listed as Spec B wins. They are now covered by the checkpoint diff and Spec B does not need to touch them:
+
+- **Per-page screen-status byte.** `aiFrameForPage` now returns `0x31` only for the first page and `0x30` for continuation, instead of the old unconditional `0x31`. Final frame uses `0x40` as a clean completion sentinel.
+- **Correct `current_page_num`.** Previously always equal to `totalPages` (so the firmware always thought it was on the last page). Now tracks the actual streaming page.
+- **400 ms inter-side text delay.** Previously absent; now present in `sendEvenAIData`. This is what the consolidated doc §2 and §5 require.
+- **HUD state bookkeeping.** `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` now exist on `ConversationEngine` (`conversation_engine.dart:98-100`) and gate the first-frame / page-boundary decisions.
+
+### What is STILL wasted (the remaining Spec B win)
+
+- **Flush trigger is still per-token, not per-line.** The `_responseFlushInterval = 75ms` / `_responseFlushThreshold = 14 chars` debounce means ~13 flushes/sec during active streaming. With L→R serialization capped near 2 Hz by the 400 ms inter-side delay, most of those flushes are silently coalesced by latency and wasted on the radio. **This is the load-bearing Spec B win.**
+- **Streaming HUD state lives on `ConversationEngine`.** Three fields (`_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex`) and the branching logic in `_sendToGlasses` (`conversation_engine.dart:2363-2411`) should move to a dedicated owned class with a clear lifecycle. The engine is already ~3000 LOC and should not be growing per-stream ephemeral state inline.
+- **No test coverage for the streaming path.** There is currently no unit test that asserts the sequence of screen-status bytes / page indices / payloads that a multi-line streaming response produces. A drift here is invisible until someone sees flicker on hardware.
 
 ### Exact code path that needs to change
 
-- `ConversationEngine._sendToGlasses` (`conversation_engine.dart:2363-2411`)
-- `Proto.sendEvenAIData` (`proto.dart:121-196`) — must accept either a full page payload (legacy) or a "tail bytes only" payload (new) and pass the right slice to `evenaiMultiPackListV2`.
-- The streaming HUD state on `ConversationEngine` (lines 98-100) gets pulled out into a dedicated class (see §4).
+- `ConversationEngine._sendToGlasses` (`conversation_engine.dart:2363-2411`): replace the token-rate flush gating with line-boundary gating (see §3).
+- `ConversationEngine._realtimeResponseBuffer` flush loop (see usages of `_streamToGlasses` around `conversation_engine.dart:692, 959, 1986, 2078`): stop calling on `_responseFlushThreshold`/`_responseFlushInterval` and delegate to the new `HudStreamSession.appendDelta`.
+- `Proto.sendEvenAIData` (`proto.dart:121-196`): **unchanged in wire format.** Spec B deliberately does not change a single byte in `sendEvenAIData`. The win is purely flush-rate reduction.
+- The streaming HUD state fields on `ConversationEngine` (`conversation_engine.dart:98-100`) get absorbed into `HudStreamSession` and removed from the engine (see §4 and §10, "Coexistence with in-flight work").
 
 ---
 
@@ -112,10 +135,15 @@ class HudStreamSession {
   int _pageIndex = 0;            // 0-based current page
   final List<String> _lines = []; // committed lines on current page (max 5)
   String _pendingTail = '';      // unsent in-progress line
-  int _pageByteLength = 0;       // running utf8 byte length of joined committed lines + '\n's
 
   // Per-stream state
   bool _firstFrameSent = false;
+
+  // NOTE: no `_pageByteLength` field. The in-flight checkpoint still tracks
+  // it on ConversationEngine for the legacy append-offset path, but
+  // HudStreamSession uses `pos = 0` for every emit per the consolidated
+  // protocol doc (`docs/research/g1-ble-protocol-consolidated.md` §5), so the
+  // byte-length counter has no purpose here and is deliberately omitted.
 
   Future<void> appendDelta(String delta);   // called per LLM token
   Future<void> finish();                    // flush partial tail, send 0x40
@@ -141,13 +169,30 @@ The `_pageByteLength` field is removed from the state — it was only useful for
 
 ### What `glasses_protocol.dart` actually defines
 
-`HudDisplayState` encodes the `screen_status` byte (`0x01`, `0x30`, `0x40`, `0x70`) plus the `aiFrameForPage` helper. Helix's existing code calls these "screen codes" but per the protocol findings above, the **actual BLE command byte is `0x4E`** for the entire AI/text family — `0x30`/`0x40`/`0x70` are values of the 5th header byte (`screen_status`), not separate commands. The framing lives in `EvenaiProto.evenaiMultiPackListV2`. Header layout:
+`HudDisplayState` (`lib/services/glasses_protocol.dart:5-34`) encodes the `screen_status` byte (`0x01`, `0x30`, `0x40`, `0x70`) and now exposes `aiFrameForPage(...)` and `textPageForIndex(pageIndex)` helpers that differentiate the first page from continuation pages (the in-flight checkpoint added these). Helix's existing code previously called these values "screen codes," but per the protocol findings and confirmed by multiple independent sources in `docs/research/g1-ble-protocol-consolidated.md` §5, the **actual BLE command byte is `0x4E`** for the entire AI/text family — `0x30`/`0x40`/`0x70` are values of the 5th header byte (`screen_status`), not separate commands. The framing lives in `EvenaiProto.evenaiMultiPackListV2`.
+
+Exact 9-byte header layout per the consolidated doc §5:
 
 ```
-[0x4E, syncSeq, maxSeq, seq, screen_status, new_char_pos_hi, new_char_pos_lo, currentPage, maxPage, ...data]
+Offset  Size  Field           Description
+------  ----  -----           -----------
+0       1     command         0x4E (SEND_RESULT)
+1       1     syncSeq         Sequence number (shared across packets in one message)
+2       1     maxSeq          Total number of multi-packet chunks
+3       1     seq             Current chunk index (0-based)
+4       1     newScreen       screen_status (4-bit display style | 4-bit canvas state)
+5       2     pos             new_char_pos (big-endian int16)
+7       1     currentPage     Current page number
+8       1     maxPages        Total page count
+9+      N     data            UTF-8 payload (max 191 bytes per packet)
 ```
 
-The `new_char_pos` field's documented purpose (per `even_glasses/models.py`) is "new character position" — likely a highlight offset for the firmware to animate freshly arrived text. **It is not an append offset.** Both the official demo and the community SDK hard-code it to 0 in every call site.
+The consolidated doc confirms with multiple independent sources (JohnRThomas wiki, `emingenc/even_glasses`, official EvenDemoApp, Python SDK, Java SDK) that:
+
+- **`cmd = 0x4E`** for the entire AI/text family. `0x30`/`0x40`/`0x70` are `screen_status` values, not commands.
+- **`new_char_pos = 0`** in every reference call site. Its documented purpose is a highlight/animation offset for freshly arrived text, **not** an append offset into a server-side buffer. The firmware is a dumb framebuffer keyed by `current_page_num`; there is no append semantic.
+
+Spec B uses the same constant `pos = 0` everywhere and does not rely on any interpretation of `new_char_pos` beyond "ignored by firmware."
 
 ### What changes in `Proto.sendEvenAIData`
 
@@ -240,10 +285,32 @@ Tests live in `test/services/hud_stream_session_test.dart`. No changes to the `l
 
 ---
 
-## 10. Migration notes
+## 10. Coexistence with in-flight work
 
-1. Land `HudStreamSession` and `HudPacketSink` with full unit coverage. Keep `_sendToGlasses` as-is.
-2. Behind a `SettingsManager.flag('hud.lineStreaming', default: false)` gate, route streaming responses through `HudStreamSession` instead of the old per-token flush loop. Final-frame and text-HUD path stay on `_sendToGlasses`.
+Checkpoint `10905f7` on the current branch has already landed several fixes that this spec's original draft proposed as part of Spec B:
+
+- `HudDisplayState.aiFrameForPage` and `HudDisplayState.textPageForIndex` (per-page screen-status selection).
+- `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` fields on `ConversationEngine` (`conversation_engine.dart:98-100`).
+- Correct `current_page_num` propagation in `_sendToGlasses`.
+- 400 ms inter-side delay in `Proto.sendEvenAIData`.
+- `Proto.clearBitmapScreen` fire-and-forget helper.
+
+Spec B's migration strategy is therefore **absorb and clean up the existing fields into `HudStreamSession`**, not "introduce new state alongside the old state." Concretely:
+
+1. Build `HudStreamSession` + `HudPacketSink` and its unit suite first (no behavior change; `_sendToGlasses` still runs).
+2. Replace `ConversationEngine`'s per-token flush callers (`_streamToGlasses` usages at `conversation_engine.dart:692, 959, 1986, 2078`) with `HudStreamSession.appendDelta` / `finish` / `cancel`, behind the `SettingsManager` flag.
+3. Once the flag flips, the three fields at `conversation_engine.dart:98-100` become dead code and are deleted. Their responsibilities move entirely into `HudStreamSession._firstFrameSent`, `_pageIndex`, and `_lines`.
+4. `_sendToGlasses` stays as a fallback path for the text-HUD (non-AI) writes and for `HudStreamSession`'s `_emit` implementation of the `HudPacketSink` (it is the production binding that wraps `Proto.sendEvenAIData`).
+5. `aiFrameForPage` / `textPageForIndex` are **kept and reused** by `HudStreamSession._emit`. The spec's original "introduce new screen-code helpers" note is obsolete — those helpers already exist and are correct.
+
+The wire format does not change. The only risk is logical (page boundary accounting in `HudStreamSession`), and that is covered by the unit suite in §9.
+
+---
+
+## 11. Migration notes
+
+1. Land `HudStreamSession` and `HudPacketSink` with full unit coverage. Keep `_sendToGlasses` as-is; the new class calls into it via the production `HudPacketSink` binding.
+2. Behind a `SettingsManager.flag('hud.lineStreaming', default: false)` gate, route streaming responses through `HudStreamSession.appendDelta/finish/cancel` instead of the old per-token flush loop. Final-frame, text-HUD, and auto-answer UI path stay on the existing code.
 3. Hardware QA on a real G1 pair: verify the line-gated cadence visibly improves streaming feel and reduces flicker. No protocol risk to validate — wire format is unchanged from today.
 4. Flip the flag default to `true` after one release.
-5. Remove `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` from `ConversationEngine`.
+5. Remove `_lastStreamedByteLength`, `_isFirstStreamFrame`, `_lastStreamedPageIndex` from `ConversationEngine` (`conversation_engine.dart:98-100`) and delete the branching in `_sendToGlasses` that references them; the text-HUD path keeps the simpler non-streaming branch.
