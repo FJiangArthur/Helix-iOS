@@ -2401,6 +2401,21 @@ Answer the detected question directly using the recent conversation context abov
     instance._hudPacketSinkFactoryForTest = factory;
   }
 
+  /// Test seam: drive the streaming HUD path directly. Production callers
+  /// should not use this — it exists so unit tests can exercise the
+  /// HudStreamSession routing without spinning up a full LLM stream.
+  @visibleForTesting
+  Future<void> debugStreamToGlasses(
+    String text, {
+    required bool isStreaming,
+  }) =>
+      _streamToGlasses(text, isStreaming: isStreaming);
+
+  /// Test seam: clear any active line-streaming session (mirrors what
+  /// `_beginResponseCycle` does for a new response).
+  @visibleForTesting
+  void debugResetHudStreamSession() => _resetHudStreamSession();
+
   Future<void> _streamToGlasses(String text, {required bool isStreaming}) {
     if (!SettingsManager.instance.hudLineStreamingEnabled) {
       return _glassesSender(text, isStreaming: isStreaming);
