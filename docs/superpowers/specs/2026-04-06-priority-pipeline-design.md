@@ -293,6 +293,11 @@ Instrumentation to add (all behind a `kDebugTranscriptionTiming` build flag, off
    - Log press receipt time, debounce decision, and time of `arbiter.requestQA` return.
 5. **Dart — `AnswerArbiter`**:
    - Log press → first prefetch publish, prefetch publish → first smart chunk, first smart chunk → first HUD bitmap commit.
+6. **Firmware-side — `G1DebugService`** (`lib/services/g1_debug_service.dart`, pre-existing, committed in checkpoint `10905f7` — **do not rewrite as part of Phase 0, just wire it in**):
+   - During the diagnostic window, call `G1DebugService.instance.enable()`. This sends `0x23 0x6C 0x00` to the glasses to activate firmware debug logging; incoming `0xF4` frames are parsed (null-terminated ASCII) and emitted on `G1DebugService.instance.debugMessages` with HH:mm:ss.SSS timestamps.
+   - Log every message from that stream alongside the phone-side timeline. Timestamps are wall-clock but arrival time at the Dart side is what we compare against native tap timestamps.
+   - **Correlation rule:** a gap in firmware debug output during the Q&A press window is strong evidence the problem is downstream of the BLE command channel (i.e. the glasses firmware itself is stalled or blocked on something we sent). A gap that appears **only** on the phone side, with firmware debug output continuing normally, points upstream into the Dart / platform-channel / audio-engine path and rules out the glasses as a cause. No gap on either side + perceived lag → the issue is LLM TTFB or HUD render, not transcription (matches the "no gap anywhere" row of the interpretation guide below).
+   - Remember to call `G1DebugService.instance.disable()` after the diagnostic run; leaving firmware logging on in production adds BLE noise.
 
 Diagnostic test protocol:
 
