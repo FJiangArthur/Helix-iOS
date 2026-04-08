@@ -51,7 +51,9 @@ void main() {
       expect(requestedSides, ['R']);
     });
 
-    test('fails when a connected side does not acknowledge exit', () async {
+    test('still succeeds when one connected side acknowledges exit', () async {
+      // Per BleTransportPolicy: at-least-one-side success is sufficient
+      // because the glasses internally relay between L and R.
       final result = await Proto.exitForTest(
         leftConnected: true,
         rightConnected: true,
@@ -60,6 +62,20 @@ void main() {
           receive.data = Uint8List.fromList(
             lr == 'L' ? [0x18, 0xc9] : [0x18, 0x00],
           );
+          return receive;
+        },
+      );
+
+      expect(result, isTrue);
+    });
+
+    test('fails when both connected sides reject exit', () async {
+      final result = await Proto.exitForTest(
+        leftConnected: true,
+        rightConnected: true,
+        requestSide: (lr, data, timeoutMs) async {
+          final receive = BleReceive();
+          receive.data = Uint8List.fromList([0x18, 0x00]);
           return receive;
         },
       );
@@ -119,8 +135,9 @@ void main() {
 
       // Both sides were attempted
       expect(sides, ['L', 'R']);
-      // Returns false because L (connected) failed
-      expect(result, isFalse);
+      // Per BleTransportPolicy: a single-side success is sufficient because
+      // the glasses internally relay between L and R.
+      expect(result, isTrue);
     });
 
     test('succeeds when only R is connected', () async {
@@ -160,6 +177,83 @@ void main() {
       );
 
       expect(result, isFalse);
+    });
+  });
+
+  group('Proto.sendEvenAIData (M3 inter-side delay)', () {
+    test('inserts >=400 ms between L and R writes when both connected',
+        () async {
+      final calls = <(String, int)>[];
+      final start = DateTime.now();
+
+      final ok = await Proto.sendEvenAIDataForTest(
+        dataList: [
+          Uint8List.fromList([0x4E, 0, 1, 0, 0x71, 0, 0, 1, 1]),
+        ],
+        leftConnected: true,
+        rightConnected: true,
+        requestSide: (_, lr, __) async {
+          calls.add((lr, DateTime.now().difference(start).inMilliseconds));
+          return true;
+        },
+      );
+
+      expect(ok, isTrue);
+      expect(calls.length, 2);
+      expect(calls[0].$1, 'L');
+      expect(calls[1].$1, 'R');
+      // L→R delta must be >=400 ms (Proto.evenAIInterSideDelay).
+      final delta = calls[1].$2 - calls[0].$2;
+      expect(delta, greaterThanOrEqualTo(400));
+    });
+
+    test('only-L connected sends once with no delay gate', () async {
+      final calls = <String>[];
+      final stopwatch = Stopwatch()..start();
+
+      final ok = await Proto.sendEvenAIDataForTest(
+        dataList: [
+          Uint8List.fromList([0x4E, 0, 1, 0, 0x71, 0, 0, 1, 1]),
+        ],
+        leftConnected: true,
+        rightConnected: false,
+        requestSide: (_, lr, __) async {
+          calls.add(lr);
+          return true;
+        },
+      );
+      stopwatch.stop();
+
+      expect(ok, isTrue);
+      expect(calls, ['L']);
+      // No 400 ms wait should happen when only L is connected.
+      expect(stopwatch.elapsedMilliseconds, lessThan(200));
+    });
+
+    test('only-R connected sends once with no delay gate', () async {
+      final calls = <String>[];
+      final stopwatch = Stopwatch()..start();
+
+      final ok = await Proto.sendEvenAIDataForTest(
+        dataList: [
+          Uint8List.fromList([0x4E, 0, 1, 0, 0x71, 0, 0, 1, 1]),
+        ],
+        leftConnected: false,
+        rightConnected: true,
+        requestSide: (_, lr, __) async {
+          calls.add(lr);
+          return true;
+        },
+      );
+      stopwatch.stop();
+
+      expect(ok, isTrue);
+      expect(calls, ['R']);
+      expect(stopwatch.elapsedMilliseconds, lessThan(200));
+    });
+
+    test('inter-side delay constant matches consolidated protocol §5', () {
+      expect(Proto.evenAIInterSideDelay, const Duration(milliseconds: 400));
     });
   });
 

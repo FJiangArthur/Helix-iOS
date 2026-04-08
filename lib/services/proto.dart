@@ -151,29 +151,60 @@ class Proto {
       'proto--sendEvenAIData seq=$_evenaiSeq newScreen=$newScreen page=$current_page_num/$max_page_num textLen=${text.length}',
     );
 
+    return _sendEvenAIDataPipeline(
+      dataList: dataList,
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      timeoutMs: timeoutMs ?? 2000,
+      requestSide: (packets, lr, ms) =>
+          BleManager.requestList(packets, lr: lr, timeoutMs: ms),
+    );
+  }
+
+  @visibleForTesting
+  static const Duration evenAIInterSideDelay = Duration(milliseconds: 400);
+
+  /// Test-visible variant of [sendEvenAIData] that lets a unit test inject a
+  /// fake `requestSide` and observe the L→R ordering and inter-side delay.
+  @visibleForTesting
+  static Future<bool> sendEvenAIDataForTest({
+    required List<Uint8List> dataList,
+    required bool leftConnected,
+    required bool rightConnected,
+    int timeoutMs = 2000,
+    required Future<bool> Function(List<Uint8List>, String, int) requestSide,
+  }) {
+    return _sendEvenAIDataPipeline(
+      dataList: dataList,
+      leftConnected: leftConnected,
+      rightConnected: rightConnected,
+      timeoutMs: timeoutMs,
+      requestSide: requestSide,
+    );
+  }
+
+  static Future<bool> _sendEvenAIDataPipeline({
+    required List<Uint8List> dataList,
+    required bool leftConnected,
+    required bool rightConnected,
+    required int timeoutMs,
+    required Future<bool> Function(List<Uint8List>, String, int) requestSide,
+  }) async {
     bool isSuccessL = false;
     if (leftConnected) {
-      isSuccessL = await BleManager.requestList(
-        dataList,
-        lr: "L",
-        timeoutMs: timeoutMs ?? 2000,
-      );
+      isSuccessL = await requestSide(dataList, 'L', timeoutMs);
       if (!isSuccessL) {
         appLogger.d('sendEvenAIData failed L');
       }
     }
 
-    if (leftConnected) {
-      await Future.delayed(const Duration(milliseconds: 400));
+    if (leftConnected && rightConnected) {
+      await Future<void>.delayed(evenAIInterSideDelay);
     }
 
     bool isSuccessR = false;
     if (rightConnected) {
-      isSuccessR = await BleManager.requestList(
-        dataList,
-        lr: "R",
-        timeoutMs: timeoutMs ?? 2000,
-      );
+      isSuccessR = await requestSide(dataList, 'R', timeoutMs);
       if (!isSuccessR) {
         appLogger.d('sendEvenAIData failed R');
       }
