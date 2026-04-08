@@ -43,8 +43,6 @@ class ProtoHudPacketSink implements HudPacketSink {
 
 /// State machine that flushes streaming LLM output to the G1 HUD on
 /// **completed visual line** boundaries instead of per token.
-///
-/// See `docs/superpowers/specs/2026-04-06-hud-line-streaming-design.md` §4.
 class HudStreamSession {
   HudStreamSession({required this.sink});
 

@@ -1,51 +1,21 @@
 # App Store Connect Metadata — Even Companion
 
-Reference document with copy-paste content for App Store Connect submission fields.
-
----
+Copy-paste content for App Store Connect submission fields.
 
 ## App Information
 
-**App Name** (30 char max):
-```
-Even Companion
-```
-
-**Subtitle** (30 char max):
-```
-AI Assistant for Smart Glasses
-```
-
-**Primary Category**: Productivity
-**Secondary Category**: Utilities
-
-**Copyright**:
-```
-© 2026 Art Jiang
-```
-
-**Age Rating**: 4+ (no objectionable content, no user-generated content shared publicly)
-
----
+- **Name:** `Even Companion` (30 char max)
+- **Subtitle:** `AI Assistant for Smart Glasses` (30 char max)
+- **Primary Category:** Productivity
+- **Secondary Category:** Utilities
+- **Copyright:** `© 2026 Art Jiang`
+- **Age Rating:** 4+
 
 ## URLs
 
-**Privacy Policy URL**:
-```
-https://fjiangarthur.github.io/Helix-iOS/privacy
-```
-
-**Support URL**:
-```
-https://fjiangarthur.github.io/Helix-iOS/support
-```
-
-**Marketing URL**:
-```
-https://fjiangarthur.github.io/Helix-iOS/
-```
-
----
+- Privacy: `https://fjiangarthur.github.io/Helix-iOS/privacy`
+- Support: `https://fjiangarthur.github.io/Helix-iOS/support`
+- Marketing: `https://fjiangarthur.github.io/Helix-iOS/`
 
 ## Description (4000 chars max)
 
@@ -83,19 +53,13 @@ Pair your G1 glasses once and Even Companion handles the rest. The app maintains
 Even Companion is free to download and use. AI features require an API key from your chosen provider, or use one of the free model options listed above.
 ```
 
----
-
-## Keywords (100 chars max, comma-separated, no spaces after commas)
+## Keywords (100 chars max)
 
 ```
 smart glasses,AI assistant,conversation,transcription,HUD,Even Realities,G1,speech,bluetooth,real-time
 ```
 
-Character count: 100
-
----
-
-## What's New — Version 2.2.6
+## What's New — v2.2.6
 
 ```
 MORE RELIABLE CONVERSATION RESTARTS
@@ -111,87 +75,42 @@ APP STORE SUBMISSION POLISH
 Updated launch assets and review metadata to better match the current app experience and privacy behavior.
 ```
 
----
-
-## App Review Notes
+## Review Notes
 
 ```
 This app is a companion for Even Realities G1 smart glasses. Full functionality requires paired glasses via Bluetooth. Without glasses, you can still test: (1) Home tab — tap the microphone to record and transcribe speech, then receive AI responses; (2) Settings — configure AI providers and enter API keys; (3) Glasses tab — preview HUD widgets and layout behavior. No login required. Free AI access: set Zhipu AI as provider and select glm-4-flash model (free, no API key charges).
 ```
 
----
+## Privacy Label
 
-## Privacy Nutrition Label Guidance
+**Collected (App Functionality, not linked to identity, not tracking):**
+- Audio Data (User Content)
+- Precise Location (only for HUD weather widget)
 
-Select the following in App Store Connect under **App Privacy**:
+**Not collected:** contact info, health, financial, contacts, user
+content, browsing/search history, identifiers, purchases, usage data,
+diagnostics, sensitive info.
 
-### Data Collected
+**Notes:**
+- Third-party API calls to the user's chosen AI provider (OpenAI /
+  Anthropic / DeepSeek / Qwen / Zhipu / SiliconFlow). Functional, not
+  tracking.
+- Speech recognition defaults to Apple on-device; cloud transcription
+  only when user explicitly selects it in Settings.
+- API keys stored locally in iOS Keychain (Secure Enclave). Never
+  transmitted except to the user's chosen AI provider endpoint.
+- No analytics SDKs, no ad IDs, no cross-app tracking, no account
+  required.
 
-| Data Type | Category | Purpose | Linked to Identity | Tracking |
-|---|---|---|---|---|
-| Audio Data | User Content | App Functionality | No | No |
-| Precise Location | Location | App Functionality | No | No |
+## Screenshots
 
-### Data NOT Collected
+Required sizes (portrait): 6.9" (1320x2868) and 6.3" (1206x2622) for
+iPhone. 5-6 per size recommended (1-10 allowed).
 
-Check "No" or leave unselected for all of the following:
-- Contact Info (name, email, phone)
-- Health & Fitness
-- Financial Info
-- Contacts
-- User Content (photos, videos, gameplay)
-- Browsing History
-- Search History
-- Identifiers (user ID, device ID)
-- Purchases
-- Usage Data (product interaction, advertising data)
-- Diagnostics (crash data, performance data)
-- Sensitive Info
+Suggested sequence: hero shot with glasses connected → live
+transcription + streaming AI answer → HUD widgets (clock/weather/
+stocks/calendar) → AI provider settings → Interview STAR coaching →
+layout presets side-by-side.
 
-### Key Declarations
-
-- **Third-party API calls**: The app sends user-composed text to third-party AI APIs (OpenAI, Anthropic, DeepSeek, Qwen, Zhipu, SiliconFlow) based on the user's explicit provider selection. These are functional requests, not tracking.
-- **Speech recognition**: By default this can run through Apple Speech on-device. If the user explicitly selects a cloud transcription backend, audio is sent only to that chosen provider for transcription.
-- **Location**: Precise location is used only to show local weather conditions on the HUD. It is not linked to identity and not used for tracking.
-- **API keys**: Stored locally in iOS Keychain (Secure Enclave). Never transmitted except to the user's chosen AI provider endpoint.
-- **No tracking**: The app does not use any analytics SDKs, advertising identifiers, or cross-app tracking.
-- **No account required**: The app does not require login or collect identity information.
-
-In App Store Connect, you can likely select:
-1. **"Yes, we collect data"** (because audio is processed locally and text is sent to AI APIs)
-2. Under **User Content**: declare the app's audio usage for "App Functionality", not linked to identity, not used for tracking
-3. Under **Location**: declare precise location for "App Functionality", not linked to identity, not used for tracking
-4. Mark everything else as not collected
-
----
-
-## Screenshot Requirements
-
-### Required Device Sizes
-
-| Display Size | Resolution (portrait) | Required |
-|---|---|---|
-| 6.9" (iPhone 16 Pro Max) | 1320 x 2868 | Yes — covers 6.7" and 6.9" |
-| 6.3" (iPhone 16 Pro) | 1206 x 2622 | Yes — covers 6.1" and 6.3" |
-| 5.5" (iPhone 8 Plus) | 1242 x 2208 | Only if supporting iPhone 8 Plus |
-| 12.9" iPad Pro (6th gen) | 2048 x 2732 | Only if supporting iPad |
-
-### Screenshot Count
-- Minimum: 1 per device size
-- Maximum: 10 per device size
-- Recommended: 5-6 per device size
-
-### Suggested Screenshot Sequence
-
-1. **Hero shot** — G1 glasses connected, HUD preview visible on the home screen
-2. **Conversation mode** — Live transcription with AI response streaming
-3. **HUD widgets** — Bitmap display showing clock, weather, stocks, calendar
-4. **AI provider selection** — Settings screen showing multiple provider options
-5. **Interview mode** — STAR coaching in action with structured feedback
-6. **Layout presets** — Side-by-side of Classic, Minimal, Dense, Conversation layouts
-
-### Screenshot Tips
-- Use clean status bars (full battery, full signal, Wi-Fi, appropriate time like 9:41)
-- Dark theme screenshots match the app's glassmorphism design
-- Add marketing text above or below the device frame if using framed screenshots
-- File format: PNG or JPEG, no alpha channel, sRGB color space
+Tips: clean status bar (full battery, Wi-Fi, 9:41), dark theme, PNG
+or JPEG without alpha, sRGB.
