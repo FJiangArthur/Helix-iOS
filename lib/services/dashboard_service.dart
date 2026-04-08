@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../ble_manager.dart';
 import '../utils/app_logger.dart';
@@ -482,6 +483,25 @@ class DashboardService {
 
     if (!event.isDashboardTrigger) {
       return;
+    }
+
+    // Diagnostic for HUD-intermittent-factory-default todo. Capture every
+    // gate's state at the moment of a head-up dashboard trigger so the next
+    // hardware repro tells us WHICH gate is firing when the user sees the
+    // factory dashboard fall-through. Remove once root cause is identified.
+    if (kDebugMode) {
+      final now = _clock();
+      final cooldownRemaining = _lastShownAt == null
+          ? Duration.zero
+          : cooldown - now.difference(_lastShownAt!);
+      debugPrint(
+        '[DashboardService] head-up trigger: '
+        'enabled=$_dashboardEnabled active=$_active '
+        'intent=${_currentIntent.name} engineStatus=${_engineStatus.name} '
+        'blocksByIntent=${_blocksDashboard(_currentIntent)} '
+        'cooldownRemaining=${cooldownRemaining.inMilliseconds}ms '
+        'isBitmapMode=$_isBitmapMode',
+      );
     }
 
     if (!_dashboardEnabled) {

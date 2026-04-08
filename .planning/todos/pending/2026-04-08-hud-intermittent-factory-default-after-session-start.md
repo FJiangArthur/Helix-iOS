@@ -117,6 +117,41 @@ Check:
    session stop + start) brings it back. If yes, that narrows to
    something that accumulates over session time.
 
+## Progress 2026-04-07
+
+Static audit done — found a strong candidate, did NOT fix it blindly.
+
+**Candidate:** `DashboardService._handleDeviceEvent` calls
+`_blocksDashboard(_currentIntent)` (line 502+848). `_blocksDashboard`
+returns `true` for `HudIntent.liveListening` and `HudIntent.textTransfer`.
+`HudController.beginLiveListening()` is called from `EvenAI` whenever
+a glasses-side conversation session starts (`evenai.dart:97,133`).
+
+If this gate were the root cause, the head-up dashboard would be
+**permanently** blocked during a live session. But the user reports
+that head-up DOES work at session start and only breaks "later in the
+session". So either:
+  - (a) `_currentIntent` lags `liveListening` at session start (race),
+  - (b) head-up at session start uses a different path, or
+  - (c) some other guard intermittently fires.
+
+**Did NOT change `_blocksDashboard`** without hardware repro to confirm
+the actual gate firing — the suppression was deliberately installed in
+`ab4bb49` to prevent dashboard/AI screen tear-down, and yanking it
+without verification could re-introduce the flashing bug.
+
+**Diagnostic added** (commit pending): `_handleDeviceEvent` now logs
+every gate state on every dashboard trigger when `kDebugMode`:
+`enabled`, `active`, `intent`, `engineStatus`, `blocksByIntent`,
+`cooldownRemaining`, `isBitmapMode`. The next hardware repro will show
+exactly which line is rejecting the head-up.
+
+**Next step:** capture device console with the diag during a repro,
+identify the failing gate, then either (a) loosen `_blocksDashboard`
+under specific conditions (e.g. allow when engine status is just
+`listening`, block only when `thinking`/`responding`), or (b) fix the
+deeper accumulator bug if a counter/state is drifting over the session.
+
 ## Success criteria
 
 - Head-up gesture reliably shows Helix HUD throughout a 30+ minute
