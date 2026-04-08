@@ -1820,21 +1820,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         '';
 
     final micSource = SettingsManager.instance.preferredMicSource;
-    final micLabel = micSource == 'glasses'
-        ? 'G1'
-        : micSource == 'phone'
-        ? 'Phone'
-        : 'Auto';
+    final micLabel = micSource == 'phone' ? 'Phone' : 'G1';
 
     return Row(
       children: [
         GestureDetector(
           onTap: () {
-            final next = switch (micSource) {
-              'auto' => 'phone',
-              'phone' => 'glasses',
-              _ => 'auto',
-            };
+            final next = micSource == 'phone' ? 'glasses' : 'phone';
             SettingsManager.instance.update((s) => s.preferredMicSource = next);
             setState(() {});
           },
@@ -3507,12 +3499,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   String _preferredMicLabel(String source) {
     switch (source) {
-      case 'glasses':
-        return _isChinese ? '眼镜麦克风' : 'Glasses Mic';
       case 'phone':
         return _isChinese ? '手机麦克风' : 'Phone Mic';
+      case 'glasses':
       default:
-        return _isChinese ? '自动麦克风' : 'Auto Mic';
+        return _isChinese ? '眼镜麦克风' : 'Glasses Mic';
     }
   }
 

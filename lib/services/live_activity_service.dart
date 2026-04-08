@@ -104,7 +104,6 @@ class LiveActivityService {
   bool _isPaused = false;
   ConversationMode _currentMode = ConversationMode.general;
   EngineStatus _currentStatus = EngineStatus.idle;
-  Duration _currentDuration = Duration.zero;
   String _currentQuestion = '';
   String _currentAnswer = '';
   // TODO(plan-A): remove shim once feat/2026-04-06-priority-rework Phase 1a
@@ -164,7 +163,6 @@ class LiveActivityService {
     _isActivityStarted = false;
     _currentQuestion = '';
     _currentAnswer = '';
-    _currentDuration = Duration.zero;
     _currentStatus = EngineStatus.idle;
     _isPaused = false;
     _lastQuestionPriority = null;
@@ -200,19 +198,16 @@ class LiveActivityService {
   }
 
   void _handleDurationChanged(Duration duration) {
-    // Live Activity renders duration with second precision, but the
-    // RecordingCoordinator stream ticks at sub-millisecond cadence. Pushing
-    // every tick through ActivityKit caused ~1000 updates/sec → chronod
-    // wakeups → phone heated up during recording (Tier-1 thermal bug).
-    // Only forward updates when the whole-second value actually changes.
-    if (duration.inSeconds == _currentDuration.inSeconds) {
-      _currentDuration = duration;
-      return;
-    }
-    _currentDuration = duration;
-    if (_isActivityStarted) {
-      unawaited(_updateActivity());
-    }
+    // No-op. The Live Activity widget renders elapsed time locally via
+    // `Text(timerInterval:)` off the immutable `startedAt` attribute, so
+    // duration ticks do NOT need to be forwarded to ActivityKit at all.
+    // Previously we whole-second-gated this path (Tier-1 thermal fix), but
+    // on-device profiling showed the residual 1 Hz updateActivity storm
+    // still drove chronod + runningboardd + widget-extension wakeups every
+    // second during recording. Dropping the forward entirely kills the
+    // storm — the timer updates with zero app-side wakeups. The duration
+    // stream subscription is kept so tests that pump events through it
+    // (and any future consumer) continue to work.
   }
 
   void _handleStatusChanged(EngineStatus status) {
@@ -261,7 +256,6 @@ class LiveActivityService {
       'question': _currentQuestion,
       'answer': _currentAnswer,
       'status': _currentStatus.name,
-      'duration': _currentDuration.inSeconds,
     });
     await _updateActivity();
   }
@@ -274,7 +268,6 @@ class LiveActivityService {
       'question': _currentQuestion,
       'answer': _currentAnswer,
       'status': statusPayload,
-      'duration': _currentDuration.inSeconds,
     });
   }
 

@@ -133,7 +133,7 @@
 		C252E7ECD806343ABD6C09B1 /* Pods-Even Companion.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.profile.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.profile.xcconfig"; sourceTree = "<group>"; };
 		C4E7D70DB0EDFCDE1F4CC2AB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CED14744F5132BCC469A6862 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
-		D3B493D75FCAF6B7ADFBD54C /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; path = Profile.xcconfig; sourceTree = "<group>"; };
+		D3B493D75FCAF6B7ADFBD54C /* Profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = Profile.xcconfig; path = Flutter/Profile.xcconfig; sourceTree = "<group>"; };
 		DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesMicSessionManager.swift; sourceTree = "<group>"; };
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
 		DA91AD4F2E52F4A900220CE1 /* DebugHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugHelper.swift; sourceTree = "<group>"; };

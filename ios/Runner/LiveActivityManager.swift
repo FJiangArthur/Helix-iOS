@@ -18,12 +18,11 @@ class LiveActivityManager {
         // End any existing activity first
         endActivity()
 
-        let attributes = HelixLiveActivityAttributes(mode: mode)
+        let attributes = HelixLiveActivityAttributes(mode: mode, startedAt: Date())
         let initialState = HelixLiveActivityAttributes.ContentState(
             question: "Listening...",
             answer: "",
-            status: "listening",
-            duration: 0
+            status: "listening"
         )
 
         do {
@@ -41,14 +40,17 @@ class LiveActivityManager {
     }
 
     /// Update the Live Activity with new Q&A content.
-    func updateActivity(question: String, answer: String, status: String, duration: Int) {
+    /// Note: elapsed time is rendered by the widget off the immutable
+    /// `startedAt` attribute, so this intentionally does not accept a
+    /// duration parameter — adding one would re-introduce the 1 Hz
+    /// ActivityKit update storm the `startedAt` field was added to kill.
+    func updateActivity(question: String, answer: String, status: String) {
         guard let activity = currentActivity else { return }
 
         let updatedState = HelixLiveActivityAttributes.ContentState(
             question: question,
             answer: answer,
-            status: status,
-            duration: duration
+            status: status
         )
 
         Task {
@@ -64,8 +66,7 @@ class LiveActivityManager {
         let finalState = HelixLiveActivityAttributes.ContentState(
             question: "Session ended",
             answer: "",
-            status: "ended",
-            duration: 0
+            status: "ended"
         )
 
         Task {

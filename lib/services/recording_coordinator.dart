@@ -238,7 +238,6 @@ class RecordingCoordinator {
 
     final settings = SettingsManager.instance;
     final useGlasses = switch (settings.preferredMicSource) {
-      'glasses' => BleManager.isBothConnected(),
       'phone' => false,
       _ => BleManager.isBothConnected(),
     };

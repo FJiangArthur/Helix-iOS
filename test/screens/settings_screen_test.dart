@@ -91,7 +91,7 @@ void main() {
       ..answerAll = true
       ..autoShowFollowUps = true
       ..autoShowSummary = true
-      ..preferredMicSource = 'auto';
+      ..preferredMicSource = 'glasses';
     await SettingsManager.instance.save();
   });
 

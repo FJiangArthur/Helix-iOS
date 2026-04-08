@@ -44,7 +44,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       title: 'G1 Glasses Control',
       subtitle: 'Glasses',
       description:
-          'Connect and manage your Even Realities G1 smart glasses. Choose your microphone source (Phone, Glasses, or Auto), monitor connection status, and configure your HUD display.',
+          'Connect and manage your Even Realities G1 smart glasses. Choose your microphone source (Phone or Glasses), monitor connection status, and configure your HUD display.',
       gradient: [HelixTheme.purple, HelixTheme.cyan],
       bullets: ['BLE Pairing', 'Mic Source', 'HUD Config', 'Dashboard'],
     ),

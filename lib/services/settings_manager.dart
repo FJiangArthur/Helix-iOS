@@ -133,8 +133,8 @@ class SettingsManager {
   /// Optional prompt override for OpenAI realtime conversation mode.
   String? openAIRealtimePrompt;
 
-  /// Preferred mic source: 'auto', 'glasses', 'phone'.
-  String preferredMicSource = 'auto';
+  /// Preferred mic source: 'glasses' or 'phone'.
+  String preferredMicSource = 'glasses';
 
   // ---------------------------------------------------------------------------
   // Glasses Settings
@@ -372,7 +372,10 @@ class SettingsManager {
     transcriptionModel =
         prefs.getString('transcriptionModel') ?? 'gpt-4o-transcribe';
     openAIRealtimePrompt = prefs.getString('openAIRealtimePrompt');
-    preferredMicSource = prefs.getString('preferredMicSource') ?? 'auto';
+    final storedMic = prefs.getString('preferredMicSource');
+    preferredMicSource = (storedMic == 'phone' || storedMic == 'glasses')
+        ? storedMic!
+        : 'glasses';
     enableDiarization = prefs.getBool('enableDiarization') ?? false;
     whisperChunkDurationSec = prefs.getInt('whisperChunkDurationSec') ?? 5;
     transcriptionTransport =

@@ -17,9 +17,13 @@ struct HelixLiveActivityWidget: Widget {
                         .foregroundColor(.cyan)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(formatDuration(context.state.duration))
+                    // Elapsed time renders locally via Text(timerInterval:),
+                    // so no app-side wakeup is needed to advance it.
+                    Text(timerInterval: context.attributes.startedAt...Date.distantFuture,
+                         countsDown: false)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .monospacedDigit()
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(spacing: 4) {
@@ -113,9 +117,11 @@ struct HelixLiveActivityWidget: Widget {
                         .fill(.red)
                         .frame(width: 8, height: 8)
                 }
-                Text(formatDuration(context.state.duration))
+                Text(timerInterval: context.attributes.startedAt...Date.distantFuture,
+                     countsDown: false)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .monospacedDigit()
             }
 
             // Question
@@ -223,9 +229,4 @@ struct HelixLiveActivityWidget: Widget {
         }
     }
 
-    private func formatDuration(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
-    }
 }

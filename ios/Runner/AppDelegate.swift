@@ -175,11 +175,14 @@ import NaturalLanguage
                 result(nil)
             case "updateLiveActivity":
                 let args = call.arguments as? [String: Any] ?? [:]
+                // Note: `duration` is intentionally ignored — the widget
+                // renders elapsed time locally off the immutable `startedAt`
+                // attribute, so content-state updates no longer carry it.
+                // See LiveActivityManager.updateActivity for rationale.
                 LiveActivityManager.shared.updateActivity(
                     question: args["question"] as? String ?? "",
                     answer: args["answer"] as? String ?? "",
-                    status: args["status"] as? String ?? "listening",
-                    duration: args["duration"] as? Int ?? 0
+                    status: args["status"] as? String ?? "listening"
                 )
                 result(nil)
             case "stopLiveActivity":

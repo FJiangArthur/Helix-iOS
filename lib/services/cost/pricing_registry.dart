@@ -29,7 +29,7 @@ class PricingRegistry {
 
   static const Map<String, Map<String, ModelPricing>> _table = {
     'openai': {
-      // Smart models (Spec A default smart)
+      // GPT-5.4 family (Spec A defaults)
       'gpt-5.4': ModelPricing(
         inputPerMillionUsd: 1.25,
         cachedInputPerMillionUsd: 0.125,
@@ -40,19 +40,100 @@ class PricingRegistry {
         cachedInputPerMillionUsd: 0.025,
         outputPerMillionUsd: 2.0,
       ),
-      // Light models (Spec A default light)
       'gpt-5.4-nano': ModelPricing(
         inputPerMillionUsd: 0.05,
         cachedInputPerMillionUsd: 0.005,
         outputPerMillionUsd: 0.4,
       ),
+      // GPT-4.1 family
+      'gpt-4.1': ModelPricing(
+        inputPerMillionUsd: 2.0,
+        cachedInputPerMillionUsd: 0.5,
+        outputPerMillionUsd: 8.0,
+      ),
+      'gpt-4.1-mini': ModelPricing(
+        inputPerMillionUsd: 0.4,
+        cachedInputPerMillionUsd: 0.1,
+        outputPerMillionUsd: 1.6,
+      ),
+      'gpt-4.1-nano': ModelPricing(
+        inputPerMillionUsd: 0.1,
+        cachedInputPerMillionUsd: 0.025,
+        outputPerMillionUsd: 0.4,
+      ),
+      // GPT realtime (chat completion family)
+      'gpt-realtime': ModelPricing(
+        inputPerMillionUsd: 5.0,
+        cachedInputPerMillionUsd: 0.5,
+        outputPerMillionUsd: 20.0,
+        audioInputPerMillionUsd: 40.0,
+      ),
+      'gpt-realtime-mini': ModelPricing(
+        inputPerMillionUsd: 0.6,
+        cachedInputPerMillionUsd: 0.06,
+        outputPerMillionUsd: 2.4,
+        audioInputPerMillionUsd: 10.0,
+      ),
       // Transcription
       'gpt-4o-mini-transcribe': ModelPricing(audioInputPerMillionUsd: 3.0),
       'gpt-4o-transcribe': ModelPricing(audioInputPerMillionUsd: 6.0),
+      'gpt-4o-transcribe-diarize': ModelPricing(audioInputPerMillionUsd: 6.0),
       'whisper-1': ModelPricing(audioInputPerMinuteUsd: 0.006),
-      // OpenAI Realtime — billed per audio minute
+      // OpenAI Realtime transcription session models — billed per audio minute
       'gpt-4o-mini-realtime': ModelPricing(audioInputPerMinuteUsd: 0.06),
       'gpt-4o-realtime': ModelPricing(audioInputPerMinuteUsd: 0.10),
+    },
+    'anthropic': {
+      'claude-opus-4-20250514': ModelPricing(
+        inputPerMillionUsd: 15.0,
+        cachedInputPerMillionUsd: 1.5,
+        outputPerMillionUsd: 75.0,
+      ),
+      'claude-sonnet-4-20250514': ModelPricing(
+        inputPerMillionUsd: 3.0,
+        cachedInputPerMillionUsd: 0.3,
+        outputPerMillionUsd: 15.0,
+      ),
+      'claude-haiku-4-20250414': ModelPricing(
+        inputPerMillionUsd: 0.8,
+        cachedInputPerMillionUsd: 0.08,
+        outputPerMillionUsd: 4.0,
+      ),
+    },
+    'deepseek': {
+      'deepseek-chat': ModelPricing(
+        inputPerMillionUsd: 0.27,
+        cachedInputPerMillionUsd: 0.07,
+        outputPerMillionUsd: 1.10,
+      ),
+      'deepseek-reasoner': ModelPricing(
+        inputPerMillionUsd: 0.55,
+        cachedInputPerMillionUsd: 0.14,
+        outputPerMillionUsd: 2.19,
+      ),
+    },
+    'qwen': {
+      'qwen-turbo': ModelPricing(
+        inputPerMillionUsd: 0.05,
+        outputPerMillionUsd: 0.20,
+      ),
+      'qwen-plus': ModelPricing(
+        inputPerMillionUsd: 0.40,
+        outputPerMillionUsd: 1.20,
+      ),
+      'qwen-max': ModelPricing(
+        inputPerMillionUsd: 1.60,
+        outputPerMillionUsd: 6.40,
+      ),
+    },
+    'zhipu': {
+      'glm-4-flash': ModelPricing(), // free tier
+      'glm-4.5-flash': ModelPricing(), // free tier
+      'glm-4.7-flash': ModelPricing(), // free tier
+      'glm-4': ModelPricing(
+        inputPerMillionUsd: 14.0,
+        outputPerMillionUsd: 14.0,
+      ),
     },
     'apple': {
       'cloud': ModelPricing(), // free

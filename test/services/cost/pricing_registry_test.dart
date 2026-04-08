@@ -34,11 +34,21 @@ void main() {
     expect(cost, 0.0);
   });
 
-  test('Unknown provider returns null', () {
-    expect(registry.priceFor('deepseek', 'deepseek-chat'), isNull);
+  test('DeepSeek pricing is registered (sync with settings model list)', () {
+    expect(registry.priceFor('deepseek', 'deepseek-chat'), isNotNull);
     final cost = registry.calculateCostUsd(
       providerId: 'deepseek',
       modelId: 'deepseek-chat',
+      usage: const LlmUsage(inputTokens: 1000000),
+    );
+    expect(cost, closeTo(0.27, 1e-9));
+  });
+
+  test('Unknown provider/model returns null', () {
+    expect(registry.priceFor('madeup', 'no-such-model'), isNull);
+    final cost = registry.calculateCostUsd(
+      providerId: 'madeup',
+      modelId: 'no-such-model',
       usage: const LlmUsage(inputTokens: 1000),
     );
     expect(cost, isNull);

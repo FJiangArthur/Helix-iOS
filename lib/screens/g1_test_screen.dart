@@ -227,18 +227,16 @@ class _G1TestScreenState extends State<G1TestScreen> {
         children: [
           _buildSectionLabel(tr('MIC SOURCE', '麦克风源')),
           const SizedBox(height: 12),
-          ...['phone', 'glasses', 'auto'].map((source) {
+          ...['phone', 'glasses'].map((source) {
             final isSelected = SettingsManager.instance.preferredMicSource == source;
             final label = switch (source) {
               'phone' => tr('Phone only', '仅手机'),
               'glasses' => tr('Glasses mic', '眼镜麦克风'),
-              'auto' => tr('Auto (glasses when connected)', '自动（连接时用眼镜）'),
               _ => source,
             };
             final icon = switch (source) {
               'phone' => Icons.phone_iphone,
               'glasses' => Icons.visibility,
-              'auto' => Icons.auto_awesome,
               _ => Icons.mic,
             };
             return RadioListTile<String>(
