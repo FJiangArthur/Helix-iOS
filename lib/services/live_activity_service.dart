@@ -200,6 +200,15 @@ class LiveActivityService {
   }
 
   void _handleDurationChanged(Duration duration) {
+    // Live Activity renders duration with second precision, but the
+    // RecordingCoordinator stream ticks at sub-millisecond cadence. Pushing
+    // every tick through ActivityKit caused ~1000 updates/sec → chronod
+    // wakeups → phone heated up during recording (Tier-1 thermal bug).
+    // Only forward updates when the whole-second value actually changes.
+    if (duration.inSeconds == _currentDuration.inSeconds) {
+      _currentDuration = duration;
+      return;
+    }
     _currentDuration = duration;
     if (_isActivityStarted) {
       unawaited(_updateActivity());
