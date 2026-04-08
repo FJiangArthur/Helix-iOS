@@ -3,7 +3,8 @@ created: 2026-04-08T03:45:43.947Z
 updated: 2026-04-08T00:00:00.000Z
 title: Tier-3 — Follow-up deck: chip-press should send immediately + fix broken send button
 area: conversation-tools
-status: pending
+status: done
+resolved: 2026-04-08
 priority: tier-3
 files:
   - lib/services/conversation_engine.dart
@@ -73,4 +74,29 @@ shows suggested follow-up questions) currently:
 ## Related
 
 - `2026-04-08-tier1-summarize-rephrase-translate-factcheck-broken.md` —
-  may share a common dispatch bug
+  DID share the common dispatch bug, confirmed.
+
+## Resolution 2026-04-08
+
+**Same root cause as the response-tools todo** (`_isRecording` early-
+return silently no-ops user-initiated actions during live sessions).
+
+### Fix 1: Send button
+
+`_submitQuestion` had `if (_isRecording) return;` at the top. Removed.
+Replaced with a `showPreview`-style guard around the `_transcription`
+overwrite so the live transcript isn't clobbered during recording.
+Added kDebugMode diagnostic at the entry.
+
+### Fix 2: Follow-up chip flow
+
+Added `_submitFollowUpChip(String chipText)` that dispatches directly
+to `_engine.askQuestion(_questionForPreset(...))` **without** touching
+`_askController`. Chip handler now calls this instead of the old
+"populate composer then submit" pattern. Same `_transcription` guard
+and kDebugMode diagnostic.
+
+Files: `lib/screens/home_screen.dart`. Validation: `flutter analyze`
+clean, iOS sim build clean. Hardware verification still owed — same
+caveat as the response-tools fix (engine HUD transitions during
+liveListening untested in CLI).

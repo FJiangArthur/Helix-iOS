@@ -2179,10 +2179,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             runSpacing: 8,
             children: _followUpChips.map((chip) {
               return GestureDetector(
-                onTap: () {
-                  _askController.text = chip;
-                  _submitQuestion();
-                },
+                onTap: () => _submitFollowUpChip(chip),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 12,
@@ -3382,19 +3379,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _submitQuestion() {
-    if (_isRecording) return;
     final text = _askController.text.trim();
-    if (text.isNotEmpty) {
-      _dismissQuickAskFocus();
-      _engine.askQuestion(_questionForPreset(text));
-      _askController.clear();
-      setState(() {
-        _aiResponse = '';
-        _providerError = null;
-        _transcription = text;
-        _followUpChips = const [];
-      });
+    if (kDebugMode) {
+      debugPrint(
+        '[HomeScreen] _submitQuestion: recording=$_isRecording '
+        'textLen=${text.length}',
+      );
     }
+    if (text.isEmpty) return;
+    // The _isRecording guard was overly aggressive — user may want to
+    // submit a text query mid-session without stopping recording. Keep
+    // the live transcript protected by skipping the overwrite when
+    // recording (same pattern as _runResponseToolPrompt).
+    _dismissQuickAskFocus();
+    _engine.askQuestion(_questionForPreset(text));
+    _askController.clear();
+    setState(() {
+      _aiResponse = '';
+      _providerError = null;
+      if (!_isRecording) {
+        _transcription = text;
+      }
+      _followUpChips = const [];
+    });
+  }
+
+  /// Dispatch a follow-up chip directly as if the user had typed + sent it,
+  /// without touching the composer text field. Mirrors the desired behavior
+  /// from the follow-up-deck-send-broken todo: chip tap should send
+  /// immediately, not populate the composer.
+  void _submitFollowUpChip(String chipText) {
+    final trimmed = chipText.trim();
+    if (trimmed.isEmpty) return;
+    if (kDebugMode) {
+      debugPrint(
+        '[HomeScreen] _submitFollowUpChip: recording=$_isRecording '
+        'chipLen=${trimmed.length}',
+      );
+    }
+    _dismissQuickAskFocus();
+    _engine.askQuestion(_questionForPreset(trimmed));
+    setState(() {
+      _aiResponse = '';
+      _providerError = null;
+      if (!_isRecording) {
+        _transcription = trimmed;
+      }
+      _followUpChips = const [];
+    });
   }
 
   String _questionForPreset(String text) {
