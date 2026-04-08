@@ -134,7 +134,7 @@ void main() {
     });
 
     test('no live activity calls when never recording', () async {
-      modeController.add(ConversationMode.proactive);
+      modeController.add(ConversationMode.general);
       statusController.add(EngineStatus.listening);
       durationController.add(const Duration(seconds: 5));
       questionController.add(
