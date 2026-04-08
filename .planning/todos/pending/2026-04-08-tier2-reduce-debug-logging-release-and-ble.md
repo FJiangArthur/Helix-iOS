@@ -125,6 +125,37 @@ Regardless of the toggle:
    ```
    Gate hot-path ones behind `#if DEBUG`.
 
+## Progress 2026-04-08
+
+Phase 1 (cheap wins, no Settings toggle yet):
+
+- **`[CostTracker]` debugPrint** — already gated behind `kDebugMode` in
+  commit `80e5d8d` (Tier-1 thermal iteration).
+- **`[ConversationEngine] _generateResponse received [Error]`** — now
+  gated behind `kDebugMode`. Was on the error path only but consistent
+  gating is worth the two-line change.
+- **`[G1DBG] TX` firehose** (BluetoothManager.swift:501-507) — wrapped
+  in `#if DEBUG`. Fired on every outbound BLE write, 10+/sec during
+  streaming. Highest-impact single change of this iteration.
+- **`[G1DBG] RX` firehose** (BluetoothManager.swift:587-602) — wrapped
+  in `#if DEBUG`. Fired on every inbound BLE notification.
+
+**Not yet done (out of scope for loop iteration):**
+- Settings toggle (developer section) for runtime gating.
+- `appLogger` audit — already release-gated to warning level (verified
+  by reading `lib/utils/app_logger.dart`).
+- Other native `print(...)` sites in BluetoothManager — one-shot
+  connect/disconnect/discover events, NOT hot paths. Leaving as-is.
+- `[ProviderErrorState] UNKNOWN bucket` — still ungated because it
+  only fires on unclassified errors (very rare) and the diagnostic
+  value is high right now (Q&A Tier-1 is waiting on this exact log
+  line). Will gate once the Q&A root cause is identified.
+- G1 firmware debug mode — did NOT find any BLE command in our code
+  that enables firmware-side debug. If the `0xF4 RX DEBUG:` frames are
+  arriving, they're either always-on from the firmware or enabled
+  elsewhere (e.g. via a service UUID config we don't set). Safe to
+  defer until actual BLE measurement is available.
+
 ## Success criteria
 
 - Release build console shows zero `[CostTracker]`, zero `G1DBG`, zero

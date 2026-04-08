@@ -496,6 +496,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     func writeData(writeData: Data, cbPeripheral: CBPeripheral? = nil, lr: String? = nil) {
         // [G1DBG] Hex dump every outbound BLE write so we can trace the exact
         // bytes reaching the glasses in Xcode Console.  Filter with "[G1DBG]".
+        // Gated behind #if DEBUG — this fires on every BLE write (10+ /sec
+        // during streaming) and was a thermal/perf contributor in release.
+        // See .planning/todos/pending/2026-04-08-tier2-reduce-debug-logging-
+        // release-and-ble.md.
+        #if DEBUG
         let hex = writeData.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
         let cmd = writeData.first.map { String(format: "0x%02x", $0) } ?? "??"
         NSLog("[G1DBG] TX lr=\(lr ?? "both") cmd=\(cmd) len=\(writeData.count) hex=\(hex)")
@@ -505,6 +510,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 + "leftPeripheral=\(leftPeripheral != nil) rightPeripheral=\(rightPeripheral != nil) "
                 + "leftWChar=\(leftWChar != nil) rightWChar=\(rightWChar != nil)"
         )
+        #endif
 
         if lr == "L" {
             if let leftWChar = leftWChar {
@@ -581,6 +587,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         // [G1DBG] Hex dump every inbound RX packet (except mic audio which is
         // too noisy).  0xF4 packets are the glasses' own debug stream — dump
         // them as ASCII so the firmware's internal messages are visible.
+        // Gated behind #if DEBUG — fires on every inbound BLE notification
+        // and was a thermal/perf contributor in release. See todo
+        // 2026-04-08-tier2-reduce-debug-logging-release-and-ble.md.
+        #if DEBUG
         if data[0] != 0xF1 {
             let side = sideByPeripheralId[cbPeripheral?.identifier ?? UUID()] ?? "?"
             let hex = data.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
@@ -594,6 +604,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 }
             }
         }
+        #endif
 
         let rspCommand = AG_BLE_REQ(rawValue: data[0])
         switch rspCommand {
