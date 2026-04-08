@@ -33,11 +33,14 @@ struct HelixLiveActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 6) {
+                        // Answer capped at 2 lines so the button row always
+                        // has room inside the Dynamic Island's vertical budget.
                         if !context.state.answer.isEmpty {
                             Text(context.state.answer)
                                 .font(.caption2)
                                 .foregroundColor(.white.opacity(0.8))
-                                .lineLimit(3)
+                                .lineLimit(2)
+                                .truncationMode(.tail)
                         } else if context.state.status == "thinking" {
                             HStack(spacing: 4) {
                                 ProgressView()
@@ -137,7 +140,9 @@ struct HelixLiveActivityWidget: Widget {
                 }
             }
 
-            // Answer
+            // Answer — cap at 2 lines so the button row below always has room.
+            // iOS Live Activity has a strict vertical budget; letting the
+            // answer expand to 4 lines pushes the buttons off-screen.
             if !context.state.answer.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Text("A")
@@ -147,7 +152,8 @@ struct HelixLiveActivityWidget: Widget {
                     Text(context.state.answer)
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.85))
-                        .lineLimit(4)
+                        .lineLimit(2)
+                        .truncationMode(.tail)
                 }
             } else if context.state.status == "thinking" {
                 HStack(spacing: 6) {
