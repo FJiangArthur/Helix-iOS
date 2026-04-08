@@ -14,10 +14,30 @@ progress_2026-04-07: |
   - Gated [CostTracker] debugPrint behind kDebugMode — was firing on
     every LLM call (incl. background fact-check, entity extraction,
     sentiment) in release. This is candidate #6 from the TODO.
-  Still pending: Instruments profiling on a hot device, isolate-by-
-  subsystem comparison, candidates #1-#5. These need hardware time and
-  cannot be done from a CLI loop iteration. Re-flag for next hardware
-  session.
+  - Commit 625b61d: wrapped [G1DBG] TX + RX NSLog firehoses in
+    #if DEBUG — fired 10+/sec on every BLE packet in release and
+    routed through the iOS unified logging system.
+progress_2026-04-08: |
+  **Major finding from on-device profiling** (commit f8f0269):
+  RecordingCoordinator.durationStream ticks at SUB-MILLISECOND cadence
+  and every tick was unconditionally forwarded to ActivityKit. Since
+  the Live Activity only renders duration with second precision, 999
+  of every 1000 updates pushed an identical payload. Verified on-
+  device as a ~1000 updates/sec storm routed through chronod +
+  runningboardd on iPhone 17 Pro Max, confirmed via Console.app log
+  capture before/after. This was a major contributor to the "phone
+  heats up like 4K video" symptom.
+  Fix: gate the forward on `duration.inSeconds` change →
+  exactly 1/sec. 9-line patch in lib/services/live_activity_service.dart.
+  This was NOT in the original candidate list (#1-#6) — profiling
+  found a hot path the static audit missed. Worth keeping in mind
+  for future thermal investigations: check IPC/runtime-broker cadence
+  (chronod, runningboardd, rosetta) in addition to app-internal CPU.
+  Still pending: full Instruments sweep with Time Profiler + Energy
+  Log + Allocations to quantify the post-fix delta and identify any
+  remaining hot paths (bitmap HUD encoding, BLE write queue, PCM
+  convert). Next hardware session should run the 3-trace plan from
+  debugging-instruments skill.
 files:
   - lib/services/conversation_engine.dart
   - lib/services/hud_stream_session.dart
