@@ -22,9 +22,54 @@ follow-up deck send, cost bug) are cleared.
 > Note: filename kept as `tier1-...` for grep-stability — the canonical
 > tier is in the frontmatter `priority:` field.
 
-## Solution
+## Progress 2026-04-08
 
-TBD. Investigation path:
+Static audit found **3 bugs** in `lib/screens/home_screen.dart` — 2 fixed, 1 diagnostic.
+
+### Bug 1 (fixed): Summarize wasn't wired to a prompt
+
+`AssistantResponseActions(onSummarize: _navigateToDetail)` — the Summarize
+button just switched to the Live tab (`MainScreen.switchToTab(2)`). It
+never sent a summarize prompt to the engine.
+
+**Fix:** added `_summarizeLastAnswer()` mirroring the other three tool
+prompts (rephrase/translate/factcheck) — builds a "summarize in 1-3
+bullet points" prompt and routes it through `_runResponseToolPrompt`.
+Wired `onSummarize: _summarizeLastAnswer`.
+
+### Bug 2 (fixed): all 4 actions silently no-oped during recording
+
+`_runResponseToolPrompt` had `if (_isRecording || prompt.trim().isEmpty) return;`.
+So pressing Summarize/Rephrase/Translate/FactCheck while a live session
+was recording **silently returned with no error, no log, no snack**.
+This is almost certainly the "all 4 broken" hardware symptom — user
+tested these during a live session.
+
+**Fix:** removed the `_isRecording` early-return. The original reason
+for the guard was to protect `_transcription` (the live transcript
+display) from being overwritten by the preview text. Kept that
+protection via a `showPreview` flag: the action runs regardless of
+recording state, but the preview text overwrite is skipped when
+recording. `_engine.askQuestion` still transitions HUD state, which
+may interact with live recording in unexpected ways — needs hardware
+verification.
+
+### Bug 3 (diagnostic): unknown remaining failures
+
+Added kDebugMode-gated `[HomeScreen] _runResponseToolPrompt: recording=
+... promptLen=... aiResponseLen=...` at the entry of the tool handler.
+If any action still silently no-ops on hardware, the device console
+will show whether `_aiResponse` was empty or the prompt itself was bad.
+
+### Side note: dead enum
+
+`lib/models/assistant_action_type.dart` defines `AssistantActionType`
+with summarize/rephrase/translate/factCheck/etc. **Zero usages in the
+codebase.** Orphaned from an earlier dispatch design. Not deleted this
+session — keeping cleanup out of scope — but a candidate for a future
+housekeeping commit.
+
+## Still TBD
 1. Trace each action through ConversationEngine → LlmService
 2. Determine if all four share a common failure point (likely) or
    fail independently

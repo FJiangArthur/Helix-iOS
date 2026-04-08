@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
@@ -306,18 +307,45 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     String prompt, {
     String? previewText,
   }) async {
-    if (_isRecording || prompt.trim().isEmpty) return;
+    // Diagnostic for response-tools (summarize/rephrase/translate/factcheck)
+    // broken todo — if any of the four silently no-ops, capture why.
+    if (kDebugMode) {
+      debugPrint(
+        '[HomeScreen] _runResponseToolPrompt: '
+        'recording=$_isRecording promptLen=${prompt.trim().length} '
+        'aiResponseLen=${_aiResponse.trim().length}',
+      );
+    }
+    if (prompt.trim().isEmpty) return;
+    // Blocking while recording was overly aggressive — user may want to
+    // summarize/rephrase/translate/factcheck a prior answer mid-session.
+    // Keep the live transcript intact by skipping the preview overwrite.
+    final showPreview =
+        !_isRecording && previewText != null && previewText.trim().isNotEmpty;
 
     setState(() {
       _followUpChips = const [];
       _providerError = null;
-
-      if (previewText != null && previewText.trim().isNotEmpty) {
+      if (showPreview) {
         _transcription = previewText.trim();
       }
     });
 
     await _engine.askQuestion(prompt);
+  }
+
+  Future<void> _summarizeLastAnswer() async {
+    final answer = _aiResponse.trim();
+    if (answer.isEmpty) return;
+
+    final prompt = _isChinese
+        ? '请把下面这段回答压缩成 1-3 句要点摘要，保留关键事实：\n$answer'
+        : 'Summarize this answer in 1-3 bullet points, preserving the key '
+              'facts:\n$answer';
+    final preview = _isChinese
+        ? '正在总结刚才的回答...'
+        : 'Summarizing the latest answer...';
+    await _runResponseToolPrompt(prompt, previewText: preview);
   }
 
   Future<void> _rephraseLastAnswer() async {
@@ -2061,7 +2089,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 allowSummary: _assistantProfile.showSummaryTool,
                 allowFactCheck: _assistantProfile.showFactCheck,
                 isSummarizing: false,
-                onSummarize: _navigateToDetail,
+                onSummarize: _summarizeLastAnswer,
                 onRephrase: _rephraseLastAnswer,
                 onTranslate: _translateLastAnswer,
                 onFactCheck: _factCheckLastAnswer,
