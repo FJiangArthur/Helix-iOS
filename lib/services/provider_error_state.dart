@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 enum ProviderErrorKind {
   missingConfiguration,
   authentication,
@@ -88,6 +90,17 @@ class ProviderErrorState {
       );
     }
 
+    // Diagnostic: capture the raw error whenever we fall through to the
+    // unknown bucket. See .planning/todos/pending/2026-04-08-qa-button-on-
+    // live-session-fails-assistant-request-failed.md — the investigation's
+    // first step is to capture the underlying error string so we can either
+    // extend the pattern list above or fix the root cause in the provider
+    // layer. Remove this debugPrint once the Q&A-on-live-session bug is
+    // diagnosed.
+    debugPrint(
+      '[ProviderErrorState] UNKNOWN bucket: raw="$raw" '
+      'errorType=${error.runtimeType}',
+    );
     return const ProviderErrorState(
       kind: ProviderErrorKind.unknown,
       title: 'Assistant request failed',
