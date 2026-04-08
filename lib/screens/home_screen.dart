@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 
 import '../models/assistant_profile.dart';
@@ -48,6 +49,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   final List<StreamSubscription> _subscriptions = [];
   final ScrollController _scrollController = ScrollController();
+
+  // Tracks whether the user has manually scrolled away from the bottom while
+  // a streaming answer is rendering. While true, _scrollToBottom is a no-op
+  // — the user is reading earlier transcript and we will not yank them back.
+  // Cleared when the user scrolls back to within 16px of the bottom OR when
+  // a new recording session starts. See
+  // .planning/todos/pending/2026-04-08-homescreen-scroll-snap-on-long-streaming
+  // -answer.md — the previous content-relative 64px tolerance was insufficient
+  // because long answers add multiple lines per flush and the "distance from
+  // bottom" metric crosses the threshold in either direction between frames.
+  bool _userHasScrolledUp = false;
   final TextEditingController _askController = TextEditingController();
   final FocusNode _askFocusNode = FocusNode();
   bool _hasApiKey = false;
@@ -71,6 +83,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
+    // Track user-initiated scroll so streaming answers don't yank the user
+    // back to the bottom while they're reading earlier transcript.
+    _scrollController.addListener(_handleScrollPositionChange);
 
     _checkApiKey();
     final settings = SettingsManager.instance;
@@ -124,6 +140,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           }
           if (recording) {
             _resetLiveSessionUiState();
+            // New session: clear any "user scrolled up" lock so the first
+            // streaming answer of the session always auto-scrolls.
+            _userHasScrolledUp = false;
           }
         });
       }),
@@ -229,15 +248,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // Distance from `maxScrollExtent` (in px) at which we consider the user to
+  // be "at the bottom" again — used to clear the user-scrolled-up lock once
+  // they scroll back down. Tighter than the previous 64px gate so a small
+  // bounce doesn't accidentally re-arm auto-scroll.
+  static const double _atBottomTolerancePx = 16;
+
+  void _handleScrollPositionChange() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final direction = pos.userScrollDirection;
+    if (direction == ScrollDirection.reverse) {
+      // User is scrolling up (away from the bottom).
+      if (!_userHasScrolledUp) _userHasScrolledUp = true;
+      return;
+    }
+    if (_userHasScrolledUp &&
+        pos.maxScrollExtent - pos.pixels <= _atBottomTolerancePx) {
+      // User scrolled back to the bottom — clear the lock so streaming
+      // answers will auto-scroll again.
+      _userHasScrolledUp = false;
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
+      // Intent-relative gate: if the user has manually scrolled up, leave
+      // them alone. Content-relative tolerance was insufficient for long
+      // streaming answers — see todo file homescreen-scroll-snap-on-long-
+      // streaming-answer.md.
+      if (_userHasScrolledUp) return;
       final pos = _scrollController.position;
-      // If the user has scrolled up (e.g. to read earlier transcript while
-      // a streaming answer is rendering), don't yank them back to the bottom
-      // on every transcript update.  64px tolerance covers minor jitter.
-      final distanceFromBottom = pos.maxScrollExtent - pos.pixels;
-      if (distanceFromBottom > 64) return;
       _scrollController.animateTo(
         pos.maxScrollExtent,
         duration: const Duration(milliseconds: 200),
@@ -414,6 +456,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     _pulseController.dispose();
     _modeSwitchController.dispose();
+    _scrollController.removeListener(_handleScrollPositionChange);
     _scrollController.dispose();
     _askFocusNode.dispose();
     _askController.dispose();

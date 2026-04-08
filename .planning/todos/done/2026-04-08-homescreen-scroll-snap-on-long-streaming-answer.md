@@ -3,6 +3,29 @@
 **Priority:** Medium
 **Reported:** 2026-04-07 hardware test on main @ 689b5ae
 **Severity:** UX regression — user cannot read earlier transcript during long answers
+**Status:** RESOLVED 2026-04-07 — replaced content-relative tolerance with intent-relative gate
+
+## Resolution
+
+Replaced the 64px content-relative tolerance in `_scrollToBottom` with
+an intent-relative gate driven by `ScrollController.position.userScrollDirection`:
+
+- Added `_userHasScrolledUp` flag to `_HomeScreenState`.
+- Added `_handleScrollPositionChange` listener attached in `initState`,
+  removed in `dispose`. Sets the flag when `userScrollDirection ==
+  ScrollDirection.reverse`, clears it when the user scrolls back within
+  16px of `maxScrollExtent`.
+- `_scrollToBottom` now early-returns if `_userHasScrolledUp` is true,
+  regardless of distance from bottom.
+- Cleared on recording-state transition to true so a new session always
+  auto-scrolls fresh.
+
+This decouples the auto-scroll decision from the streaming-content
+delta rate, fixing the long-answer regression where the 64px window was
+crossed in either direction between frames.
+
+Files: `lib/screens/home_screen.dart`. No new tests (no widget test
+infra for HomeScreen in this repo). Hardware verification still owed.
 
 ## Symptom
 
