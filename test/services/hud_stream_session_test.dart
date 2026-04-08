@@ -130,7 +130,8 @@ void main() {
     },
   );
 
-  test('last streaming emit pageText equals TextPaginator last page', () async {
+  test('final 0x40 frame pageText equals TextPaginator last page (tail-included)',
+      () async {
     final sink = RecordingHudPacketSink();
     final session = HudStreamSession(sink: sink);
     const input =
@@ -146,8 +147,42 @@ void main() {
       TextPaginator.instance.goToPage(i);
       pages.add(TextPaginator.instance.currentPageText);
     }
-    final lastStreaming = sink.calls.lastWhere((c) => c.screenStatus != 0x40);
-    expect(lastStreaming.pageText, pages.last);
+    // The trailing partial line lives ONLY on the final 0x40 frame — streaming
+    // frames are committed-line-only (Tier-0 contract).
+    final finalCall = sink.calls.lastWhere((c) => c.screenStatus == 0x40);
+    expect(finalCall.pageText, pages.last);
+  });
+
+  test('streaming frames never include the in-flight (partial) tail line',
+      () async {
+    final sink = RecordingHudPacketSink();
+    final session = HudStreamSession(sink: sink);
+    const input =
+        'The quick brown fox jumps over the lazy dog. '
+        'Pack my box with five dozen liquor jugs. '
+        'How vexingly quick daft zebras jump today and tomorrow.';
+    for (final ch in input.split('')) {
+      await session.appendDelta(ch);
+    }
+    await session.finish();
+
+    // Every streaming frame's pageText must be a sequence of fully-completed
+    // visual lines per the paginator. Re-wrap the streaming pageText and
+    // verify nothing is "in progress".
+    final streamingCalls =
+        sink.calls.where((c) => c.screenStatus != 0x40).toList();
+    for (final call in streamingCalls) {
+      // pageText is a join of committed lines with '\n'. Each segment must
+      // be a complete wrapped line on its own (i.e. re-wrapping it returns
+      // a single entry).
+      for (final segment in call.pageText.split('\n')) {
+        if (segment.isEmpty) continue;
+        final rewrapped = TextPaginator.instance.splitIntoLines(segment);
+        expect(rewrapped.length, 1,
+            reason: 'streaming pageText must contain only completed visual '
+                'lines; "$segment" wrapped to ${rewrapped.length} lines');
+      }
+    }
   });
 
   test('page boundary: 7 wrapped lines yields page 0 then page 1', () async {

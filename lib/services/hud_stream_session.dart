@@ -58,6 +58,12 @@ class HudStreamSession {
   // page's first emit re-asserts NEW_CONTENT.
   bool _firstFrameSent = false;
 
+  // Last pageText actually written to the sink for the current page. Used to
+  // suppress duplicate emits when the committed-line set hasn't changed
+  // (e.g. consecutive newline tokens, idempotent re-flushes). Cleared on page
+  // boundary.
+  String? _lastEmittedPageText;
+
   // Per-stream lifecycle bit: blocks all further emits after `cancel()`.
   bool _cancelled = false;
 
@@ -111,17 +117,13 @@ class HudStreamSession {
   }
 
   /// Flush whatever has accumulated and emit the final 0x40 frame.
+  ///
+  /// The final frame is the **only** place a partial trailing line is sent —
+  /// streaming frames are strictly committed-line-only to avoid mid-word
+  /// scroll artifacts on the G1 HUD (Tier-0 contract).
   Future<void> finish() async {
     await _inFlight;
     if (_cancelled) return;
-
-    // Push any in-progress tail one last time so the user sees the partial
-    // line before completion.
-    if (_pendingTail.isNotEmpty || _lines.isNotEmpty) {
-      await _emitStreaming();
-      if (_cancelled) return;
-    }
-
     await _emitFinal();
   }
 
@@ -142,16 +144,29 @@ class HudStreamSession {
       _pageIndex++;
       _lines.clear();
       _firstFrameSent = false;
+      _lastEmittedPageText = null;
     }
   }
 
-  String _pageTextSnapshot() {
+  /// Snapshot of the page text. By default returns only **committed** visual
+  /// lines (no in-flight tail) — this is what streaming frames send so the
+  /// HUD never renders a partial word. The final 0x40 frame passes
+  /// `includeTail: true` so any trailing partial line is preserved.
+  String _pageTextSnapshot({bool includeTail = false}) {
+    if (!includeTail) return _lines.join('\n');
     if (_pendingTail.isEmpty) return _lines.join('\n');
     if (_lines.isEmpty) return _pendingTail;
     return '${_lines.join('\n')}\n$_pendingTail';
   }
 
   Future<void> _emitStreaming() async {
+    // Streaming frames are committed-line-only. Skip empty pages — there is
+    // nothing meaningful to render and the firmware would just see a blank.
+    if (_lines.isEmpty) return;
+    final pageText = _pageTextSnapshot();
+    // Suppress duplicate emits within the same page (idempotent re-flushes).
+    if (_lastEmittedPageText == pageText) return;
+
     final prev = _inFlight;
     final completer = Completer<void>();
     _inFlight = completer.future;
@@ -164,7 +179,7 @@ class HudStreamSession {
         ? _aiShowing
         : (_newContent | _aiShowing);
     _firstFrameSent = true;
-    final pageText = _pageTextSnapshot();
+    _lastEmittedPageText = pageText;
     try {
       await sink.send(
         screenStatus: status,
@@ -186,7 +201,7 @@ class HudStreamSession {
       completer.complete();
       return;
     }
-    final pageText = _pageTextSnapshot();
+    final pageText = _pageTextSnapshot(includeTail: true);
     try {
       await sink.send(
         screenStatus: _aiComplete,

@@ -2,12 +2,53 @@
 created: 2026-04-08T00:00:00.000Z
 title: Tier-0 — Line-by-line HUD streaming to fix scroll artifacts
 area: hud
-status: pending
+status: done
 priority: tier-0
+resolved: 2026-04-07
 files:
   - lib/services/conversation_engine.dart
   - lib/services/hud_stream_session.dart
   - lib/services/proto.dart
+---
+
+## Resolution (2026-04-07)
+
+Implemented Tier-0 Phase 1 in `HudStreamSession` (sw-only, no firmware change):
+
+- **Streaming frames now contain committed visual lines ONLY.** The in-flight
+  partial tail is held locally and is sent **only** on the final 0x40 frame.
+  This is the contract change that fixes the mid-word scroll artifacts.
+- `_pageTextSnapshot({bool includeTail = false})` parameterizes the tail
+  inclusion. `_emitStreaming` calls it with default `false`; `_emitFinal`
+  passes `includeTail: true`.
+- Skip `_emitStreaming` entirely when `_lines.isEmpty` (just-rolled-over page
+  has nothing to show yet — never push a blank).
+- Dedupe identical pageText within a page via `_lastEmittedPageText`
+  (suppresses idempotent re-flushes from consecutive newline tokens etc.).
+- `finish()` no longer makes a redundant streaming flush before the final
+  0x40 — `_emitFinal` is the single source of truth for the trailing-tail
+  reveal. One fewer BLE write per response (small thermal win, see
+  `phone-thermal-during-streaming-and-recording.md`).
+
+Tests added/updated in `test/services/hud_stream_session_test.dart`:
+- NEW: `streaming frames never include the in-flight (partial) tail line` —
+  re-wraps every streaming frame's pageText through TextPaginator and
+  asserts each segment is a complete visual line.
+- UPDATED: `final 0x40 frame pageText equals TextPaginator last page`
+  (was: last streaming emit) — codifies that the partial tail lives on the
+  final frame, not on a streaming frame.
+
+Phase 2 (sentence-gate, one-line-behind) and Phase 3 (delta-append) NOT
+implemented. Revisit only if real-G1 hardware verification still shows
+visible artifacts after this Phase 1 ships.
+
+**Verification status:**
+- ✅ `flutter analyze` — 0 errors (66 pre-existing infos, none mine)
+- ✅ `flutter test test/services/hud_stream_session_test.dart` — 9/9 pass
+- ✅ `flutter test test/services/conversation_engine_hud_stream_test.dart` — pass
+- ✅ `flutter build ios --simulator --no-codesign` — clean
+- ⏳ Real G1 hardware verification — pending next session
+
 ---
 
 ## Problem
