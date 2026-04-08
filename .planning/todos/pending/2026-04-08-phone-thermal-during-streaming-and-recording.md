@@ -2,7 +2,22 @@
 created: 2026-04-08T00:00:00.000Z
 title: Tier-1 — Phone heats up very fast during streaming + voice recording
 area: performance
-status: pending
+status: in-progress
+progress_2026-04-07: |
+  Cheap wins applied without Instruments (full investigation requires
+  hardware profiling, blocked):
+  - Tier-0 HUD streaming fix landed (commit 59d24ff): line-gated emits
+    now skip empty pages, dedupe identical pageText, and drop one
+    redundant streaming flush in finish(). Should reduce BLE write rate
+    by 1 frame per response and eliminate near-duplicate frames during
+    rapid token bursts.
+  - Gated [CostTracker] debugPrint behind kDebugMode — was firing on
+    every LLM call (incl. background fact-check, entity extraction,
+    sentiment) in release. This is candidate #6 from the TODO.
+  Still pending: Instruments profiling on a hot device, isolate-by-
+  subsystem comparison, candidates #1-#5. These need hardware time and
+  cannot be done from a CLI loop iteration. Re-flag for next hardware
+  session.
 files:
   - lib/services/conversation_engine.dart
   - lib/services/hud_stream_session.dart

@@ -88,19 +88,21 @@ class ConversationCostTracker {
     // Diagnostic: capture per-call inputs + computed cost + running total
     // so the 2026-04-07 "cost seems wrong" hardware report can be mapped to
     // a specific bucket (wrong token count, wrong model lookup, wrong rate,
-    // or double-counting). Remove once cost accuracy is verified.
-    debugPrint(
-      '[CostTracker] +${operationType.name} provider=$providerId '
-      'model=$modelId role=${modelRole?.name ?? "null"} '
-      'in=${usage.inputTokens} cachedIn=${usage.cachedInputTokens} '
-      'out=${usage.outputTokens} audioIn=${usage.audioInputTokens} '
-      'cost=${costUsd == null ? "null" : "\$${costUsd.toStringAsFixed(6)}"} '
-      '→ total=\$${_current.totalUsd.toStringAsFixed(6)} '
-      '(smart=\$${_current.smartUsd.toStringAsFixed(6)} '
-      'light=\$${_current.lightUsd.toStringAsFixed(6)} '
-      'tx=\$${_current.transcriptionUsd.toStringAsFixed(6)} '
-      'unpriced=${_current.unpricedCallCount})',
-    );
+    // or double-counting). Gated behind kDebugMode — see thermal TODO #6.
+    if (kDebugMode) {
+      debugPrint(
+        '[CostTracker] +${operationType.name} provider=$providerId '
+        'model=$modelId role=${modelRole?.name ?? "null"} '
+        'in=${usage.inputTokens} cachedIn=${usage.cachedInputTokens} '
+        'out=${usage.outputTokens} audioIn=${usage.audioInputTokens} '
+        'cost=${costUsd == null ? "null" : "\$${costUsd.toStringAsFixed(6)}"} '
+        '→ total=\$${_current.totalUsd.toStringAsFixed(6)} '
+        '(smart=\$${_current.smartUsd.toStringAsFixed(6)} '
+        'light=\$${_current.lightUsd.toStringAsFixed(6)} '
+        'tx=\$${_current.transcriptionUsd.toStringAsFixed(6)} '
+        'unpriced=${_current.unpricedCallCount})',
+      );
+    }
   }
 
   SessionCostSnapshot _foldEntries() {
