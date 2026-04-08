@@ -2,6 +2,19 @@
 
 Current version: **1.1.0+2**
 
+## Multi-Track Orchestration 2026-04-08
+
+Active parallel workstream effort. Recovery anchor on system fault.
+
+- **Spec:** `docs/superpowers/specs/2026-04-08-multi-track-orchestration-design.md`
+- **Live status:** `.planning/orchestration/STATUS.md`
+- **Reports:** `.planning/orchestration/reports/`
+- **Workstreams:** WS-A..WS-J (10 items, Tier-1/2/3) across 4 git worktrees (groups α/β/γ/δ) plus post-merge WS-J
+- **Merge order:** γ → δ → β → α → WS-J
+- **Mode:** fast-path (skip writing-plans, dispatch directly from spec)
+- **Testing:** simulator-first via `ios-sim-validation` skill (mcp__ios-simulator tools), HW reserved for G1 visual + ring HID
+
+
 ## Capabilities
 
 - Multi-backend transcription (Apple On-Device / Apple Cloud / OpenAI
