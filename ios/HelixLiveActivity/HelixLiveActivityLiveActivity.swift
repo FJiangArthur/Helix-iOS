@@ -47,22 +47,34 @@ struct HelixLiveActivityWidget: Widget {
                                     .foregroundColor(.secondary)
                             }
                         }
-                        HStack(spacing: 16) {
+                        HStack(spacing: 12) {
                             Button(intent: AskQuestionIntent()) {
                                 Image(systemName: "questionmark.circle.fill")
+                                    .font(.title2)
                                     .foregroundColor(.cyan)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.cyan.opacity(0.15), in: Circle())
+                                    .overlay(Circle().stroke(Color.cyan.opacity(0.4), lineWidth: 1))
                             }
                             .buttonStyle(.plain)
                             if context.state.status == "paused" {
                                 Button(intent: ResumeTranscriptionIntent()) {
                                     Image(systemName: "play.circle.fill")
+                                        .font(.title2)
                                         .foregroundColor(.green)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.green.opacity(0.15), in: Circle())
+                                        .overlay(Circle().stroke(Color.green.opacity(0.4), lineWidth: 1))
                                 }
                                 .buttonStyle(.plain)
                             } else {
                                 Button(intent: PauseTranscriptionIntent()) {
                                     Image(systemName: "pause.circle.fill")
+                                        .font(.title2)
                                         .foregroundColor(.yellow)
+                                        .frame(width: 44, height: 44)
+                                        .background(Color.yellow.opacity(0.15), in: Circle())
+                                        .overlay(Circle().stroke(Color.yellow.opacity(0.4), lineWidth: 1))
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -148,35 +160,40 @@ struct HelixLiveActivityWidget: Widget {
                 }
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Button(intent: AskQuestionIntent()) {
                     Label("Ask", systemImage: "questionmark.circle.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.title2)
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(.cyan)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Color.cyan.opacity(0.15), in: Capsule())
+                        .overlay(Capsule().stroke(Color.cyan.opacity(0.4), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
 
                 if context.state.status == "paused" {
                     Button(intent: ResumeTranscriptionIntent()) {
                         Label("Resume", systemImage: "play.circle.fill")
-                            .labelStyle(.iconOnly)
-                            .font(.title2)
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(.green)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Color.green.opacity(0.15), in: Capsule())
+                            .overlay(Capsule().stroke(Color.green.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 } else {
                     Button(intent: PauseTranscriptionIntent()) {
                         Label("Pause", systemImage: "pause.circle.fill")
-                            .labelStyle(.iconOnly)
-                            .font(.title2)
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(.yellow)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(Color.yellow.opacity(0.15), in: Capsule())
+                            .overlay(Capsule().stroke(Color.yellow.opacity(0.4), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
-                Spacer()
             }
-            .padding(.top, 4)
+            .padding(.top, 6)
         }
         .padding(16)
         .background(Color.black)
