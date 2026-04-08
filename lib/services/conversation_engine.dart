@@ -2049,14 +2049,19 @@ $profileInstruction''';
               if (responseText.isEmpty && text.startsWith('[Error]')) {
                 // Diagnostic for Q&A-on-live-session failure — see todo
                 // 2026-04-08-qa-button-on-live-session-fails-assistant-
-                // request-failed.md. Capture raw error + guard state so the
-                // unknown-bucket fallback in ProviderErrorState can be
-                // mapped to a pattern or a root-cause fix. Remove once
-                // diagnosed.
+                // request-failed.md. Capture raw error + guard state +
+                // engine context so the unknown-bucket fallback in
+                // ProviderErrorState can be mapped to a pattern or a
+                // root-cause fix. Remove once diagnosed.
                 debugPrint(
                   '[ConversationEngine] _generateResponse received [Error] '
                   'delta: "$text" '
-                  '(bypassRealtimeGuard=$bypassRealtimeGuard)',
+                  '(bypassRealtimeGuard=$bypassRealtimeGuard '
+                  'mode=${_mode.name} isActive=$_isActive '
+                  'glassesConnected=$glassesConnected '
+                  'webSearchEnabled=$useTools '
+                  'msgCount=${toolMessages.length} '
+                  'round=$round)',
                 );
                 final errorState = ProviderErrorState.fromException(text);
                 _publishProviderError(errorState);
