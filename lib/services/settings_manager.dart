@@ -100,9 +100,10 @@ class SettingsManager {
 
   /// Whether streaming HUD writes are flushed on completed visual line
   /// boundaries (via [HudStreamSession]) instead of the legacy per-token
-  /// debounce. Off by default; flipped to true once hardware QA validates the
-  /// new cadence on real G1 glasses.
-  bool hudLineStreamingEnabled = false;
+  /// debounce. Default ON as of 2026-04-07 hardware validation on main
+  /// (merged C+B+D stack) — cadence feels better than the legacy path.
+  /// Can still be toggled off for debugging.
+  bool hudLineStreamingEnabled = true;
 
   // ---------------------------------------------------------------------------
   // Transcription Settings
@@ -357,7 +358,7 @@ class SettingsManager {
     noiseReduction = prefs.getBool('noiseReduction') ?? true;
     voiceActivityDetection = prefs.getBool('voiceActivityDetection') ?? true;
     vadSensitivity = prefs.getDouble('vadSensitivity') ?? 0.5;
-    hudLineStreamingEnabled = prefs.getBool('hud.lineStreaming') ?? false;
+    hudLineStreamingEnabled = prefs.getBool('hud.lineStreaming') ?? true;
 
     // Transcription
     transcriptionBackend = prefs.getString('transcriptionBackend') ?? 'openai';
