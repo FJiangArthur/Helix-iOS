@@ -11,7 +11,9 @@ class LiveActivityManager {
     /// Start a new Live Activity for the given conversation mode.
     func startActivity(mode: String) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+            #if DEBUG
             print("[LiveActivity] Activities not enabled")
+            #endif
             return
         }
 
@@ -33,9 +35,13 @@ class LiveActivityManager {
                 pushType: nil
             )
             currentActivity = activity
+            #if DEBUG
             print("[LiveActivity] Started: \(activity.id)")
+            #endif
         } catch {
+            #if DEBUG
             print("[LiveActivity] Failed to start: \(error)")
+            #endif
         }
     }
 
@@ -74,7 +80,9 @@ class LiveActivityManager {
             await activity.end(content, dismissalPolicy: .immediate)
         }
         currentActivity = nil
+        #if DEBUG
         print("[LiveActivity] Ended")
+        #endif
     }
 
     /// End all Live Activities for this app — cleans up stale activities
@@ -82,7 +90,9 @@ class LiveActivityManager {
     func cleanupStaleActivities() {
         let activities = Activity<HelixLiveActivityAttributes>.activities
         guard !activities.isEmpty else { return }
+        #if DEBUG
         print("[LiveActivity] Cleaning up \(activities.count) stale activities")
+        #endif
         for activity in activities {
             Task {
                 await activity.end(nil, dismissalPolicy: .immediate)
