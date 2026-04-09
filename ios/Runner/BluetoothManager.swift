@@ -298,11 +298,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         reconnectAttemptsByPeripheral[peripheral.identifier] = 0
+        #if DEBUG
         print("didConnectPeripheral id=\(peripheral.identifier.uuidString) name=\(peripheral.name ?? "")")
+        #endif
         handleConnectedPeripheral(peripheral)
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        #if DEBUG
         print("\(Date()) didDisconnectPeripheral-----peripheral-----\(peripheral)--")
 
         if let error = error {
@@ -310,6 +313,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         } else {
             print("Disconnected without error.")
         }
+        #endif
 
         markPeripheralDisconnected(peripheral)
         channel.invokeMethod("glassesDisconnected", arguments: [
@@ -325,7 +329,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         let currentAttempts = reconnectAttemptsByPeripheral[peripheral.identifier] ?? 0
         if currentAttempts >= BluetoothManager.maxReconnectAttempts {
+            #if DEBUG
             print("Max reconnect attempts reached for \(peripheral.identifier)")
+            #endif
             reconnectAttemptsByPeripheral[peripheral.identifier] = 0
             return
         }
@@ -348,19 +354,27 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
+            #if DEBUG
             print("Bluetooth is powered on.")
+            #endif
             restorePersistedConnectionIfNeeded()
         case .poweredOff:
+            #if DEBUG
             print("Bluetooth is powered off.")
+            #endif
             channel.invokeMethod("glassesDisconnected", arguments: ["status": "poweredOff"])
         default:
+            #if DEBUG
             print("Bluetooth state is unknown or unsupported.")
+            #endif
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         if let error = error {
+            #if DEBUG
             print("didDiscoverServices error: \(error.localizedDescription)")
+            #endif
             return
         }
 
@@ -372,7 +386,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
         if let error = error {
+            #if DEBUG
             print("didDiscoverCharacteristicsFor error: \(error.localizedDescription)")
+            #endif
             return
         }
 
@@ -397,12 +413,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             }
         }
 
+        #if DEBUG
         print(
             "didDiscoverCharacteristics side=\(side ?? "?") "
                 + "leftPeripheral=\(leftPeripheral != nil) rightPeripheral=\(rightPeripheral != nil) "
                 + "leftWChar=\(leftWChar != nil) rightWChar=\(rightWChar != nil) "
                 + "leftRChar=\(leftRChar != nil) rightRChar=\(rightRChar != nil)"
         )
+        #endif
 
         if side == "L",
            let leftRChar,
@@ -444,14 +462,18 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if bothCharacteristicsReady,
            let leftP = currentPair?.0, let rightP = currentPair?.1 {
             persistConnectedDevice(deviceName: deviceName, left: leftP, right: rightP)
+            #if DEBUG
             print("glassesConnected both sides deviceName=\(deviceName)")
+            #endif
             args = [
                 "leftDeviceName": leftP.name ?? "",
                 "rightDeviceName": rightP.name ?? "",
                 "status": "connected"
             ]
         } else {
+            #if DEBUG
             print("glassesConnected partial side=\(side) deviceName=\(deviceName)")
+            #endif
             args = [
                 "leftDeviceName": currentPair?.0?.name ?? "",
                 "rightDeviceName": currentPair?.1?.name ?? "",
@@ -464,7 +486,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         if dartHandlerReady {
             channel.invokeMethod("glassesConnected", arguments: args)
         } else {
+            #if DEBUG
             print("glassesConnected queued (Dart not ready yet)")
+            #endif
             pendingConnectionEvents.append(args)
         }
     }
@@ -474,7 +498,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     func onDartReady() {
         dartHandlerReady = true
         for args in pendingConnectionEvents {
+            #if DEBUG
             print("glassesConnected replayed: \(args)")
+            #endif
             channel.invokeMethod("glassesConnected", arguments: args)
         }
         pendingConnectionEvents.removeAll()
@@ -482,10 +508,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
         if let error = error {
+            #if DEBUG
             print("subscribe fail: \(error.localizedDescription)")
+            #endif
             return
         }
+        #if DEBUG
         print(characteristic.isNotifying ? "subscribe success" : "subscribe cancel")
+        #endif
     }
 
     func sendData(params: [String: Any]) {
@@ -577,14 +607,18 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         guard error == nil else {
+            #if DEBUG
             print("\(Date()) didWriteValueFor----characteristic---\(characteristic)---- \(error!)")
+            #endif
             return
         }
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor descriptor: CBDescriptor, error: Error?) {
         guard error == nil else {
+            #if DEBUG
             print("\(Date()) didWriteValueFor----------- \(error!)")
+            #endif
             return
         }
     }
@@ -596,7 +630,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     func getCommandValue(data: Data, cbPeripheral: CBPeripheral? = nil) {
         guard !data.isEmpty else {
+            #if DEBUG
             print("Warning: Received empty BLE payload")
+            #endif
             return
         }
 
@@ -626,7 +662,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         switch rspCommand {
         case .BLE_REQ_TRANSFER_MIC_DATA:
             guard data.count > 2 else {
+                #if DEBUG
                 print("Warning: Insufficient data for MIC_DATA, need at least 3 bytes")
+                #endif
                 break
             }
             let effectiveData = data.subdata(in: 2..<data.count)
@@ -659,7 +697,9 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                     sink(dictionary)
                 }
             } else {
+                #if DEBUG
                 print("blueInfoSink not ready, dropping data")
+                #endif
             }
         }
     }
@@ -727,10 +767,12 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         peripheral.delegate = self
         peripheral.discoverServices([UARTServiceUUID])
+        #if DEBUG
         print(
             "connectPeripheral side=\(side) deviceName=\(deviceName) "
                 + "leftConnected=\(pair.0 != nil) rightConnected=\(pair.1 != nil)"
         )
+        #endif
         // glassesConnected is deferred to didDiscoverCharacteristics so the
         // Dart side only marks a side as ready once its write characteristic
         // has been discovered. Sending the event here would race with
