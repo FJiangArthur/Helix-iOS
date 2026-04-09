@@ -2782,8 +2782,25 @@ Answer the detected question directly using the recent conversation context abov
     }
   }
 
-  /// Clear all history
-  void clearHistory() {
+  /// Clear all history.
+  ///
+  /// WS-B Fix 2: when a live session is active, only clear the stored
+  /// conversation history and persist — do NOT wipe the in-memory live
+  /// transcript/snapshot. This prevents the History tab "Clear history"
+  /// button (or any other mid-session caller) from blanking the Home
+  /// live page. Callers that truly need to reset live state mid-session
+  /// can pass [force]: true.
+  void clearHistory({bool force = false}) {
+    if (_isActive && !force) {
+      _history.clear();
+      _lastPersistTime = null; // bypass debounce for clearHistory
+      _persistHistory();
+      appLogger.i(
+        'ConversationEngine.clearHistory() while active: cleared stored '
+        'history only; live transcript preserved',
+      );
+      return;
+    }
     _resetLiveSessionState(clearConversationHistory: true);
     _lastPersistTime = null; // bypass debounce for clearHistory
     _persistHistory();
