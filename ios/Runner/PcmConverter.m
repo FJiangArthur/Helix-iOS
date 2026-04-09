@@ -48,9 +48,9 @@ static const uint16_t outputByteCount = 20;
     if (_outBuf) free(_outBuf);
 }
 
--(NSMutableData *)decode:(NSData *)lc3data {
+-(NSData *)decode:(NSData *)lc3data {
     if (lc3data == nil || _decMem == NULL || _outBuf == NULL) {
-        return [[NSMutableData alloc] init];
+        return [NSData data];
     }
     int totalBytes = (int)lc3data.length;
     int frameCount = (totalBytes + outputByteCount - 1) / outputByteCount;
@@ -74,6 +74,13 @@ static const uint16_t outputByteCount = 20;
         dstOffset += _bytesOfFrames;
         bytesRead += bytesToRead;
     }
-    return _scratchPCM;
+    // WS-G H3 fix: scratch buffer aliased with async WS sender; copy on return.
+    // The H5 OpenAIRealtimeTranscriber fast path can hold a reference to this
+    // buffer asynchronously on the WebSocket queue while the next MIC_DATA
+    // packet mutates _scratchPCM via setLength:/lc3_decode. Returning an
+    // immutable snapshot defeats the H3 allocation win for OpenAI but keeps
+    // the Apple path safe (single-threaded on BLE queue). Apple path also
+    // pays for the copy — trade-off accepted over audio corruption.
+    return [_scratchPCM copy];
 }
 @end

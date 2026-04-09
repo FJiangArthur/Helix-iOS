@@ -1,6 +1,9 @@
 import CoreBluetooth
 import Flutter
 import Security
+import os.log
+
+private let bleLog = OSLog(subsystem: "com.helix.ble", category: "errors")
 
 struct StoredBluetoothConnection: Codable, Equatable {
     let deviceName: String
@@ -315,12 +318,17 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
         #endif
 
+        if let error = error {
+            os_log("didDisconnect: %{public}s", log: bleLog, type: .error, error.localizedDescription)
+        }
+
         markPeripheralDisconnected(peripheral)
         channel.invokeMethod("glassesDisconnected", arguments: [
             "deviceName": deviceNameByPeripheralId[peripheral.identifier] ?? "",
             "disconnectedSide": sideByPeripheralId[peripheral.identifier] ?? "",
-            "status": "disconnected"
-        ])
+            "status": "disconnected",
+            "error": error?.localizedDescription ?? NSNull()
+        ] as [String: Any])
 
         if userInitiatedDisconnect {
             reconnectAttemptsByPeripheral[peripheral.identifier] = 0
@@ -332,6 +340,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             #if DEBUG
             print("Max reconnect attempts reached for \(peripheral.identifier)")
             #endif
+            os_log("reconnect_exhausted peripheral=%{public}s", log: bleLog, type: .error, peripheral.identifier.uuidString)
+            channel.invokeMethod("glassesStatus", arguments: ["status": "reconnect_exhausted"])
             reconnectAttemptsByPeripheral[peripheral.identifier] = 0
             return
         }
@@ -511,6 +521,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             #if DEBUG
             print("subscribe fail: \(error.localizedDescription)")
             #endif
+            os_log("subscribe failed: %{public}s; uuid=%{public}s", log: bleLog, type: .error, error.localizedDescription, characteristic.uuid.uuidString)
             return
         }
         #if DEBUG
@@ -542,6 +553,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         )
         #endif
 
+        let cmdByte: UInt8 = writeData.first ?? 0
+
         if lr == "L" {
             if let leftWChar = leftWChar {
                 if let leftPeripheral = leftPeripheral {
@@ -550,11 +563,13 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                     #if DEBUG
                     print("writeData leftPeripheral is nil, cannot write data to left side.")
                     #endif
+                    reportWriteFailed(reason: "leftPeripheral_nil", cmd: cmdByte)
                 }
             } else {
                 #if DEBUG
                 print("writeData leftWChar is nil, cannot write data to left peripheral.")
                 #endif
+                reportWriteFailed(reason: "leftWChar_nil", cmd: cmdByte)
             }
             return
         }
@@ -567,11 +582,13 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                     #if DEBUG
                     print("writeData rightPeripheral is nil, cannot write data to right side.")
                     #endif
+                    reportWriteFailed(reason: "rightPeripheral_nil", cmd: cmdByte)
                 }
             } else {
                 #if DEBUG
                 print("writeData rightWChar is nil, cannot write data to right peripheral.")
                 #endif
+                reportWriteFailed(reason: "rightWChar_nil", cmd: cmdByte)
             }
             return
         }
@@ -583,11 +600,13 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 #if DEBUG
                 print("writeData leftPeripheral is nil, cannot write data to left side.")
                 #endif
+                reportWriteFailed(reason: "leftPeripheral_nil", cmd: cmdByte)
             }
         } else {
             #if DEBUG
             print("writeData leftWChar is nil, cannot write data to left peripheral.")
             #endif
+            reportWriteFailed(reason: "leftWChar_nil", cmd: cmdByte)
         }
 
         if let rightWChar = rightWChar {
@@ -597,12 +616,22 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 #if DEBUG
                 print("writeData rightPeripheral is nil, cannot write data to right side.")
                 #endif
+                reportWriteFailed(reason: "rightPeripheral_nil", cmd: cmdByte)
             }
         } else {
             #if DEBUG
             print("writeData rightWChar is nil, cannot write data to right peripheral.")
             #endif
+            reportWriteFailed(reason: "rightWChar_nil", cmd: cmdByte)
         }
+    }
+
+    private func reportWriteFailed(reason: String, cmd: UInt8) {
+        os_log("writeData: %{public}s nil; cmd=0x%{public}02x", log: bleLog, type: .error, reason, cmd)
+        channel.invokeMethod("bleWriteFailed", arguments: [
+            "reason": reason,
+            "cmd": Int(cmd)
+        ])
     }
 
     func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
@@ -610,6 +639,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             #if DEBUG
             print("\(Date()) didWriteValueFor----characteristic---\(characteristic)---- \(error!)")
             #endif
+            os_log("didWriteValueFor error: %{public}s", log: bleLog, type: .error, error!.localizedDescription)
             return
         }
     }

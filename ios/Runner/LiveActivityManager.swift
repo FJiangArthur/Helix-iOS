@@ -1,5 +1,8 @@
 import ActivityKit
 import Foundation
+import os.log
+
+private let liveActivityLog = OSLog(subsystem: "com.helix.liveactivity", category: "errors")
 
 /// Manages the Helix Live Activity lifecycle: start, update, end.
 /// Called from AppDelegate via method channel from Dart.
@@ -42,6 +45,7 @@ class LiveActivityManager {
             #if DEBUG
             print("[LiveActivity] Failed to start: \(error)")
             #endif
+            os_log("[LiveActivity] Failed to start: %{public}s", log: liveActivityLog, type: .error, error.localizedDescription)
         }
     }
 

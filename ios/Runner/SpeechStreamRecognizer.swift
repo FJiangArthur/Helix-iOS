@@ -140,7 +140,53 @@ class SpeechStreamRecognizer {
         var errorDescription: String? { message }
     }
 
-    private init() {}
+    private init() {
+        registerAudioSessionObservers()
+    }
+
+    /// WS-G H7 fix: clear `isAudioSessionActive` when iOS deactivates the
+    /// session externally (interruption or route change). Otherwise the flag
+    /// latches true and every subsequent `setupAudioSession` skips the
+    /// re-activation, leaving audio silently not flowing.
+    private func registerAudioSessionObservers() {
+        let nc = NotificationCenter.default
+        nc.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+        nc.addObserver(
+            self,
+            selector: #selector(handleAudioRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
+    }
+
+    @objc private func handleAudioSessionInterruption(_ note: Notification) {
+        guard let info = note.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        if type == .began {
+            log("audio session interruption began — clearing isAudioSessionActive")
+            isAudioSessionActive = false
+        }
+    }
+
+    @objc private func handleAudioRouteChange(_ note: Notification) {
+        guard let info = note.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        if reason == .oldDeviceUnavailable {
+            log("audio route change oldDeviceUnavailable — clearing isAudioSessionActive")
+            isAudioSessionActive = false
+        }
+    }
 
     func attachEventSink(_ sink: @escaping FlutterEventSink) {
         DispatchQueue.main.async {
@@ -282,8 +328,15 @@ class SpeechStreamRecognizer {
             try audioSession.setPreferredIOBufferDuration(0.02)
             // H7: skip redundant activation if already active from a prior segment
             if !isAudioSessionActive {
-                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-                isAudioSessionActive = true
+                do {
+                    try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                    isAudioSessionActive = true
+                } catch {
+                    isAudioSessionActive = false
+                    throw error
+                }
+            } else {
+                log("Audio session activation skipped: isAudioSessionActive=true (setupAudioSession)")
             }
             log("Audio session configured source=\(source) mode=\(sessionMode == .measurement ? "measurement" : "voiceChat")")
         } catch {
@@ -565,8 +618,15 @@ class SpeechStreamRecognizer {
                         try audioSession.setPreferredSampleRate(16000)
                         try audioSession.setPreferredIOBufferDuration(0.02)
                         if !self.isAudioSessionActive {
-                            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-                            self.isAudioSessionActive = true
+                            do {
+                                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                                self.isAudioSessionActive = true
+                            } catch {
+                                self.isAudioSessionActive = false
+                                throw error
+                            }
+                        } else {
+                            self.log("Audio session activation skipped: isAudioSessionActive=true (openai mic)")
                         }
 
                         let inputNode = self.audioEngine.inputNode
@@ -676,8 +736,15 @@ class SpeechStreamRecognizer {
                 try audioSession.setPreferredSampleRate(16000)
                 try audioSession.setPreferredIOBufferDuration(0.02)
                 if !isAudioSessionActive {
-                    try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
-                    isAudioSessionActive = true
+                    do {
+                        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                        isAudioSessionActive = true
+                    } catch {
+                        isAudioSessionActive = false
+                        throw error
+                    }
+                } else {
+                    log("Audio session activation skipped: isAudioSessionActive=true (whisper mic)")
                 }
 
                 let inputNode = audioEngine.inputNode
