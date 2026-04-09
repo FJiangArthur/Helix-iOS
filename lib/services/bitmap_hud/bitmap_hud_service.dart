@@ -535,12 +535,17 @@ class BitmapHudService {
       BleManager.isConnectedL() || BleManager.isConnectedR();
 
   Future<void> _handleConnectionState(BleConnectionState state) async {
-    if (state != BleConnectionState.connected || !_overlayVisible) {
+    if (state != BleConnectionState.connected ||
+        !_overlayVisible ||
+        _conversationPaused) {
       return;
     }
 
     await Future.delayed(_reconnectPushDelay);
-    if (_overlayVisible && isEnabled && _isConnected()) {
+    if (_overlayVisible &&
+        isEnabled &&
+        _isConnected() &&
+        !_conversationPaused) {
       await pushFull();
     }
   }

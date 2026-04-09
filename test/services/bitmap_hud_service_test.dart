@@ -205,6 +205,41 @@ void main() {
       },
     );
 
+    // WS-D fix #1: post-reconnect pushFull must not fire during an active
+    // conversation even when _overlayVisible is still true from stale
+    // state. This repaints the bitmap dashboard on top of the
+    // live-listening overlay and looks to the user like a factory reset.
+    test(
+      'WS-D: post-reconnect does not push while conversation is active',
+      () async {
+        var fullCalls = 0;
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': _CounterWidget(incrementOnRefresh: false)},
+          renderer: (_, __) async => Uint8List.fromList([0]),
+          fullSender: (_) async {
+            fullCalls += 1;
+            return true;
+          },
+          deltaSender: (_, __) async => true,
+          isConnectedChecker: () => true,
+          overlayVisible: true,
+          reconnectPushDelay: Duration.zero,
+        );
+
+        // Mark conversation active (engine does this on start); the
+        // overlay flag is still true from an earlier stale state.
+        service.setConversationActive(true);
+        await service.handleConnectionStateForTest(
+          BleConnectionState.connected,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(fullCalls, 0);
+        service.dispose();
+      },
+    );
+
     test(
       'layout changes while hidden defer the full push until the next show',
       () async {
