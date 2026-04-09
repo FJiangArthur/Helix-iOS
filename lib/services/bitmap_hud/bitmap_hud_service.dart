@@ -399,6 +399,19 @@ class BitmapHudService {
       _syncBackgroundRefreshTimer();
 
       final newBmp = await renderDashboard();
+
+      // H2: fast short-circuit before DeltaEncoder.diff walks the whole
+      // BMP. If the newly rendered bytes are byte-identical to the last
+      // sent frame, skip diff + send entirely. listEquals uses an early-
+      // exit byte compare that bails on the first mismatch.
+      if (_lastSentBmp != null &&
+          _lastSentBmp!.length == newBmp.length &&
+          listEquals(_lastSentBmp, newBmp)) {
+        _clearDirtyFlags();
+        appLogger.d('BitmapHud: rendered bytes identical, skipping diff/send');
+        return true;
+      }
+
       final changedIndices = DeltaEncoder.diff(_lastSentBmp!, newBmp);
 
       if (changedIndices.isEmpty) {
