@@ -254,6 +254,34 @@ class SettingsManager {
   bool g1DebugLogging = false;
 
   // ---------------------------------------------------------------------------
+  // Ring remote binding (WS-F)
+  // ---------------------------------------------------------------------------
+
+  /// Canonical signature string identifying the Bluetooth HID event that
+  /// should trigger `ConversationEngine.handleQAButtonPressed()`.
+  /// Format examples:
+  ///   - `keyCommand:a:0`
+  ///   - `pressEvent:42`
+  ///   - `mediaCommand:togglePlayPause`
+  ///   - `volumeChange:up`
+  /// `null` when no ring is bound.
+  String? ringBindingSignature;
+
+  /// Whether the ring binding is currently active. Defaults to `true` but has
+  /// no effect until [ringBindingSignature] is non-null.
+  bool ringBindingEnabled = true;
+
+  Future<void> setRingBindingSignature(String? signature) async {
+    ringBindingSignature = signature;
+    await save();
+  }
+
+  Future<void> setRingBindingEnabled(bool enabled) async {
+    ringBindingEnabled = enabled;
+    await save();
+  }
+
+  // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
 
@@ -431,6 +459,10 @@ class SettingsManager {
 
     // Debug
     g1DebugLogging = prefs.getBool('g1DebugLogging') ?? false;
+
+    // Ring remote binding (WS-F)
+    ringBindingSignature = prefs.getString('ring_binding_signature');
+    ringBindingEnabled = prefs.getBool('ring_binding_enabled') ?? true;
   }
 
   // ---------------------------------------------------------------------------
@@ -557,6 +589,14 @@ class SettingsManager {
 
     // Debug
     await prefs.setBool('g1DebugLogging', g1DebugLogging);
+
+    // Ring remote binding (WS-F)
+    if (ringBindingSignature == null) {
+      await prefs.remove('ring_binding_signature');
+    } else {
+      await prefs.setString('ring_binding_signature', ringBindingSignature!);
+    }
+    await prefs.setBool('ring_binding_enabled', ringBindingEnabled);
 
     _changesController.add(this);
   }
