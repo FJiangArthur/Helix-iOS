@@ -70,6 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _modelQueryError;
   bool _isProviderExpanded = false;
   bool _isTranscriptionExpanded = false;
+  bool _tavilyKeyConfigured = false;
 
   // Connection test state
   bool _isTestingConnection = false;
@@ -88,6 +89,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadProviderStatus() async {
     _configuredProviders = await _settings.getConfiguredProviders();
+    final tavily = await _settings.tavilyApiKey;
+    _tavilyKeyConfigured = tavily != null && tavily.trim().isNotEmpty;
     await _loadModelsForActiveProvider();
     if (mounted) setState(() {});
   }
@@ -638,6 +641,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     _settings.webSearchEnabled,
                     (v) => _settings.update((s) => s.webSearchEnabled = v),
                   ),
+                  const SizedBox(height: 8),
+                  _buildToggle(
+                    tr('Active Fact-Check (Web)', '实时事实核查（网络）'),
+                    tr(
+                      'Verify AI answers against live web sources via Tavily',
+                      '使用 Tavily 针对在线资料验证 AI 答案',
+                    ),
+                    _settings.activeFactCheckEnabled,
+                    (v) =>
+                        _settings.update((s) => s.activeFactCheckEnabled = v),
+                  ),
+                  if (_settings.activeFactCheckEnabled) ...[
+                    const SizedBox(height: 8),
+                    _buildTavilyKeyRow(),
+                  ],
                   const SizedBox(height: 8),
                   _buildToggle(
                     tr('Voice Responses', '语音回复'),
@@ -1905,6 +1923,161 @@ class _SettingsScreenState extends State<SettingsScreen> {
           inactiveTrackColor: Colors.white.withValues(alpha: 0.1),
         ),
       ],
+    );
+  }
+
+  Widget _buildTavilyKeyRow() {
+    return InkWell(
+      onTap: _showTavilyKeyDialog,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              _tavilyKeyConfigured
+                  ? Icons.check_circle
+                  : Icons.key_outlined,
+              size: 18,
+              color: _tavilyKeyConfigured
+                  ? Colors.greenAccent
+                  : Colors.white54,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tr('Tavily API Key', 'Tavily API 密钥'),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    _tavilyKeyConfigured
+                        ? tr('Configured', '已配置')
+                        : tr('Tap to add', '点击添加'),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.4),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: Colors.white54,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showTavilyKeyDialog() async {
+    final existing = await _settings.tavilyApiKey;
+    final controller = TextEditingController(text: existing ?? '');
+    if (!mounted) return;
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: HelixTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Tavily API Key',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                tr(
+                  'Used only for active fact-checking. Stored in Keychain.',
+                  '仅用于实时事实核查。存储在钥匙串中。',
+                ),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.54),
+                  fontSize: 12,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'tvly-…',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  if (_tavilyKeyConfigured)
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          await _settings.deleteTavilyApiKey();
+                          if (!mounted) return;
+                          setState(() => _tavilyKeyConfigured = false);
+                          if (ctx.mounted) Navigator.pop(ctx);
+                        },
+                        child: Text(
+                          tr('Remove', '删除'),
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ),
+                  if (_tavilyKeyConfigured) const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        final key = controller.text.trim();
+                        if (key.isEmpty) return;
+                        await _settings.setTavilyApiKey(key);
+                        if (!mounted) return;
+                        setState(() => _tavilyKeyConfigured = true);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: HelixTheme.cyan,
+                      ),
+                      child: const Text(
+                        'Save',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

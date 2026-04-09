@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../models/assistant_profile.dart';
 import '../services/conversation_listening_session.dart';
 import '../services/conversation_engine.dart';
+import '../services/factcheck/cited_fact_check_result.dart';
 import '../services/recording_coordinator.dart';
 import '../services/glasses_answer_presenter.dart';
 import '../services/llm/llm_service.dart';
@@ -74,6 +75,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   String? _rawListeningError;
   bool _errorDetailExpanded = false;
   List<String> _followUpChips = const [];
+  CitedFactCheckResult? _citedFactCheck;
+  bool _citedFactCheckExpanded = false;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -179,6 +182,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _engine.followUpChipsStream.listen((chips) {
         if (!mounted) return;
         setState(() => _followUpChips = chips);
+        _scrollToBottom();
+      }),
+      _engine.citedFactCheckStream.listen((result) {
+        if (!mounted) return;
+        setState(() {
+          _citedFactCheck = result;
+          _citedFactCheckExpanded = false;
+        });
         _scrollToBottom();
       }),
       _engine.questionDetectionStream.listen((detection) {
@@ -2101,6 +2112,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               const SizedBox(height: 8),
               _buildFollowUpChipDeck(),
             ],
+            if (_assistantProfile.showFactCheck &&
+                _citedFactCheck != null &&
+                _citedFactCheck!.hasSources) ...[
+              const SizedBox(height: 8),
+              _buildCitedFactCheckDisclosure(_citedFactCheck!),
+            ],
             if (_showDetailLink && !_isRecording) ...[
               const SizedBox(height: 8),
               _buildDetailAnalysisLink(),
@@ -2112,6 +2129,123 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildCitedFactCheckDisclosure(CitedFactCheckResult result) {
+    final Color accent;
+    final String label;
+    switch (result.verdict) {
+      case FactCheckVerdict.supported:
+        accent = Colors.greenAccent;
+        label = 'Supported';
+        break;
+      case FactCheckVerdict.contradicted:
+        accent = Colors.redAccent;
+        label = 'Contradicted';
+        break;
+      case FactCheckVerdict.unclear:
+        accent = Colors.amberAccent;
+        label = 'Unclear';
+        break;
+    }
+    return GlassCard(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () => setState(
+                () => _citedFactCheckExpanded = !_citedFactCheckExpanded,
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.verified_outlined, size: 16, color: accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Sources (${result.sources.length})',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(
+                    _citedFactCheckExpanded
+                        ? Icons.expand_less
+                        : Icons.expand_more,
+                    size: 18,
+                    color: Colors.white54,
+                  ),
+                ],
+              ),
+            ),
+            if (result.correction != null && result.correction!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                result.correction!,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            ],
+            if (_citedFactCheckExpanded) ...[
+              const SizedBox(height: 8),
+              for (final s in result.sources) ...[
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        s.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        s.url,
+                        style: TextStyle(
+                          color: accent.withValues(alpha: 0.8),
+                          fontSize: 11,
+                        ),
+                      ),
+                      if (s.snippet.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          s.snippet.length > 180
+                              ? '${s.snippet.substring(0, 180)}…'
+                              : s.snippet,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }
