@@ -1459,6 +1459,98 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // WS-A: Response tool buttons (summarize / rephrase / translate / factcheck)
+  //
+  // Root cause: askQuestion went through _generateResponse without
+  // bypassRealtimeGuard: true, so whenever the OpenAI Realtime transcription
+  // backend was active (transcriptionBackend == 'openai' && openAISessionMode
+  // == 'realtime'), every user-initiated tool-button prompt silently no-oped.
+  // These tests lock in that the four response-tool prompts all reach the
+  // LLM and stream a response back even in realtime mode.
+  // ---------------------------------------------------------------------------
+  group('response tool buttons bypass realtime guard', () {
+    late ConversationEngine engine;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await SettingsManager.instance.initialize();
+      ConversationEngine.resetTestHooks();
+      SettingsManager.instance.assistantProfileId = 'general';
+      SettingsManager.instance.language = 'en';
+      SettingsManager.instance.autoDetectQuestions = true;
+      SettingsManager.instance.answerAll = true;
+      // Realtime mode — previously silently dropped askQuestion prompts.
+      SettingsManager.instance.transcriptionBackend = 'openai';
+      SettingsManager.instance.openAISessionMode = 'realtime';
+      engine = ConversationEngine.instance;
+      engine.clearHistory();
+      engine.stop();
+      await HudController.instance.resetToIdle(
+        source: 'test.ws_a.response_tools.setup',
+      );
+    });
+
+    Future<void> expectPromptStreams(String prompt, String expected) async {
+      final provider = await configureFakeLlm(
+        responses: const [],
+        streamResponses: [
+          FakeStreamResponse(expected.split('')),
+        ],
+      );
+      final aiUpdates = <String>[];
+      final aiSub = engine.aiResponseStream.listen(aiUpdates.add);
+
+      await engine.askQuestion(prompt);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await aiSub.cancel();
+
+      expect(
+        provider.streamCallCount,
+        greaterThanOrEqualTo(1),
+        reason: 'askQuestion must reach the LLM stream in realtime mode '
+            '(prompt="$prompt")',
+      );
+      expect(
+        aiUpdates.last,
+        expected,
+        reason: 'Final aiResponse should render the streamed answer '
+            '(prompt="$prompt")',
+      );
+      // History = user turn + assistant turn.
+      expect(engine.history.length, greaterThanOrEqualTo(2));
+      expect(engine.history.last.content, expected);
+    }
+
+    test('summarize prompt streams a response', () async {
+      await expectPromptStreams(
+        'Summarize this answer in 1-3 bullet points: The sky is blue.',
+        'Summary bullets.',
+      );
+    });
+
+    test('rephrase prompt streams a response', () async {
+      await expectPromptStreams(
+        'Rewrite this answer so I can say it out loud naturally: Hi there.',
+        'Rephrased out loud.',
+      );
+    });
+
+    test('translate prompt streams a response', () async {
+      await expectPromptStreams(
+        'Translate this answer into natural Chinese: Hello world.',
+        'Translated text.',
+      );
+    });
+
+    test('factcheck prompt streams a response', () async {
+      await expectPromptStreams(
+        'Fact-check the key claims in this answer: Water boils at 50C.',
+        'Fact-checked correction.',
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // E2 (continued): Time-based deduplication with 45-second expiry
   //
   // Duplicate questions are ignored within a 45-second window. After 45

@@ -765,7 +765,18 @@ class ConversationEngine {
     _aiResponseController.add('');
     final responseToken = _beginResponseCycle();
     _statusController.add(EngineStatus.thinking);
-    await _generateResponse(question, responseToken: responseToken);
+    // User-initiated asks (send button, follow-up chip, response tools:
+    // summarize/rephrase/translate/factcheck) must execute even when the
+    // OpenAI Realtime transcription backend is active. Without the bypass,
+    // `_generateResponse` short-circuits at the realtime guard and every
+    // manual action silently no-ops. The auto-answer path in
+    // `_handleDetectedQuestion` already passes `bypassRealtimeGuard: true`
+    // for the same reason.
+    await _generateResponse(
+      question,
+      responseToken: responseToken,
+      bypassRealtimeGuard: true,
+    );
   }
 
   // ---------------------------------------------------------------------------
