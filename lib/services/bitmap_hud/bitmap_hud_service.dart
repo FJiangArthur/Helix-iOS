@@ -182,7 +182,20 @@ class BitmapHudService {
   /// it stops.
   void setConversationActive(bool active) {
     _conversationPaused = active;
-    if (!active && _shouldBackgroundRefresh) {
+    if (active) {
+      // WS-D fix: the text HUD owns the screen during an active
+      // conversation. Force the overlay flag and cached frame off so
+      // any later reconnect (thermal, stale-partial, etc.) cannot
+      // resurrect the bitmap dashboard on top of the live-listening
+      // overlay. Belt-and-braces for a stale _overlayVisible left over
+      // from a failed DashboardService hide.
+      _overlayVisible = false;
+      _lastSentBmp = null;
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+      return;
+    }
+    if (_shouldBackgroundRefresh) {
       // Reset to base interval and push immediately on resume.
       _currentRefreshIntervalSeconds = _minRefreshInterval;
       _syncBackgroundRefreshTimer();

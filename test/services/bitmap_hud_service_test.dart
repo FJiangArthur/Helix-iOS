@@ -197,10 +197,44 @@ void main() {
 
         service.setOverlayVisible(true);
         service.setConversationActive(true);
+        // WS-D: setConversationActive(true) now force-clears the overlay
+        // flag and invalidates the cached frame so the bitmap dashboard
+        // cannot be resurrected during an active conversation.
+        expect(service.isOverlayVisible, isFalse);
         service.setConversationActive(false);
         await Future<void>.delayed(Duration.zero);
 
-        expect(deltaCalls, 1);
+        expect(deltaCalls, 0);
+        service.dispose();
+      },
+    );
+
+    // WS-D fix #2: setConversationActive(true) must clear _overlayVisible
+    // and invalidate the cached frame, so the bitmap dashboard can never
+    // be resurrected mid-conversation by a later reconnect or push.
+    test(
+      'WS-D: setConversationActive(true) clears overlay flag and cache',
+      () async {
+        var fullCalls = 0;
+        final service = BitmapHudService.test(
+          layout: _layout,
+          zoneWidgets: {'clock': _CounterWidget(incrementOnRefresh: false)},
+          lastSentBmp: Uint8List.fromList([1, 2, 3]),
+          renderer: (_, __) async => Uint8List.fromList([0]),
+          fullSender: (_) async {
+            fullCalls += 1;
+            return true;
+          },
+          deltaSender: (_, __) async => true,
+          isConnectedChecker: () => true,
+          overlayVisible: true,
+          reconnectPushDelay: Duration.zero,
+        );
+
+        expect(service.isOverlayVisible, isTrue);
+        service.setConversationActive(true);
+        expect(service.isOverlayVisible, isFalse);
+        expect(fullCalls, 0);
         service.dispose();
       },
     );
