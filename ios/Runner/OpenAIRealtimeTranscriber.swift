@@ -491,10 +491,39 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         }
 
         let base64Audio = dataToSend.base64EncodedString()
-        sendEvent([
-            "type": "input_audio_buffer.append",
-            "audio": base64Audio,
-        ])
+        // H5: fast-path the 10 Hz audio.append event using a string
+        // template to skip Dictionary allocation + JSONSerialization +
+        // Data->String conversion per tick. Base64 is safe to embed
+        // directly — no JSON escaping required. Other event types still
+        // go through sendEvent() for correctness.
+        if Self.useFastAudioAppendPath {
+            sendAudioAppendFast(base64Audio: base64Audio)
+        } else {
+            sendEvent([
+                "type": "input_audio_buffer.append",
+                "audio": base64Audio,
+            ])
+        }
+    }
+
+    // H5: flag so the optimization is reversible if a protocol edge case
+    // surfaces. Default-on per perf plan; flip to false to fall back to
+    // JSONSerialization path above.
+    private static let useFastAudioAppendPath: Bool = true
+
+    private func sendAudioAppendFast(base64Audio: String) {
+        guard let task = webSocketTask, isConnected else { return }
+        // Minimal JSON for input_audio_buffer.append. Schema-equivalent to
+        // the NSDictionary path: {"type":"input_audio_buffer.append","audio":"<b64>"}
+        let json = "{\"type\":\"input_audio_buffer.append\",\"audio\":\"" + base64Audio + "\"}"
+        let message = URLSessionWebSocketTask.Message.string(json)
+        task.send(message) { [weak self] error in
+            guard let self, let error else { return }
+            self.warningLog("[OpenAITranscriber] Send error (input_audio_buffer.append fast): \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.handleDisconnect(error: error)
+            }
+        }
     }
 
     private func sendEvent(_ event: [String: Any]) {
