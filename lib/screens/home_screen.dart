@@ -43,6 +43,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<TranscriptSegment> _transcriptEntries = const [];
   String _aiResponse = '';
   bool _isRecording = false;
+  // WS-B Fix 3: once the live card is shown during a session, latch it on
+  // until the user explicitly stops recording. Guards against transient
+  // stream glitches (empty snapshot / brief recording=false) that would
+  // otherwise flip hasLiveConversation false for one frame and collapse
+  // the CONVERSATION HUB to the LOADOUT placeholder.
+  bool _liveCardLatched = false;
   RecordingCaptureState _recordingCaptureState = RecordingCaptureState.idle;
   bool _showDetailLink = false;
   Duration _recordingDuration = Duration.zero;
@@ -141,9 +147,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           _isRecording = recording;
           if (!recording && wasRecording) {
             _showDetailLink = true;
+            _liveCardLatched = false;
           }
           if (recording) {
             _resetLiveSessionUiState();
+            _liveCardLatched = true;
             // New session: clear any "user scrolled up" lock so the first
             // streaming answer of the session always auto-scrolls.
             _userHasScrolledUp = false;
@@ -456,6 +464,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _resetLiveSessionUiState() {
+    _liveCardLatched = false;
     _aiResponse = '';
     _transcription = '';
     _transcriptEntries = const [];
@@ -1995,6 +2004,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _followUpChips.isNotEmpty;
     final hasLiveConversation =
         _isRecording ||
+        _liveCardLatched ||
         _transcription.isNotEmpty ||
         _aiResponse.isNotEmpty ||
         _latestQuestionDetection != null ||
