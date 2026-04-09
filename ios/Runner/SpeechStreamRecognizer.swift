@@ -64,6 +64,9 @@ class SpeechStreamRecognizer {
     /// Monotonically increasing ID so callbacks from cancelled recognition tasks
     /// can detect they are stale and skip cleanup that would destroy the new task.
     private var recognitionGeneration: Int = 0
+    // H7: track audio session lifecycle so we can skip redundant setActive(true)
+    // calls across segment restarts (previously ~20-40 setActive/5min).
+    private var isAudioSessionActive: Bool = false
     var isPaused = false
     /// Callback for streaming PCM audio output from OpenAI Realtime voice responses.
     var onRealtimeAudioOutput: ((Data) -> Void)?
@@ -277,7 +280,11 @@ class SpeechStreamRecognizer {
             )
             try audioSession.setPreferredSampleRate(16000)
             try audioSession.setPreferredIOBufferDuration(0.02)
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            // H7: skip redundant activation if already active from a prior segment
+            if !isAudioSessionActive {
+                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                isAudioSessionActive = true
+            }
             log("Audio session configured source=\(source) mode=\(sessionMode == .measurement ? "measurement" : "voiceChat")")
         } catch {
             failToStart(error, messageOverride: "Error setting up audio session: \(error.localizedDescription)")
@@ -318,7 +325,12 @@ class SpeechStreamRecognizer {
 
                     if result.isFinal {
                         self.emitAppleTranscriptionUsage()
-                        self.cleanupRecognition(deactivateSession: true)
+                        // H7: keep audio session active across segment finalization
+                        // to avoid setActive(false)/setActive(true) storms that
+                        // compound with the 15s segment restart timer. A fresh
+                        // beginRecognition()/restartRecognitionSegment() will
+                        // reconfigure without deactivating.
+                        self.cleanupRecognition(deactivateSession: false)
                     }
                 }
 
@@ -433,7 +445,9 @@ class SpeechStreamRecognizer {
 
                     if result.isFinal {
                         self.emitAppleTranscriptionUsage()
-                        self.cleanupRecognition(deactivateSession: true)
+                        // H7: see beginRecognition() — no deactivation across
+                        // segment-restart boundaries.
+                        self.cleanupRecognition(deactivateSession: false)
                     }
                 }
 
@@ -550,7 +564,10 @@ class SpeechStreamRecognizer {
                         )
                         try audioSession.setPreferredSampleRate(16000)
                         try audioSession.setPreferredIOBufferDuration(0.02)
-                        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                        if !self.isAudioSessionActive {
+                            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                            self.isAudioSessionActive = true
+                        }
 
                         let inputNode = self.audioEngine.inputNode
                         let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -658,7 +675,10 @@ class SpeechStreamRecognizer {
                 )
                 try audioSession.setPreferredSampleRate(16000)
                 try audioSession.setPreferredIOBufferDuration(0.02)
-                try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                if !isAudioSessionActive {
+                    try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+                    isAudioSessionActive = true
+                }
 
                 let inputNode = audioEngine.inputNode
                 let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -1365,6 +1385,7 @@ class SpeechStreamRecognizer {
                 false,
                 options: .notifyOthersOnDeactivation
             )
+            isAudioSessionActive = false
         } catch {
             log("Error stopping audio session: \(error.localizedDescription)")
         }
