@@ -517,10 +517,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 if let leftPeripheral = leftPeripheral {
                     leftPeripheral.writeValue(writeData, for: leftWChar, type: .withoutResponse)
                 } else {
+                    #if DEBUG
                     print("writeData leftPeripheral is nil, cannot write data to left side.")
+                    #endif
                 }
             } else {
+                #if DEBUG
                 print("writeData leftWChar is nil, cannot write data to left peripheral.")
+                #endif
             }
             return
         }
@@ -530,10 +534,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 if let rightPeripheral = rightPeripheral {
                     rightPeripheral.writeValue(writeData, for: rightWChar, type: .withoutResponse)
                 } else {
+                    #if DEBUG
                     print("writeData rightPeripheral is nil, cannot write data to right side.")
+                    #endif
                 }
             } else {
+                #if DEBUG
                 print("writeData rightWChar is nil, cannot write data to right peripheral.")
+                #endif
             }
             return
         }
@@ -542,20 +550,28 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             if let leftPeripheral = leftPeripheral {
                 leftPeripheral.writeValue(writeData, for: leftWChar, type: .withoutResponse)
             } else {
+                #if DEBUG
                 print("writeData leftPeripheral is nil, cannot write data to left side.")
+                #endif
             }
         } else {
+            #if DEBUG
             print("writeData leftWChar is nil, cannot write data to left peripheral.")
+            #endif
         }
 
         if let rightWChar = rightWChar {
             if let rightPeripheral = rightPeripheral {
                 rightPeripheral.writeValue(writeData, for: rightWChar, type: .withoutResponse)
             } else {
+                #if DEBUG
                 print("writeData rightPeripheral is nil, cannot write data to right side.")
+                #endif
             }
         } else {
+            #if DEBUG
             print("writeData rightWChar is nil, cannot write data to right peripheral.")
+            #endif
         }
     }
 
