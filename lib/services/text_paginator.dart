@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/painting.dart';
 
 /// Manages text pagination for display on glasses
@@ -14,6 +16,25 @@ class TextPaginator {
 
   List<String> _pages = [];
   int _currentPage = 0;
+
+  // H1: single reusable TextPainter for all measurements. We swap its
+  // `text` property and call layout() instead of constructing a fresh
+  // TextPainter + TextSpan per word test. Reduces allocation churn and
+  // layout setup cost during streaming re-pagination.
+  static final TextPainter _sharedPainter = TextPainter(
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  );
+  static const TextStyle _measureStyle = TextStyle(fontSize: fontSize);
+
+  // H1: bounded LRU cache of measured widths. Streaming deltas re-measure
+  // many of the same prefixes; caching short-circuits layout() entirely.
+  static const int _measureCacheCapacity = 128;
+  static final LinkedHashMap<String, double> _measureCache =
+      LinkedHashMap<String, double>();
+
+  // DEBUG-only counter for verifying the fix via tests/profiling.
+  static int debugLayoutCallCount = 0;
 
   /// Get total number of pages
   int get pageCount => _pages.length;
@@ -84,16 +105,23 @@ class TextPaginator {
 
   /// Measure text width using TextPainter (matches Even Demo App)
   double _measureTextWidth(String text) {
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: const TextStyle(fontSize: fontSize),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-    );
-    textPainter.layout();
-    return textPainter.width;
+    // LRU cache hit: move to MRU and return.
+    final cached = _measureCache.remove(text);
+    if (cached != null) {
+      _measureCache[text] = cached;
+      return cached;
+    }
+    _sharedPainter.text = TextSpan(text: text, style: _measureStyle);
+    _sharedPainter.layout();
+    final width = _sharedPainter.width;
+    debugLayoutCallCount++;
+
+    // Insert and bound.
+    _measureCache[text] = width;
+    if (_measureCache.length > _measureCacheCapacity) {
+      _measureCache.remove(_measureCache.keys.first);
+    }
+    return width;
   }
 
   /// Split text into lines based on pixel-accurate measurement
