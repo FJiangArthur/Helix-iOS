@@ -257,6 +257,76 @@ void main() {
     );
 
     test(
+      'WS-B: start() re-entry while active preserves live transcript and '
+      'does not emit empty ai response',
+      () async {
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+          ],
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Persistent segment one');
+        engine.onTranscriptionFinalized('Persistent segment two');
+        engine.onRealtimeResponse('In-flight answer', isFinal: false);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final responseEvents = <String>[];
+        final responseSub = engine.aiResponseStream.listen(responseEvents.add);
+        final snapshots = <TranscriptSnapshot>[];
+        final snapSub = engine.transcriptSnapshotStream.listen(snapshots.add);
+
+        // Re-enter start() mid-session (simulates native restart / mic
+        // interrupt / double-tap startSession). Must be idempotent.
+        engine.start(source: TranscriptSource.phone);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        await responseSub.cancel();
+        await snapSub.cancel();
+
+        // Live segments must be preserved.
+        expect(
+          engine.currentTranscriptSnapshot.finalizedSegments,
+          ['Persistent segment one', 'Persistent segment two'],
+        );
+        // aiResponseStream must NOT emit an empty string (which would blank
+        // the Home live card).
+        expect(responseEvents.where((e) => e.isEmpty), isEmpty);
+        // No empty transcript snapshot should be emitted either.
+        expect(
+          snapshots.where((s) => s.finalizedSegments.isEmpty),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'WS-B: clearHistory() while active preserves live transcript segments',
+      () async {
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+          ],
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Live segment A');
+        engine.onTranscriptionFinalized('Live segment B');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Simulate the History tab Clear button while the session is active.
+        engine.clearHistory();
+
+        // Live transcript must remain intact.
+        expect(
+          engine.currentTranscriptSnapshot.finalizedSegments,
+          ['Live segment A', 'Live segment B'],
+        );
+      },
+    );
+
+    test(
       'openai realtime session skips downstream llm streaming and persists streamed assistant turns',
       () async {
         final provider = await configureFakeLlm(
