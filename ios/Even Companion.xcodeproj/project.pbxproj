@@ -60,6 +60,7 @@
 		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
 		E3D9E13DABF71B221D7C889F /* HelixLiveActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
+		AA01000010000000000000F0 /* InputInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000010000000000000F1 /* InputInspector.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -109,6 +110,7 @@
 		39C897E096773DD7055D211F /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
+		AA01000010000000000000F1 /* InputInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputInspector.swift; sourceTree = "<group>"; };
 		4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityLiveActivity.swift; sourceTree = "<group>"; };
 		5950FC57965EA55AA63216AB /* Pods-Even CompanionTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.profile.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.profile.xcconfig"; sourceTree = "<group>"; };
 		74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityBundle.swift; sourceTree = "<group>"; };
@@ -324,6 +326,7 @@
 				F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */,
 				19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */,
 				49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
+				AA01000010000000000000F1 /* InputInspector.swift */,
 				7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
 				39C897E096773DD7055D211F /* HealthKitManager.swift */,
 			);
@@ -685,6 +688,7 @@
 				DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */,
 				DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */,
 				FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */,
+				AA01000010000000000000F0 /* InputInspector.swift in Sources */,
 				A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */,
 				45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */,
 				AA01000002000000000000A1 /* HelixLiveActivityIntentBridge.swift in Sources */,

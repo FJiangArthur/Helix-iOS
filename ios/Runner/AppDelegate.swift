@@ -348,6 +348,36 @@ import NaturalLanguage
             binaryMessenger: controller.binaryMessenger)
         passiveEventChannel.setStreamHandler(PassiveAudioEventHandler())
 
+        // WS-F: Input Inspector — dev-only capture of BT HID ring remote events
+        InputInspectorController.shared.configure(host: controller)
+        let inputInspectorChannel = FlutterMethodChannel(
+            name: "method.input_inspector",
+            binaryMessenger: controller.binaryMessenger)
+        inputInspectorChannel.setMethodCallHandler { (call, result) in
+            switch call.method {
+            case "startInspector":
+                InputInspectorController.shared.startInspector()
+                result(nil)
+            case "stopInspector":
+                InputInspectorController.shared.stopInspector()
+                result(nil)
+            case "startBackgroundListening":
+                InputInspectorController.shared.startBackgroundListening()
+                result(nil)
+            case "stopBackgroundListening":
+                InputInspectorController.shared.stopBackgroundListening()
+                result(nil)
+            case "getCapabilities":
+                result(InputInspectorController.shared.capabilities())
+            default:
+                result(FlutterMethodNotImplemented)
+            }
+        }
+        let inputInspectorEventChannel = FlutterEventChannel(
+            name: "event.input_inspector",
+            binaryMessenger: controller.binaryMessenger)
+        inputInspectorEventChannel.setStreamHandler(InputInspectorStreamHandler.shared)
+
         let glassesMicHealthChannel = FlutterEventChannel(
             name: "eventGlassesMicHealth",
             binaryMessenger: controller.binaryMessenger)
