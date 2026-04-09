@@ -13,6 +13,11 @@
     unsigned char *_outBuf;
     lc3_decoder_t _decoder;
     uint16_t _bytesOfFrames;
+    // H3: reusable scratch buffer so we don't allocate a fresh NSMutableData
+    // for every MIC_DATA packet on the BLE delegate queue (~50/s during
+    // streaming). setLength: resizes without reallocating when capacity
+    // is already sufficient.
+    NSMutableData *_scratchPCM;
 }
 
 // Frame length 10ms
@@ -32,6 +37,8 @@ static const uint16_t outputByteCount = 20;
         _decMem = malloc(decodeSize);
         _decoder = lc3_setup_decoder(dtUs, srHz, 0, _decMem);
         _outBuf = malloc(_bytesOfFrames);
+        // Pre-size scratch for a typical 400-byte (20 frame) MIC_DATA packet.
+        _scratchPCM = [[NSMutableData alloc] initWithCapacity:_bytesOfFrames * 32];
     }
     return self;
 }
@@ -47,17 +54,26 @@ static const uint16_t outputByteCount = 20;
     }
     int totalBytes = (int)lc3data.length;
     int frameCount = (totalBytes + outputByteCount - 1) / outputByteCount;
-    NSMutableData *pcmData = [[NSMutableData alloc] initWithCapacity:frameCount * _bytesOfFrames];
+    NSUInteger outBytes = (NSUInteger)frameCount * (NSUInteger)_bytesOfFrames;
+
+    // H3: reuse scratch buffer. setLength: grows in place when capacity is
+    // sufficient, avoiding per-packet NSMutableData allocation and the
+    // O(n) appendBytes loop's reallocation amortization. Caller (Swift
+    // BluetoothManager) bridges `as Data` immediately on the BLE queue,
+    // so scratch ownership stays local and single-threaded.
+    [_scratchPCM setLength:outBytes];
+    unsigned char *dst = (unsigned char *)_scratchPCM.mutableBytes;
 
     const unsigned char *inputBytes = (const unsigned char *)lc3data.bytes;
     int bytesRead = 0;
+    NSUInteger dstOffset = 0;
     while (bytesRead < totalBytes) {
         int bytesToRead = MIN(outputByteCount, totalBytes - bytesRead);
         lc3_decode(_decoder, inputBytes + bytesRead, bytesToRead,
-                   LC3_PCM_FORMAT_S16, _outBuf, 1);
-        [pcmData appendBytes:_outBuf length:_bytesOfFrames];
+                   LC3_PCM_FORMAT_S16, dst + dstOffset, 1);
+        dstOffset += _bytesOfFrames;
         bytesRead += bytesToRead;
     }
-    return pcmData;
+    return _scratchPCM;
 }
 @end
