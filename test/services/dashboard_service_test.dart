@@ -506,5 +506,64 @@ void main() {
       bitmapService.dispose();
       SettingsManager.instance.hudRenderPath = 'text';
     });
+
+    // WS-D fix #3: even when _bitmapHideRenderer returns false (0x26
+    // hide failed / timed out), the overlay-visible flag must still
+    // flip to false. Otherwise BitmapHudService believes the dashboard
+    // is on screen and repaints it on the next BLE reconnect — the H1
+    // "factory default reset" root cause.
+    test(
+      'WS-D: hideDashboard clears overlay flag even when bitmap hide fails',
+      () async {
+        SettingsManager.instance.hudRenderPath = 'bitmap';
+        BleManager.get().isConnected = true;
+        final overlayVisibility = <bool>[];
+        var bitmapHideCalls = 0;
+
+        final bitmapService = DashboardService(
+          bleManager: BleManager.get(),
+          hudController: HudController.instance,
+          conversationEngine: ConversationEngine.instance,
+          handoffMemory: HandoffMemory.instance,
+          settingsManager: SettingsManager.instance,
+          dashboardRenderer: (text) async => true,
+          quickAskRestorer: (text) async => true,
+          exitRenderer: () async => true,
+          bitmapDeltaRenderer: () async => true,
+          bitmapFullRenderer: () async => true,
+          bitmapHideRenderer: () async {
+            bitmapHideCalls += 1;
+            return false; // simulate 0x26 hide ACK timeout
+          },
+          bitmapScreenClearRenderer: () async {},
+          bitmapScreenHideRenderer: () async => true,
+          bitmapScreenHideDelay: Duration.zero,
+          bitmapInvalidateCache: () {},
+          bitmapSetOverlayVisible: (visible) {
+            overlayVisibility.add(visible);
+          },
+          clock: () => DateTime(2026, 3, 12, 10, 0),
+          cooldown: const Duration(milliseconds: 200),
+          displayDuration: const Duration(milliseconds: 40),
+        );
+
+        await bitmapService.initialize();
+        await bitmapService.handleDeviceEvent(
+          headUpEvent(label: 'bitmap_hide_failure'),
+        );
+        expect(overlayVisibility, [true]);
+
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+
+        expect(bitmapHideCalls, greaterThanOrEqualTo(1));
+        // WS-D: overlay flag must have flipped back to false even
+        // though the bitmap hide failed and hideDashboard early
+        // returned.
+        expect(overlayVisibility, contains(false));
+
+        bitmapService.dispose();
+        SettingsManager.instance.hudRenderPath = 'text';
+      },
+    );
   });
 }

@@ -9,6 +9,7 @@ import '../ble.dart';
 import '../settings_manager.dart';
 import '../../utils/app_logger.dart';
 import 'bitmap_renderer.dart';
+import 'enlarged_word_renderer.dart';
 import 'bmp_widget.dart';
 import 'delta_encoder.dart';
 import 'display_constants.dart';
@@ -182,7 +183,20 @@ class BitmapHudService {
   /// it stops.
   void setConversationActive(bool active) {
     _conversationPaused = active;
-    if (!active && _shouldBackgroundRefresh) {
+    if (active) {
+      // WS-D fix: the text HUD owns the screen during an active
+      // conversation. Force the overlay flag and cached frame off so
+      // any later reconnect (thermal, stale-partial, etc.) cannot
+      // resurrect the bitmap dashboard on top of the live-listening
+      // overlay. Belt-and-braces for a stale _overlayVisible left over
+      // from a failed DashboardService hide.
+      _overlayVisible = false;
+      _lastSentBmp = null;
+      _refreshTimer?.cancel();
+      _refreshTimer = null;
+      return;
+    }
+    if (_shouldBackgroundRefresh) {
       // Reset to base interval and push immediately on resume.
       _currentRefreshIntervalSeconds = _minRefreshInterval;
       _syncBackgroundRefreshTimer();
@@ -328,6 +342,55 @@ class BitmapHudService {
     }
 
     return _WidgetRefreshState(refreshedAny: refreshedAny, anyDirty: anyDirty);
+  }
+
+  /// Whether the enlarged-word render path is enabled in settings.
+  /// When true, [renderLiveAnswerFrame] returns a 4×-zoom single-word
+  /// bitmap instead of the dashboard.
+  bool get isEnlargedWordsEnabled =>
+      SettingsManager.instance.bitmapHudEnlargedWords;
+
+  /// Render a single [word] via the enlarged-word path (4× base font,
+  /// auto-scaled down to fit the 576px display width). Returns BMP bytes
+  /// ready for [_sendFull]. Falls back gracefully (blank frame) on
+  /// empty/whitespace input.
+  Future<Uint8List> renderEnlargedWord(String word) {
+    return EnlargedWordRenderer.render(word);
+  }
+
+  /// Route live-answer text to the correct render path based on the
+  /// `bitmapHudEnlargedWords` flag. When the flag is off, the caller
+  /// should continue using the existing text-HUD streaming path — this
+  /// method returns `null` in that case so callers can fall through.
+  Future<Uint8List?> renderLiveAnswerFrame(String text) async {
+    if (!isEnlargedWordsEnabled) return null;
+    final word = _firstWord(text);
+    return EnlargedWordRenderer.render(word);
+  }
+
+  /// Push a single enlarged word to the glasses. No-op (returns false)
+  /// when BLE is disconnected. Bypasses the delta path since the frame
+  /// changes almost entirely on every word.
+  Future<bool> pushEnlargedWord(String word) async {
+    if (!_isConnected()) return false;
+    try {
+      final bmp = await EnlargedWordRenderer.render(word);
+      final ok = await _sendFull(bmp);
+      if (ok) {
+        _lastSentBmp = bmp;
+      }
+      return ok;
+    } catch (e) {
+      appLogger.e('BitmapHud: enlarged word push error: $e');
+      return false;
+    }
+  }
+
+  static String _firstWord(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return '';
+    final idx = trimmed.indexOf(RegExp(r'\s'));
+    return idx < 0 ? trimmed : trimmed.substring(0, idx);
   }
 
   /// Render the current dashboard to BMP bytes.
@@ -548,12 +611,17 @@ class BitmapHudService {
       BleManager.isConnectedL() || BleManager.isConnectedR();
 
   Future<void> _handleConnectionState(BleConnectionState state) async {
-    if (state != BleConnectionState.connected || !_overlayVisible) {
+    if (state != BleConnectionState.connected ||
+        !_overlayVisible ||
+        _conversationPaused) {
       return;
     }
 
     await Future.delayed(_reconnectPushDelay);
-    if (_overlayVisible && isEnabled && _isConnected()) {
+    if (_overlayVisible &&
+        isEnabled &&
+        _isConnected() &&
+        !_conversationPaused) {
       await pushFull();
     }
   }

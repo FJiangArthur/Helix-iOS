@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../ble_manager.dart';
 import '../utils/app_logger.dart';
@@ -281,6 +282,7 @@ class EvenAI {
   }
 
   /// Show brief feedback text on glasses display, auto-clears after 500ms
+  /// and restores the screen implied by the current HUD intent (WS-D fix).
   static void _flashFeedback(String text) async {
     appLogger.d('[EvenAI] Flash feedback: $text');
     await Proto.sendEvenAIData(
@@ -290,10 +292,33 @@ class EvenAI {
       current_page_num: 1,
       max_page_num: 1,
     );
-    // Auto-dismiss after 500ms by clearing the overlay screen
+    // Auto-dismiss after 500ms. WS-D fix: previously we unconditionally
+    // pushed 0x00 (hide overlay), which kicked a live-listening session
+    // back to the firmware's stock dashboard mid-conversation. Restore
+    // the screen implied by the current HUD intent instead.
     Future.delayed(const Duration(milliseconds: 500), () {
-      Proto.pushScreen(0x00);
+      final screenId = restoreScreenIdForIntent(
+        HudController.instance.currentIntent,
+      );
+      Proto.pushScreen(screenId);
     });
+  }
+
+  /// WS-D fix: maps the current HUD intent back to the pushScreen value
+  /// that should be restored after a transient feedback flash. Exposed
+  /// as an internal helper so it is unit-testable without a BLE stub.
+  @visibleForTesting
+  static int restoreScreenIdForIntent(HudIntent intent) {
+    switch (intent) {
+      case HudIntent.liveListening:
+      case HudIntent.textTransfer:
+        return 0x01;
+      case HudIntent.quickAsk:
+      case HudIntent.dashboard:
+      case HudIntent.notification:
+      case HudIntent.idle:
+        return 0x00;
+    }
   }
 
   void _startRecordingTimer() {

@@ -158,6 +158,11 @@ class SettingsManager {
   /// Active bitmap layout preset ID: 'classic', 'minimal', 'dense', 'conversation'.
   String bitmapLayoutPreset = 'classic';
 
+  /// When true, the bitmap HUD enlarged-word render path is used for
+  /// glanceable / accessibility display of live answer text: one word
+  /// at a time at 4× the base font size, auto-scaling down to fit.
+  bool bitmapHudEnlargedWords = false;
+
   /// Active enhanced layout preset ID: 'command_center', 'cockpit', 'focus'.
   String enhancedLayoutPreset = 'command_center';
 
@@ -417,6 +422,8 @@ class SettingsManager {
     dashboardTiltEnabled = prefs.getBool('dashboardTiltEnabled') ?? true;
     hudRenderPath = prefs.getString('hudRenderPath') ?? 'bitmap';
     bitmapLayoutPreset = prefs.getString('bitmapLayoutPreset') ?? 'classic';
+    bitmapHudEnlargedWords =
+        prefs.getBool('bitmap_hud_enlarged_words') ?? false;
     enhancedLayoutPreset =
         prefs.getString('enhancedLayoutPreset') ?? 'command_center';
     stockTicker = prefs.getString('stockTicker') ?? '^DJI';
@@ -545,6 +552,7 @@ class SettingsManager {
     await prefs.setBool('dashboardTiltEnabled', dashboardTiltEnabled);
     await prefs.setString('hudRenderPath', hudRenderPath);
     await prefs.setString('bitmapLayoutPreset', bitmapLayoutPreset);
+    await prefs.setBool('bitmap_hud_enlarged_words', bitmapHudEnlargedWords);
     await prefs.setString('enhancedLayoutPreset', enhancedLayoutPreset);
     await prefs.setString('stockTicker', stockTicker);
 

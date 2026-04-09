@@ -191,6 +191,10 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
           // Enhanced layout picker (when enhanced mode active)
           if (_settings.hudRenderPath == 'enhanced')
             _buildEnhancedLayoutPicker(),
+          // Enlarged words toggle (accessibility / glanceable path)
+          if (_settings.hudRenderPath == 'bitmap' ||
+              _settings.hudRenderPath == 'enhanced')
+            _buildEnlargedWordsToggle(),
           // Bitmap preview
           _buildBitmapPreview(),
           // Summary bar
@@ -475,6 +479,32 @@ class _HudWidgetsScreenState extends State<HudWidgetsScreen> {
         'Data-dense display with progress rings, charts & multi-widget layouts',
       _ => '',
     };
+  }
+
+  Widget _buildEnlargedWordsToggle() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: GlassCard(
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          title: const Text(
+            'Enlarged words (4× zoom)',
+            style: TextStyle(color: Colors.white, fontSize: 15),
+          ),
+          subtitle: const Text(
+            'Glanceable accessibility path: shows one word at a time at '
+            '4× the base font. Long words auto-scale to fit.',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          value: _settings.bitmapHudEnlargedWords,
+          activeThumbColor: HelixTheme.cyan,
+          onChanged: (value) async {
+            await _settings.update((s) => s.bitmapHudEnlargedWords = value);
+            if (mounted) setState(() {});
+          },
+        ),
+      ),
+    );
   }
 
   Widget _buildLayoutPicker() {

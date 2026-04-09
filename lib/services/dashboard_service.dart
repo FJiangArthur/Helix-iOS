@@ -324,6 +324,14 @@ class DashboardService {
         previousDisplayText: previousDisplayText,
         source: source,
       );
+      // WS-D fix: clear the overlay-visible flag BEFORE the failure
+      // early return. The frame has already been torn off the glasses
+      // at this point; leaving the flag true strands BitmapHudService
+      // in a state where a later BLE reconnect repaints the bitmap
+      // dashboard on top of whatever the user has moved on to (e.g. a
+      // live-listening session) — the H1 root cause of the
+      // "HUD factory-default reset" bug.
+      _bitmapSetOverlayVisible(false);
       if (!restored) {
         _updateSnapshotState(
           blockedReason: 'Bitmap dashboard hide failed',
@@ -331,7 +339,6 @@ class DashboardService {
         );
         return;
       }
-      _bitmapSetOverlayVisible(false);
       _cancelDashboardState();
       _updateSnapshotState(blockedReason: null, activeOverride: false);
       return;
