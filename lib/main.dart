@@ -21,6 +21,7 @@ import 'services/database/helix_database.dart';
 import 'services/database/migration_service.dart';
 import 'services/entity_memory.dart';
 import 'services/gesture_action_router.dart';
+import 'services/input_dispatcher.dart';
 import 'services/live_activity_service.dart';
 import 'services/passive_listening_service.dart';
 
@@ -55,6 +56,11 @@ void main() async {
 
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
+
+  // WS-F: Start Bluetooth HID ring-remote listener
+  // (no-op at runtime until a signature is bound via dev Input Inspector).
+  // ignore: unawaited_futures
+  InputDispatcher.instance.start();
 
   // Load persisted entity memory from SQLite (people/companies)
   await EntityMemory.instance.load();

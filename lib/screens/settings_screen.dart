@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'dev/input_inspector_screen.dart';
 import '../services/g1_debug_service.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
@@ -1926,6 +1928,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             setState(() {});
           },
         ),
+        if (kDebugMode) ...[
+          const SizedBox(height: 8),
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.keyboard_command_key,
+              color: HelixTheme.cyan.withValues(alpha: 0.8),
+            ),
+            title: Text(
+              tr('Input Inspector (Dev)', '输入检查器(开发)'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              tr(
+                'Capture BT HID events for ring-remote binding',
+                '捕获 BT HID 事件用于戒指遥控器绑定',
+              ),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.5),
+                fontSize: 11,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const InputInspectorScreen(),
+                ),
+              );
+            },
+          ),
+        ],
         if (_settings.g1DebugLogging) ...[
           const SizedBox(height: 8),
           Row(
