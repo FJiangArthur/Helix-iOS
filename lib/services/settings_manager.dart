@@ -86,6 +86,18 @@ class SettingsManager {
   List<AssistantProfile> _assistantProfiles = AssistantProfile.defaults;
 
   // ---------------------------------------------------------------------------
+  // Active Fact-Check (WS-E)
+  // ---------------------------------------------------------------------------
+
+  /// Whether to run a web-grounded fact-check (Tavily + light LLM verify)
+  /// after every primary AI response. Default off — purely additive on top
+  /// of the existing closed-book fact-check in `_postResponseAnalysis`.
+  bool activeFactCheckEnabled = false;
+
+  /// Maximum number of Tavily search results to retrieve per check.
+  int activeFactCheckMaxResults = 3;
+
+  // ---------------------------------------------------------------------------
   // Audio Settings
   // ---------------------------------------------------------------------------
 
@@ -431,6 +443,12 @@ class SettingsManager {
 
     // Debug
     g1DebugLogging = prefs.getBool('g1DebugLogging') ?? false;
+
+    // Active fact-check (WS-E)
+    activeFactCheckEnabled =
+        prefs.getBool('active_fact_check_enabled') ?? false;
+    activeFactCheckMaxResults =
+        prefs.getInt('active_fact_check_max_results') ?? 3;
   }
 
   // ---------------------------------------------------------------------------
@@ -558,6 +576,13 @@ class SettingsManager {
     // Debug
     await prefs.setBool('g1DebugLogging', g1DebugLogging);
 
+    // Active fact-check (WS-E)
+    await prefs.setBool('active_fact_check_enabled', activeFactCheckEnabled);
+    await prefs.setInt(
+      'active_fact_check_max_results',
+      activeFactCheckMaxResults,
+    );
+
     _changesController.add(this);
   }
 
@@ -638,6 +663,26 @@ class SettingsManager {
   /// Delete the API key for [providerId].
   Future<void> deleteApiKey(String providerId) async {
     await _secureStorage.delete(key: '$_apiKeyPrefix$providerId');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tavily (active fact-check) API key
+  // ---------------------------------------------------------------------------
+
+  static const String _tavilyKeyName = 'helix_tavily_api_key';
+
+  /// Retrieve the Tavily API key, or null if not configured.
+  Future<String?> get tavilyApiKey =>
+      _secureStorage.read(key: _tavilyKeyName);
+
+  /// Store the Tavily API key.
+  Future<void> setTavilyApiKey(String key) async {
+    await _secureStorage.write(key: _tavilyKeyName, value: key);
+  }
+
+  /// Delete the Tavily API key.
+  Future<void> deleteTavilyApiKey() async {
+    await _secureStorage.delete(key: _tavilyKeyName);
   }
 
   /// Returns a map of provider IDs to whether they have an API key configured.
