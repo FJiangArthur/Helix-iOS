@@ -214,8 +214,9 @@ class InputDispatcher {
     dispatchedCount++;
     appLogger.i('[InputDispatcher] dispatch sig=$signature');
     try {
-      if (_onDispatch != null) {
-        await _onDispatch!();
+      final hook = _onDispatch;
+      if (hook != null) {
+        await hook();
       } else {
         await ConversationEngine.instance.handleQAButtonPressed();
       }

@@ -49,7 +49,7 @@ class _InputInspectorScreenState extends State<InputInspectorScreen> {
     } catch (_) {}
     _sub = _events.receiveBroadcastStream().listen((event) {
       if (event is! Map) return;
-      final map = Map<String, dynamic>.from(event as Map);
+      final map = Map<String, dynamic>.from(event);
       final channel = map['channel'] as String? ?? 'unknown';
       setState(() {
         _channelCounts[channel] = (_channelCounts[channel] ?? 0) + 1;
