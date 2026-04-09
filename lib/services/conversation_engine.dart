@@ -22,6 +22,9 @@ import 'proto.dart';
 import 'glasses_protocol.dart';
 import 'llm/llm_service.dart';
 import 'llm/llm_provider.dart';
+import 'factcheck/cited_fact_check_result.dart';
+import 'factcheck/tavily_search_provider.dart';
+import 'factcheck/web_search_provider.dart';
 import 'tools/tool_executor.dart';
 import 'tools/web_search_tool.dart';
 import 'conversation_listening_session.dart';
@@ -135,6 +138,14 @@ class ConversationEngine {
   final _postConversationController =
       StreamController<Map<String, dynamic>?>.broadcast();
   final _factCheckAlertController = StreamController<String>.broadcast();
+  final _citedFactCheckController =
+      StreamController<CitedFactCheckResult>.broadcast();
+
+  /// Optional override for the web search provider, used by tests to inject
+  /// a fake without hitting the network. When null, `_activeFactCheck`
+  /// constructs a `TavilySearchProvider` from the stored Tavily API key.
+  @visibleForTesting
+  WebSearchProvider? webSearchProviderOverride;
   final _translationController = StreamController<String>.broadcast();
   StreamSubscription<String>? _translationSubscription;
   final _sentimentController = StreamController<double>.broadcast();
@@ -167,6 +178,8 @@ class ConversationEngine {
   Stream<Map<String, dynamic>?> get postConversationAnalysisStream =>
       _postConversationController.stream;
   Stream<String> get factCheckAlertStream => _factCheckAlertController.stream;
+  Stream<CitedFactCheckResult> get citedFactCheckStream =>
+      _citedFactCheckController.stream;
   Stream<String> get translationStream => _translationController.stream;
   Stream<double> get sentimentStream => _sentimentController.stream;
   Stream<EntityInfo> get entityStream => _entityController.stream;
@@ -224,6 +237,26 @@ class ConversationEngine {
     ConversationMode? mode,
     TranscriptSource source = TranscriptSource.phone,
   }) {
+    // WS-B Fix 1: idempotent re-entry. If the engine is already active for the
+    // same source, do NOT wipe the live transcript — just refresh status and
+    // optionally update the mode. This prevents native restarts, audio
+    // interruptions, or double-tap startSession calls from blanking the live
+    // page mid-session.
+    if (_isActive && _transcriptSource == source) {
+      if (mode != null) setMode(mode);
+      _statusController.add(EngineStatus.listening);
+      appLogger.i(
+        'ConversationEngine.start() re-entered while active; '
+        'preserving live state (source=${source.name})',
+      );
+      return;
+    }
+    if (_isActive && _transcriptSource != source) {
+      appLogger.w(
+        'ConversationEngine.start() source change mid-session '
+        '(${_transcriptSource.name} -> ${source.name}); resetting live state',
+      );
+    }
     _cancelInFlightResponse();
     _isGeneratingResponse = false;
     _resetLiveSessionState(clearConversationHistory: true);
@@ -765,7 +798,18 @@ class ConversationEngine {
     _aiResponseController.add('');
     final responseToken = _beginResponseCycle();
     _statusController.add(EngineStatus.thinking);
-    await _generateResponse(question, responseToken: responseToken);
+    // User-initiated asks (send button, follow-up chip, response tools:
+    // summarize/rephrase/translate/factcheck) must execute even when the
+    // OpenAI Realtime transcription backend is active. Without the bypass,
+    // `_generateResponse` short-circuits at the realtime guard and every
+    // manual action silently no-ops. The auto-answer path in
+    // `_handleDetectedQuestion` already passes `bypassRealtimeGuard: true`
+    // for the same reason.
+    await _generateResponse(
+      question,
+      responseToken: responseToken,
+      bypassRealtimeGuard: true,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1349,6 +1393,148 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
       // Fallback: run the original separate calls
       _generateFollowUpChips(response);
       unawaited(_backgroundFactCheck(response));
+    }
+  }
+
+  /// WS-E: active, web-grounded fact-check.
+  ///
+  /// Flow:
+  /// 1. Gate on `activeFactCheckEnabled` + Tavily key (or injected override).
+  /// 2. Web search — reuse the final response as the query (YAGNI v1).
+  /// 3. Light-LLM verify with sources inline, parse JSON verdict.
+  /// 4. Emit `CitedFactCheckResult` on `_citedFactCheckController`.
+  ///
+  /// Failures degrade silently to no emission — never affects the primary
+  /// answer path. The gate lives inside this method (not at the call site)
+  /// so tests can exercise the full pipeline with an injected provider.
+  @visibleForTesting
+  Future<void> activeFactCheckForTest(String question, String response) =>
+      _activeFactCheck(question, response);
+
+  Future<void> _activeFactCheck(String question, String finalResponse) async {
+    if (finalResponse.trim().length < 20) return;
+
+    final settings = SettingsManager.instance;
+    if (!settings.activeFactCheckEnabled) return;
+
+    WebSearchProvider? provider = webSearchProviderOverride;
+    if (provider == null) {
+      final key = await settings.tavilyApiKey;
+      if (key == null || key.trim().isEmpty) return;
+      provider = TavilySearchProvider(apiKey: key.trim());
+    }
+
+    final llmService = _getLlmService();
+    if (llmService == null) return;
+
+    try {
+      final searchResults = await provider.search(
+        finalResponse,
+        maxResults: settings.activeFactCheckMaxResults,
+      );
+      if (searchResults.isEmpty) {
+        appLogger.d('[ActiveFactCheck] no search results, skipping');
+        return;
+      }
+
+      final sourcesBuf = StringBuffer();
+      for (var i = 0; i < searchResults.length; i++) {
+        final r = searchResults[i];
+        sourcesBuf.writeln('[${i + 1}] ${r.title}');
+        sourcesBuf.writeln(r.url);
+        final snippet = r.snippet.length > 480
+            ? '${r.snippet.substring(0, 480)}…'
+            : r.snippet;
+        sourcesBuf.writeln(snippet);
+        sourcesBuf.writeln();
+      }
+
+      final prompt =
+          '''You are fact-checking an AI answer against web sources.
+
+Question: $question
+Answer: $finalResponse
+
+Sources:
+$sourcesBuf
+Reply with JSON only (no markdown code fence):
+{"verdict": "supported" | "contradicted" | "unclear",
+ "correction": "one-sentence correction or null",
+ "citedIndices": [1, 2]}
+
+- "supported" = sources agree with the answer.
+- "contradicted" = at least one source clearly contradicts the answer; put the correction in "correction".
+- "unclear" = sources are off-topic or ambiguous.
+- "citedIndices" = 1-based indices of the sources that informed your verdict.''';
+
+      final raw = await llmService.getResponse(
+        systemPrompt: 'Output only JSON, nothing else.',
+        messages: [ChatMessage(role: 'user', content: prompt)],
+        model: settings.resolvedLightModel,
+      );
+
+      final cleaned = _stripMarkdownCodeFence(raw);
+      final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
+      final verdict = factCheckVerdictFromString(
+        decoded['verdict'] as String?,
+      );
+      final rawCorrection = decoded['correction'];
+      String? correction;
+      if (rawCorrection is String) {
+        final t = rawCorrection.trim();
+        if (t.isNotEmpty && t.toLowerCase() != 'null') {
+          correction = t;
+        }
+      }
+
+      final citedSet = <int>{};
+      final citedRaw = decoded['citedIndices'];
+      if (citedRaw is List) {
+        for (final v in citedRaw) {
+          if (v is int) citedSet.add(v);
+          if (v is num) citedSet.add(v.toInt());
+        }
+      }
+
+      final sources = <CitedSource>[];
+      for (var i = 0; i < searchResults.length; i++) {
+        if (citedSet.isNotEmpty && !citedSet.contains(i + 1)) continue;
+        final r = searchResults[i];
+        sources.add(
+          CitedSource(
+            url: r.url,
+            title: r.title,
+            snippet: r.snippet,
+            score: r.score,
+          ),
+        );
+      }
+      // If the LLM returned no indices, fall back to showing all sources.
+      if (sources.isEmpty) {
+        for (final r in searchResults) {
+          sources.add(
+            CitedSource(
+              url: r.url,
+              title: r.title,
+              snippet: r.snippet,
+              score: r.score,
+            ),
+          );
+        }
+      }
+
+      final result = CitedFactCheckResult(
+        verdict: verdict,
+        correction: correction,
+        sources: sources,
+      );
+      appLogger.d(
+        '[ActiveFactCheck] verdict=${verdict.name} '
+        'sources=${sources.length} correction=${correction != null}',
+      );
+      _citedFactCheckController.add(result);
+    } catch (e) {
+      appLogger.d('[ActiveFactCheck] failed: $e');
     }
   }
 
@@ -2149,6 +2335,8 @@ $profileInstruction''';
 
       // Merged post-response analysis: follow-up chips + fact-check in one call
       unawaited(_postResponseAnalysis(question, finalResponse));
+      // WS-E: additive web-grounded active fact-check (no-op unless enabled).
+      unawaited(_activeFactCheck(question, finalResponse));
     } catch (e) {
       if (!_isResponseCurrent(responseToken)) {
         return;
@@ -2594,8 +2782,25 @@ Answer the detected question directly using the recent conversation context abov
     }
   }
 
-  /// Clear all history
-  void clearHistory() {
+  /// Clear all history.
+  ///
+  /// WS-B Fix 2: when a live session is active, only clear the stored
+  /// conversation history and persist — do NOT wipe the in-memory live
+  /// transcript/snapshot. This prevents the History tab "Clear history"
+  /// button (or any other mid-session caller) from blanking the Home
+  /// live page. Callers that truly need to reset live state mid-session
+  /// can pass [force]: true.
+  void clearHistory({bool force = false}) {
+    if (_isActive && !force) {
+      _history.clear();
+      _lastPersistTime = null; // bypass debounce for clearHistory
+      _persistHistory();
+      appLogger.i(
+        'ConversationEngine.clearHistory() while active: cleared stored '
+        'history only; live transcript preserved',
+      );
+      return;
+    }
     _resetLiveSessionState(clearConversationHistory: true);
     _lastPersistTime = null; // bypass debounce for clearHistory
     _persistHistory();
@@ -2864,6 +3069,7 @@ Answer the detected question directly using the recent conversation context abov
     _providerErrorController.close();
     _postConversationController.close();
     _factCheckAlertController.close();
+    _citedFactCheckController.close();
     _translationSubscription?.cancel();
     _translationController.close();
     _sentimentController.close();

@@ -257,6 +257,76 @@ void main() {
     );
 
     test(
+      'WS-B: start() re-entry while active preserves live transcript and '
+      'does not emit empty ai response',
+      () async {
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+          ],
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Persistent segment one');
+        engine.onTranscriptionFinalized('Persistent segment two');
+        engine.onRealtimeResponse('In-flight answer', isFinal: false);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        final responseEvents = <String>[];
+        final responseSub = engine.aiResponseStream.listen(responseEvents.add);
+        final snapshots = <TranscriptSnapshot>[];
+        final snapSub = engine.transcriptSnapshotStream.listen(snapshots.add);
+
+        // Re-enter start() mid-session (simulates native restart / mic
+        // interrupt / double-tap startSession). Must be idempotent.
+        engine.start(source: TranscriptSource.phone);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        await responseSub.cancel();
+        await snapSub.cancel();
+
+        // Live segments must be preserved.
+        expect(
+          engine.currentTranscriptSnapshot.finalizedSegments,
+          ['Persistent segment one', 'Persistent segment two'],
+        );
+        // aiResponseStream must NOT emit an empty string (which would blank
+        // the Home live card).
+        expect(responseEvents.where((e) => e.isEmpty), isEmpty);
+        // No empty transcript snapshot should be emitted either.
+        expect(
+          snapshots.where((s) => s.finalizedSegments.isEmpty),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'WS-B: clearHistory() while active preserves live transcript segments',
+      () async {
+        await configureFakeLlm(
+          responses: [
+            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+          ],
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized('Live segment A');
+        engine.onTranscriptionFinalized('Live segment B');
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Simulate the History tab Clear button while the session is active.
+        engine.clearHistory();
+
+        // Live transcript must remain intact.
+        expect(
+          engine.currentTranscriptSnapshot.finalizedSegments,
+          ['Live segment A', 'Live segment B'],
+        );
+      },
+    );
+
+    test(
       'openai realtime session skips downstream llm streaming and persists streamed assistant turns',
       () async {
         final provider = await configureFakeLlm(
@@ -1455,6 +1525,188 @@ void main() {
       await sub.cancel();
 
       expect(results, isEmpty);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // WS-A: Response tool buttons (summarize / rephrase / translate / factcheck)
+  //
+  // Root cause: askQuestion went through _generateResponse without
+  // bypassRealtimeGuard: true, so whenever the OpenAI Realtime transcription
+  // backend was active (transcriptionBackend == 'openai' && openAISessionMode
+  // == 'realtime'), every user-initiated tool-button prompt silently no-oped.
+  // These tests lock in that the four response-tool prompts all reach the
+  // LLM and stream a response back even in realtime mode.
+  // ---------------------------------------------------------------------------
+  group('response tool buttons bypass realtime guard', () {
+    late ConversationEngine engine;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await SettingsManager.instance.initialize();
+      ConversationEngine.resetTestHooks();
+      SettingsManager.instance.assistantProfileId = 'general';
+      SettingsManager.instance.language = 'en';
+      SettingsManager.instance.autoDetectQuestions = true;
+      SettingsManager.instance.answerAll = true;
+      // Realtime mode — previously silently dropped askQuestion prompts.
+      SettingsManager.instance.transcriptionBackend = 'openai';
+      SettingsManager.instance.openAISessionMode = 'realtime';
+      engine = ConversationEngine.instance;
+      engine.clearHistory();
+      engine.stop();
+      await HudController.instance.resetToIdle(
+        source: 'test.ws_a.response_tools.setup',
+      );
+    });
+
+    Future<void> expectPromptStreams(String prompt, String expected) async {
+      final provider = await configureFakeLlm(
+        responses: const [],
+        streamResponses: [
+          FakeStreamResponse(expected.split('')),
+        ],
+      );
+      final aiUpdates = <String>[];
+      final aiSub = engine.aiResponseStream.listen(aiUpdates.add);
+
+      await engine.askQuestion(prompt);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await aiSub.cancel();
+
+      expect(
+        provider.streamCallCount,
+        greaterThanOrEqualTo(1),
+        reason: 'askQuestion must reach the LLM stream in realtime mode '
+            '(prompt="$prompt")',
+      );
+      expect(
+        aiUpdates.last,
+        expected,
+        reason: 'Final aiResponse should render the streamed answer '
+            '(prompt="$prompt")',
+      );
+      // History = user turn + assistant turn.
+      expect(engine.history.length, greaterThanOrEqualTo(2));
+      expect(engine.history.last.content, expected);
+    }
+
+    test('summarize prompt streams a response', () async {
+      await expectPromptStreams(
+        'Summarize this answer in 1-3 bullet points: The sky is blue.',
+        'Summary bullets.',
+      );
+    });
+
+    test('rephrase prompt streams a response', () async {
+      await expectPromptStreams(
+        'Rewrite this answer so I can say it out loud naturally: Hi there.',
+        'Rephrased out loud.',
+      );
+    });
+
+    test('translate prompt streams a response', () async {
+      await expectPromptStreams(
+        'Translate this answer into natural Chinese: Hello world.',
+        'Translated text.',
+      );
+    });
+
+    test('factcheck prompt streams a response', () async {
+      await expectPromptStreams(
+        'Fact-check the key claims in this answer: Water boils at 50C.',
+        'Fact-checked correction.',
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // WS-C: Q&A button on live session
+  //
+  // Acceptance: "Q&A on active session returns answer, no 'assistant request
+  // failed' toast." Entry point is `ConversationEngine.handleQAButtonPressed`
+  // -> `_runManualContextualQa` -> `_generateResponse(bypassRealtimeGuard:
+  // true)`. The bypass was already set on this path, so WS-A's fix does not
+  // touch it — but the regression test below locks the end-to-end behavior
+  // so any future change that breaks the live-session Q&A path will be
+  // caught by CI instead of waiting for a hardware repro of "Assistant
+  // request failed".
+  // ---------------------------------------------------------------------------
+  group('Q&A button on live session (WS-C)', () {
+    late ConversationEngine engine;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      await SettingsManager.instance.initialize();
+      ConversationEngine.resetTestHooks();
+      SettingsManager.instance.assistantProfileId = 'general';
+      SettingsManager.instance.language = 'en';
+      SettingsManager.instance.autoDetectQuestions = true;
+      SettingsManager.instance.answerAll = true;
+      // Realtime mode — same config that previously dropped askQuestion
+      // prompts, to guarantee the Q&A path keeps bypassing the guard.
+      SettingsManager.instance.transcriptionBackend = 'openai';
+      SettingsManager.instance.openAISessionMode = 'realtime';
+      engine = ConversationEngine.instance;
+      engine.clearHistory();
+      engine.stop();
+      await HudController.instance.resetToIdle(
+        source: 'test.ws_c.qa_button.setup',
+      );
+    });
+
+    test('handleQAButtonPressed streams an answer (no error toast)',
+        () async {
+      const expected = 'The status is green.';
+      final provider = await configureFakeLlm(
+        responses: const [],
+        streamResponses: [
+          FakeStreamResponse(expected.split('')),
+        ],
+      );
+
+      final aiUpdates = <String>[];
+      final aiSub = engine.aiResponseStream.listen(aiUpdates.add);
+      final providerErrors = <ProviderErrorState?>[];
+      final errSub =
+          engine.providerErrorStream.listen(providerErrors.add);
+
+      engine.start(source: TranscriptSource.phone);
+      // Seed the transcript window with a question so the manual Q&A path
+      // has something to answer.
+      engine.onTranscriptionFinalized('What is the status of the project?');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      await engine.handleQAButtonPressed();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      await aiSub.cancel();
+      await errSub.cancel();
+
+      expect(
+        provider.streamCallCount,
+        greaterThanOrEqualTo(1),
+        reason: 'handleQAButtonPressed must reach the LLM stream in '
+            'realtime mode (WS-C acceptance)',
+      );
+      expect(
+        aiUpdates.isNotEmpty && aiUpdates.last == expected,
+        isTrue,
+        reason: 'Final aiResponse should render the streamed answer, '
+            'not an "Assistant request failed" message',
+      );
+      // No non-null provider error should have been published — that is
+      // the signal the UI uses to show the "Assistant request failed"
+      // toast.
+      final nonNullErrors =
+          providerErrors.where((e) => e != null).toList();
+      expect(
+        nonNullErrors,
+        isEmpty,
+        reason: 'No ProviderErrorState should be published on a '
+            'successful live-session Q&A (WS-C acceptance: no '
+            '"assistant request failed" toast)',
+      );
     });
   });
 
