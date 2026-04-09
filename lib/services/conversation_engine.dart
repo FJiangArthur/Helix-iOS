@@ -237,6 +237,26 @@ class ConversationEngine {
     ConversationMode? mode,
     TranscriptSource source = TranscriptSource.phone,
   }) {
+    // WS-B Fix 1: idempotent re-entry. If the engine is already active for the
+    // same source, do NOT wipe the live transcript — just refresh status and
+    // optionally update the mode. This prevents native restarts, audio
+    // interruptions, or double-tap startSession calls from blanking the live
+    // page mid-session.
+    if (_isActive && _transcriptSource == source) {
+      if (mode != null) setMode(mode);
+      _statusController.add(EngineStatus.listening);
+      appLogger.i(
+        'ConversationEngine.start() re-entered while active; '
+        'preserving live state (source=${source.name})',
+      );
+      return;
+    }
+    if (_isActive && _transcriptSource != source) {
+      appLogger.w(
+        'ConversationEngine.start() source change mid-session '
+        '(${_transcriptSource.name} -> ${source.name}); resetting live state',
+      );
+    }
     _cancelInFlightResponse();
     _isGeneratingResponse = false;
     _resetLiveSessionState(clearConversationHistory: true);
