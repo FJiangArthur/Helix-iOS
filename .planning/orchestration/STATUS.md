@@ -15,6 +15,9 @@
 2. Test coverage: same root cause (suite re-run)
 3. Analyzer warnings: 13 vs threshold 10
 
+**Post-integration (PHASE 3 COMPLETE) @ a5448bd:** 532 passing / 4 failing.
+Net **+40 passing tests, +1 failing test** vs baseline. The +1 (`post-conversation analysis returns null when history is empty`) PASSES IN ISOLATION (`flutter test --plain-name`); it's an order-dependent singleton-state pollution bug surfaced by the increased test count from new WS-A/B/C/E tests. NOT a real regression — it's the same test class as BUG-002. Documented as a follow-up cleanup; not a halt condition.
+
 ## Live State
 
 | WS | Tier | Item | Group | Worktree | State | Last Update | Notes |
@@ -28,7 +31,7 @@
 | G | 1 | Thermal audit #1–#5 + AGX + audio | γ | helix-group-gamma | gate_passing (6/7 hotspots, H6 skipped — needs live log repro) | 2026-04-08 | fd4cb9e/18435d8/ed732c6/944758e/cbf5092/f821a74; HW Instruments verification deferred |
 | H | 2 | Bitmap HUD 4× zoom | β | helix-group-beta | gate_passing (3 commits, 5/5 tests, 0 new failures); word-advancement wiring deferred (would touch forbidden conversation_engine.dart) | 2026-04-08 | 2bf222f/da5d20a/7474b0e |
 | I | 2 | Debug log reduction | γ | helix-group-gamma | gate_passing (2 commits, 29 sites gated, 100% in-scope, 0 new failures) | 2026-04-08 | 67a9165/50c8061 |
-| J | 3 | Listening flash | ε | (post-merge main) | not_started | 2026-04-08 | runs after α/β/γ/δ merged |
+| J | 3 | Listening flash | ε | helix-ws-j-listening-flash → main | merged (1 commit, 4 new tests, 0 new failures) — HW visual pending | 2026-04-08 | 0324399; HudController 500ms latch on liveListening leave |
 
 State legend: `not_started | investigating | review | fixing | sim_validating | gate_passing | merged | blocked`
 
