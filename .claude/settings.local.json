@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(ralph-loop:ralph-loop)",
+      "Bash(git:*)",
+      "Bash(flutter pub:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter build:*)",
+      "Bash(flutter test:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter install:*)",
+      "Bash(grep:*)",
+      "WebSearch",
+      "Bash(wc -l /Users/artjiang/develop/Helix-iOS/lib/screens/*.dart)",
+      "Bash(xcrun devicectl:*)",
+      "Bash(dart analyze:*)",
+      "Bash(chmod:*)",
+      "Bash(bash scripts/run_gate.sh)",
+      "Bash(gem list:*)",
+      "Bash(bundle install:*)",
+      "Bash(bundle exec:*)",
+      "Bash(xcrun altool:*)",
+      "Bash(echo \"EXIT CODE: $?\")",
+      "Bash(flutter clean:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/helix_sim_validation_hook.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
