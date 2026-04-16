@@ -637,24 +637,87 @@ class ConversationEngine {
     _emitTranscriptSnapshot();
   }
 
+  // Guards against concurrent compaction (one Future in flight at a time)
+  // and backs off after consecutive failures to avoid retry storms.
+  bool _compactionInFlight = false;
+  int _compactionConsecutiveFailures = 0;
+  static const int _compactionBackoffThreshold = 3;
+
   /// Archives the oldest 100 segments via [SessionContextManager] and removes
   /// them from [_finalizedSegments] to bound memory during long sessions.
+  ///
+  /// BUG-005 fix: segments are only removed AFTER archiving completes
+  /// (success or documented fallback). If the LLM service is unavailable
+  /// or summarization raises an unexpected error, segments are retained
+  /// and will be retried on the next cap-trigger.
   void _compactAndCapSegments() {
-    final toArchive = _finalizedSegments.sublist(0, 100);
-    // Fire-and-forget: summarization runs in the background.
-    final llmService = _getLlmService();
-    if (llmService != null) {
-      _sessionContextManager
-          .compactOldSegments(toArchive, llmService)
-          .catchError((e) {
-            appLogger.w('[Engine] Background segment compaction failed: $e');
-          });
+    if (_compactionInFlight) {
+      appLogger.d('[Engine] Compaction already in flight, skipping');
+      return;
     }
-    _finalizedSegments.removeRange(0, 100);
-    appLogger.d(
-      '[Engine] Capped segments: archived 100, '
-      '${_finalizedSegments.length} remaining',
+    if (_compactionConsecutiveFailures >= _compactionBackoffThreshold) {
+      // Backoff: retry only every 50th cap-trigger after hitting the threshold,
+      // so a broken LLM config does not spin forever. Segments are retained
+      // (capped list simply grows beyond 200 until retry succeeds).
+      if (_finalizedSegments.length %
+              (50 * (_compactionConsecutiveFailures + 1)) !=
+          0) {
+        return;
+      }
+    }
+
+    final llmService = _getLlmService();
+    if (llmService == null) {
+      // No LLM available — retain segments, do not silently drop.
+      appLogger.w(
+        '[Engine] Compaction skipped: no LLM service available; '
+        'retaining ${_finalizedSegments.length} segments',
+      );
+      return;
+    }
+
+    final toArchive = List<TranscriptSegment>.from(
+      _finalizedSegments.sublist(0, 100),
     );
+    _compactionInFlight = true;
+
+    // Await-async pattern: do the archive first, then remove. On unexpected
+    // failure (compactOldSegments catches LLM errors internally but the
+    // Future itself could still fail on programmer error), retain segments.
+    _sessionContextManager
+        .compactOldSegments(toArchive, llmService)
+        .then((_) {
+          // Only remove segments once archiving has a home for them.
+          // Additional safety: verify the first 100 are still the same
+          // segments we started archiving (no reentrant modification).
+          final stillSafeToRemove =
+              _finalizedSegments.length >= 100 &&
+              identical(_finalizedSegments[0], toArchive[0]) &&
+              identical(_finalizedSegments[99], toArchive[99]);
+          if (stillSafeToRemove) {
+            _finalizedSegments.removeRange(0, 100);
+            appLogger.d(
+              '[Engine] Compacted: archived 100, '
+              '${_finalizedSegments.length} remaining',
+            );
+          } else {
+            appLogger.w(
+              '[Engine] Segment list mutated during compaction; '
+              'archive succeeded but skipping range removal this cycle',
+            );
+          }
+          _compactionConsecutiveFailures = 0;
+        })
+        .catchError((e, st) {
+          _compactionConsecutiveFailures++;
+          appLogger.w(
+            '[Engine] Compaction failed (consecutive=$_compactionConsecutiveFailures), '
+            'retaining segments: $e',
+          );
+        })
+        .whenComplete(() {
+          _compactionInFlight = false;
+        });
   }
 
   /// Called when transcription is finalized (segment ends or recording stops).
@@ -2623,6 +2686,30 @@ Answer the detected question directly using the recent conversation context abov
   ) {
     instance._hudPacketSinkFactoryForTest = factory;
   }
+
+  /// Test seam: count of finalized segments (BUG-005 regression tests).
+  @visibleForTesting
+  int get debugFinalizedSegmentCount => _finalizedSegments.length;
+
+  /// Test seam: consecutive compaction failure counter (BUG-005 regression).
+  @visibleForTesting
+  int get debugCompactionConsecutiveFailures =>
+      _compactionConsecutiveFailures;
+
+  /// Test seam: whether a compaction Future is in flight.
+  @visibleForTesting
+  bool get debugCompactionInFlight => _compactionInFlight;
+
+  /// Test seam: append a finalized segment without going through the full
+  /// transcription pipeline (BUG-005 regression tests need 200+ segments).
+  @visibleForTesting
+  void debugAppendFinalizedSegment(TranscriptSegment seg) {
+    _finalizedSegments.add(seg);
+  }
+
+  /// Test seam: invoke the cap/compaction routine directly.
+  @visibleForTesting
+  void debugTriggerCompactAndCap() => _compactAndCapSegments();
 
   /// Test seam: drive the streaming HUD path directly. Production callers
   /// should not use this — it exists so unit tests can exercise the
