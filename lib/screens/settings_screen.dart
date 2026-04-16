@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'dev/input_inspector_screen.dart';
+import 'session_prep_screen.dart';
 import '../services/g1_debug_service.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
@@ -691,6 +692,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _settings.entityMemoryEnabled,
                   (v) => _settings.update((s) => s.entityMemoryEnabled = v),
+                ),
+                const SizedBox(height: 8),
+                _buildToggle(
+                  tr('Session Prep', '会话准备'),
+                  tr(
+                    "Inject your pasted prep material into LLM calls during prepared "
+                    "conversations",
+                    '将粘贴的准备材料注入到准备好的会话的 LLM 调用中',
+                  ),
+                  _settings.sessionPrepEnabled,
+                  (v) => _settings.update((s) => s.sessionPrepEnabled = v),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    Icons.edit_note,
+                    color: HelixTheme.cyan.withValues(alpha: 0.8),
+                  ),
+                  title: Text(
+                    tr('Edit Session Prep', '编辑会话准备'),
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    tr(
+                      'Paste JD, resume, or meeting notes. Auto-clears at conversation end.',
+                      '粘贴 JD、简历或会议纪要。会话结束时自动清除。',
+                    ),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                  trailing: const Icon(
+                    Icons.chevron_right,
+                    color: Colors.white38,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const SessionPrepScreen(),
+                      ),
+                    );
+                  },
                 ),
               ]),
               const SizedBox(height: 20),
