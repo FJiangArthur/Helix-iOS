@@ -118,6 +118,16 @@ class SettingsManager {
   bool hudLineStreamingEnabled = true;
 
   // ---------------------------------------------------------------------------
+  // Session Prep (Phase 1 — "prep on your face")
+  // ---------------------------------------------------------------------------
+
+  /// When true, the active `SessionPrepService.prep` text is injected into
+  /// the system prompt on every LLM call. Kill-switch for the Phase 1
+  /// feature; default off until the founder + 2 named users validate the
+  /// Phase 1 success criterion.
+  bool sessionPrepEnabled = false;
+
+  // ---------------------------------------------------------------------------
   // Transcription Settings
   // ---------------------------------------------------------------------------
 
@@ -404,6 +414,7 @@ class SettingsManager {
     voiceActivityDetection = prefs.getBool('voiceActivityDetection') ?? true;
     vadSensitivity = prefs.getDouble('vadSensitivity') ?? 0.5;
     hudLineStreamingEnabled = prefs.getBool('hud.lineStreaming') ?? true;
+    sessionPrepEnabled = prefs.getBool('sessionPrepEnabled') ?? false;
 
     // Transcription
     transcriptionBackend = prefs.getString('transcriptionBackend') ?? 'openai';
@@ -543,6 +554,7 @@ class SettingsManager {
     await prefs.setBool('voiceActivityDetection', voiceActivityDetection);
     await prefs.setDouble('vadSensitivity', vadSensitivity);
     await prefs.setBool('hud.lineStreaming', hudLineStreamingEnabled);
+    await prefs.setBool('sessionPrepEnabled', sessionPrepEnabled);
 
     // Transcription
     await prefs.setString('transcriptionBackend', transcriptionBackend);
