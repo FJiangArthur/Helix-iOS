@@ -59,3 +59,8 @@ ios/*.mobileprovision
 .mcp.json
 coverage/
 .worktrees/
+
+# Phase 0 latency corpus — audio clips stay local; manifest.json
+# and baseline.json ARE committed.
+test/fixtures/latency_corpus/*.wav
+test/fixtures/latency_corpus/baseline*.json

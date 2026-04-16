@@ -20,6 +20,7 @@ import 'hud_stream_session.dart';
 import 'provider_error_state.dart';
 import 'proto.dart';
 import 'glasses_protocol.dart';
+import 'latency_tracker.dart';
 import 'llm/llm_service.dart';
 import 'llm/llm_provider.dart';
 import 'factcheck/cited_fact_check_result.dart';
@@ -300,6 +301,7 @@ class ConversationEngine {
     _lastEmittedPartial = '';
     _clearProviderError();
     _sessionContextManager.reset();
+    LatencyTracker.instance.resetSessionRetries();
     _ensureTranscriptHistorySnapshot();
     // Force-persist on stop regardless of debounce
     _lastPersistTime = null;
@@ -731,6 +733,14 @@ class ConversationEngine {
     String? speakerLabel,
   }) {
     if (!_isActive) return;
+
+    // Phase 0 instrumentation: marker (a) — speech endpoint detected.
+    // Advances the turn counter so downstream markers correlate.
+    LatencyTracker.instance.beginTurn();
+    LatencyTracker.instance.record(
+      LatencyMarker.speechEndpoint,
+      extra: {'charCount': text.length},
+    );
 
     // Finalize the trailing partial sentence, not the full buffer text
     // (complete sentences were already finalized by onTranscriptionUpdate).
@@ -1757,6 +1767,15 @@ Reply with JSON only (no markdown code fence):
         ),
       );
 
+      // Phase 0 instrumentation: marker (b) — question detection fires.
+      LatencyTracker.instance.record(
+        LatencyMarker.questionDetected,
+        extra: {
+          'source': 'auto',
+          'questionLength': detection.question.length,
+        },
+      );
+
       _recordDetectedQuestionTurn(detection);
 
       _aiResponseController.add('');
@@ -2134,6 +2153,17 @@ $profileInstruction''';
         timestamp: detection.timestamp,
       ),
     );
+
+    // Phase 0 instrumentation: marker (b) — question detection fires
+    // (manual / on-demand path).
+    LatencyTracker.instance.record(
+      LatencyMarker.questionDetected,
+      extra: {
+        'source': 'manual',
+        'questionLength': detection.question.length,
+      },
+    );
+
     _recordDetectedQuestionTurn(detection);
 
     _aiResponseController.add('');
@@ -2241,6 +2271,7 @@ $profileInstruction''';
       Future<void> flushChain = Future<void>.value();
       final glassesConnected = _glassesConnectionChecker();
 
+      bool firstHudFlushRecorded = false;
       Future<void> flushPendingDelta() {
         flushTimer?.cancel();
         flushTimer = null;
@@ -2257,6 +2288,16 @@ $profileInstruction''';
 
           if (glassesConnected) {
             await _streamToGlasses(responseText, isStreaming: true);
+            // Phase 0 instrumentation: marker (e) — first HUD page pushed.
+            // Only the first flush-with-glasses per turn counts; subsequent
+            // flushes are downstream page updates, not "first page."
+            if (!firstHudFlushRecorded) {
+              firstHudFlushRecorded = true;
+              LatencyTracker.instance.record(
+                LatencyMarker.hudFirstPage,
+                extra: {'chars': responseText.length},
+              );
+            }
           }
         });
         return flushChain;
@@ -2275,8 +2316,18 @@ $profileInstruction''';
       // Tool call loop: stream response, execute any tool calls, re-stream
       var toolMessages = List<ChatMessage>.from(messages);
       const maxToolRounds = 3;
+      bool firstTokenRecorded = false;
       for (var round = 0; round <= maxToolRounds; round++) {
         ToolCallRequest? pendingToolCall;
+
+        // Phase 0 instrumentation: marker (c) — LLM request sent.
+        // Logged per tool-call round so tool-call retries are visible in the
+        // trace. The 'firstTokenRecorded' guard ensures marker (d) fires
+        // exactly once per turn regardless of round count.
+        LatencyTracker.instance.record(
+          LatencyMarker.llmRequestSent,
+          extra: {'round': round, 'toolsEnabled': useTools},
+        );
 
         await for (final event in llmService.streamWithTools(
           systemPrompt: systemPrompt,
@@ -2295,6 +2346,14 @@ $profileInstruction''';
 
           switch (event) {
             case TextDelta(:final text):
+              // Phase 0 instrumentation: marker (d) — first LLM token received.
+              if (!firstTokenRecorded && text.isNotEmpty) {
+                firstTokenRecorded = true;
+                LatencyTracker.instance.record(
+                  LatencyMarker.llmFirstToken,
+                  extra: {'round': round},
+                );
+              }
               if (responseText.isEmpty && text.startsWith('[Error]')) {
                 // Diagnostic for Q&A-on-live-session failure — see todo
                 // 2026-04-08-qa-button-on-live-session-fails-assistant-
@@ -3168,6 +3227,16 @@ Answer the detected question directly using the recent conversation context abov
   /// This bypasses the realtime-session auto-analysis guard and always tries
   /// to answer the nearest current question using the smart answer path.
   Future<void> forceQuestionAnalysis() async {
+    // Phase 0 instrumentation: marker (f) — user hit the touchpad retry.
+    // Retry-rate is the single-best proxy for product health (see design doc
+    // "push the button to retry" evidence). Logged as its own marker so it
+    // is visible in the trace even without a preceding speech-endpoint event.
+    LatencyTracker.instance.record(
+      LatencyMarker.retryPressed,
+      extra: {'answerAll': answerAll},
+    );
+    LatencyTracker.instance.recordManualRetry();
+
     if (!answerAll) {
       await triggerOnDemandAnalysis();
     } else {

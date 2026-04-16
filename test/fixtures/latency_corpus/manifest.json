@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "description": "Latency corpus — Phase 2 regression measurement. See README.md.",
+  "expectedCount": 20,
+  "kinds": {
+    "qa": 8,
+    "st": 6,
+    "he": 3,
+    "mt": 3
+  },
+  "clips": [
+  ]
+}
