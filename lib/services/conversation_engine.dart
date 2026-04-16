@@ -22,6 +22,7 @@ import 'proto.dart';
 import 'glasses_protocol.dart';
 import 'latency_tracker.dart';
 import 'llm/llm_service.dart';
+import 'prompt_assembler.dart';
 import 'llm/llm_provider.dart';
 import 'factcheck/cited_fact_check_result.dart';
 import 'factcheck/tavily_search_provider.dart';
@@ -2263,7 +2264,14 @@ $profileInstruction''';
         return;
       }
 
-      final systemPrompt = overrideSystemPrompt ?? _getSystemPrompt();
+      // Phase 1: compose [base system prompt] + [user_prep XML block] in
+      // a stable order so OpenAI prompt caching discounts the repeated
+      // prefix. assembleSystemPrompt returns the base unchanged when
+      // session-prep is disabled or empty.
+      final baseSystemPrompt = overrideSystemPrompt ?? _getSystemPrompt();
+      final systemPrompt = PromptAssembler.assembleSystemPrompt(
+        baseSystemPrompt,
+      );
       final messages = overrideMessages ?? _buildContextMessages(question);
 
       var responseText = '';
@@ -2744,6 +2752,15 @@ Answer the detected question directly using the recent conversation context abov
     HudPacketSink Function()? factory,
   ) {
     instance._hudPacketSinkFactoryForTest = factory;
+  }
+
+  /// Test seam: emit a conversation-saved event. Used by integration tests
+  /// that need to verify downstream listeners (e.g. SessionPrepService)
+  /// respond to the conversation-end boundary without driving a full
+  /// persist-to-database flow.
+  @visibleForTesting
+  void debugEmitSessionSaved(String conversationId) {
+    _sessionSavedController.add(conversationId);
   }
 
   /// Test seam: count of finalized segments (BUG-005 regression tests).
