@@ -4,8 +4,9 @@ PROJECT_DIR = File.expand_path("../..", __dir__)
 BUNDLE_ID = "com.artjiang.helix"
 PROJECT_NAME = "Helix"
 IPA_NAME = "Even Companion"
-API_KEY = "334J623VNU"
-API_ISSUER = "201a71fb-11b4-406e-b857-5908f129d99e"
+XCARCHIVE_PATH = "#{PROJECT_DIR}/build/ios/archive/#{IPA_NAME}.xcarchive"
+IPA_DIR = "#{PROJECT_DIR}/build/ios/ipa"
+API_KEY_PATH = "#{__dir__}/api_key.json"
 
 platform :ios do
   # ─── Helpers ─────────────────────────────────────────────────────────
@@ -16,24 +17,76 @@ platform :ios do
     end
   end
 
-  def flutter_build_ipa(build_number)
+  def asc_api_key
+    app_store_connect_api_key(
+      key_id: "334J623VNU",
+      issuer_id: "201a71fb-11b4-406e-b857-5908f129d99e",
+      key_filepath: File.expand_path("~/.appstoreconnect/admin-AuthKey_334J623VNU.p8"),
+      in_house: false,
+    )
+  end
+
+  def flutter_archive(build_number)
     Dir.chdir(PROJECT_DIR) do
       run_security_gate
-      sh("flutter", "build", "ipa", "--release",
+      # Archive only — skip the export step that fails without profiles.
+      # Fastlane handles export + signing via the API key below.
+      sh("flutter", "build", "ios", "--release",
          "--dart-define=HELIX_FORCE_SANITIZED_LOGS=true",
          "--build-number=#{build_number}",
-         "--export-options-plist=ios/fastlane/ExportOptions.plist")
+         "--no-codesign")
+      sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+         "-scheme", "Runner",
+         "-configuration", "Release",
+         "-archivePath", XCARCHIVE_PATH,
+         "DEVELOPMENT_TEAM=4SA9UFLZMT",
+         "-allowProvisioningUpdates",
+         "-authenticationKeyPath", File.expand_path("~/.appstoreconnect/admin-AuthKey_334J623VNU.p8"),
+         "-authenticationKeyID", "334J623VNU",
+         "-authenticationKeyIssuerID", "201a71fb-11b4-406e-b857-5908f129d99e",
+         "archive")
     end
   end
 
-  def ipa_path
-    "#{PROJECT_DIR}/build/ios/ipa/#{IPA_NAME}.ipa"
+  def export_and_upload(api_key)
+    # Use build_app's export_xcargs to pass provisioning updates auth
+    # so the liveactivity extension profile gets auto-created.
+    build_app(
+      skip_build_archive: true,
+      archive_path: XCARCHIVE_PATH,
+      export_method: "app-store-connect",
+      export_team_id: "4SA9UFLZMT",
+      output_directory: IPA_DIR,
+      output_name: "#{IPA_NAME}.ipa",
+      export_options: {
+        signingStyle: "automatic",
+        uploadSymbols: true,
+      },
+      export_xcargs: "-allowProvisioningUpdates " \
+                     "-authenticationKeyPath #{File.expand_path("~/.appstoreconnect/admin-AuthKey_334J623VNU.p8")} " \
+                     "-authenticationKeyID 334J623VNU " \
+                     "-authenticationKeyIssuerID 201a71fb-11b4-406e-b857-5908f129d99e",
+    )
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "#{IPA_DIR}/#{IPA_NAME}.ipa",
+      skip_waiting_for_build_processing: true,
+    )
   end
 
-  def upload_ipa
-    sh("xcrun", "altool", "--upload-app", "--type", "ios",
-       "-f", ipa_path,
-       "--apiKey", API_KEY, "--apiIssuer", API_ISSUER)
+  # ─── Upload only (archive + IPA already built) ──────────────────
+
+  desc "Upload an existing IPA to TestFlight (skip build)"
+  lane :upload_only do
+    api_key = asc_api_key
+    ipa = "#{IPA_DIR}/#{IPA_NAME}.ipa"
+    UI.user_error!("IPA not found at #{ipa}") unless File.exist?(ipa)
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: ipa,
+      skip_waiting_for_build_processing: true,
+    )
+    UI.success("Uploaded #{ipa} to TestFlight")
   end
 
   # ─── TestFlight ────────────────────────────────────────────────────
@@ -41,9 +94,10 @@ platform :ios do
   desc "Build Flutter app and upload to TestFlight"
   lane :testflight_release do
     build_number = Time.now.strftime("%Y%m%d%H%M")
-    flutter_build_ipa(build_number)
-    upload_ipa
-    UI.success("Uploaded #{PROJECT_NAME} (#{build_number}) to App Store Connect / TestFlight")
+    api_key = asc_api_key
+    flutter_archive(build_number)
+    export_and_upload(api_key)
+    UI.success("Uploaded #{PROJECT_NAME} (#{build_number}) to TestFlight")
   end
 
   # ─── App Store Release ─────────────────────────────────────────────
@@ -51,18 +105,20 @@ platform :ios do
   desc "Build Flutter app and submit to App Store Connect"
   lane :release do
     build_number = Time.now.strftime("%Y%m%d%H%M")
-    flutter_build_ipa(build_number)
-    upload_ipa
+    api_key = asc_api_key
+    flutter_archive(build_number)
+    export_and_upload(api_key)
     UI.success("Uploaded #{PROJECT_NAME} (#{build_number}) to App Store Connect")
   end
 
-  # ─── Full Pipeline: TestFlight + App Store ─────────────────────────
+  # ─── Full Pipeline ─────────────────────────────────────────────────
 
-  desc "Build once, upload to both TestFlight and App Store Connect"
+  desc "Build once, upload to TestFlight"
   lane :ship do
     build_number = Time.now.strftime("%Y%m%d%H%M")
-    flutter_build_ipa(build_number)
-    upload_ipa
-    UI.success("Shipped #{PROJECT_NAME} (#{build_number}) to TestFlight + App Store Connect")
+    api_key = asc_api_key
+    flutter_archive(build_number)
+    export_and_upload(api_key)
+    UI.success("Shipped #{PROJECT_NAME} (#{build_number}) to TestFlight")
   end
 end
