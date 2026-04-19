@@ -27,7 +27,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. A 60-second continuous speech sample produces a transcript with no missing words or mid-sentence gaps
   3. Switching between OpenAI Realtime and Apple Cloud backends both produce usable real-time transcription
   4. No 30-second batching delays occur during any listening session
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 01-01-PLAN.md — Test and validate streaming fixes (no Dart suppression, no VAD gating)
+- [ ] 01-02-PLAN.md — Tune segment restart timing and harden multi-backend reliability
 
 ### Phase 2: Q&A Pipeline and Fact-Checking
 **Goal**: Users get reliable AI answers on their glasses during live conversations, with fast background fact-checking
@@ -57,6 +60,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Transcription Reliability | 0/0 | Not started | - |
+| 1. Transcription Reliability | 0/2 | Planning complete | - |
 | 2. Q&A Pipeline and Fact-Checking | 0/0 | Not started | - |
 | 3. App Store Submission | 0/0 | Not started | - |
