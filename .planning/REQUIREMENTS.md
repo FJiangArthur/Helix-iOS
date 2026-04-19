@@ -58,23 +58,23 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TRNS-01 | — | Pending |
-| TRNS-02 | — | Pending |
-| TRNS-03 | — | Pending |
-| TRNS-04 | — | Pending |
-| QA-01 | — | Pending |
-| QA-02 | — | Pending |
-| QA-03 | — | Pending |
-| QA-04 | — | Pending |
-| FACT-01 | — | Pending |
-| SHIP-01 | — | Pending |
-| SHIP-02 | — | Pending |
+| TRNS-01 | Phase 1 | Pending |
+| TRNS-02 | Phase 1 | Pending |
+| TRNS-03 | Phase 1 | Pending |
+| TRNS-04 | Phase 1 | Pending |
+| QA-01 | Phase 2 | Pending |
+| QA-02 | Phase 2 | Pending |
+| QA-03 | Phase 2 | Pending |
+| QA-04 | Phase 2 | Pending |
+| FACT-01 | Phase 2 | Pending |
+| SHIP-01 | Phase 3 | Pending |
+| SHIP-02 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 11 total
-- Mapped to phases: 0
-- Unmapped: 11 (roadmap pending)
+- Mapped to phases: 11
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-18*
-*Last updated: 2026-04-18 after initial definition*
+*Last updated: 2026-04-18 after roadmap creation*
