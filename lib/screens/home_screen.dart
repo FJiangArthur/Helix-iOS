@@ -16,6 +16,7 @@ import '../services/provider_error_state.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/transcript_timestamps.dart';
+import '../widgets/active_project_chip.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/session_cost_badge.dart';
 import '../widgets/home_assistant_modules.dart';
@@ -527,6 +528,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           child: Column(
             children: [
               _buildOverviewCard(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: ActiveProjectChip(),
+                ),
+              ),
               if (!_hasApiKey) ...[
                 const SizedBox(height: 8),
                 _buildSetupBanner(),
