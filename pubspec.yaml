@@ -49,6 +49,12 @@ dependencies:
   intl: any
   logger: ^2.0.0
 
+  # PDF parsing for Project RAG
+  syncfusion_flutter_pdf: ^30.1.37
+
+  # Document picker for iOS (Project RAG)
+  file_picker: ^10.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
