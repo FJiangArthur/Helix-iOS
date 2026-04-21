@@ -12,9 +12,19 @@ class ActiveProjectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Gracefully no-op if the controller hasn't been loaded yet (e.g. in
+    // widget tests that don't run main.dart). Production always calls
+    // ActiveProjectController.load() in main() before runApp.
+    final ActiveProjectController controller;
+    try {
+      controller = ActiveProjectController.instance;
+    } on StateError {
+      return const SizedBox.shrink();
+    }
+
     return StreamBuilder<String?>(
-      stream: ActiveProjectController.instance.activeProjectStream,
-      initialData: ActiveProjectController.instance.activeProjectId,
+      stream: controller.activeProjectStream,
+      initialData: controller.activeProjectId,
       builder: (ctx, activeSnap) {
         final activeId = activeSnap.data;
         return StreamBuilder<List<Project>>(
