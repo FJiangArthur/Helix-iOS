@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app.dart';
@@ -11,6 +13,10 @@ import 'services/hud_widgets/reminders_widget.dart';
 import 'services/hud_widgets/todos_widget.dart';
 import 'services/hud_widgets/weather_widget.dart';
 import 'services/llm/llm_service.dart';
+import 'services/projects/active_project_controller.dart';
+import 'services/projects/openai_embeddings_client.dart';
+import 'services/projects/project_rag_service.dart';
+import 'services/projects/projects_service.dart';
 import 'services/settings_manager.dart';
 import 'utils/app_logger.dart';
 import 'services/conversation_engine.dart';
@@ -41,6 +47,35 @@ void main() async {
   // ignore: unnecessary_statements
   HelixDatabase.instance; // triggers LazyDatabase creation
   await MigrationService.migrateIfNeeded();
+
+  // Load the persisted active project selection and wire the RAG service.
+  // Must happen before runApp so Home can read ActiveProjectController.instance
+  // without a race on first paint.
+  await ActiveProjectController.load();
+  final openAiKey =
+      await SettingsManager.instance.getApiKey('openai') ?? '';
+  ProjectRagService.initialize(
+    db: HelixDatabase.instance,
+    embeddingClient: OpenAiEmbeddingsClient(
+      apiKey: openAiKey,
+      model: 'text-embedding-3-small',
+    ),
+  );
+  // Best-effort purge of expired soft-deleted projects on each launch.
+  unawaited(ProjectsService.instance.purgeExpiredSoftDeletes());
+
+  // Re-initialize the RAG service whenever settings change, so an updated
+  // OpenAI key propagates to the embedding client.
+  SettingsManager.instance.onSettingsChanged.listen((_) async {
+    final key = await SettingsManager.instance.getApiKey('openai') ?? '';
+    ProjectRagService.initialize(
+      db: HelixDatabase.instance,
+      embeddingClient: OpenAiEmbeddingsClient(
+        apiKey: key,
+        model: 'text-embedding-3-small',
+      ),
+    );
+  });
 
   // Initialize BLE manager
   _initializeBleManager();
