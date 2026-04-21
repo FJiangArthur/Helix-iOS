@@ -8686,6 +8686,7 @@ abstract class _$HelixDatabase extends GeneratedDatabase {
     this as HelixDatabase,
   );
   late final SearchDao searchDao = SearchDao(this as HelixDatabase);
+  late final ProjectDao projectDao = ProjectDao(this as HelixDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();

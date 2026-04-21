@@ -12,6 +12,7 @@ import 'todo_dao.dart';
 import 'voice_note_dao.dart';
 import 'daily_memory_dao.dart';
 import 'search_dao.dart';
+import 'project_dao.dart';
 
 part 'helix_database.g.dart';
 
@@ -293,6 +294,7 @@ class ProjectDocumentChunkVectors extends Table {
     VoiceNoteDao,
     DailyMemoryDao,
     SearchDao,
+    ProjectDao,
   ],
 )
 class HelixDatabase extends _$HelixDatabase {
