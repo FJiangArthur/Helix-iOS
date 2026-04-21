@@ -6568,6 +6568,2085 @@ class UserProfilesCompanion extends UpdateCompanion<UserProfile> {
   }
 }
 
+class $ProjectsTable extends Projects with TableInfo<$ProjectsTable, Project> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _descriptionMeta = const VerificationMeta(
+    'description',
+  );
+  @override
+  late final GeneratedColumn<String> description = GeneratedColumn<String>(
+    'description',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _chunkSizeTokensMeta = const VerificationMeta(
+    'chunkSizeTokens',
+  );
+  @override
+  late final GeneratedColumn<int> chunkSizeTokens = GeneratedColumn<int>(
+    'chunk_size_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(800),
+  );
+  static const VerificationMeta _chunkOverlapTokensMeta =
+      const VerificationMeta('chunkOverlapTokens');
+  @override
+  late final GeneratedColumn<int> chunkOverlapTokens = GeneratedColumn<int>(
+    'chunk_overlap_tokens',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(100),
+  );
+  static const VerificationMeta _retrievalTopKMeta = const VerificationMeta(
+    'retrievalTopK',
+  );
+  @override
+  late final GeneratedColumn<int> retrievalTopK = GeneratedColumn<int>(
+    'retrieval_top_k',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(5),
+  );
+  static const VerificationMeta _retrievalMinSimilarityMeta =
+      const VerificationMeta('retrievalMinSimilarity');
+  @override
+  late final GeneratedColumn<double> retrievalMinSimilarity =
+      GeneratedColumn<double>(
+        'retrieval_min_similarity',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.3),
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    description,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    chunkSizeTokens,
+    chunkOverlapTokens,
+    retrievalTopK,
+    retrievalMinSimilarity,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'projects';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Project> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('description')) {
+      context.handle(
+        _descriptionMeta,
+        description.isAcceptableOrUnknown(
+          data['description']!,
+          _descriptionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('chunk_size_tokens')) {
+      context.handle(
+        _chunkSizeTokensMeta,
+        chunkSizeTokens.isAcceptableOrUnknown(
+          data['chunk_size_tokens']!,
+          _chunkSizeTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('chunk_overlap_tokens')) {
+      context.handle(
+        _chunkOverlapTokensMeta,
+        chunkOverlapTokens.isAcceptableOrUnknown(
+          data['chunk_overlap_tokens']!,
+          _chunkOverlapTokensMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retrieval_top_k')) {
+      context.handle(
+        _retrievalTopKMeta,
+        retrievalTopK.isAcceptableOrUnknown(
+          data['retrieval_top_k']!,
+          _retrievalTopKMeta,
+        ),
+      );
+    }
+    if (data.containsKey('retrieval_min_similarity')) {
+      context.handle(
+        _retrievalMinSimilarityMeta,
+        retrievalMinSimilarity.isAcceptableOrUnknown(
+          data['retrieval_min_similarity']!,
+          _retrievalMinSimilarityMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Project map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Project(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      description: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}description'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      chunkSizeTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_size_tokens'],
+      )!,
+      chunkOverlapTokens: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_overlap_tokens'],
+      )!,
+      retrievalTopK: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}retrieval_top_k'],
+      )!,
+      retrievalMinSimilarity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}retrieval_min_similarity'],
+      )!,
+    );
+  }
+
+  @override
+  $ProjectsTable createAlias(String alias) {
+    return $ProjectsTable(attachedDatabase, alias);
+  }
+}
+
+class Project extends DataClass implements Insertable<Project> {
+  final String id;
+  final String name;
+  final String? description;
+  final int createdAt;
+  final int updatedAt;
+  final int? deletedAt;
+  final int chunkSizeTokens;
+  final int chunkOverlapTokens;
+  final int retrievalTopK;
+  final double retrievalMinSimilarity;
+  const Project({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.chunkSizeTokens,
+    required this.chunkOverlapTokens,
+    required this.retrievalTopK,
+    required this.retrievalMinSimilarity,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || description != null) {
+      map['description'] = Variable<String>(description);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['chunk_size_tokens'] = Variable<int>(chunkSizeTokens);
+    map['chunk_overlap_tokens'] = Variable<int>(chunkOverlapTokens);
+    map['retrieval_top_k'] = Variable<int>(retrievalTopK);
+    map['retrieval_min_similarity'] = Variable<double>(retrievalMinSimilarity);
+    return map;
+  }
+
+  ProjectsCompanion toCompanion(bool nullToAbsent) {
+    return ProjectsCompanion(
+      id: Value(id),
+      name: Value(name),
+      description: description == null && nullToAbsent
+          ? const Value.absent()
+          : Value(description),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      chunkSizeTokens: Value(chunkSizeTokens),
+      chunkOverlapTokens: Value(chunkOverlapTokens),
+      retrievalTopK: Value(retrievalTopK),
+      retrievalMinSimilarity: Value(retrievalMinSimilarity),
+    );
+  }
+
+  factory Project.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Project(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      description: serializer.fromJson<String?>(json['description']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      chunkSizeTokens: serializer.fromJson<int>(json['chunkSizeTokens']),
+      chunkOverlapTokens: serializer.fromJson<int>(json['chunkOverlapTokens']),
+      retrievalTopK: serializer.fromJson<int>(json['retrievalTopK']),
+      retrievalMinSimilarity: serializer.fromJson<double>(
+        json['retrievalMinSimilarity'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'description': serializer.toJson<String?>(description),
+      'createdAt': serializer.toJson<int>(createdAt),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'chunkSizeTokens': serializer.toJson<int>(chunkSizeTokens),
+      'chunkOverlapTokens': serializer.toJson<int>(chunkOverlapTokens),
+      'retrievalTopK': serializer.toJson<int>(retrievalTopK),
+      'retrievalMinSimilarity': serializer.toJson<double>(
+        retrievalMinSimilarity,
+      ),
+    };
+  }
+
+  Project copyWith({
+    String? id,
+    String? name,
+    Value<String?> description = const Value.absent(),
+    int? createdAt,
+    int? updatedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    int? chunkSizeTokens,
+    int? chunkOverlapTokens,
+    int? retrievalTopK,
+    double? retrievalMinSimilarity,
+  }) => Project(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    description: description.present ? description.value : this.description,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    chunkSizeTokens: chunkSizeTokens ?? this.chunkSizeTokens,
+    chunkOverlapTokens: chunkOverlapTokens ?? this.chunkOverlapTokens,
+    retrievalTopK: retrievalTopK ?? this.retrievalTopK,
+    retrievalMinSimilarity:
+        retrievalMinSimilarity ?? this.retrievalMinSimilarity,
+  );
+  Project copyWithCompanion(ProjectsCompanion data) {
+    return Project(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      description: data.description.present
+          ? data.description.value
+          : this.description,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      chunkSizeTokens: data.chunkSizeTokens.present
+          ? data.chunkSizeTokens.value
+          : this.chunkSizeTokens,
+      chunkOverlapTokens: data.chunkOverlapTokens.present
+          ? data.chunkOverlapTokens.value
+          : this.chunkOverlapTokens,
+      retrievalTopK: data.retrievalTopK.present
+          ? data.retrievalTopK.value
+          : this.retrievalTopK,
+      retrievalMinSimilarity: data.retrievalMinSimilarity.present
+          ? data.retrievalMinSimilarity.value
+          : this.retrievalMinSimilarity,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Project(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('chunkSizeTokens: $chunkSizeTokens, ')
+          ..write('chunkOverlapTokens: $chunkOverlapTokens, ')
+          ..write('retrievalTopK: $retrievalTopK, ')
+          ..write('retrievalMinSimilarity: $retrievalMinSimilarity')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    description,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    chunkSizeTokens,
+    chunkOverlapTokens,
+    retrievalTopK,
+    retrievalMinSimilarity,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Project &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.description == this.description &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.chunkSizeTokens == this.chunkSizeTokens &&
+          other.chunkOverlapTokens == this.chunkOverlapTokens &&
+          other.retrievalTopK == this.retrievalTopK &&
+          other.retrievalMinSimilarity == this.retrievalMinSimilarity);
+}
+
+class ProjectsCompanion extends UpdateCompanion<Project> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String?> description;
+  final Value<int> createdAt;
+  final Value<int> updatedAt;
+  final Value<int?> deletedAt;
+  final Value<int> chunkSizeTokens;
+  final Value<int> chunkOverlapTokens;
+  final Value<int> retrievalTopK;
+  final Value<double> retrievalMinSimilarity;
+  final Value<int> rowid;
+  const ProjectsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.description = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.chunkSizeTokens = const Value.absent(),
+    this.chunkOverlapTokens = const Value.absent(),
+    this.retrievalTopK = const Value.absent(),
+    this.retrievalMinSimilarity = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectsCompanion.insert({
+    required String id,
+    required String name,
+    this.description = const Value.absent(),
+    required int createdAt,
+    required int updatedAt,
+    this.deletedAt = const Value.absent(),
+    this.chunkSizeTokens = const Value.absent(),
+    this.chunkOverlapTokens = const Value.absent(),
+    this.retrievalTopK = const Value.absent(),
+    this.retrievalMinSimilarity = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<Project> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? description,
+    Expression<int>? createdAt,
+    Expression<int>? updatedAt,
+    Expression<int>? deletedAt,
+    Expression<int>? chunkSizeTokens,
+    Expression<int>? chunkOverlapTokens,
+    Expression<int>? retrievalTopK,
+    Expression<double>? retrievalMinSimilarity,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (chunkSizeTokens != null) 'chunk_size_tokens': chunkSizeTokens,
+      if (chunkOverlapTokens != null)
+        'chunk_overlap_tokens': chunkOverlapTokens,
+      if (retrievalTopK != null) 'retrieval_top_k': retrievalTopK,
+      if (retrievalMinSimilarity != null)
+        'retrieval_min_similarity': retrievalMinSimilarity,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String?>? description,
+    Value<int>? createdAt,
+    Value<int>? updatedAt,
+    Value<int?>? deletedAt,
+    Value<int>? chunkSizeTokens,
+    Value<int>? chunkOverlapTokens,
+    Value<int>? retrievalTopK,
+    Value<double>? retrievalMinSimilarity,
+    Value<int>? rowid,
+  }) {
+    return ProjectsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      chunkSizeTokens: chunkSizeTokens ?? this.chunkSizeTokens,
+      chunkOverlapTokens: chunkOverlapTokens ?? this.chunkOverlapTokens,
+      retrievalTopK: retrievalTopK ?? this.retrievalTopK,
+      retrievalMinSimilarity:
+          retrievalMinSimilarity ?? this.retrievalMinSimilarity,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (description.present) {
+      map['description'] = Variable<String>(description.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (chunkSizeTokens.present) {
+      map['chunk_size_tokens'] = Variable<int>(chunkSizeTokens.value);
+    }
+    if (chunkOverlapTokens.present) {
+      map['chunk_overlap_tokens'] = Variable<int>(chunkOverlapTokens.value);
+    }
+    if (retrievalTopK.present) {
+      map['retrieval_top_k'] = Variable<int>(retrievalTopK.value);
+    }
+    if (retrievalMinSimilarity.present) {
+      map['retrieval_min_similarity'] = Variable<double>(
+        retrievalMinSimilarity.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('description: $description, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('chunkSizeTokens: $chunkSizeTokens, ')
+          ..write('chunkOverlapTokens: $chunkOverlapTokens, ')
+          ..write('retrievalTopK: $retrievalTopK, ')
+          ..write('retrievalMinSimilarity: $retrievalMinSimilarity, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProjectDocumentsTable extends ProjectDocuments
+    with TableInfo<$ProjectDocumentsTable, ProjectDocument> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectDocumentsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _filenameMeta = const VerificationMeta(
+    'filename',
+  );
+  @override
+  late final GeneratedColumn<String> filename = GeneratedColumn<String>(
+    'filename',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentTypeMeta = const VerificationMeta(
+    'contentType',
+  );
+  @override
+  late final GeneratedColumn<String> contentType = GeneratedColumn<String>(
+    'content_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _byteSizeMeta = const VerificationMeta(
+    'byteSize',
+  );
+  @override
+  late final GeneratedColumn<int> byteSize = GeneratedColumn<int>(
+    'byte_size',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageCountMeta = const VerificationMeta(
+    'pageCount',
+  );
+  @override
+  late final GeneratedColumn<int> pageCount = GeneratedColumn<int>(
+    'page_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ingestedAtMeta = const VerificationMeta(
+    'ingestedAt',
+  );
+  @override
+  late final GeneratedColumn<int> ingestedAt = GeneratedColumn<int>(
+    'ingested_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<int> deletedAt = GeneratedColumn<int>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _ingestStatusMeta = const VerificationMeta(
+    'ingestStatus',
+  );
+  @override
+  late final GeneratedColumn<String> ingestStatus = GeneratedColumn<String>(
+    'ingest_status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _ingestErrorMeta = const VerificationMeta(
+    'ingestError',
+  );
+  @override
+  late final GeneratedColumn<String> ingestError = GeneratedColumn<String>(
+    'ingest_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    projectId,
+    filename,
+    contentType,
+    byteSize,
+    pageCount,
+    ingestedAt,
+    deletedAt,
+    ingestStatus,
+    ingestError,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_documents';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProjectDocument> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('filename')) {
+      context.handle(
+        _filenameMeta,
+        filename.isAcceptableOrUnknown(data['filename']!, _filenameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_filenameMeta);
+    }
+    if (data.containsKey('content_type')) {
+      context.handle(
+        _contentTypeMeta,
+        contentType.isAcceptableOrUnknown(
+          data['content_type']!,
+          _contentTypeMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_contentTypeMeta);
+    }
+    if (data.containsKey('byte_size')) {
+      context.handle(
+        _byteSizeMeta,
+        byteSize.isAcceptableOrUnknown(data['byte_size']!, _byteSizeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_byteSizeMeta);
+    }
+    if (data.containsKey('page_count')) {
+      context.handle(
+        _pageCountMeta,
+        pageCount.isAcceptableOrUnknown(data['page_count']!, _pageCountMeta),
+      );
+    }
+    if (data.containsKey('ingested_at')) {
+      context.handle(
+        _ingestedAtMeta,
+        ingestedAt.isAcceptableOrUnknown(data['ingested_at']!, _ingestedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_ingestedAtMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('ingest_status')) {
+      context.handle(
+        _ingestStatusMeta,
+        ingestStatus.isAcceptableOrUnknown(
+          data['ingest_status']!,
+          _ingestStatusMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_ingestStatusMeta);
+    }
+    if (data.containsKey('ingest_error')) {
+      context.handle(
+        _ingestErrorMeta,
+        ingestError.isAcceptableOrUnknown(
+          data['ingest_error']!,
+          _ingestErrorMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProjectDocument map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectDocument(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      filename: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}filename'],
+      )!,
+      contentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content_type'],
+      )!,
+      byteSize: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_size'],
+      )!,
+      pageCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_count'],
+      ),
+      ingestedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}ingested_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      ingestStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ingest_status'],
+      )!,
+      ingestError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ingest_error'],
+      ),
+    );
+  }
+
+  @override
+  $ProjectDocumentsTable createAlias(String alias) {
+    return $ProjectDocumentsTable(attachedDatabase, alias);
+  }
+}
+
+class ProjectDocument extends DataClass implements Insertable<ProjectDocument> {
+  final String id;
+  final String projectId;
+  final String filename;
+  final String contentType;
+  final int byteSize;
+  final int? pageCount;
+  final int ingestedAt;
+  final int? deletedAt;
+  final String ingestStatus;
+  final String? ingestError;
+  const ProjectDocument({
+    required this.id,
+    required this.projectId,
+    required this.filename,
+    required this.contentType,
+    required this.byteSize,
+    this.pageCount,
+    required this.ingestedAt,
+    this.deletedAt,
+    required this.ingestStatus,
+    this.ingestError,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['project_id'] = Variable<String>(projectId);
+    map['filename'] = Variable<String>(filename);
+    map['content_type'] = Variable<String>(contentType);
+    map['byte_size'] = Variable<int>(byteSize);
+    if (!nullToAbsent || pageCount != null) {
+      map['page_count'] = Variable<int>(pageCount);
+    }
+    map['ingested_at'] = Variable<int>(ingestedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<int>(deletedAt);
+    }
+    map['ingest_status'] = Variable<String>(ingestStatus);
+    if (!nullToAbsent || ingestError != null) {
+      map['ingest_error'] = Variable<String>(ingestError);
+    }
+    return map;
+  }
+
+  ProjectDocumentsCompanion toCompanion(bool nullToAbsent) {
+    return ProjectDocumentsCompanion(
+      id: Value(id),
+      projectId: Value(projectId),
+      filename: Value(filename),
+      contentType: Value(contentType),
+      byteSize: Value(byteSize),
+      pageCount: pageCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageCount),
+      ingestedAt: Value(ingestedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      ingestStatus: Value(ingestStatus),
+      ingestError: ingestError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(ingestError),
+    );
+  }
+
+  factory ProjectDocument.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectDocument(
+      id: serializer.fromJson<String>(json['id']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      filename: serializer.fromJson<String>(json['filename']),
+      contentType: serializer.fromJson<String>(json['contentType']),
+      byteSize: serializer.fromJson<int>(json['byteSize']),
+      pageCount: serializer.fromJson<int?>(json['pageCount']),
+      ingestedAt: serializer.fromJson<int>(json['ingestedAt']),
+      deletedAt: serializer.fromJson<int?>(json['deletedAt']),
+      ingestStatus: serializer.fromJson<String>(json['ingestStatus']),
+      ingestError: serializer.fromJson<String?>(json['ingestError']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'projectId': serializer.toJson<String>(projectId),
+      'filename': serializer.toJson<String>(filename),
+      'contentType': serializer.toJson<String>(contentType),
+      'byteSize': serializer.toJson<int>(byteSize),
+      'pageCount': serializer.toJson<int?>(pageCount),
+      'ingestedAt': serializer.toJson<int>(ingestedAt),
+      'deletedAt': serializer.toJson<int?>(deletedAt),
+      'ingestStatus': serializer.toJson<String>(ingestStatus),
+      'ingestError': serializer.toJson<String?>(ingestError),
+    };
+  }
+
+  ProjectDocument copyWith({
+    String? id,
+    String? projectId,
+    String? filename,
+    String? contentType,
+    int? byteSize,
+    Value<int?> pageCount = const Value.absent(),
+    int? ingestedAt,
+    Value<int?> deletedAt = const Value.absent(),
+    String? ingestStatus,
+    Value<String?> ingestError = const Value.absent(),
+  }) => ProjectDocument(
+    id: id ?? this.id,
+    projectId: projectId ?? this.projectId,
+    filename: filename ?? this.filename,
+    contentType: contentType ?? this.contentType,
+    byteSize: byteSize ?? this.byteSize,
+    pageCount: pageCount.present ? pageCount.value : this.pageCount,
+    ingestedAt: ingestedAt ?? this.ingestedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    ingestStatus: ingestStatus ?? this.ingestStatus,
+    ingestError: ingestError.present ? ingestError.value : this.ingestError,
+  );
+  ProjectDocument copyWithCompanion(ProjectDocumentsCompanion data) {
+    return ProjectDocument(
+      id: data.id.present ? data.id.value : this.id,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      filename: data.filename.present ? data.filename.value : this.filename,
+      contentType: data.contentType.present
+          ? data.contentType.value
+          : this.contentType,
+      byteSize: data.byteSize.present ? data.byteSize.value : this.byteSize,
+      pageCount: data.pageCount.present ? data.pageCount.value : this.pageCount,
+      ingestedAt: data.ingestedAt.present
+          ? data.ingestedAt.value
+          : this.ingestedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      ingestStatus: data.ingestStatus.present
+          ? data.ingestStatus.value
+          : this.ingestStatus,
+      ingestError: data.ingestError.present
+          ? data.ingestError.value
+          : this.ingestError,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocument(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('filename: $filename, ')
+          ..write('contentType: $contentType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('ingestedAt: $ingestedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('ingestStatus: $ingestStatus, ')
+          ..write('ingestError: $ingestError')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    projectId,
+    filename,
+    contentType,
+    byteSize,
+    pageCount,
+    ingestedAt,
+    deletedAt,
+    ingestStatus,
+    ingestError,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectDocument &&
+          other.id == this.id &&
+          other.projectId == this.projectId &&
+          other.filename == this.filename &&
+          other.contentType == this.contentType &&
+          other.byteSize == this.byteSize &&
+          other.pageCount == this.pageCount &&
+          other.ingestedAt == this.ingestedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.ingestStatus == this.ingestStatus &&
+          other.ingestError == this.ingestError);
+}
+
+class ProjectDocumentsCompanion extends UpdateCompanion<ProjectDocument> {
+  final Value<String> id;
+  final Value<String> projectId;
+  final Value<String> filename;
+  final Value<String> contentType;
+  final Value<int> byteSize;
+  final Value<int?> pageCount;
+  final Value<int> ingestedAt;
+  final Value<int?> deletedAt;
+  final Value<String> ingestStatus;
+  final Value<String?> ingestError;
+  final Value<int> rowid;
+  const ProjectDocumentsCompanion({
+    this.id = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.filename = const Value.absent(),
+    this.contentType = const Value.absent(),
+    this.byteSize = const Value.absent(),
+    this.pageCount = const Value.absent(),
+    this.ingestedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.ingestStatus = const Value.absent(),
+    this.ingestError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectDocumentsCompanion.insert({
+    required String id,
+    required String projectId,
+    required String filename,
+    required String contentType,
+    required int byteSize,
+    this.pageCount = const Value.absent(),
+    required int ingestedAt,
+    this.deletedAt = const Value.absent(),
+    required String ingestStatus,
+    this.ingestError = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       projectId = Value(projectId),
+       filename = Value(filename),
+       contentType = Value(contentType),
+       byteSize = Value(byteSize),
+       ingestedAt = Value(ingestedAt),
+       ingestStatus = Value(ingestStatus);
+  static Insertable<ProjectDocument> custom({
+    Expression<String>? id,
+    Expression<String>? projectId,
+    Expression<String>? filename,
+    Expression<String>? contentType,
+    Expression<int>? byteSize,
+    Expression<int>? pageCount,
+    Expression<int>? ingestedAt,
+    Expression<int>? deletedAt,
+    Expression<String>? ingestStatus,
+    Expression<String>? ingestError,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (projectId != null) 'project_id': projectId,
+      if (filename != null) 'filename': filename,
+      if (contentType != null) 'content_type': contentType,
+      if (byteSize != null) 'byte_size': byteSize,
+      if (pageCount != null) 'page_count': pageCount,
+      if (ingestedAt != null) 'ingested_at': ingestedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (ingestStatus != null) 'ingest_status': ingestStatus,
+      if (ingestError != null) 'ingest_error': ingestError,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectDocumentsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? projectId,
+    Value<String>? filename,
+    Value<String>? contentType,
+    Value<int>? byteSize,
+    Value<int?>? pageCount,
+    Value<int>? ingestedAt,
+    Value<int?>? deletedAt,
+    Value<String>? ingestStatus,
+    Value<String?>? ingestError,
+    Value<int>? rowid,
+  }) {
+    return ProjectDocumentsCompanion(
+      id: id ?? this.id,
+      projectId: projectId ?? this.projectId,
+      filename: filename ?? this.filename,
+      contentType: contentType ?? this.contentType,
+      byteSize: byteSize ?? this.byteSize,
+      pageCount: pageCount ?? this.pageCount,
+      ingestedAt: ingestedAt ?? this.ingestedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      ingestStatus: ingestStatus ?? this.ingestStatus,
+      ingestError: ingestError ?? this.ingestError,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (filename.present) {
+      map['filename'] = Variable<String>(filename.value);
+    }
+    if (contentType.present) {
+      map['content_type'] = Variable<String>(contentType.value);
+    }
+    if (byteSize.present) {
+      map['byte_size'] = Variable<int>(byteSize.value);
+    }
+    if (pageCount.present) {
+      map['page_count'] = Variable<int>(pageCount.value);
+    }
+    if (ingestedAt.present) {
+      map['ingested_at'] = Variable<int>(ingestedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<int>(deletedAt.value);
+    }
+    if (ingestStatus.present) {
+      map['ingest_status'] = Variable<String>(ingestStatus.value);
+    }
+    if (ingestError.present) {
+      map['ingest_error'] = Variable<String>(ingestError.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocumentsCompanion(')
+          ..write('id: $id, ')
+          ..write('projectId: $projectId, ')
+          ..write('filename: $filename, ')
+          ..write('contentType: $contentType, ')
+          ..write('byteSize: $byteSize, ')
+          ..write('pageCount: $pageCount, ')
+          ..write('ingestedAt: $ingestedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('ingestStatus: $ingestStatus, ')
+          ..write('ingestError: $ingestError, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProjectDocumentChunksTable extends ProjectDocumentChunks
+    with TableInfo<$ProjectDocumentChunksTable, ProjectDocumentChunk> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectDocumentChunksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _documentIdMeta = const VerificationMeta(
+    'documentId',
+  );
+  @override
+  late final GeneratedColumn<String> documentId = GeneratedColumn<String>(
+    'document_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES project_documents (id)',
+    ),
+  );
+  static const VerificationMeta _projectIdMeta = const VerificationMeta(
+    'projectId',
+  );
+  @override
+  late final GeneratedColumn<String> projectId = GeneratedColumn<String>(
+    'project_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES projects (id)',
+    ),
+  );
+  static const VerificationMeta _chunkIndexMeta = const VerificationMeta(
+    'chunkIndex',
+  );
+  @override
+  late final GeneratedColumn<int> chunkIndex = GeneratedColumn<int>(
+    'chunk_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _text_Meta = const VerificationMeta('text_');
+  @override
+  late final GeneratedColumn<String> text_ = GeneratedColumn<String>(
+    'text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tokenCountMeta = const VerificationMeta(
+    'tokenCount',
+  );
+  @override
+  late final GeneratedColumn<int> tokenCount = GeneratedColumn<int>(
+    'token_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageStartMeta = const VerificationMeta(
+    'pageStart',
+  );
+  @override
+  late final GeneratedColumn<int> pageStart = GeneratedColumn<int>(
+    'page_start',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pageEndMeta = const VerificationMeta(
+    'pageEnd',
+  );
+  @override
+  late final GeneratedColumn<int> pageEnd = GeneratedColumn<int>(
+    'page_end',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    documentId,
+    projectId,
+    chunkIndex,
+    text_,
+    tokenCount,
+    pageStart,
+    pageEnd,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_document_chunks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProjectDocumentChunk> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('document_id')) {
+      context.handle(
+        _documentIdMeta,
+        documentId.isAcceptableOrUnknown(data['document_id']!, _documentIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_documentIdMeta);
+    }
+    if (data.containsKey('project_id')) {
+      context.handle(
+        _projectIdMeta,
+        projectId.isAcceptableOrUnknown(data['project_id']!, _projectIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_projectIdMeta);
+    }
+    if (data.containsKey('chunk_index')) {
+      context.handle(
+        _chunkIndexMeta,
+        chunkIndex.isAcceptableOrUnknown(data['chunk_index']!, _chunkIndexMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chunkIndexMeta);
+    }
+    if (data.containsKey('text')) {
+      context.handle(
+        _text_Meta,
+        text_.isAcceptableOrUnknown(data['text']!, _text_Meta),
+      );
+    } else if (isInserting) {
+      context.missing(_text_Meta);
+    }
+    if (data.containsKey('token_count')) {
+      context.handle(
+        _tokenCountMeta,
+        tokenCount.isAcceptableOrUnknown(data['token_count']!, _tokenCountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tokenCountMeta);
+    }
+    if (data.containsKey('page_start')) {
+      context.handle(
+        _pageStartMeta,
+        pageStart.isAcceptableOrUnknown(data['page_start']!, _pageStartMeta),
+      );
+    }
+    if (data.containsKey('page_end')) {
+      context.handle(
+        _pageEndMeta,
+        pageEnd.isAcceptableOrUnknown(data['page_end']!, _pageEndMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ProjectDocumentChunk map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectDocumentChunk(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      documentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}document_id'],
+      )!,
+      projectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}project_id'],
+      )!,
+      chunkIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chunk_index'],
+      )!,
+      text_: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}text'],
+      )!,
+      tokenCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}token_count'],
+      )!,
+      pageStart: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_start'],
+      ),
+      pageEnd: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_end'],
+      ),
+    );
+  }
+
+  @override
+  $ProjectDocumentChunksTable createAlias(String alias) {
+    return $ProjectDocumentChunksTable(attachedDatabase, alias);
+  }
+}
+
+class ProjectDocumentChunk extends DataClass
+    implements Insertable<ProjectDocumentChunk> {
+  final String id;
+  final String documentId;
+  final String projectId;
+  final int chunkIndex;
+  final String text_;
+  final int tokenCount;
+  final int? pageStart;
+  final int? pageEnd;
+  const ProjectDocumentChunk({
+    required this.id,
+    required this.documentId,
+    required this.projectId,
+    required this.chunkIndex,
+    required this.text_,
+    required this.tokenCount,
+    this.pageStart,
+    this.pageEnd,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['document_id'] = Variable<String>(documentId);
+    map['project_id'] = Variable<String>(projectId);
+    map['chunk_index'] = Variable<int>(chunkIndex);
+    map['text'] = Variable<String>(text_);
+    map['token_count'] = Variable<int>(tokenCount);
+    if (!nullToAbsent || pageStart != null) {
+      map['page_start'] = Variable<int>(pageStart);
+    }
+    if (!nullToAbsent || pageEnd != null) {
+      map['page_end'] = Variable<int>(pageEnd);
+    }
+    return map;
+  }
+
+  ProjectDocumentChunksCompanion toCompanion(bool nullToAbsent) {
+    return ProjectDocumentChunksCompanion(
+      id: Value(id),
+      documentId: Value(documentId),
+      projectId: Value(projectId),
+      chunkIndex: Value(chunkIndex),
+      text_: Value(text_),
+      tokenCount: Value(tokenCount),
+      pageStart: pageStart == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageStart),
+      pageEnd: pageEnd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageEnd),
+    );
+  }
+
+  factory ProjectDocumentChunk.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectDocumentChunk(
+      id: serializer.fromJson<String>(json['id']),
+      documentId: serializer.fromJson<String>(json['documentId']),
+      projectId: serializer.fromJson<String>(json['projectId']),
+      chunkIndex: serializer.fromJson<int>(json['chunkIndex']),
+      text_: serializer.fromJson<String>(json['text_']),
+      tokenCount: serializer.fromJson<int>(json['tokenCount']),
+      pageStart: serializer.fromJson<int?>(json['pageStart']),
+      pageEnd: serializer.fromJson<int?>(json['pageEnd']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'documentId': serializer.toJson<String>(documentId),
+      'projectId': serializer.toJson<String>(projectId),
+      'chunkIndex': serializer.toJson<int>(chunkIndex),
+      'text_': serializer.toJson<String>(text_),
+      'tokenCount': serializer.toJson<int>(tokenCount),
+      'pageStart': serializer.toJson<int?>(pageStart),
+      'pageEnd': serializer.toJson<int?>(pageEnd),
+    };
+  }
+
+  ProjectDocumentChunk copyWith({
+    String? id,
+    String? documentId,
+    String? projectId,
+    int? chunkIndex,
+    String? text_,
+    int? tokenCount,
+    Value<int?> pageStart = const Value.absent(),
+    Value<int?> pageEnd = const Value.absent(),
+  }) => ProjectDocumentChunk(
+    id: id ?? this.id,
+    documentId: documentId ?? this.documentId,
+    projectId: projectId ?? this.projectId,
+    chunkIndex: chunkIndex ?? this.chunkIndex,
+    text_: text_ ?? this.text_,
+    tokenCount: tokenCount ?? this.tokenCount,
+    pageStart: pageStart.present ? pageStart.value : this.pageStart,
+    pageEnd: pageEnd.present ? pageEnd.value : this.pageEnd,
+  );
+  ProjectDocumentChunk copyWithCompanion(ProjectDocumentChunksCompanion data) {
+    return ProjectDocumentChunk(
+      id: data.id.present ? data.id.value : this.id,
+      documentId: data.documentId.present
+          ? data.documentId.value
+          : this.documentId,
+      projectId: data.projectId.present ? data.projectId.value : this.projectId,
+      chunkIndex: data.chunkIndex.present
+          ? data.chunkIndex.value
+          : this.chunkIndex,
+      text_: data.text_.present ? data.text_.value : this.text_,
+      tokenCount: data.tokenCount.present
+          ? data.tokenCount.value
+          : this.tokenCount,
+      pageStart: data.pageStart.present ? data.pageStart.value : this.pageStart,
+      pageEnd: data.pageEnd.present ? data.pageEnd.value : this.pageEnd,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocumentChunk(')
+          ..write('id: $id, ')
+          ..write('documentId: $documentId, ')
+          ..write('projectId: $projectId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('text_: $text_, ')
+          ..write('tokenCount: $tokenCount, ')
+          ..write('pageStart: $pageStart, ')
+          ..write('pageEnd: $pageEnd')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    documentId,
+    projectId,
+    chunkIndex,
+    text_,
+    tokenCount,
+    pageStart,
+    pageEnd,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectDocumentChunk &&
+          other.id == this.id &&
+          other.documentId == this.documentId &&
+          other.projectId == this.projectId &&
+          other.chunkIndex == this.chunkIndex &&
+          other.text_ == this.text_ &&
+          other.tokenCount == this.tokenCount &&
+          other.pageStart == this.pageStart &&
+          other.pageEnd == this.pageEnd);
+}
+
+class ProjectDocumentChunksCompanion
+    extends UpdateCompanion<ProjectDocumentChunk> {
+  final Value<String> id;
+  final Value<String> documentId;
+  final Value<String> projectId;
+  final Value<int> chunkIndex;
+  final Value<String> text_;
+  final Value<int> tokenCount;
+  final Value<int?> pageStart;
+  final Value<int?> pageEnd;
+  final Value<int> rowid;
+  const ProjectDocumentChunksCompanion({
+    this.id = const Value.absent(),
+    this.documentId = const Value.absent(),
+    this.projectId = const Value.absent(),
+    this.chunkIndex = const Value.absent(),
+    this.text_ = const Value.absent(),
+    this.tokenCount = const Value.absent(),
+    this.pageStart = const Value.absent(),
+    this.pageEnd = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectDocumentChunksCompanion.insert({
+    required String id,
+    required String documentId,
+    required String projectId,
+    required int chunkIndex,
+    required String text_,
+    required int tokenCount,
+    this.pageStart = const Value.absent(),
+    this.pageEnd = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       documentId = Value(documentId),
+       projectId = Value(projectId),
+       chunkIndex = Value(chunkIndex),
+       text_ = Value(text_),
+       tokenCount = Value(tokenCount);
+  static Insertable<ProjectDocumentChunk> custom({
+    Expression<String>? id,
+    Expression<String>? documentId,
+    Expression<String>? projectId,
+    Expression<int>? chunkIndex,
+    Expression<String>? text_,
+    Expression<int>? tokenCount,
+    Expression<int>? pageStart,
+    Expression<int>? pageEnd,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (documentId != null) 'document_id': documentId,
+      if (projectId != null) 'project_id': projectId,
+      if (chunkIndex != null) 'chunk_index': chunkIndex,
+      if (text_ != null) 'text': text_,
+      if (tokenCount != null) 'token_count': tokenCount,
+      if (pageStart != null) 'page_start': pageStart,
+      if (pageEnd != null) 'page_end': pageEnd,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectDocumentChunksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? documentId,
+    Value<String>? projectId,
+    Value<int>? chunkIndex,
+    Value<String>? text_,
+    Value<int>? tokenCount,
+    Value<int?>? pageStart,
+    Value<int?>? pageEnd,
+    Value<int>? rowid,
+  }) {
+    return ProjectDocumentChunksCompanion(
+      id: id ?? this.id,
+      documentId: documentId ?? this.documentId,
+      projectId: projectId ?? this.projectId,
+      chunkIndex: chunkIndex ?? this.chunkIndex,
+      text_: text_ ?? this.text_,
+      tokenCount: tokenCount ?? this.tokenCount,
+      pageStart: pageStart ?? this.pageStart,
+      pageEnd: pageEnd ?? this.pageEnd,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (documentId.present) {
+      map['document_id'] = Variable<String>(documentId.value);
+    }
+    if (projectId.present) {
+      map['project_id'] = Variable<String>(projectId.value);
+    }
+    if (chunkIndex.present) {
+      map['chunk_index'] = Variable<int>(chunkIndex.value);
+    }
+    if (text_.present) {
+      map['text'] = Variable<String>(text_.value);
+    }
+    if (tokenCount.present) {
+      map['token_count'] = Variable<int>(tokenCount.value);
+    }
+    if (pageStart.present) {
+      map['page_start'] = Variable<int>(pageStart.value);
+    }
+    if (pageEnd.present) {
+      map['page_end'] = Variable<int>(pageEnd.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocumentChunksCompanion(')
+          ..write('id: $id, ')
+          ..write('documentId: $documentId, ')
+          ..write('projectId: $projectId, ')
+          ..write('chunkIndex: $chunkIndex, ')
+          ..write('text_: $text_, ')
+          ..write('tokenCount: $tokenCount, ')
+          ..write('pageStart: $pageStart, ')
+          ..write('pageEnd: $pageEnd, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ProjectDocumentChunkVectorsTable extends ProjectDocumentChunkVectors
+    with
+        TableInfo<
+          $ProjectDocumentChunkVectorsTable,
+          ProjectDocumentChunkVector
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProjectDocumentChunkVectorsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _chunkIdMeta = const VerificationMeta(
+    'chunkId',
+  );
+  @override
+  late final GeneratedColumn<String> chunkId = GeneratedColumn<String>(
+    'chunk_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES project_document_chunks (id)',
+    ),
+  );
+  static const VerificationMeta _embeddingMeta = const VerificationMeta(
+    'embedding',
+  );
+  @override
+  late final GeneratedColumn<Uint8List> embedding = GeneratedColumn<Uint8List>(
+    'embedding',
+    aliasedName,
+    false,
+    type: DriftSqlType.blob,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _embeddingModelMeta = const VerificationMeta(
+    'embeddingModel',
+  );
+  @override
+  late final GeneratedColumn<String> embeddingModel = GeneratedColumn<String>(
+    'embedding_model',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [chunkId, embedding, embeddingModel];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'project_document_chunk_vectors';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ProjectDocumentChunkVector> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('chunk_id')) {
+      context.handle(
+        _chunkIdMeta,
+        chunkId.isAcceptableOrUnknown(data['chunk_id']!, _chunkIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chunkIdMeta);
+    }
+    if (data.containsKey('embedding')) {
+      context.handle(
+        _embeddingMeta,
+        embedding.isAcceptableOrUnknown(data['embedding']!, _embeddingMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_embeddingMeta);
+    }
+    if (data.containsKey('embedding_model')) {
+      context.handle(
+        _embeddingModelMeta,
+        embeddingModel.isAcceptableOrUnknown(
+          data['embedding_model']!,
+          _embeddingModelMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_embeddingModelMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {chunkId};
+  @override
+  ProjectDocumentChunkVector map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ProjectDocumentChunkVector(
+      chunkId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chunk_id'],
+      )!,
+      embedding: attachedDatabase.typeMapping.read(
+        DriftSqlType.blob,
+        data['${effectivePrefix}embedding'],
+      )!,
+      embeddingModel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}embedding_model'],
+      )!,
+    );
+  }
+
+  @override
+  $ProjectDocumentChunkVectorsTable createAlias(String alias) {
+    return $ProjectDocumentChunkVectorsTable(attachedDatabase, alias);
+  }
+}
+
+class ProjectDocumentChunkVector extends DataClass
+    implements Insertable<ProjectDocumentChunkVector> {
+  final String chunkId;
+  final Uint8List embedding;
+  final String embeddingModel;
+  const ProjectDocumentChunkVector({
+    required this.chunkId,
+    required this.embedding,
+    required this.embeddingModel,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['chunk_id'] = Variable<String>(chunkId);
+    map['embedding'] = Variable<Uint8List>(embedding);
+    map['embedding_model'] = Variable<String>(embeddingModel);
+    return map;
+  }
+
+  ProjectDocumentChunkVectorsCompanion toCompanion(bool nullToAbsent) {
+    return ProjectDocumentChunkVectorsCompanion(
+      chunkId: Value(chunkId),
+      embedding: Value(embedding),
+      embeddingModel: Value(embeddingModel),
+    );
+  }
+
+  factory ProjectDocumentChunkVector.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ProjectDocumentChunkVector(
+      chunkId: serializer.fromJson<String>(json['chunkId']),
+      embedding: serializer.fromJson<Uint8List>(json['embedding']),
+      embeddingModel: serializer.fromJson<String>(json['embeddingModel']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'chunkId': serializer.toJson<String>(chunkId),
+      'embedding': serializer.toJson<Uint8List>(embedding),
+      'embeddingModel': serializer.toJson<String>(embeddingModel),
+    };
+  }
+
+  ProjectDocumentChunkVector copyWith({
+    String? chunkId,
+    Uint8List? embedding,
+    String? embeddingModel,
+  }) => ProjectDocumentChunkVector(
+    chunkId: chunkId ?? this.chunkId,
+    embedding: embedding ?? this.embedding,
+    embeddingModel: embeddingModel ?? this.embeddingModel,
+  );
+  ProjectDocumentChunkVector copyWithCompanion(
+    ProjectDocumentChunkVectorsCompanion data,
+  ) {
+    return ProjectDocumentChunkVector(
+      chunkId: data.chunkId.present ? data.chunkId.value : this.chunkId,
+      embedding: data.embedding.present ? data.embedding.value : this.embedding,
+      embeddingModel: data.embeddingModel.present
+          ? data.embeddingModel.value
+          : this.embeddingModel,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocumentChunkVector(')
+          ..write('chunkId: $chunkId, ')
+          ..write('embedding: $embedding, ')
+          ..write('embeddingModel: $embeddingModel')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(chunkId, $driftBlobEquality.hash(embedding), embeddingModel);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ProjectDocumentChunkVector &&
+          other.chunkId == this.chunkId &&
+          $driftBlobEquality.equals(other.embedding, this.embedding) &&
+          other.embeddingModel == this.embeddingModel);
+}
+
+class ProjectDocumentChunkVectorsCompanion
+    extends UpdateCompanion<ProjectDocumentChunkVector> {
+  final Value<String> chunkId;
+  final Value<Uint8List> embedding;
+  final Value<String> embeddingModel;
+  final Value<int> rowid;
+  const ProjectDocumentChunkVectorsCompanion({
+    this.chunkId = const Value.absent(),
+    this.embedding = const Value.absent(),
+    this.embeddingModel = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ProjectDocumentChunkVectorsCompanion.insert({
+    required String chunkId,
+    required Uint8List embedding,
+    required String embeddingModel,
+    this.rowid = const Value.absent(),
+  }) : chunkId = Value(chunkId),
+       embedding = Value(embedding),
+       embeddingModel = Value(embeddingModel);
+  static Insertable<ProjectDocumentChunkVector> custom({
+    Expression<String>? chunkId,
+    Expression<Uint8List>? embedding,
+    Expression<String>? embeddingModel,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (chunkId != null) 'chunk_id': chunkId,
+      if (embedding != null) 'embedding': embedding,
+      if (embeddingModel != null) 'embedding_model': embeddingModel,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ProjectDocumentChunkVectorsCompanion copyWith({
+    Value<String>? chunkId,
+    Value<Uint8List>? embedding,
+    Value<String>? embeddingModel,
+    Value<int>? rowid,
+  }) {
+    return ProjectDocumentChunkVectorsCompanion(
+      chunkId: chunkId ?? this.chunkId,
+      embedding: embedding ?? this.embedding,
+      embeddingModel: embeddingModel ?? this.embeddingModel,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (chunkId.present) {
+      map['chunk_id'] = Variable<String>(chunkId.value);
+    }
+    if (embedding.present) {
+      map['embedding'] = Variable<Uint8List>(embedding.value);
+    }
+    if (embeddingModel.present) {
+      map['embedding_model'] = Variable<String>(embeddingModel.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProjectDocumentChunkVectorsCompanion(')
+          ..write('chunkId: $chunkId, ')
+          ..write('embedding: $embedding, ')
+          ..write('embeddingModel: $embeddingModel, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$HelixDatabase extends GeneratedDatabase {
   _$HelixDatabase(QueryExecutor e) : super(e);
   $HelixDatabaseManager get managers => $HelixDatabaseManager(this);
@@ -6588,6 +8667,14 @@ abstract class _$HelixDatabase extends GeneratedDatabase {
   late final $KnowledgeRelationshipsTable knowledgeRelationships =
       $KnowledgeRelationshipsTable(this);
   late final $UserProfilesTable userProfiles = $UserProfilesTable(this);
+  late final $ProjectsTable projects = $ProjectsTable(this);
+  late final $ProjectDocumentsTable projectDocuments = $ProjectDocumentsTable(
+    this,
+  );
+  late final $ProjectDocumentChunksTable projectDocumentChunks =
+      $ProjectDocumentChunksTable(this);
+  late final $ProjectDocumentChunkVectorsTable projectDocumentChunkVectors =
+      $ProjectDocumentChunkVectorsTable(this);
   late final ConversationDao conversationDao = ConversationDao(
     this as HelixDatabase,
   );
@@ -6616,6 +8703,10 @@ abstract class _$HelixDatabase extends GeneratedDatabase {
     knowledgeEntities,
     knowledgeRelationships,
     userProfiles,
+    projects,
+    projectDocuments,
+    projectDocumentChunks,
+    projectDocumentChunkVectors,
   ];
 }
 
@@ -10653,6 +12744,2017 @@ typedef $$UserProfilesTableProcessedTableManager =
       UserProfile,
       PrefetchHooks Function()
     >;
+typedef $$ProjectsTableCreateCompanionBuilder =
+    ProjectsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> description,
+      required int createdAt,
+      required int updatedAt,
+      Value<int?> deletedAt,
+      Value<int> chunkSizeTokens,
+      Value<int> chunkOverlapTokens,
+      Value<int> retrievalTopK,
+      Value<double> retrievalMinSimilarity,
+      Value<int> rowid,
+    });
+typedef $$ProjectsTableUpdateCompanionBuilder =
+    ProjectsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> description,
+      Value<int> createdAt,
+      Value<int> updatedAt,
+      Value<int?> deletedAt,
+      Value<int> chunkSizeTokens,
+      Value<int> chunkOverlapTokens,
+      Value<int> retrievalTopK,
+      Value<double> retrievalMinSimilarity,
+      Value<int> rowid,
+    });
+
+final class $$ProjectsTableReferences
+    extends BaseReferences<_$HelixDatabase, $ProjectsTable, Project> {
+  $$ProjectsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static MultiTypedResultKey<$ProjectDocumentsTable, List<ProjectDocument>>
+  _projectDocumentsRefsTable(_$HelixDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.projectDocuments,
+        aliasName: $_aliasNameGenerator(
+          db.projects.id,
+          db.projectDocuments.projectId,
+        ),
+      );
+
+  $$ProjectDocumentsTableProcessedTableManager get projectDocumentsRefs {
+    final manager = $$ProjectDocumentsTableTableManager(
+      $_db,
+      $_db.projectDocuments,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _projectDocumentsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ProjectDocumentChunksTable,
+    List<ProjectDocumentChunk>
+  >
+  _projectDocumentChunksRefsTable(_$HelixDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.projectDocumentChunks,
+        aliasName: $_aliasNameGenerator(
+          db.projects.id,
+          db.projectDocumentChunks.projectId,
+        ),
+      );
+
+  $$ProjectDocumentChunksTableProcessedTableManager
+  get projectDocumentChunksRefs {
+    final manager = $$ProjectDocumentChunksTableTableManager(
+      $_db,
+      $_db.projectDocumentChunks,
+    ).filter((f) => f.projectId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _projectDocumentChunksRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$ProjectsTableFilterComposer
+    extends Composer<_$HelixDatabase, $ProjectsTable> {
+  $$ProjectsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkSizeTokens => $composableBuilder(
+    column: $table.chunkSizeTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkOverlapTokens => $composableBuilder(
+    column: $table.chunkOverlapTokens,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get retrievalTopK => $composableBuilder(
+    column: $table.retrievalTopK,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get retrievalMinSimilarity => $composableBuilder(
+    column: $table.retrievalMinSimilarity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  Expression<bool> projectDocumentsRefs(
+    Expression<bool> Function($$ProjectDocumentsTableFilterComposer f) f,
+  ) {
+    final $$ProjectDocumentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.projectDocuments,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectDocumentsTableFilterComposer(
+            $db: $db,
+            $table: $db.projectDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> projectDocumentChunksRefs(
+    Expression<bool> Function($$ProjectDocumentChunksTableFilterComposer f) f,
+  ) {
+    final $$ProjectDocumentChunksTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.projectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableFilterComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectsTableOrderingComposer
+    extends Composer<_$HelixDatabase, $ProjectsTable> {
+  $$ProjectsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkSizeTokens => $composableBuilder(
+    column: $table.chunkSizeTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkOverlapTokens => $composableBuilder(
+    column: $table.chunkOverlapTokens,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get retrievalTopK => $composableBuilder(
+    column: $table.retrievalTopK,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get retrievalMinSimilarity => $composableBuilder(
+    column: $table.retrievalMinSimilarity,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProjectsTableAnnotationComposer
+    extends Composer<_$HelixDatabase, $ProjectsTable> {
+  $$ProjectsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get description => $composableBuilder(
+    column: $table.description,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get chunkSizeTokens => $composableBuilder(
+    column: $table.chunkSizeTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get chunkOverlapTokens => $composableBuilder(
+    column: $table.chunkOverlapTokens,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get retrievalTopK => $composableBuilder(
+    column: $table.retrievalTopK,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get retrievalMinSimilarity => $composableBuilder(
+    column: $table.retrievalMinSimilarity,
+    builder: (column) => column,
+  );
+
+  Expression<T> projectDocumentsRefs<T extends Object>(
+    Expression<T> Function($$ProjectDocumentsTableAnnotationComposer a) f,
+  ) {
+    final $$ProjectDocumentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.projectDocuments,
+      getReferencedColumn: (t) => t.projectId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectDocumentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projectDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> projectDocumentChunksRefs<T extends Object>(
+    Expression<T> Function($$ProjectDocumentChunksTableAnnotationComposer a) f,
+  ) {
+    final $$ProjectDocumentChunksTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.projectId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableAnnotationComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectsTableTableManager
+    extends
+        RootTableManager<
+          _$HelixDatabase,
+          $ProjectsTable,
+          Project,
+          $$ProjectsTableFilterComposer,
+          $$ProjectsTableOrderingComposer,
+          $$ProjectsTableAnnotationComposer,
+          $$ProjectsTableCreateCompanionBuilder,
+          $$ProjectsTableUpdateCompanionBuilder,
+          (Project, $$ProjectsTableReferences),
+          Project,
+          PrefetchHooks Function({
+            bool projectDocumentsRefs,
+            bool projectDocumentChunksRefs,
+          })
+        > {
+  $$ProjectsTableTableManager(_$HelixDatabase db, $ProjectsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProjectsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProjectsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> description = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> chunkSizeTokens = const Value.absent(),
+                Value<int> chunkOverlapTokens = const Value.absent(),
+                Value<int> retrievalTopK = const Value.absent(),
+                Value<double> retrievalMinSimilarity = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectsCompanion(
+                id: id,
+                name: name,
+                description: description,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                chunkSizeTokens: chunkSizeTokens,
+                chunkOverlapTokens: chunkOverlapTokens,
+                retrievalTopK: retrievalTopK,
+                retrievalMinSimilarity: retrievalMinSimilarity,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                Value<String?> description = const Value.absent(),
+                required int createdAt,
+                required int updatedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                Value<int> chunkSizeTokens = const Value.absent(),
+                Value<int> chunkOverlapTokens = const Value.absent(),
+                Value<int> retrievalTopK = const Value.absent(),
+                Value<double> retrievalMinSimilarity = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectsCompanion.insert(
+                id: id,
+                name: name,
+                description: description,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                deletedAt: deletedAt,
+                chunkSizeTokens: chunkSizeTokens,
+                chunkOverlapTokens: chunkOverlapTokens,
+                retrievalTopK: retrievalTopK,
+                retrievalMinSimilarity: retrievalMinSimilarity,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProjectsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                projectDocumentsRefs = false,
+                projectDocumentChunksRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (projectDocumentsRefs) db.projectDocuments,
+                    if (projectDocumentChunksRefs) db.projectDocumentChunks,
+                  ],
+                  addJoins: null,
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (projectDocumentsRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          ProjectDocument
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._projectDocumentsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).projectDocumentsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (projectDocumentChunksRefs)
+                        await $_getPrefetchedData<
+                          Project,
+                          $ProjectsTable,
+                          ProjectDocumentChunk
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectsTableReferences
+                              ._projectDocumentChunksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).projectDocumentChunksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.projectId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ProjectsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$HelixDatabase,
+      $ProjectsTable,
+      Project,
+      $$ProjectsTableFilterComposer,
+      $$ProjectsTableOrderingComposer,
+      $$ProjectsTableAnnotationComposer,
+      $$ProjectsTableCreateCompanionBuilder,
+      $$ProjectsTableUpdateCompanionBuilder,
+      (Project, $$ProjectsTableReferences),
+      Project,
+      PrefetchHooks Function({
+        bool projectDocumentsRefs,
+        bool projectDocumentChunksRefs,
+      })
+    >;
+typedef $$ProjectDocumentsTableCreateCompanionBuilder =
+    ProjectDocumentsCompanion Function({
+      required String id,
+      required String projectId,
+      required String filename,
+      required String contentType,
+      required int byteSize,
+      Value<int?> pageCount,
+      required int ingestedAt,
+      Value<int?> deletedAt,
+      required String ingestStatus,
+      Value<String?> ingestError,
+      Value<int> rowid,
+    });
+typedef $$ProjectDocumentsTableUpdateCompanionBuilder =
+    ProjectDocumentsCompanion Function({
+      Value<String> id,
+      Value<String> projectId,
+      Value<String> filename,
+      Value<String> contentType,
+      Value<int> byteSize,
+      Value<int?> pageCount,
+      Value<int> ingestedAt,
+      Value<int?> deletedAt,
+      Value<String> ingestStatus,
+      Value<String?> ingestError,
+      Value<int> rowid,
+    });
+
+final class $$ProjectDocumentsTableReferences
+    extends
+        BaseReferences<
+          _$HelixDatabase,
+          $ProjectDocumentsTable,
+          ProjectDocument
+        > {
+  $$ProjectDocumentsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectsTable _projectIdTable(_$HelixDatabase db) =>
+      db.projects.createAlias(
+        $_aliasNameGenerator(db.projectDocuments.projectId, db.projects.id),
+      );
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ProjectDocumentChunksTable,
+    List<ProjectDocumentChunk>
+  >
+  _projectDocumentChunksRefsTable(_$HelixDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.projectDocumentChunks,
+        aliasName: $_aliasNameGenerator(
+          db.projectDocuments.id,
+          db.projectDocumentChunks.documentId,
+        ),
+      );
+
+  $$ProjectDocumentChunksTableProcessedTableManager
+  get projectDocumentChunksRefs {
+    final manager = $$ProjectDocumentChunksTableTableManager(
+      $_db,
+      $_db.projectDocumentChunks,
+    ).filter((f) => f.documentId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _projectDocumentChunksRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$ProjectDocumentsTableFilterComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentsTable> {
+  $$ProjectDocumentsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get filename => $composableBuilder(
+    column: $table.filename,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ingestedAt => $composableBuilder(
+    column: $table.ingestedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ingestStatus => $composableBuilder(
+    column: $table.ingestStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ingestError => $composableBuilder(
+    column: $table.ingestError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> projectDocumentChunksRefs(
+    Expression<bool> Function($$ProjectDocumentChunksTableFilterComposer f) f,
+  ) {
+    final $$ProjectDocumentChunksTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.documentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableFilterComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectDocumentsTableOrderingComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentsTable> {
+  $$ProjectDocumentsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get filename => $composableBuilder(
+    column: $table.filename,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteSize => $composableBuilder(
+    column: $table.byteSize,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageCount => $composableBuilder(
+    column: $table.pageCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ingestedAt => $composableBuilder(
+    column: $table.ingestedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ingestStatus => $composableBuilder(
+    column: $table.ingestStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ingestError => $composableBuilder(
+    column: $table.ingestError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProjectDocumentsTableAnnotationComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentsTable> {
+  $$ProjectDocumentsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get filename =>
+      $composableBuilder(column: $table.filename, builder: (column) => column);
+
+  GeneratedColumn<String> get contentType => $composableBuilder(
+    column: $table.contentType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get byteSize =>
+      $composableBuilder(column: $table.byteSize, builder: (column) => column);
+
+  GeneratedColumn<int> get pageCount =>
+      $composableBuilder(column: $table.pageCount, builder: (column) => column);
+
+  GeneratedColumn<int> get ingestedAt => $composableBuilder(
+    column: $table.ingestedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get ingestStatus => $composableBuilder(
+    column: $table.ingestStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ingestError => $composableBuilder(
+    column: $table.ingestError,
+    builder: (column) => column,
+  );
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> projectDocumentChunksRefs<T extends Object>(
+    Expression<T> Function($$ProjectDocumentChunksTableAnnotationComposer a) f,
+  ) {
+    final $$ProjectDocumentChunksTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.documentId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableAnnotationComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectDocumentsTableTableManager
+    extends
+        RootTableManager<
+          _$HelixDatabase,
+          $ProjectDocumentsTable,
+          ProjectDocument,
+          $$ProjectDocumentsTableFilterComposer,
+          $$ProjectDocumentsTableOrderingComposer,
+          $$ProjectDocumentsTableAnnotationComposer,
+          $$ProjectDocumentsTableCreateCompanionBuilder,
+          $$ProjectDocumentsTableUpdateCompanionBuilder,
+          (ProjectDocument, $$ProjectDocumentsTableReferences),
+          ProjectDocument,
+          PrefetchHooks Function({
+            bool projectId,
+            bool projectDocumentChunksRefs,
+          })
+        > {
+  $$ProjectDocumentsTableTableManager(
+    _$HelixDatabase db,
+    $ProjectDocumentsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectDocumentsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProjectDocumentsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProjectDocumentsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<String> filename = const Value.absent(),
+                Value<String> contentType = const Value.absent(),
+                Value<int> byteSize = const Value.absent(),
+                Value<int?> pageCount = const Value.absent(),
+                Value<int> ingestedAt = const Value.absent(),
+                Value<int?> deletedAt = const Value.absent(),
+                Value<String> ingestStatus = const Value.absent(),
+                Value<String?> ingestError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentsCompanion(
+                id: id,
+                projectId: projectId,
+                filename: filename,
+                contentType: contentType,
+                byteSize: byteSize,
+                pageCount: pageCount,
+                ingestedAt: ingestedAt,
+                deletedAt: deletedAt,
+                ingestStatus: ingestStatus,
+                ingestError: ingestError,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String projectId,
+                required String filename,
+                required String contentType,
+                required int byteSize,
+                Value<int?> pageCount = const Value.absent(),
+                required int ingestedAt,
+                Value<int?> deletedAt = const Value.absent(),
+                required String ingestStatus,
+                Value<String?> ingestError = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentsCompanion.insert(
+                id: id,
+                projectId: projectId,
+                filename: filename,
+                contentType: contentType,
+                byteSize: byteSize,
+                pageCount: pageCount,
+                ingestedAt: ingestedAt,
+                deletedAt: deletedAt,
+                ingestStatus: ingestStatus,
+                ingestError: ingestError,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProjectDocumentsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({projectId = false, projectDocumentChunksRefs = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (projectDocumentChunksRefs) db.projectDocumentChunks,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (projectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.projectId,
+                                    referencedTable:
+                                        $$ProjectDocumentsTableReferences
+                                            ._projectIdTable(db),
+                                    referencedColumn:
+                                        $$ProjectDocumentsTableReferences
+                                            ._projectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (projectDocumentChunksRefs)
+                        await $_getPrefetchedData<
+                          ProjectDocument,
+                          $ProjectDocumentsTable,
+                          ProjectDocumentChunk
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ProjectDocumentsTableReferences
+                              ._projectDocumentChunksRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectDocumentsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).projectDocumentChunksRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.documentId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ProjectDocumentsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$HelixDatabase,
+      $ProjectDocumentsTable,
+      ProjectDocument,
+      $$ProjectDocumentsTableFilterComposer,
+      $$ProjectDocumentsTableOrderingComposer,
+      $$ProjectDocumentsTableAnnotationComposer,
+      $$ProjectDocumentsTableCreateCompanionBuilder,
+      $$ProjectDocumentsTableUpdateCompanionBuilder,
+      (ProjectDocument, $$ProjectDocumentsTableReferences),
+      ProjectDocument,
+      PrefetchHooks Function({bool projectId, bool projectDocumentChunksRefs})
+    >;
+typedef $$ProjectDocumentChunksTableCreateCompanionBuilder =
+    ProjectDocumentChunksCompanion Function({
+      required String id,
+      required String documentId,
+      required String projectId,
+      required int chunkIndex,
+      required String text_,
+      required int tokenCount,
+      Value<int?> pageStart,
+      Value<int?> pageEnd,
+      Value<int> rowid,
+    });
+typedef $$ProjectDocumentChunksTableUpdateCompanionBuilder =
+    ProjectDocumentChunksCompanion Function({
+      Value<String> id,
+      Value<String> documentId,
+      Value<String> projectId,
+      Value<int> chunkIndex,
+      Value<String> text_,
+      Value<int> tokenCount,
+      Value<int?> pageStart,
+      Value<int?> pageEnd,
+      Value<int> rowid,
+    });
+
+final class $$ProjectDocumentChunksTableReferences
+    extends
+        BaseReferences<
+          _$HelixDatabase,
+          $ProjectDocumentChunksTable,
+          ProjectDocumentChunk
+        > {
+  $$ProjectDocumentChunksTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectDocumentsTable _documentIdTable(_$HelixDatabase db) =>
+      db.projectDocuments.createAlias(
+        $_aliasNameGenerator(
+          db.projectDocumentChunks.documentId,
+          db.projectDocuments.id,
+        ),
+      );
+
+  $$ProjectDocumentsTableProcessedTableManager get documentId {
+    final $_column = $_itemColumn<String>('document_id')!;
+
+    final manager = $$ProjectDocumentsTableTableManager(
+      $_db,
+      $_db.projectDocuments,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_documentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ProjectsTable _projectIdTable(_$HelixDatabase db) =>
+      db.projects.createAlias(
+        $_aliasNameGenerator(
+          db.projectDocumentChunks.projectId,
+          db.projects.id,
+        ),
+      );
+
+  $$ProjectsTableProcessedTableManager get projectId {
+    final $_column = $_itemColumn<String>('project_id')!;
+
+    final manager = $$ProjectsTableTableManager(
+      $_db,
+      $_db.projects,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_projectIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $ProjectDocumentChunkVectorsTable,
+    List<ProjectDocumentChunkVector>
+  >
+  _projectDocumentChunkVectorsRefsTable(_$HelixDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.projectDocumentChunkVectors,
+        aliasName: $_aliasNameGenerator(
+          db.projectDocumentChunks.id,
+          db.projectDocumentChunkVectors.chunkId,
+        ),
+      );
+
+  $$ProjectDocumentChunkVectorsTableProcessedTableManager
+  get projectDocumentChunkVectorsRefs {
+    final manager = $$ProjectDocumentChunkVectorsTableTableManager(
+      $_db,
+      $_db.projectDocumentChunkVectors,
+    ).filter((f) => f.chunkId.id.sqlEquals($_itemColumn<String>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _projectDocumentChunkVectorsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$ProjectDocumentChunksTableFilterComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunksTable> {
+  $$ProjectDocumentChunksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get text_ => $composableBuilder(
+    column: $table.text_,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tokenCount => $composableBuilder(
+    column: $table.tokenCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageStart => $composableBuilder(
+    column: $table.pageStart,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageEnd => $composableBuilder(
+    column: $table.pageEnd,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectDocumentsTableFilterComposer get documentId {
+    final $$ProjectDocumentsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.projectDocuments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectDocumentsTableFilterComposer(
+            $db: $db,
+            $table: $db.projectDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableFilterComposer get projectId {
+    final $$ProjectsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableFilterComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> projectDocumentChunkVectorsRefs(
+    Expression<bool> Function(
+      $$ProjectDocumentChunkVectorsTableFilterComposer f,
+    )
+    f,
+  ) {
+    final $$ProjectDocumentChunkVectorsTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunkVectors,
+          getReferencedColumn: (t) => t.chunkId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunkVectorsTableFilterComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunkVectors,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectDocumentChunksTableOrderingComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunksTable> {
+  $$ProjectDocumentChunksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get text_ => $composableBuilder(
+    column: $table.text_,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tokenCount => $composableBuilder(
+    column: $table.tokenCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageStart => $composableBuilder(
+    column: $table.pageStart,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageEnd => $composableBuilder(
+    column: $table.pageEnd,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectDocumentsTableOrderingComposer get documentId {
+    final $$ProjectDocumentsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.projectDocuments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectDocumentsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projectDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableOrderingComposer get projectId {
+    final $$ProjectsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableOrderingComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$ProjectDocumentChunksTableAnnotationComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunksTable> {
+  $$ProjectDocumentChunksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get chunkIndex => $composableBuilder(
+    column: $table.chunkIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get text_ =>
+      $composableBuilder(column: $table.text_, builder: (column) => column);
+
+  GeneratedColumn<int> get tokenCount => $composableBuilder(
+    column: $table.tokenCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pageStart =>
+      $composableBuilder(column: $table.pageStart, builder: (column) => column);
+
+  GeneratedColumn<int> get pageEnd =>
+      $composableBuilder(column: $table.pageEnd, builder: (column) => column);
+
+  $$ProjectDocumentsTableAnnotationComposer get documentId {
+    final $$ProjectDocumentsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.documentId,
+      referencedTable: $db.projectDocuments,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectDocumentsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projectDocuments,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ProjectsTableAnnotationComposer get projectId {
+    final $$ProjectsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.projectId,
+      referencedTable: $db.projects,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ProjectsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.projects,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> projectDocumentChunkVectorsRefs<T extends Object>(
+    Expression<T> Function(
+      $$ProjectDocumentChunkVectorsTableAnnotationComposer a,
+    )
+    f,
+  ) {
+    final $$ProjectDocumentChunkVectorsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.projectDocumentChunkVectors,
+          getReferencedColumn: (t) => t.chunkId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunkVectorsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunkVectors,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+}
+
+class $$ProjectDocumentChunksTableTableManager
+    extends
+        RootTableManager<
+          _$HelixDatabase,
+          $ProjectDocumentChunksTable,
+          ProjectDocumentChunk,
+          $$ProjectDocumentChunksTableFilterComposer,
+          $$ProjectDocumentChunksTableOrderingComposer,
+          $$ProjectDocumentChunksTableAnnotationComposer,
+          $$ProjectDocumentChunksTableCreateCompanionBuilder,
+          $$ProjectDocumentChunksTableUpdateCompanionBuilder,
+          (ProjectDocumentChunk, $$ProjectDocumentChunksTableReferences),
+          ProjectDocumentChunk,
+          PrefetchHooks Function({
+            bool documentId,
+            bool projectId,
+            bool projectDocumentChunkVectorsRefs,
+          })
+        > {
+  $$ProjectDocumentChunksTableTableManager(
+    _$HelixDatabase db,
+    $ProjectDocumentChunksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectDocumentChunksTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ProjectDocumentChunksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ProjectDocumentChunksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> documentId = const Value.absent(),
+                Value<String> projectId = const Value.absent(),
+                Value<int> chunkIndex = const Value.absent(),
+                Value<String> text_ = const Value.absent(),
+                Value<int> tokenCount = const Value.absent(),
+                Value<int?> pageStart = const Value.absent(),
+                Value<int?> pageEnd = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentChunksCompanion(
+                id: id,
+                documentId: documentId,
+                projectId: projectId,
+                chunkIndex: chunkIndex,
+                text_: text_,
+                tokenCount: tokenCount,
+                pageStart: pageStart,
+                pageEnd: pageEnd,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String documentId,
+                required String projectId,
+                required int chunkIndex,
+                required String text_,
+                required int tokenCount,
+                Value<int?> pageStart = const Value.absent(),
+                Value<int?> pageEnd = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentChunksCompanion.insert(
+                id: id,
+                documentId: documentId,
+                projectId: projectId,
+                chunkIndex: chunkIndex,
+                text_: text_,
+                tokenCount: tokenCount,
+                pageStart: pageStart,
+                pageEnd: pageEnd,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProjectDocumentChunksTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({
+                documentId = false,
+                projectId = false,
+                projectDocumentChunkVectorsRefs = false,
+              }) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [
+                    if (projectDocumentChunkVectorsRefs)
+                      db.projectDocumentChunkVectors,
+                  ],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (documentId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.documentId,
+                                    referencedTable:
+                                        $$ProjectDocumentChunksTableReferences
+                                            ._documentIdTable(db),
+                                    referencedColumn:
+                                        $$ProjectDocumentChunksTableReferences
+                                            ._documentIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (projectId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.projectId,
+                                    referencedTable:
+                                        $$ProjectDocumentChunksTableReferences
+                                            ._projectIdTable(db),
+                                    referencedColumn:
+                                        $$ProjectDocumentChunksTableReferences
+                                            ._projectIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [
+                      if (projectDocumentChunkVectorsRefs)
+                        await $_getPrefetchedData<
+                          ProjectDocumentChunk,
+                          $ProjectDocumentChunksTable,
+                          ProjectDocumentChunkVector
+                        >(
+                          currentTable: table,
+                          referencedTable:
+                              $$ProjectDocumentChunksTableReferences
+                                  ._projectDocumentChunkVectorsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ProjectDocumentChunksTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).projectDocumentChunkVectorsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.chunkId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                    ];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$ProjectDocumentChunksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$HelixDatabase,
+      $ProjectDocumentChunksTable,
+      ProjectDocumentChunk,
+      $$ProjectDocumentChunksTableFilterComposer,
+      $$ProjectDocumentChunksTableOrderingComposer,
+      $$ProjectDocumentChunksTableAnnotationComposer,
+      $$ProjectDocumentChunksTableCreateCompanionBuilder,
+      $$ProjectDocumentChunksTableUpdateCompanionBuilder,
+      (ProjectDocumentChunk, $$ProjectDocumentChunksTableReferences),
+      ProjectDocumentChunk,
+      PrefetchHooks Function({
+        bool documentId,
+        bool projectId,
+        bool projectDocumentChunkVectorsRefs,
+      })
+    >;
+typedef $$ProjectDocumentChunkVectorsTableCreateCompanionBuilder =
+    ProjectDocumentChunkVectorsCompanion Function({
+      required String chunkId,
+      required Uint8List embedding,
+      required String embeddingModel,
+      Value<int> rowid,
+    });
+typedef $$ProjectDocumentChunkVectorsTableUpdateCompanionBuilder =
+    ProjectDocumentChunkVectorsCompanion Function({
+      Value<String> chunkId,
+      Value<Uint8List> embedding,
+      Value<String> embeddingModel,
+      Value<int> rowid,
+    });
+
+final class $$ProjectDocumentChunkVectorsTableReferences
+    extends
+        BaseReferences<
+          _$HelixDatabase,
+          $ProjectDocumentChunkVectorsTable,
+          ProjectDocumentChunkVector
+        > {
+  $$ProjectDocumentChunkVectorsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ProjectDocumentChunksTable _chunkIdTable(_$HelixDatabase db) =>
+      db.projectDocumentChunks.createAlias(
+        $_aliasNameGenerator(
+          db.projectDocumentChunkVectors.chunkId,
+          db.projectDocumentChunks.id,
+        ),
+      );
+
+  $$ProjectDocumentChunksTableProcessedTableManager get chunkId {
+    final $_column = $_itemColumn<String>('chunk_id')!;
+
+    final manager = $$ProjectDocumentChunksTableTableManager(
+      $_db,
+      $_db.projectDocumentChunks,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_chunkIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$ProjectDocumentChunkVectorsTableFilterComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunkVectorsTable> {
+  $$ProjectDocumentChunkVectorsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<Uint8List> get embedding => $composableBuilder(
+    column: $table.embedding,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get embeddingModel => $composableBuilder(
+    column: $table.embeddingModel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ProjectDocumentChunksTableFilterComposer get chunkId {
+    final $$ProjectDocumentChunksTableFilterComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.chunkId,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableFilterComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ProjectDocumentChunkVectorsTableOrderingComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunkVectorsTable> {
+  $$ProjectDocumentChunkVectorsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<Uint8List> get embedding => $composableBuilder(
+    column: $table.embedding,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get embeddingModel => $composableBuilder(
+    column: $table.embeddingModel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ProjectDocumentChunksTableOrderingComposer get chunkId {
+    final $$ProjectDocumentChunksTableOrderingComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.chunkId,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableOrderingComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ProjectDocumentChunkVectorsTableAnnotationComposer
+    extends Composer<_$HelixDatabase, $ProjectDocumentChunkVectorsTable> {
+  $$ProjectDocumentChunkVectorsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<Uint8List> get embedding =>
+      $composableBuilder(column: $table.embedding, builder: (column) => column);
+
+  GeneratedColumn<String> get embeddingModel => $composableBuilder(
+    column: $table.embeddingModel,
+    builder: (column) => column,
+  );
+
+  $$ProjectDocumentChunksTableAnnotationComposer get chunkId {
+    final $$ProjectDocumentChunksTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.chunkId,
+          referencedTable: $db.projectDocumentChunks,
+          getReferencedColumn: (t) => t.id,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$ProjectDocumentChunksTableAnnotationComposer(
+                $db: $db,
+                $table: $db.projectDocumentChunks,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return composer;
+  }
+}
+
+class $$ProjectDocumentChunkVectorsTableTableManager
+    extends
+        RootTableManager<
+          _$HelixDatabase,
+          $ProjectDocumentChunkVectorsTable,
+          ProjectDocumentChunkVector,
+          $$ProjectDocumentChunkVectorsTableFilterComposer,
+          $$ProjectDocumentChunkVectorsTableOrderingComposer,
+          $$ProjectDocumentChunkVectorsTableAnnotationComposer,
+          $$ProjectDocumentChunkVectorsTableCreateCompanionBuilder,
+          $$ProjectDocumentChunkVectorsTableUpdateCompanionBuilder,
+          (
+            ProjectDocumentChunkVector,
+            $$ProjectDocumentChunkVectorsTableReferences,
+          ),
+          ProjectDocumentChunkVector,
+          PrefetchHooks Function({bool chunkId})
+        > {
+  $$ProjectDocumentChunkVectorsTableTableManager(
+    _$HelixDatabase db,
+    $ProjectDocumentChunkVectorsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProjectDocumentChunkVectorsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ProjectDocumentChunkVectorsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ProjectDocumentChunkVectorsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> chunkId = const Value.absent(),
+                Value<Uint8List> embedding = const Value.absent(),
+                Value<String> embeddingModel = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentChunkVectorsCompanion(
+                chunkId: chunkId,
+                embedding: embedding,
+                embeddingModel: embeddingModel,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String chunkId,
+                required Uint8List embedding,
+                required String embeddingModel,
+                Value<int> rowid = const Value.absent(),
+              }) => ProjectDocumentChunkVectorsCompanion.insert(
+                chunkId: chunkId,
+                embedding: embedding,
+                embeddingModel: embeddingModel,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$ProjectDocumentChunkVectorsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({chunkId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (chunkId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.chunkId,
+                                referencedTable:
+                                    $$ProjectDocumentChunkVectorsTableReferences
+                                        ._chunkIdTable(db),
+                                referencedColumn:
+                                    $$ProjectDocumentChunkVectorsTableReferences
+                                        ._chunkIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$ProjectDocumentChunkVectorsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$HelixDatabase,
+      $ProjectDocumentChunkVectorsTable,
+      ProjectDocumentChunkVector,
+      $$ProjectDocumentChunkVectorsTableFilterComposer,
+      $$ProjectDocumentChunkVectorsTableOrderingComposer,
+      $$ProjectDocumentChunkVectorsTableAnnotationComposer,
+      $$ProjectDocumentChunkVectorsTableCreateCompanionBuilder,
+      $$ProjectDocumentChunkVectorsTableUpdateCompanionBuilder,
+      (
+        ProjectDocumentChunkVector,
+        $$ProjectDocumentChunkVectorsTableReferences,
+      ),
+      ProjectDocumentChunkVector,
+      PrefetchHooks Function({bool chunkId})
+    >;
 
 class $HelixDatabaseManager {
   final _$HelixDatabase _db;
@@ -10687,4 +14789,16 @@ class $HelixDatabaseManager {
       );
   $$UserProfilesTableTableManager get userProfiles =>
       $$UserProfilesTableTableManager(_db, _db.userProfiles);
+  $$ProjectsTableTableManager get projects =>
+      $$ProjectsTableTableManager(_db, _db.projects);
+  $$ProjectDocumentsTableTableManager get projectDocuments =>
+      $$ProjectDocumentsTableTableManager(_db, _db.projectDocuments);
+  $$ProjectDocumentChunksTableTableManager get projectDocumentChunks =>
+      $$ProjectDocumentChunksTableTableManager(_db, _db.projectDocumentChunks);
+  $$ProjectDocumentChunkVectorsTableTableManager
+  get projectDocumentChunkVectors =>
+      $$ProjectDocumentChunkVectorsTableTableManager(
+        _db,
+        _db.projectDocumentChunkVectors,
+      );
 }

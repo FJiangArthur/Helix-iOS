@@ -205,6 +205,63 @@ class UserProfiles extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+class Projects extends Table {
+  TextColumn get id => text()();
+  TextColumn get name => text()();
+  TextColumn get description => text().nullable()();
+  IntColumn get createdAt => integer()();
+  IntColumn get updatedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+  IntColumn get chunkSizeTokens => integer().withDefault(const Constant(800))();
+  IntColumn get chunkOverlapTokens =>
+      integer().withDefault(const Constant(100))();
+  IntColumn get retrievalTopK => integer().withDefault(const Constant(5))();
+  RealColumn get retrievalMinSimilarity =>
+      real().withDefault(const Constant(0.3))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ProjectDocuments extends Table {
+  TextColumn get id => text()();
+  TextColumn get projectId => text().references(Projects, #id)();
+  TextColumn get filename => text()();
+  TextColumn get contentType => text()(); // 'pdf' | 'txt'
+  IntColumn get byteSize => integer()();
+  IntColumn get pageCount => integer().nullable()();
+  IntColumn get ingestedAt => integer()();
+  IntColumn get deletedAt => integer().nullable()();
+  TextColumn get ingestStatus => text()(); // pending|processing|ready|failed
+  TextColumn get ingestError => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ProjectDocumentChunks extends Table {
+  TextColumn get id => text()();
+  TextColumn get documentId => text().references(ProjectDocuments, #id)();
+  TextColumn get projectId => text().references(Projects, #id)();
+  IntColumn get chunkIndex => integer()();
+  TextColumn get text_ => text().named('text')();
+  IntColumn get tokenCount => integer()();
+  IntColumn get pageStart => integer().nullable()();
+  IntColumn get pageEnd => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+class ProjectDocumentChunkVectors extends Table {
+  TextColumn get chunkId => text().references(ProjectDocumentChunks, #id)();
+  BlobColumn get embedding => blob()();
+  TextColumn get embeddingModel => text()();
+
+  @override
+  Set<Column> get primaryKey => {chunkId};
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -223,6 +280,10 @@ class UserProfiles extends Table {
     KnowledgeEntities,
     KnowledgeRelationships,
     UserProfiles,
+    Projects,
+    ProjectDocuments,
+    ProjectDocumentChunks,
+    ProjectDocumentChunkVectors,
   ],
   daos: [
     ConversationDao,
@@ -261,7 +322,7 @@ class HelixDatabase extends _$HelixDatabase {
   HelixDatabase.testWith(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -322,6 +383,19 @@ class HelixDatabase extends _$HelixDatabase {
               VALUES (new.rowid, new.content, new.category);
             END
           ''');
+
+      await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_project_documents_project_deleted '
+          'ON project_documents (project_id, deleted_at)');
+      await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_project_document_chunks_project '
+          'ON project_document_chunks (project_id)');
+      await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_project_document_chunks_document '
+          'ON project_document_chunks (document_id)');
+      await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_projects_deleted '
+          'ON projects (deleted_at)');
     },
     onUpgrade: (Migrator m, from, to) async {
       if (from < 2) {
@@ -342,6 +416,24 @@ class HelixDatabase extends _$HelixDatabase {
           conversationAiCostEntries,
           conversationAiCostEntries.modelRole,
         );
+      }
+      if (from < 5) {
+        await m.createTable(projects);
+        await m.createTable(projectDocuments);
+        await m.createTable(projectDocumentChunks);
+        await m.createTable(projectDocumentChunkVectors);
+        await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_project_documents_project_deleted '
+            'ON project_documents (project_id, deleted_at)');
+        await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_project_document_chunks_project '
+            'ON project_document_chunks (project_id)');
+        await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_project_document_chunks_document '
+            'ON project_document_chunks (document_id)');
+        await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_projects_deleted '
+            'ON projects (deleted_at)');
       }
     },
   );
