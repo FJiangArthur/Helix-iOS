@@ -32,6 +32,9 @@ import 'tools/web_search_tool.dart';
 import 'conversation_listening_session.dart';
 import 'entity_memory.dart';
 import 'knowledge_base.dart';
+import 'projects/active_project_controller.dart';
+import 'projects/project_context_formatter.dart';
+import 'projects/project_rag_service.dart';
 import 'settings_manager.dart';
 import 'translation_service.dart';
 import 'text_service.dart';
@@ -142,6 +145,12 @@ class ConversationEngine {
   final _factCheckAlertController = StreamController<String>.broadcast();
   final _citedFactCheckController =
       StreamController<CitedFactCheckResult>.broadcast();
+  final _projectCitationsController =
+      StreamController<List<RetrievedChunk>>.broadcast();
+
+  /// Emits the citation sources used for the most recent project-enriched response.
+  Stream<List<RetrievedChunk>> get projectCitationsStream =>
+      _projectCitationsController.stream;
 
   /// Optional override for the web search provider, used by tests to inject
   /// a fake without hitting the network. When null, `_activeFactCheck`
@@ -2269,8 +2278,28 @@ $profileInstruction''';
       // prefix. assembleSystemPrompt returns the base unchanged when
       // session-prep is disabled or empty.
       final baseSystemPrompt = overrideSystemPrompt ?? _getSystemPrompt();
+      // Project RAG enrichment: if an active project is selected, retrieve
+      // relevant chunks and prepend them as PROJECT CONTEXT. On any failure
+      // (controller not yet loaded, retrieval API down, missing key), fall
+      // through silently — user still gets a general-knowledge answer.
+      var effectiveBasePrompt = baseSystemPrompt;
+      try {
+        final activeProjectId =
+            ActiveProjectController.instance.activeProjectId;
+        if (activeProjectId != null) {
+          final rag = await ProjectRagService.instance
+              .retrieve(projectId: activeProjectId, query: question);
+          if (rag.chunks.isNotEmpty) {
+            effectiveBasePrompt =
+                ProjectContextFormatter.prepend(baseSystemPrompt, rag.chunks);
+            _projectCitationsController.add(rag.chunks);
+          }
+        }
+      } catch (e) {
+        appLogger.w('[ConversationEngine] project retrieval failed: $e');
+      }
       final systemPrompt = PromptAssembler.assembleSystemPrompt(
-        baseSystemPrompt,
+        effectiveBasePrompt,
       );
       final messages = overrideMessages ?? _buildContextMessages(question);
 
@@ -3233,6 +3262,7 @@ Answer the detected question directly using the recent conversation context abov
     _postConversationController.close();
     _factCheckAlertController.close();
     _citedFactCheckController.close();
+    _projectCitationsController.close();
     _translationSubscription?.cancel();
     _translationController.close();
     _sentimentController.close();
