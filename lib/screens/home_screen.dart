@@ -12,6 +12,7 @@ import '../services/factcheck/cited_fact_check_result.dart';
 import '../services/recording_coordinator.dart';
 import '../services/glasses_answer_presenter.dart';
 import '../services/llm/llm_service.dart';
+import '../services/projects/project_rag_service.dart';
 import '../services/provider_error_state.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
@@ -2101,6 +2102,47 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 _status == EngineStatus.thinking ||
                 _latestQuestionDetection != null) ...[
               _buildPhoneAnswerCard(),
+              StreamBuilder<List<RetrievedChunk>>(
+                stream: ConversationEngine.instance.projectCitationsStream,
+                initialData: const [],
+                builder: (_, snap) {
+                  final chunks = snap.data ?? const [];
+                  if (chunks.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    child: Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (var i = 0; i < chunks.length; i++)
+                          ActionChip(
+                            label: Text(
+                                '[${i + 1}] ${chunks[i].documentFilename}'
+                                '${chunks[i].pageStart != null ? ' p.${chunks[i].pageStart}' : ''}',
+                                style: const TextStyle(fontSize: 11)),
+                            onPressed: () => showDialog<void>(
+                              context: context,
+                              builder: (_) => AlertDialog(
+                                title: Text(chunks[i].documentFilename),
+                                content: SingleChildScrollView(
+                                  child:
+                                      SelectableText(chunks[i].chunkText),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
             if (_aiResponse.trim().isNotEmpty) ...[
               const SizedBox(height: 8),
