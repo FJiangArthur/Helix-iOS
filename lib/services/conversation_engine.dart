@@ -2283,6 +2283,9 @@ $profileInstruction''';
       // (controller not yet loaded, retrieval API down, missing key), fall
       // through silently — user still gets a general-knowledge answer.
       var effectiveBasePrompt = baseSystemPrompt;
+      // Clear any stale citations from a previous turn before deciding
+      // whether this turn has any.
+      _projectCitationsController.add(const []);
       try {
         final activeProjectId =
             ActiveProjectController.instance.activeProjectId;
