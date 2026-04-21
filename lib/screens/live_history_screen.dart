@@ -7,6 +7,7 @@ import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import 'conversation_history_screen.dart';
 import 'detail_analysis_screen.dart';
+import 'projects/projects_list_screen.dart';
 import 'settings_screen.dart';
 
 class LiveHistoryScreen extends StatelessWidget {
@@ -15,7 +16,7 @@ class LiveHistoryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: HelixTheme.background,
         appBar: AppBar(
@@ -46,6 +47,7 @@ class LiveHistoryScreen extends StatelessWidget {
                       tabs: [
                         Tab(text: tr('Live', '实时')),
                         Tab(text: tr('History', '历史')),
+                        Tab(text: tr('Projects', '项目')),
                       ],
                     ),
                   ),
@@ -69,7 +71,11 @@ class LiveHistoryScreen extends StatelessWidget {
           ),
         ),
         body: const TabBarView(
-          children: [DetailAnalysisScreen(), ConversationHistoryScreen()],
+          children: [
+            DetailAnalysisScreen(),
+            ConversationHistoryScreen(),
+            ProjectsListScreen(),
+          ],
         ),
       ),
     );
