@@ -484,6 +484,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildPendingHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
@@ -496,6 +497,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildPendingCards() {
     final fact = _pendingFacts.first;
 
@@ -596,6 +598,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _buildAllCaughtUp() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
@@ -1079,6 +1082,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
   // Tab 3: Ask Buzz
   // =========================================================================
 
+  // ignore: unused_element
   Widget _buildBuzzTab() {
     return SafeArea(
       top: false,

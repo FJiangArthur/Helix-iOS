@@ -167,7 +167,9 @@ class DashboardService {
   final BitmapDashboardRenderer _bitmapFullRenderer;
   final BitmapDashboardHideRenderer _bitmapHideRenderer;
   final BitmapDashboardScreenClearRenderer _bitmapScreenClearRenderer;
+  // ignore: unused_field
   final BitmapDashboardScreenHideRenderer _bitmapScreenHideRenderer;
+  // ignore: unused_field
   final Duration _bitmapScreenHideDelay;
   final BitmapDashboardInvalidator _bitmapInvalidateCache;
   final BitmapDashboardVisibilitySetter _bitmapSetOverlayVisible;

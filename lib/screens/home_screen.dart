@@ -870,6 +870,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _selectAssistantProfile(profile);
   }
 
+  // ignore: unused_element
   void _selectMode(ConversationMode mode) {
     final profiles = SettingsManager.instance.assistantProfiles;
     final match = profiles.firstWhere(
@@ -3951,6 +3952,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // ignore: unused_element
   Color _modeColor(ConversationMode mode) {
     switch (mode) {
       case ConversationMode.general:
@@ -3960,6 +3962,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  // ignore: unused_element
   String _modeLabel(ConversationMode mode) {
     if (_isChinese) {
       switch (mode) {

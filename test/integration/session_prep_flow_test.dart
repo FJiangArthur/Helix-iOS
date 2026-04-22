@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/prompt_assembler.dart';
 import 'package:flutter_helix/services/session_prep_service.dart';
 import 'package:flutter_helix/services/settings_manager.dart';

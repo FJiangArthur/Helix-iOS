@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:crclib/catalog.dart';
 import '../ble_manager.dart';
 import '../services/ble.dart';
-import '../services/bitmap_hud/delta_encoder.dart';
 import '../services/proto.dart';
 import '../utils/app_logger.dart';
 
@@ -21,6 +20,7 @@ class BmpUpdateManager {
   static const int _chunkSize = 194;
   static const int _cmdBmpData = 0x15;
   static const int _cmdBmpCrc = 0x16;
+  // ignore: unused_field
   static const int _cmdBmpComplete = 0x20;
   static const List<int> _bmpStorageAddress = [0x00, 0x1c, 0x00, 0x00];
   static const List<int> _bmpCompletePayload = [0x20, 0x0d, 0x0e];

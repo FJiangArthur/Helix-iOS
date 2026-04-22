@@ -8,7 +8,6 @@ import '../models/assistant_session_meta.dart';
 import '../services/conversation_engine.dart';
 import '../services/database/helix_database.dart';
 import '../services/history_session_loader.dart';
-import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../utils/transcript_timestamps.dart';

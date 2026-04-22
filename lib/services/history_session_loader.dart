@@ -1,5 +1,4 @@
 import '../models/assistant_session_meta.dart';
-import 'conversation_engine.dart';
 import 'database/helix_database.dart';
 import 'settings_manager.dart';
 import '../utils/conversation_mode_labels.dart';
