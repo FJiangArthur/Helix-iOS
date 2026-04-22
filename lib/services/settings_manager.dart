@@ -71,6 +71,23 @@ class SettingsManager {
   /// Maximum sentences in AI responses sent to glasses (1-10).
   int maxResponseSentences = 3;
 
+  /// Approximate maximum characters in a live AI response, used to derive
+  /// `max_output_tokens` via `(maxResponseChars / 3).ceil() + 40`. The HUD
+  /// sheet lets users tune this directly; keep ~400 as the default so a
+  /// 3-sentence answer lands comfortably within the budget.
+  int maxResponseChars = 400;
+
+  /// Fact-check backend identifier. Currently only `'openai'` is implemented
+  /// (uses the OpenAI Responses API with built-in web search). Future values
+  /// may include `'tavily'`.
+  String activeFactCheckBackend = 'openai';
+
+  /// OpenAI realtime conversation model identifier. Used by the Realtime
+  /// speech session when `openAISessionMode == 'realtime'`. Defaults to the
+  /// cheap tier; users can opt into `gpt-realtime` or `gpt-realtime-1.5` via
+  /// Settings.
+  String realtimeConversationModel = 'gpt-realtime-mini';
+
   /// Whether Home should auto-expand summary tools.
   bool autoShowSummary = true;
 
@@ -499,6 +516,12 @@ class SettingsManager {
         prefs.getBool('active_fact_check_enabled') ?? false;
     activeFactCheckMaxResults =
         prefs.getInt('active_fact_check_max_results') ?? 3;
+    activeFactCheckBackend =
+        prefs.getString('active_fact_check_backend') ?? 'openai';
+
+    maxResponseChars = prefs.getInt('maxResponseChars') ?? 400;
+    realtimeConversationModel =
+        prefs.getString('realtimeConversationModel') ?? 'gpt-realtime-mini';
   }
 
   // ---------------------------------------------------------------------------
@@ -641,6 +664,13 @@ class SettingsManager {
     await prefs.setInt(
       'active_fact_check_max_results',
       activeFactCheckMaxResults,
+    );
+    await prefs.setString('active_fact_check_backend', activeFactCheckBackend);
+
+    await prefs.setInt('maxResponseChars', maxResponseChars);
+    await prefs.setString(
+      'realtimeConversationModel',
+      realtimeConversationModel,
     );
 
     _changesController.add(this);
