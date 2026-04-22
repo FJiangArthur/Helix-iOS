@@ -3,6 +3,14 @@ import Foundation
 enum RealtimeMode {
     case transcriptionOnly
     case conversation
+    /// Text-only conversation session with `audio.input.transcription` enabled
+    /// AND custom instructions that force the model to emit a delimited
+    /// 3-layer output: §Q§ … §A§ … §END§. Parsed on the Dart side by
+    /// `DelimitedQaParser`. Uses the new nested-audio session schema and
+    /// the modern realtime models (gpt-realtime, gpt-realtime-mini,
+    /// gpt-realtime-1.5). See `lib/services/realtime/delimited_qa_parser.dart`
+    /// for the format contract.
+    case structuredConversation
 }
 
 class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
@@ -42,6 +50,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private let maxRetries = 2
     private var apiKey: String = ""
     private var model: String = "gpt-4o-mini-transcribe"
+    /// Realtime conversation model (e.g. `gpt-realtime`, `gpt-realtime-mini`,
+    /// `gpt-realtime-1.5`). Only used by `.structuredConversation` and
+    /// `.conversation` modes. Transcription-only mode ignores this.
+    private var conversationModel: String = "gpt-realtime"
     private var language: String = "en"
     private var mode: RealtimeMode = .transcriptionOnly
     var inputAlready24kHz = false
@@ -58,6 +70,12 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var delayedDisconnectWork: DispatchWorkItem?
     private var sessionCounter: Int = 0
     private var transcriptionFailureTimestamps: [Date] = []
+    // Latency instrumentation (structured conversation mode). Set when the
+    // server emits input_audio_buffer.speech_stopped; cleared on the first
+    // response delta. A warning line is logged on every turn so you can
+    // measure real end-to-end latency on device without a debugger.
+    private var speechStoppedAt: Date?
+    private var firstResponseDeltaAt: Date?
     /// VAD threshold override. Mapped from user's vadSensitivity setting.
     var vadThreshold: Double = 0.35
     /// Transcription prompt for accuracy hints.
@@ -92,12 +110,14 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     }
 
     private func sessionConfigEvent(for resolvedLang: String) -> [String: Any] {
-        var transcriptionConfig: [String: Any] = [
+        // Legacy transcription config shape (flat, used by pre-2025 session
+        // types). Kept only for the legacy modes below.
+        var legacyTranscriptionConfig: [String: Any] = [
             "model": model,
             "language": resolvedLang,
         ]
         if !transcriptionPrompt.isEmpty {
-            transcriptionConfig["prompt"] = transcriptionPrompt
+            legacyTranscriptionConfig["prompt"] = transcriptionPrompt
         }
 
         switch mode {
@@ -106,7 +126,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                 "type": "transcription_session.update",
                 "session": [
                     "input_audio_format": "pcm16",
-                    "input_audio_transcription": transcriptionConfig,
+                    "input_audio_transcription": legacyTranscriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
                         "threshold": NSDecimalNumber(string: String(format: "%.6f", vadThreshold)),
@@ -124,7 +144,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     "output_audio_format": "pcm16",
                     "instructions": systemInstructions,
                     "input_audio_format": "pcm16",
-                    "input_audio_transcription": transcriptionConfig,
+                    "input_audio_transcription": legacyTranscriptionConfig,
                     "turn_detection": [
                         "type": "server_vad",
                         "threshold": NSDecimalNumber(string: String(format: "%.6f", vadThreshold)),
@@ -133,7 +153,99 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
                     ],
                 ],
             ]
+        case .structuredConversation:
+            // NEW nested schema per https://developers.openai.com/api/docs/
+            // guides/realtime-conversations and realtime-transcription.
+            //
+            //   session.audio.input.format        { type: "audio/pcm", rate: 24000 }
+            //   session.audio.input.transcription { model: "gpt-4o-mini-transcribe" }
+            //   session.audio.input.turn_detection server_vad 400ms silence
+            //   session.output_modalities         ["text"]   (no audio out)
+            //   session.instructions              delimited 3-layer prompt
+            //
+            // Structured output (json_schema) is NOT supported by
+            // gpt-realtime-mini or gpt-realtime-1.5, so we use the delimited
+            // prompt format parsed by DelimitedQaParser on the Dart side.
+            var audioInputTranscription: [String: Any] = [
+                "model": "gpt-4o-mini-transcribe",
+                "language": resolvedLang,
+            ]
+            if !transcriptionPrompt.isEmpty {
+                audioInputTranscription["prompt"] = transcriptionPrompt
+            }
+            let instructions = systemInstructions.isEmpty
+                ? Self.defaultStructuredInstructions(language: resolvedLang)
+                : systemInstructions
+            return [
+                "type": "session.update",
+                "session": [
+                    "type": "realtime",
+                    "output_modalities": ["text"],
+                    "instructions": instructions,
+                    "audio": [
+                        "input": [
+                            "format": [
+                                "type": "audio/pcm",
+                                "rate": 24000,
+                            ],
+                            "transcription": audioInputTranscription,
+                            "turn_detection": [
+                                "type": "server_vad",
+                                "threshold": NSDecimalNumber(
+                                    string: String(format: "%.6f", vadThreshold)
+                                ),
+                                "prefix_padding_ms": 300,
+                                "silence_duration_ms": 400,
+                                "create_response": true,
+                            ],
+                        ],
+                    ],
+                ],
+            ]
         }
+    }
+
+    /// Default instructions for `.structuredConversation` mode. The contract
+    /// below MUST stay in sync with `DelimitedQaParser` marker constants:
+    ///   §Q§, §A§, §END§.
+    static func defaultStructuredInstructions(language: String) -> String {
+        let isChinese = language == "zh"
+        if isChinese {
+            return """
+ROLE: 你是佩戴智能眼镜的用户的实时对话助手。
+
+每一次回复都必须严格按照以下三段式格式输出，不允许任何额外内容：
+
+§Q§
+<对方刚刚问佩戴者的一句话问题。如果没有明确的问题，写 NONE。>
+§A§
+<如果 §Q§ 是 NONE，这里也写 NONE。否则给出直接的口语化答案，不超过约 200 个字符，不要写"你可以说"之类的开场白，只用自然句子。>
+§END§
+
+规则：
+- 永远不要在 §Q§ / §A§ / §END§ 结构之外写任何字。
+- 不要使用 markdown、列表或项目符号。
+- 如果对方只是在聊天或陈述，两个部分都写 NONE。
+- 如果是佩戴者自己在说话，两个部分也都写 NONE。
+"""
+        }
+        return """
+ROLE: You are a real-time conversation assistant for a user wearing smart glasses.
+
+EVERY response MUST follow this EXACT format — three labeled sections, in this order, no extras:
+
+§Q§
+<one short sentence: the question the other person asked the wearer. If no clear question was asked, write NONE.>
+§A§
+<if §Q§ is NONE, write NONE here too. Otherwise: a direct spoken answer, under about 200 characters, no preamble, no "you could say", plain sentences only.>
+§END§
+
+RULES:
+- NEVER write anything outside the §Q§ / §A§ / §END§ structure.
+- NEVER use markdown, bullets, or lists.
+- If the other person is just chatting or making a statement, BOTH sections are NONE.
+- If the wearer is the one speaking, BOTH sections are NONE.
+"""
     }
 
     func start(
@@ -143,6 +255,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
         mode: RealtimeMode = .transcriptionOnly,
         systemPrompt: String = "",
         voice: String = "alloy",
+        conversationModel: String = "gpt-realtime",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         // Cancel any pending delayed disconnect from a previous stop()
@@ -157,6 +270,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
 
         self.apiKey = apiKey
         self.model = model
+        self.conversationModel = conversationModel
         self.language = language
         self.mode = mode
         self.voice = voice
@@ -318,6 +432,11 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             urlString = "wss://api.openai.com/v1/realtime?intent=transcription"
         case .conversation:
             urlString = "wss://api.openai.com/v1/realtime?model=\(sessionModel)"
+        case .structuredConversation:
+            // Use the Dart-provided conversation model (gpt-realtime,
+            // gpt-realtime-mini, gpt-realtime-1.5) directly — no legacy
+            // preview mapping.
+            urlString = "wss://api.openai.com/v1/realtime?model=\(conversationModel)"
         }
         guard let url = URL(string: urlString) else {
             completion?(.failure(TranscriberError.connectionFailed("Invalid URL")))
@@ -362,6 +481,12 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             warningLog("[OpenAITranscriber] Transcription config sent, model=\(model), language=\(resolvedLang)")
         case .conversation:
             warningLog("[OpenAITranscriber] Conversation config sent, model=\(model), language=\(resolvedLang)")
+        case .structuredConversation:
+            warningLog(
+                "[OpenAITranscriber] StructuredConversation config sent, "
+                + "convModel=\(conversationModel), transcribe=gpt-4o-mini-transcribe, "
+                + "language=\(resolvedLang)"
+            )
         }
     }
 
@@ -646,18 +771,46 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             }
             emitUsageIfPresent(json, operationType: "transcription")
 
-        case "response.text.delta":
+        case "response.text.delta", "response.output_text.delta":
             if let delta = json["delta"] as? String, !delta.isEmpty {
+                // Latency telemetry: stamp the first delta of each response.
+                // Measured against `speechStoppedAt` (set when the server
+                // detects end-of-turn). This is the narrowest measurement
+                // we can take without Dart-side event-loop jitter.
+                if firstResponseDeltaAt == nil,
+                   let stoppedAt = speechStoppedAt {
+                    firstResponseDeltaAt = Date()
+                    let latencyMs = Int(Date().timeIntervalSince(stoppedAt) * 1000)
+                    warningLog(
+                        "[Realtime] answer latency \(latencyMs)ms "
+                        + "(speech_stopped → first response delta)"
+                    )
+                }
                 DispatchQueue.main.async {
                     self.onResponse?(delta, false)
                 }
             }
 
-        case "response.text.done":
+        case "response.text.done", "response.output_text.done":
             DispatchQueue.main.async {
                 self.onResponse?("", true)
             }
             emitUsageIfPresent(json, operationType: "response")
+
+        case "input_audio_buffer.speech_stopped":
+            // Server VAD detected end-of-turn. Reset telemetry and start
+            // the latency clock for this turn.
+            speechStoppedAt = Date()
+            firstResponseDeltaAt = nil
+
+        case "input_audio_buffer.speech_started":
+            // New turn started — clear stale stamps.
+            speechStoppedAt = nil
+            firstResponseDeltaAt = nil
+
+        case "response.created":
+            // No-op but useful for debugging the structured flow.
+            break
 
         case "response.audio.delta":
             if let delta = json["delta"] as? String,
@@ -741,8 +894,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             return
         }
 
-        // Flush partial response buffer on disconnect in conversation mode
-        if mode == .conversation {
+        // Flush partial response buffer on disconnect in any conversational
+        // mode so the Dart-side stream reader / delimited parser can
+        // finalize whatever tokens arrived before the socket died.
+        if mode == .conversation || mode == .structuredConversation {
             DispatchQueue.main.async {
                 self.onResponse?("", true)
             }

@@ -213,6 +213,7 @@ class SpeechStreamRecognizer {
         apiKey: String? = nil,
         model: String? = nil,
         realtimeConversation: Bool = false,
+        conversationModel: String = "gpt-realtime-mini",
         systemPrompt: String? = nil,
         voice: String = "alloy",
         vadSensitivity: Double = 0.5,
@@ -243,6 +244,7 @@ class SpeechStreamRecognizer {
                 apiKey: apiKey ?? "",
                 model: model ?? "gpt-4o-mini-transcribe",
                 realtimeConversation: realtimeConversation,
+                conversationModel: conversationModel,
                 systemPrompt: systemPrompt,
                 voice: voice,
                 completion: completion
@@ -527,6 +529,7 @@ class SpeechStreamRecognizer {
         apiKey: String,
         model: String,
         realtimeConversation: Bool = false,
+        conversationModel: String = "gpt-realtime-mini",
         systemPrompt: String? = nil,
         voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
@@ -550,6 +553,7 @@ class SpeechStreamRecognizer {
                 self._continueOpenAIRecognition(
                     identifier: identifier, source: source, apiKey: apiKey,
                     model: model, realtimeConversation: realtimeConversation,
+                    conversationModel: conversationModel,
                     systemPrompt: systemPrompt, voice: voice, completion: completion
                 )
             }
@@ -559,6 +563,7 @@ class SpeechStreamRecognizer {
         _continueOpenAIRecognition(
             identifier: identifier, source: source, apiKey: apiKey,
             model: model, realtimeConversation: realtimeConversation,
+            conversationModel: conversationModel,
             systemPrompt: systemPrompt, voice: voice, completion: completion
         )
     }
@@ -569,6 +574,7 @@ class SpeechStreamRecognizer {
         apiKey: String,
         model: String,
         realtimeConversation: Bool = false,
+        conversationModel: String = "gpt-realtime-mini",
         systemPrompt: String? = nil,
         voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
@@ -602,8 +608,22 @@ class SpeechStreamRecognizer {
         ]
         let lang = langMap[identifier] ?? "en"
 
-        let mode: RealtimeMode = realtimeConversation ? .conversation : .transcriptionOnly
-        openaiTranscriber.start(apiKey: apiKey, model: model, language: lang, mode: mode, systemPrompt: systemPrompt ?? "", voice: voice) { [weak self] result in
+        // When the Dart layer asks for realtime conversation, route into
+        // the new `.structuredConversation` mode which uses the modern
+        // session.audio.* schema and the §Q§/§A§/§END§ delimited prompt.
+        // The legacy `.conversation` mode (voice S2S with audio output)
+        // stays in the enum for backward compat but is no longer reachable
+        // from Dart.
+        let mode: RealtimeMode = realtimeConversation ? .structuredConversation : .transcriptionOnly
+        openaiTranscriber.start(
+            apiKey: apiKey,
+            model: model,
+            language: lang,
+            mode: mode,
+            systemPrompt: systemPrompt ?? "",
+            voice: voice,
+            conversationModel: conversationModel
+        ) { [weak self] result in
             guard let self = self else { return }
             switch result {
             case .success:
@@ -754,28 +774,11 @@ class SpeechStreamRecognizer {
                     [weak self] buffer, _ in
                     guard let self = self,
                           let data = self.convertBufferToOpenAIInput(buffer) else { return }
-                    // VAD gating on microphone input
-                    let rms = self.computeBufferRMS(data)
-                    if rms >= Self.micVadThreshold {
-                        self.lastVoiceActivityTime = Date()
-                        self.consecutiveSilenceDuration = 0
-                        if self.audioEnginePausedForSilence {
-                            self.audioEnginePausedForSilence = false
-                        }
-                        self.whisperTranscriber.appendAudio(data)
-                        // Also buffer for diarization
-                        if self.enableDiarization {
-                            self.appendDiarizationPcm(data)
-                        }
-                    } else {
-                        // Check trailing buffer - keep processing briefly after voice
-                        let silenceElapsed = Date().timeIntervalSince(self.lastVoiceActivityTime)
-                        if silenceElapsed < Self.vadTrailingBufferSec {
-                            self.whisperTranscriber.appendAudio(data)
-                            if self.enableDiarization {
-                                self.appendDiarizationPcm(data)
-                            }
-                        }
+                    // Send all audio to Whisper — server-side processing
+                    // handles silence. No local VAD gating needed.
+                    self.whisperTranscriber.appendAudio(data)
+                    if self.enableDiarization {
+                        self.appendDiarizationPcm(data)
                     }
                 }
                 isInputTapInstalled = true
@@ -1110,18 +1113,9 @@ class SpeechStreamRecognizer {
         guard activeInputSource == .glassesPcm else { return }
         guard !isPaused else { return }
         if activeBackend == .openai {
-            // VAD gating: skip silent BLE audio to save tokens
-            let rms = computeBufferRMS(pcmData)
-            if rms >= Self.micVadThreshold {
-                lastVoiceActivityTime = Date()
-                consecutiveSilenceDuration = 0
-                openaiTranscriber.appendAudio(pcmData)
-            } else {
-                let silenceElapsed = Date().timeIntervalSince(lastVoiceActivityTime)
-                if silenceElapsed < Self.vadTrailingBufferSec {
-                    openaiTranscriber.appendAudio(pcmData)
-                }
-            }
+            // Send all audio to OpenAI — server-side VAD handles silence
+            // detection and turn segmentation. No local gating needed.
+            openaiTranscriber.appendAudio(pcmData)
             return
         }
         if activeBackend == .whisper {

@@ -486,6 +486,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                   ),
+                if (_settings.transcriptionBackend == 'openai' &&
+                    _settings.openAISessionMode == 'realtime')
+                  ListTile(
+                    title: const Text('Realtime Conversation Model'),
+                    subtitle: const Text(
+                      'Handles transcription + detection + answer in one pass',
+                    ),
+                    trailing: DropdownButton<String>(
+                      value: _settings.realtimeConversationModel,
+                      dropdownColor: const Color(0xFF1A1F35),
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'gpt-realtime-mini',
+                          child: Text('gpt-realtime-mini (cheap)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'gpt-realtime',
+                          child: Text('gpt-realtime'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'gpt-realtime-1.5',
+                          child: Text('gpt-realtime-1.5 (best)'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          _settings.update(
+                            (s) => s.realtimeConversationModel = value,
+                          );
+                        }
+                      },
+                    ),
+                  ),
                 if (_settings.transcriptionBackend == 'openai')
                   ListTile(
                     title: const Text('Model'),

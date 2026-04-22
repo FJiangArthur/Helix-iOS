@@ -64,3 +64,6 @@ coverage/
 # and baseline.json ARE committed.
 test/fixtures/latency_corpus/*.wav
 test/fixtures/latency_corpus/baseline*.json
+
+# Superpowers brainstorm ephemeral state
+.superpowers/

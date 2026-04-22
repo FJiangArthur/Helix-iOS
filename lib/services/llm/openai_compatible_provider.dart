@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_helix/services/llm/llm_provider.dart';
+import 'package:flutter_helix/utils/app_logger.dart';
 
 /// Base class for OpenAI-compatible API providers.
 ///
@@ -375,8 +376,28 @@ abstract class OpenAiCompatibleProvider implements LlmProvider {
 
       request.write(jsonEncode(body));
       final response = await request.close();
-      return response.statusCode == 200;
-    } catch (_) {
+      if (response.statusCode == 200) return true;
+      // Surface the real reason so the user can diagnose (wrong key, billing,
+      // model access, temperature rejection on newer models, etc.). Body is
+      // truncated because OpenAI error payloads include verbose docs links.
+      final bodyStr = await response.transform(utf8.decoder).join();
+      final truncated = bodyStr.length > 400
+          ? '${bodyStr.substring(0, 400)}…'
+          : bodyStr;
+      // ignore: avoid_print — diagnostic must reach release-mode device logs.
+      print(
+        '[$name] testConnection failed: HTTP ${response.statusCode} '
+        'model=$defaultModel body=$truncated',
+      );
+      appLogger.w(
+        '[$name] testConnection failed: HTTP ${response.statusCode} '
+        'model=$defaultModel body=$truncated',
+      );
+      return false;
+    } catch (e) {
+      // ignore: avoid_print
+      print('[$name] testConnection threw: $e');
+      appLogger.w('[$name] testConnection threw: $e');
       return false;
     } finally {
       client?.close();

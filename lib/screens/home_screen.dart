@@ -1185,12 +1185,70 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// Two-option segmented picker for the active fact-check backend.
+  /// `setSheetState` is the StatefulBuilder setter so the picker rebuilds
+  /// inline when the user taps a chip.
+  Widget _buildFactCheckBackendPicker(StateSetter setSheetState) {
+    final backend = SettingsManager.instance.activeFactCheckBackend;
+    Widget chip(String id, String label) {
+      final selected = backend == id;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () async {
+            if (backend == id) return;
+            await SettingsManager.instance.update((s) {
+              s.activeFactCheckBackend = id;
+            });
+            setSheetState(() {});
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: selected
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.30)
+                    : Colors.white.withValues(alpha: 0.10),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.70),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Row(
+        children: [
+          chip('tavily', _tr(en: 'Tavily', zh: 'Tavily', ja: 'Tavily', ko: 'Tavily', es: 'Tavily', ru: 'Tavily')),
+          const SizedBox(width: 8),
+          chip('openai', _tr(en: 'OpenAI Web', zh: 'OpenAI 网络', ja: 'OpenAI Web', ko: 'OpenAI 웹', es: 'OpenAI Web', ru: 'OpenAI Web')),
+        ],
+      ),
+    );
+  }
+
   void _openAssistantSetupSheet() {
     var sheetProfile = _assistantProfile;
     var sheetPreset = _selectedPreset;
     var sheetAutoShowSummary = SettingsManager.instance.autoShowSummary;
     var sheetAutoShowFollowUps = SettingsManager.instance.autoShowFollowUps;
-    var sheetMaxSentences = SettingsManager.instance.maxResponseSentences;
+    var sheetMaxChars = SettingsManager.instance.maxResponseChars;
     var automationExpanded = true;
     var outputToolsExpanded = false;
 
@@ -1387,6 +1445,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               setSheetState(() {});
                             },
                           ),
+                          const SizedBox(height: 8),
+                          AssistantSettingsToggleTile(
+                            key: const Key('home-setup-active-factcheck-toggle'),
+                            title: _tr(en: 'Active Fact-Check', zh: '实时事实核查', ja: 'アクティブ事実確認', ko: '실시간 팩트체크', es: 'Verificacion activa', ru: 'Активная проверка'),
+                            description: _tr(en: 'Verify AI answers against live web sources after each response.', zh: '每次回答后根据在线资料验证 AI 答案。', ja: '各回答後にウェブソースで AI の回答を検証します。', ko: '각 응답 후 웹 소스로 AI 답변을 검증합니다.', es: 'Verifica respuestas con fuentes web en vivo.', ru: 'Проверяет ответы AI по живым источникам.'),
+                            value: SettingsManager.instance.activeFactCheckEnabled,
+                            onTap: () async {
+                              final next = !SettingsManager.instance.activeFactCheckEnabled;
+                              await SettingsManager.instance.update((s) {
+                                s.activeFactCheckEnabled = next;
+                              });
+                              setSheetState(() {});
+                            },
+                          ),
+                          if (SettingsManager.instance.activeFactCheckEnabled) ...[
+                            const SizedBox(height: 8),
+                            _buildFactCheckBackendPicker(setSheetState),
+                          ],
                         ],
                         const SizedBox(height: 16),
                         _buildCollapsibleSectionHeader(
@@ -1570,12 +1646,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   children: [
                                     Text(
                                       _tr(
-                                        en: 'Max Sentences',
-                                        zh: '最大句数',
-                                        ja: '最大文数',
-                                        ko: '최대 문장 수',
-                                        es: 'Máximo de oraciones',
-                                        ru: 'Макс. предложений',
+                                        en: 'Max Response Length',
+                                        zh: '最大回复长度',
+                                        ja: '最大応答長',
+                                        ko: '최대 응답 길이',
+                                        es: 'Longitud máxima',
+                                        ru: 'Макс. длина ответа',
                                       ),
                                       style: TextStyle(
                                         color: Colors.white.withValues(
@@ -1587,7 +1663,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      '$sheetMaxSentences per answer on glasses',
+                                      '~$sheetMaxChars characters (soft cap)',
                                       style: TextStyle(
                                         color: Colors.white.withValues(
                                           alpha: 0.48,
@@ -1601,18 +1677,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               SizedBox(
                                 width: 140,
                                 child: Slider(
-                                  value: sheetMaxSentences.toDouble(),
-                                  min: 1,
-                                  max: 10,
-                                  divisions: 9,
-                                  label: '$sheetMaxSentences',
+                                  value: sheetMaxChars.toDouble(),
+                                  min: 50,
+                                  max: 500,
+                                  divisions: 18,
+                                  label: '$sheetMaxChars',
                                   onChanged: (v) {
                                     final val = v.round();
                                     setSheetState(
-                                      () => sheetMaxSentences = val,
+                                      () => sheetMaxChars = val,
                                     );
                                     SettingsManager.instance.update(
-                                      (s) => s.maxResponseSentences = val,
+                                      (s) => s.maxResponseChars = val,
                                     );
                                   },
                                 ),

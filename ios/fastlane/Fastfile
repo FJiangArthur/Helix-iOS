@@ -52,9 +52,11 @@ platform :ios do
     # Use build_app's export_xcargs to pass provisioning updates auth
     # so the liveactivity extension profile gets auto-created.
     build_app(
+      workspace: "#{PROJECT_DIR}/ios/Runner.xcworkspace",
+      scheme: "Runner",
       skip_build_archive: true,
       archive_path: XCARCHIVE_PATH,
-      export_method: "app-store-connect",
+      export_method: "app-store",
       export_team_id: "4SA9UFLZMT",
       output_directory: IPA_DIR,
       output_name: "#{IPA_NAME}.ipa",

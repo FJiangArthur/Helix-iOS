@@ -23,13 +23,14 @@ void main() {
     });
 
     test('short answers send once', () async {
-      final sent = <(String, int, int)>[];
+      final sent = <(String, int, int, bool)>[];
       final presenter = GlassesAnswerPresenter(
-        sender: (text, currentWindow, totalWindows) async {
-          sent.add((text, currentWindow, totalWindows));
+        sender: (text, currentWindow, totalWindows, {bool isFinal = false}) async {
+          sent.add((text, currentWindow, totalWindows, isFinal));
           return true;
         },
         cadence: Duration.zero,
+        initialHold: Duration.zero,
         prepareDelivery: () async {},
         beginTextTransfer: (_) async {},
         resetToIdle: (_) async {},
@@ -40,6 +41,8 @@ void main() {
       expect(sent.length, 1);
       expect(sent.single.$2, 1);
       expect(sent.single.$3, 1);
+      // A single-window answer is itself the final frame — must latch.
+      expect(sent.single.$4, true);
       expect(
         presenter.currentState.status,
         GlassesAnswerDeliveryStatus.delivered,
@@ -48,12 +51,15 @@ void main() {
 
     test('long answers send overlapping windows in order', () async {
       final sent = <String>[];
+      final finals = <bool>[];
       final presenter = GlassesAnswerPresenter(
-        sender: (text, currentWindow, totalWindows) async {
+        sender: (text, currentWindow, totalWindows, {bool isFinal = false}) async {
           sent.add(text);
+          finals.add(isFinal);
           return true;
         },
         cadence: Duration.zero,
+        initialHold: Duration.zero,
         prepareDelivery: () async {},
         beginTextTransfer: (_) async {},
         resetToIdle: (_) async {},
@@ -69,6 +75,10 @@ void main() {
 
       expect(expectedWindows.length, greaterThan(1));
       expect(sent, expectedWindows);
+      // Only the last window should be marked final — everything before it
+      // must be an intermediate scroll frame.
+      expect(finals.last, true);
+      expect(finals.sublist(0, finals.length - 1).every((v) => !v), true);
     });
 
     test('new answers preempt an in-flight delivery', () async {
@@ -83,7 +93,7 @@ void main() {
       }
 
       final presenter = GlassesAnswerPresenter(
-        sender: (text, currentWindow, totalWindows) async {
+        sender: (text, currentWindow, totalWindows, {bool isFinal = false}) async {
           sent.add(text);
           final completer = Completer<void>();
           completers.add(completer);
@@ -91,6 +101,7 @@ void main() {
           return true;
         },
         cadence: const Duration(milliseconds: 1),
+        initialHold: const Duration(milliseconds: 1),
         prepareDelivery: () async {},
         beginTextTransfer: (_) async {},
         resetToIdle: (_) async {},

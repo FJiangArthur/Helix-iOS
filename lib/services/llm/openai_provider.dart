@@ -26,10 +26,11 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
     'gpt-4.1-nano',
     'gpt-realtime',
     'gpt-realtime-mini',
+    'gpt-realtime-1.5',
   ];
 
   @override
-  String get defaultModel => 'gpt-4.1';
+  String get defaultModel => 'gpt-5.4-mini';
 
   @override
   List<String> filterQueriedModels(List<String> modelIds) {
@@ -42,6 +43,7 @@ class OpenAiProvider extends OpenAiCompatibleProvider {
       'gpt-4.1-nano',
       'gpt-realtime',
       'gpt-realtime-mini',
+      'gpt-realtime-1.5',
     };
     final filtered =
         modelIds

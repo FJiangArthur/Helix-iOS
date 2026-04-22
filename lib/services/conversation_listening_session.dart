@@ -244,6 +244,7 @@ class ConversationListeningSession {
           'source': sourceStr,
           'backend': effectiveBackend,
           'sessionMode': settings.openAISessionMode,
+          'conversationModel': settings.realtimeConversationModel,
           'apiKey': apiKey,
           'model': settings.transcriptionModel,
           'systemPrompt': systemPrompt,

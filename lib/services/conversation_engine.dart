@@ -25,11 +25,12 @@ import 'llm/llm_service.dart';
 import 'prompt_assembler.dart';
 import 'llm/llm_provider.dart';
 import 'factcheck/cited_fact_check_result.dart';
+import 'factcheck/openai_web_search_fact_checker.dart';
 import 'factcheck/tavily_search_provider.dart';
 import 'factcheck/web_search_provider.dart';
 import 'tools/tool_executor.dart';
 import 'tools/web_search_tool.dart';
-import 'conversation_listening_session.dart';
+import 'realtime/delimited_qa_parser.dart';
 import 'entity_memory.dart';
 import 'knowledge_base.dart';
 import 'projects/active_project_controller.dart';
@@ -73,6 +74,10 @@ class ConversationEngine {
   bool _sessionStopHandled = false;
   String _lastHandledQuestionKey = '';
   DateTime? _lastHandledQuestionTime;
+  // Dedup key for STAR behavioral-question coaching pushes — set to the
+  // matched question substring so the same trigger in successive partials
+  // does not re-push the HUD and stomp an in-flight AI stream.
+  String _lastCoachingQuestionKey = '';
   QuestionDetectionResult? _latestQuestionDetection;
   String? _lastSavedConversationId;
   final ConversationCostTracker _conversationCostTracker =
@@ -559,14 +564,15 @@ class ConversationEngine {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
-    // While generating a response, suppress incoming partial updates.
-    // The native recognizer may still emit buffered results after pause —
-    // processing them here would clear the active answer flag and schedule
-    // a competing analysis cycle that cancels the in-flight response.
-    if (_isGeneratingResponse) return;
+    // Always update the transcript UI so the user sees real-time text,
+    // even while an AI response is being generated.
 
-    // Clear active answer flag so touchpad reverts to pause/analyze
-    EvenAI.hasActiveAnswer = false;
+    // Only clear active answer flag when NOT generating a response.
+    // During response generation, keep the flag so touchpad stays in
+    // page-navigation mode and doesn't schedule competing analysis.
+    if (!_isGeneratingResponse) {
+      EvenAI.hasActiveAnswer = false;
+    }
 
     // Split by sentence boundaries and progressively finalize complete ones.
     // Wrapped in try-catch so a regex or split issue can never kill the
@@ -581,6 +587,10 @@ class ConversationEngine {
 
     _silenceSuggestionSent = false;
     _resetSilenceTimer();
+
+    // Skip scheduling new analysis while generating a response to avoid
+    // cancelling the in-flight answer.
+    if (_isGeneratingResponse) return;
 
     if (autoDetectQuestions && answerAll) {
       _scheduleTranscriptAnalysis();
@@ -823,7 +833,31 @@ class ConversationEngine {
   }
 
   /// Handle AI response text from the OpenAI Realtime API conversation mode.
+  ///
+  /// Two flavors:
+  ///   (a) LEGACY realtime conversation — native sends plain answer tokens.
+  ///       We append directly to `_realtimeResponseBuffer` and stream to the
+  ///       HUD, matching the original behavior.
+  ///   (b) STRUCTURED realtime conversation — native connects to the new
+  ///       realtime models (gpt-realtime-mini / gpt-realtime-1.5) with a
+  ///       delimited 3-layer instruction. Deltas look like:
+  ///         "§Q§\nWhat time is it?\n§A§\nIt is 3 PM.\n§END§"
+  ///       We feed every delta through [DelimitedQaParser] which routes the
+  ///       question half to `_questionDetectionController` and the answer
+  ///       half straight into `_aiResponseController` + HUD stream.
+  ///
+  /// Flavor (b) is triggered automatically when the OpenAI realtime session
+  /// mode setting is 'realtime' AND the incoming stream actually contains
+  /// markers. Drift fallback inside the parser guarantees we never lose the
+  /// answer even if the model forgets the format.
   void onRealtimeResponse(String text, {required bool isFinal}) {
+    final useStructured =
+        SettingsManager.instance.openAISessionMode == 'realtime';
+    if (useStructured) {
+      _handleStructuredRealtimeDelta(text, isFinal: isFinal);
+      return;
+    }
+    // Legacy path (voice conversation mode with plain text deltas).
     if (text.isNotEmpty) {
       _realtimeResponseBuffer += text;
       _latestAssistantResponse = _realtimeResponseBuffer;
@@ -854,6 +888,130 @@ class ConversationEngine {
         _isActive ? EngineStatus.listening : EngineStatus.idle,
       );
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Structured realtime (§Q§ / §A§ / §END§) wiring
+  // ---------------------------------------------------------------------------
+
+  DelimitedQaParser? _structuredParser;
+  DateTime? _structuredTurnStartedAt;
+
+  DelimitedQaParser _ensureStructuredParser() {
+    final existing = _structuredParser;
+    if (existing != null) return existing;
+    final parser = DelimitedQaParser(
+      onAnswerDelta: _onStructuredAnswerDelta,
+      onQuestionComplete: _onStructuredQuestionComplete,
+      onAnswerComplete: _onStructuredAnswerComplete,
+      onDrift: () {
+        appLogger.w(
+          '[Engine] Structured realtime parser drifted — model ignored '
+          'the §Q§/§A§ format. Falling back to raw-answer mode for this turn.',
+        );
+      },
+    );
+    _structuredParser = parser;
+    _structuredTurnStartedAt = DateTime.now();
+    _statusController.add(EngineStatus.responding);
+    return parser;
+  }
+
+  void _handleStructuredRealtimeDelta(
+    String text, {
+    required bool isFinal,
+  }) {
+    final parser = _ensureStructuredParser();
+    if (text.isNotEmpty) {
+      parser.addDelta(text);
+    }
+    if (isFinal) {
+      parser.finish();
+      _structuredParser = null;
+      final elapsed = _structuredTurnStartedAt == null
+          ? null
+          : DateTime.now().difference(_structuredTurnStartedAt!).inMilliseconds;
+      _structuredTurnStartedAt = null;
+      if (elapsed != null) {
+        appLogger.w(
+          '[Realtime] structured turn complete (dart-side) '
+          'elapsed=${elapsed}ms',
+        );
+      }
+      _statusController.add(
+        _isActive ? EngineStatus.listening : EngineStatus.idle,
+      );
+    }
+  }
+
+  void _onStructuredAnswerDelta(String delta) {
+    _realtimeResponseBuffer += delta;
+    _latestAssistantResponse = _realtimeResponseBuffer;
+    _latestAssistantResponseTimestamp = DateTime.now();
+    // Streaming answer deltas go straight into the HUD line-streaming
+    // session so the user sees tokens as soon as they arrive. Same path
+    // the non-realtime _generateResponse uses.
+    _streamToGlasses(_realtimeResponseBuffer, isStreaming: true);
+    _aiResponseController.add(_realtimeResponseBuffer);
+  }
+
+  void _onStructuredQuestionComplete(String? question) {
+    if (question == null || question.isEmpty) return;
+    // Dedup: the question-handler downstream uses this key to suppress
+    // duplicates, so normalize the same way the legacy pipeline does.
+    final questionKey = _normalizeQuestion(question);
+    final now = DateTime.now();
+    if (questionKey.isNotEmpty &&
+        questionKey == _lastHandledQuestionKey &&
+        _lastHandledQuestionTime != null &&
+        now.difference(_lastHandledQuestionTime!).inSeconds < 45) {
+      return;
+    }
+    _lastHandledQuestionKey = questionKey;
+    _lastHandledQuestionTime = now;
+
+    final detection = QuestionDetectionResult(
+      question: question,
+      questionExcerpt: question,
+      askedBy: 'other',
+      timestamp: now,
+    );
+    _latestQuestionDetection = detection;
+    _questionDetectionController.add(detection);
+    _questionDetectedController.add(
+      DetectedQuestion(
+        question: question,
+        fullContext: _composeFullTranscript(),
+        timestamp: now,
+      ),
+    );
+    _recordDetectedQuestionTurn(detection);
+  }
+
+  void _onStructuredAnswerComplete(String? answer) {
+    if (answer == null || answer.isEmpty) {
+      // The model said NONE or the stream died without any answer. Clear
+      // HUD state gracefully — nothing to display.
+      _realtimeResponseBuffer = '';
+      return;
+    }
+    // Send the final (0x40 DISPLAY_COMPLETE) HUD frame so the answer
+    // latches on screen.
+    _streamToGlasses(answer, isStreaming: false);
+    _history.add(
+      ConversationTurn(
+        role: 'assistant',
+        content: answer,
+        timestamp: DateTime.now(),
+        mode: _mode.name,
+        assistantProfileId: _activeAssistantProfile().id,
+      ),
+    );
+    _persistHistory();
+    _aiResponseController.add(answer);
+    _latestAssistantResponse = answer;
+    _latestAssistantResponseTimestamp = DateTime.now();
+    _realtimeResponseBuffer = '';
   }
 
   /// User explicitly asks a question (Direct Q&A mode)
@@ -1060,6 +1218,16 @@ Current topic: $_currentTranscription''';
 
   /// Check if the transcription contains a behavioral question and emit coaching
   void _checkForBehavioralQuestion(String text) {
+    // STAR coaching is an interview-profile-only feature. Before this gate
+    // the regex ran on every profile, so a behavioral phrase uttered by the
+    // other party (e.g. "tell me about a time") would push a STAR card to
+    // the HUD even in General / Passive profiles — and worse, do it while
+    // the AI answer was still streaming, causing the HUD to flash through
+    // the template mid-answer. Only run when the interview coach profile
+    // is actually selected.
+    if (_activeAssistantProfile().engineModeName != 'interview') {
+      return;
+    }
     final isChinese = _language == 'zh';
     final patterns = isChinese
         ? _behavioralPatternsChinese
@@ -1097,14 +1265,27 @@ Current topic: $_currentTranscription''';
                 timestamp: DateTime.now(),
               );
 
+        // Dedup: skip re-firing coaching for the same question text that
+        // triggered on a prior partial. The behavioral regex stays matched
+        // across successive partials while the user keeps speaking, and
+        // every re-fire used to stomp the streaming answer HUD with a
+        // latched text-mode frame.
+        final questionKey = questionContext.toLowerCase();
+        if (questionKey == _lastCoachingQuestionKey) {
+          return;
+        }
+        _lastCoachingQuestionKey = questionKey;
+
         _coachingController.add(coaching);
         appLogger.d(
           'STAR coaching triggered '
           '(questionChars=${questionContext.length})',
         );
 
-        // Push a compact STAR reminder to glasses HUD
-        if (_glassesConnectionChecker()) {
+        // Push a compact STAR reminder to glasses HUD — but NEVER while an
+        // AI response is actively streaming, otherwise the latched text-mode
+        // frame races the stream and flashes the HUD.
+        if (_glassesConnectionChecker() && !_isGeneratingResponse) {
           final hudText = coaching.steps.join('\n');
           _streamToGlasses(hudText, isStreaming: false);
         }
@@ -1500,6 +1681,15 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
     final settings = SettingsManager.instance;
     if (!settings.activeFactCheckEnabled) return;
 
+    // Branch on backend. OpenAI path is a single call to /v1/responses with
+    // the built-in web_search tool and emits directly; Tavily path runs the
+    // legacy search → light-LLM-verify pipeline below.
+    if (webSearchProviderOverride == null &&
+        settings.activeFactCheckBackend == 'openai') {
+      await _activeFactCheckOpenAi(question, finalResponse);
+      return;
+    }
+
     WebSearchProvider? provider = webSearchProviderOverride;
     if (provider == null) {
       final key = await settings.tavilyApiKey;
@@ -1618,6 +1808,30 @@ Reply with JSON only (no markdown code fence):
       _citedFactCheckController.add(result);
     } catch (e) {
       appLogger.d('[ActiveFactCheck] failed: $e');
+    }
+  }
+
+  /// OpenAI Responses API path — single call with the built-in `web_search`
+  /// tool. Reuses the OpenAI API key already configured for the primary LLM
+  /// (no separate key field). Silent failure: emits nothing on any error.
+  Future<void> _activeFactCheckOpenAi(
+    String question,
+    String finalResponse,
+  ) async {
+    final llmService = _getLlmService();
+    if (llmService == null) return;
+    final apiKey = llmService.getApiKey('openai')?.trim();
+    if (apiKey == null || apiKey.isEmpty) {
+      appLogger.d('[ActiveFactCheck] openai backend selected but no key');
+      return;
+    }
+    final checker = OpenAiWebSearchFactChecker(apiKey: apiKey);
+    final result = await checker.check(
+      question: question,
+      answer: finalResponse,
+    );
+    if (result != null) {
+      _citedFactCheckController.add(result);
     }
   }
 
@@ -1790,9 +2004,6 @@ Reply with JSON only (no markdown code fence):
 
       _aiResponseController.add('');
       if (answerAll) {
-        final session = ConversationListeningSession.instance;
-        final shouldPause = session.isRunning;
-        if (shouldPause) session.pauseTranscription();
         final responseToken = _beginResponseCycle();
         _statusController.add(EngineStatus.thinking);
         _isGeneratingResponse = true;
@@ -1807,7 +2018,6 @@ Reply with JSON only (no markdown code fence):
           );
         } finally {
           _isGeneratingResponse = false;
-          if (shouldPause) session.resumeTranscription();
         }
       }
     } catch (error) {
@@ -2547,8 +2757,12 @@ $profileInstruction''';
   }
 
   int _answerOutputTokenLimit() {
-    final maxSentences = SettingsManager.instance.maxResponseSentences;
-    return (maxSentences * 120).clamp(120, 720);
+    // Characters per token ≈ 3.5 for English conversational output, closer
+    // to 2 for Chinese. We divide by 3 (generous) and add ~40 token
+    // headroom so the model can reach the target without being hard-cut
+    // mid-sentence by the API. Clamp protects against degenerate values.
+    final maxChars = SettingsManager.instance.maxResponseChars;
+    return ((maxChars / 3).ceil() + 40).clamp(80, 800);
   }
 
   void _recordLlmMetadata(LlmResponseMetadata metadata) {
@@ -2705,12 +2919,12 @@ Answer the detected question directly using the recent conversation context abov
         : '';
     final profile = _activeAssistantProfile();
     final profileInstruction = profile.promptDirective(isChinese: isChinese);
-    final maxSentences = SettingsManager.instance.maxResponseSentences;
+    final maxChars = SettingsManager.instance.maxResponseChars;
 
     final persona = profile.systemPrompt?.trim().isNotEmpty == true
         ? profile.systemPrompt!.trim()
         : _defaultPersona(isChinese);
-    final rules = _modeRules(isChinese, maxSentences);
+    final rules = _modeRules(isChinese, maxChars);
 
     // For interview/technical profiles, always prepend STAR coaching context
     final interviewPrefix = (profile.engineModeName == 'interview')
@@ -2736,11 +2950,11 @@ Answer the detected question directly using the recent conversation context abov
     return 'You are an interview coach on smart glasses. Output exactly what the user should say.\n\n';
   }
 
-  String _modeRules(bool isChinese, int maxSentences) {
+  String _modeRules(bool isChinese, int maxChars) {
     if (isChinese) {
-      return '规则：最多$maxSentences句话。直接给出答案，禁止说"你可以说"或"这是建议"。用自然口语，不用列表格式。';
+      return '规则：回答尽量控制在 $maxChars 个字符以内（这是一个软上限，能短则短，不要硬塞）。直接给出答案，禁止说"你可以说"或"这是建议"。用自然口语，不用列表格式。';
     }
-    return 'Rules: Max $maxSentences sentences. Give the answer directly — never write "you could say" or "here\'s a suggestion". Use natural spoken language, no lists or formatting.';
+    return 'Rules: Keep the answer under about $maxChars characters (soft cap — shorter is better, do not pad). Give the answer directly — never write "you could say" or "here\'s a suggestion". Use natural spoken language, no lists or formatting.';
   }
 
   /// Send text to glasses HUD with proper pagination.
@@ -3017,6 +3231,7 @@ Answer the detected question directly using the recent conversation context abov
     _latestAssistantResponseTimestamp = null;
     _lastHandledQuestionKey = '';
     _lastHandledQuestionTime = null;
+    _lastCoachingQuestionKey = '';
     _latestQuestionDetection = null;
     _sessionStopHandled = false;
     _lastEmittedSnapshot = '__session_reset__';

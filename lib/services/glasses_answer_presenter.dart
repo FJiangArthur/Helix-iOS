@@ -9,7 +9,12 @@ import 'text_paginator.dart';
 import 'text_service.dart';
 
 typedef GlassesAnswerWindowSender =
-    Future<bool> Function(String text, int currentWindow, int totalWindows);
+    Future<bool> Function(
+      String text,
+      int currentWindow,
+      int totalWindows, {
+      bool isFinal,
+    });
 
 enum GlassesAnswerDeliveryStatus {
   idle,
@@ -50,7 +55,8 @@ class GlassesAnswerPresenter {
   GlassesAnswerPresenter({
     TextPaginator? paginator,
     GlassesAnswerWindowSender? sender,
-    Duration cadence = const Duration(seconds: 1),
+    Duration cadence = const Duration(milliseconds: 2000),
+    Duration initialHold = const Duration(milliseconds: 3500),
     HudController? hudController,
     Future<void> Function()? prepareDelivery,
     Future<void> Function(String source)? beginTextTransfer,
@@ -58,6 +64,7 @@ class GlassesAnswerPresenter {
   }) : _paginator = paginator ?? TextPaginator.instance,
        _sender = sender ?? _defaultSender,
        _cadence = cadence,
+       _initialHold = initialHold,
        _hudController = hudController ?? HudController.instance,
        _prepareDelivery = prepareDelivery,
        _beginTextTransfer = beginTextTransfer,
@@ -70,6 +77,7 @@ class GlassesAnswerPresenter {
   final TextPaginator _paginator;
   final GlassesAnswerWindowSender _sender;
   final Duration _cadence;
+  final Duration _initialHold;
   final HudController _hudController;
   final Future<void> Function()? _prepareDelivery;
   final Future<void> Function(String source)? _beginTextTransfer;
@@ -168,10 +176,12 @@ class GlassesAnswerPresenter {
           ),
         );
 
+        final isLast = index == windows.length - 1;
         final isSuccess = await _sender(
           windows[index],
           index + 1,
           windows.length,
+          isFinal: isLast,
         );
         if (!isSuccess) {
           if (sessionToken != _sessionToken) {
@@ -193,8 +203,12 @@ class GlassesAnswerPresenter {
           return;
         }
 
-        if (index < windows.length - 1) {
-          await Future<void>.delayed(_cadence);
+        if (!isLast) {
+          // Hold the first fully-populated screen longer so the reader can
+          // actually read it before we start scrolling. After the initial
+          // hold, every subsequent line-shift uses the shorter cadence.
+          final delay = index == 0 ? _initialHold : _cadence;
+          await Future<void>.delayed(delay);
         }
       }
 
@@ -296,7 +310,15 @@ class GlassesAnswerPresenter {
 
   void _showManualPage() {
     final text = _currentWindows[_manualPageIndex];
-    _sender(text, _manualPageIndex + 1, _currentWindows.length);
+    // In manual mode the user is actively navigating — always send as
+    // the "final" frame (0x40 DISPLAY_COMPLETE) so each page holds on
+    // screen until the next tap, instead of auto-dismissing.
+    _sender(
+      text,
+      _manualPageIndex + 1,
+      _currentWindows.length,
+      isFinal: true,
+    );
     _emit(
       GlassesAnswerDeliveryState(
         status: GlassesAnswerDeliveryStatus.delivering,
@@ -319,11 +341,20 @@ class GlassesAnswerPresenter {
   static Future<bool> _defaultSender(
     String text,
     int currentWindow,
-    int totalWindows,
-  ) {
+    int totalWindows, {
+    bool isFinal = false,
+  }) {
+    // Intermediate frames use text-mode NEW_CONTENT/continuation so the
+    // glasses keep rendering new content. The LAST frame must use
+    // DISPLAY_COMPLETE (0x40) so the firmware latches the page on screen
+    // and does NOT auto-dismiss — without this the whole answer vanishes
+    // right after the final window is delivered.
+    final int screenStatus = isFinal
+        ? 0x40 // DISPLAY_COMPLETE — hold on screen
+        : HudDisplayState.textPageForIndex(currentWindow - 1);
     return Proto.sendEvenAIData(
       text,
-      newScreen: HudDisplayState.textPageForIndex(currentWindow - 1),
+      newScreen: screenStatus,
       pos: 0,
       current_page_num: currentWindow,
       max_page_num: totalWindows,

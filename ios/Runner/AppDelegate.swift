@@ -73,6 +73,8 @@ import NaturalLanguage
                 let voice = args["voice"] as? String ?? "alloy"
                 let realtimeConversation =
                     sessionMode == "realtime" || backendStr == "openaiRealtime"
+                let conversationModel =
+                    args["conversationModel"] as? String ?? "gpt-realtime-mini"
 
                 let vadSensitivity = args["vadSensitivity"] as? Double ?? 0.5
                 let transcriptionPrompt = args["transcriptionPrompt"] as? String ?? ""
@@ -106,6 +108,7 @@ import NaturalLanguage
                     apiKey: apiKey,
                     model: model,
                     realtimeConversation: realtimeConversation,
+                    conversationModel: conversationModel,
                     systemPrompt: systemPrompt,
                     voice: voice,
                     vadSensitivity: vadSensitivity,

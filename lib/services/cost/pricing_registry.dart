@@ -74,6 +74,13 @@ class PricingRegistry {
         outputPerMillionUsd: 2.4,
         audioInputPerMillionUsd: 10.0,
       ),
+      // Source: https://developers.openai.com/api/docs/models/gpt-realtime-1.5
+      'gpt-realtime-1.5': ModelPricing(
+        inputPerMillionUsd: 4.0,
+        cachedInputPerMillionUsd: 0.4,
+        outputPerMillionUsd: 16.0,
+        audioInputPerMillionUsd: 32.0,
+      ),
       // Transcription
       'gpt-4o-mini-transcribe': ModelPricing(audioInputPerMillionUsd: 3.0),
       'gpt-4o-transcribe': ModelPricing(audioInputPerMillionUsd: 6.0),
