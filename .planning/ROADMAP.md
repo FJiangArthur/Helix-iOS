@@ -43,7 +43,10 @@ Plans:
   3. Selecting an active project persists across app restart, and the home-screen chip reflects the current selection (including "No project" when none is active)
   4. During a live conversation with an active project selected, the generated answer references project content and citation chips appear beneath the answer; tapping a chip reveals the source excerpt
   5. Deleting a project moves it to "Recently deleted", and undo restores it; restored projects survive an app restart
-**Plans**: TBD (expect 1-2 small plans: smoke-test execution and bug-fix closure)
+**Plans:** 2 plans
+Plans:
+- [ ] 01.1-01-PLAN.md — Pre-flight fixtures and gate baseline (TXT+PDF fixtures, run validation gate, scaffold evidence/GAPS.md)
+- [ ] 01.1-02-PLAN.md — Simulator smoke walkthrough on iPhone 17 Pro (0D7C3AB2): verify SC-1..SC-5 phone-side + b6502e1 regression check
 
 ### Phase 2: Q&A Pipeline and Fact-Checking
 **Goal**: Users get reliable AI answers on their glasses during live conversations, with fast background fact-checking
@@ -74,6 +77,6 @@ Phases execute in numeric order: 1 → 1.1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Transcription Reliability | 0/2 | Planning complete | - |
-| 1.1. Project RAG — Verification & Polish (INSERTED) | 0/0 | Not started | - |
+| 1.1. Project RAG — Verification & Polish (INSERTED) | 0/2 | Planning complete | - |
 | 2. Q&A Pipeline and Fact-Checking | 0/0 | Not started | - |
 | 3. App Store Submission | 0/0 | Not started | - |
