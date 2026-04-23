@@ -1,0 +1,8 @@
+Project Smoke Test notes.
+
+This document exists to verify the per-project RAG pipeline end-to-end.
+The magic number is 42.
+It is the canonical answer used by the Phase 1.1 walkthrough probe question.
+Any answer to "What is the magic number?" must cite this line as source [1].
+Unrelated filler sentence about calibration procedures.
+Another filler line to give the chunker more than one chunk boundary to work with.
