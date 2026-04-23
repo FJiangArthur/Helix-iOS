@@ -45,7 +45,7 @@ Plans:
   5. Deleting a project moves it to "Recently deleted", and undo restores it; restored projects survive an app restart
 **Plans:** 2 plans
 Plans:
-- [ ] 01.1-01-PLAN.md — Pre-flight fixtures and gate baseline (TXT+PDF fixtures, run validation gate, scaffold evidence/GAPS.md)
+- [x] 01.1-01-PLAN.md — Pre-flight fixtures and gate baseline (TXT+PDF fixtures, run validation gate, scaffold evidence/GAPS.md)
 - [ ] 01.1-02-PLAN.md — Simulator smoke walkthrough on iPhone 17 Pro (0D7C3AB2): verify SC-1..SC-5 phone-side + b6502e1 regression check
 
 ### Phase 2: Q&A Pipeline and Fact-Checking
