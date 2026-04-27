@@ -220,40 +220,9 @@ class RecordingCoordinator {
     };
 
     var audioRecordingStarted = false;
-    final shouldStartPhoneFileRecorder = !useGlasses;
-    try {
-      if (!shouldStartPhoneFileRecorder) {
-        appLogger.d(
-          '[RecordingCoordinator] Skipping phone file recorder while using glasses audio',
-        );
-      }
-      if (shouldStartPhoneFileRecorder) {
-        await _ensureAudioInitialized();
-        if (_audioInitialized && _audioService != null) {
-          await _audioService!.startRecording();
-          audioRecordingStarted = _audioService!.isRecording;
-          if (audioRecordingStarted) {
-            _durationSubscription = _audioService!.durationStream.listen((d) {
-              _durationController.add(d);
-            });
-          }
-        }
-      }
-    } catch (e) {
-      appLogger.e(
-        '[RecordingCoordinator] Audio file recording failed to start: $e',
-      );
-    }
 
     if (!audioRecordingStarted) {
-      _recordingStartTime = DateTime.now();
-      _fallbackDurationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (_recordingStartTime != null) {
-          _durationController.add(
-            DateTime.now().difference(_recordingStartTime!),
-          );
-        }
-      });
+      _startFallbackDurationTimer();
     }
 
     appLogger.d(
@@ -272,6 +241,9 @@ class RecordingCoordinator {
       transcriptionStarted = true;
     } catch (e) {
       _startedViaEvenAI = false;
+      if (!useGlasses) {
+        audioRecordingStarted = await _startPhoneFileRecorder();
+      }
       if (!audioRecordingStarted) {
         _cleanupFailedStartAttempt();
         rethrow;
@@ -346,6 +318,53 @@ class RecordingCoordinator {
     if (!isRecording.value) return;
     if (error == null || error.trim().isEmpty) return;
     _setCaptureState(RecordingCaptureState.audioOnly);
+    unawaited(_ensureAudioOnlyFallbackAfterError());
+  }
+
+  Future<void> _ensureAudioOnlyFallbackAfterError() async {
+    if (_startedViaEvenAI) return;
+    if (_audioService?.isRecording == true) return;
+    final started = await _startPhoneFileRecorder();
+    if (!started) {
+      appLogger.w(
+        '[RecordingCoordinator] Listening failed and phone audio fallback could not start',
+      );
+    }
+  }
+
+  Future<bool> _startPhoneFileRecorder() async {
+    try {
+      await _ensureAudioInitialized();
+      if (_audioInitialized && _audioService != null) {
+        await _audioService!.startRecording();
+        final started = _audioService!.isRecording;
+        if (started) {
+          _fallbackDurationTimer?.cancel();
+          _fallbackDurationTimer = null;
+          _durationSubscription ??= _audioService!.durationStream.listen((d) {
+            _durationController.add(d);
+          });
+        }
+        return started;
+      }
+    } catch (e) {
+      appLogger.e(
+        '[RecordingCoordinator] Audio file recording failed to start: $e',
+      );
+    }
+    return false;
+  }
+
+  void _startFallbackDurationTimer() {
+    _fallbackDurationTimer?.cancel();
+    _recordingStartTime = DateTime.now();
+    _fallbackDurationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_recordingStartTime != null) {
+        _durationController.add(
+          DateTime.now().difference(_recordingStartTime!),
+        );
+      }
+    });
   }
 
   void _setCaptureState(RecordingCaptureState nextState) {

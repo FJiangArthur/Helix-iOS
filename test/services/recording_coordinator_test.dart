@@ -138,28 +138,27 @@ void main() {
 
       // Stub the method channel so platform calls don't crash.
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-        const MethodChannel('method.bluetooth'),
-        (MethodCall methodCall) async {
-          switch (methodCall.method) {
-            case 'startEvenAI':
-            case 'stopEvenAI':
-            case 'pauseEvenAI':
-            case 'resumeEvenAI':
-              return null;
-            default:
-              return null;
-          }
-        },
-      );
+          .setMockMethodCallHandler(const MethodChannel('method.bluetooth'), (
+            MethodCall methodCall,
+          ) async {
+            switch (methodCall.method) {
+              case 'startEvenAI':
+              case 'stopEvenAI':
+              case 'pauseEvenAI':
+              case 'resumeEvenAI':
+                return null;
+              default:
+                return null;
+            }
+          });
 
       // Stub the passive audio channel so PassiveListeningService.pause()
       // does not throw MissingPluginException.
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('method.passiveAudio'),
-        (MethodCall methodCall) async => null,
-      );
+            const MethodChannel('method.passiveAudio'),
+            (MethodCall methodCall) async => null,
+          );
 
       // Configure settings for phone-based transcription so we don't need BLE.
       SettingsManager.instance.transcriptionBackend = 'openai';
@@ -169,14 +168,14 @@ void main() {
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('method.bluetooth'),
-        null,
-      );
+            const MethodChannel('method.bluetooth'),
+            null,
+          );
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('method.passiveAudio'),
-        null,
-      );
+            const MethodChannel('method.passiveAudio'),
+            null,
+          );
     });
 
     test('starts in not-recording state', () {
@@ -255,30 +254,33 @@ void main() {
       }
     });
 
-    test('recording state stream emits true then false on toggle cycle', () async {
-      final coordinator = RecordingCoordinator.instance;
-      final states = <bool>[];
-      final sub = coordinator.recordingStateStream.listen(states.add);
+    test(
+      'recording state stream emits true then false on toggle cycle',
+      () async {
+        final coordinator = RecordingCoordinator.instance;
+        final states = <bool>[];
+        final sub = coordinator.recordingStateStream.listen(states.add);
 
-      try {
-        await coordinator.toggleRecording(source: TranscriptSource.phone);
-        await coordinator.toggleRecording(source: TranscriptSource.phone);
-        await Future<void>.delayed(const Duration(milliseconds: 20));
-      } on MissingPluginException {
-        // Expected.
-      } on PlatformException {
-        // Expected.
-      }
+        try {
+          await coordinator.toggleRecording(source: TranscriptSource.phone);
+          await coordinator.toggleRecording(source: TranscriptSource.phone);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        } on MissingPluginException {
+          // Expected.
+        } on PlatformException {
+          // Expected.
+        }
 
-      await sub.cancel();
+        await sub.cancel();
 
-      // If the platform calls succeeded, we expect [true, false].
-      // If they failed, states may be empty — which is also valid for this env.
-      if (states.isNotEmpty) {
-        expect(states.first, isTrue);
-        expect(states.last, isFalse);
-      }
-    });
+        // If the platform calls succeeded, we expect [true, false].
+        // If they failed, states may be empty — which is also valid for this env.
+        if (states.isNotEmpty) {
+          expect(states.first, isTrue);
+          expect(states.last, isFalse);
+        }
+      },
+    );
 
     test('lastAudioFilePath is null before any recording', () {
       final coordinator = RecordingCoordinator.instance;
@@ -296,17 +298,17 @@ void main() {
     setUp(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('method.passiveAudio'),
-        (MethodCall methodCall) async => null,
-      );
+            const MethodChannel('method.passiveAudio'),
+            (MethodCall methodCall) async => null,
+          );
     });
 
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('method.passiveAudio'),
-        null,
-      );
+            const MethodChannel('method.passiveAudio'),
+            null,
+          );
     });
 
     test('isRecording starts false and is consistent with stream', () {
@@ -340,24 +342,28 @@ void main() {
         final coordinator = RecordingCoordinator.test(
           audioServiceFactory: () => audioService,
           listeningErrors: listeningErrors.stream,
-          startTranscription: ({
-            required TranscriptSource source,
-            required RecordingMode mode,
-            required bool useGlasses,
-          }) async {
-            listeningErrors.add('OpenAI API key is invalid or expired');
-            throw PlatformException(
-              code: 'SpeechStartFailed',
-              message: 'OpenAI API key is invalid or expired',
-            );
-          },
+          startTranscription:
+              ({
+                required TranscriptSource source,
+                required RecordingMode mode,
+                required bool useGlasses,
+              }) async {
+                listeningErrors.add('OpenAI API key is invalid or expired');
+                throw PlatformException(
+                  code: 'SpeechStartFailed',
+                  message: 'OpenAI API key is invalid or expired',
+                );
+              },
           stopTranscription: ({required bool startedViaEvenAI}) async {},
         );
 
         await coordinator.toggleRecording(source: TranscriptSource.phone);
 
         expect(coordinator.isRecording.value, isTrue);
-        expect(coordinator.currentCaptureState, RecordingCaptureState.audioOnly);
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.audioOnly,
+        );
         expect(audioService.isRecording, isTrue);
 
         final savedPath = await coordinator.toggleRecording(
@@ -421,6 +427,86 @@ void main() {
     );
 
     test(
+      'does not run phone file recorder during healthy phone transcription',
+      () async {
+        final listeningErrors = StreamController<String?>.broadcast();
+        final audioService = _FakeAudioService(path: '/tmp/phone-healthy.wav');
+        final coordinator = RecordingCoordinator.test(
+          audioServiceFactory: () => audioService,
+          listeningErrors: listeningErrors.stream,
+          useGlassesResolver: () => false,
+          startTranscription:
+              ({
+                required TranscriptSource source,
+                required RecordingMode mode,
+                required bool useGlasses,
+              }) async {
+                expect(useGlasses, isFalse);
+              },
+          stopTranscription: ({required bool startedViaEvenAI}) async {},
+        );
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+
+        expect(coordinator.isRecording.value, isTrue);
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.transcribing,
+        );
+        expect(audioService.startRecordingCount, 0);
+        expect(audioService.isRecording, isFalse);
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+        await coordinator.debugDispose();
+        await audioService.dispose();
+        await listeningErrors.close();
+      },
+    );
+
+    test(
+      'starts phone audio fallback only after active transcription fails',
+      () async {
+        final listeningErrors = StreamController<String?>.broadcast();
+        final audioService = _FakeAudioService(path: '/tmp/late-fallback.wav');
+        final coordinator = RecordingCoordinator.test(
+          audioServiceFactory: () => audioService,
+          listeningErrors: listeningErrors.stream,
+          useGlassesResolver: () => false,
+          startTranscription:
+              ({
+                required TranscriptSource source,
+                required RecordingMode mode,
+                required bool useGlasses,
+              }) async {},
+          stopTranscription: ({required bool startedViaEvenAI}) async {},
+        );
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+        expect(audioService.startRecordingCount, 0);
+
+        listeningErrors.add('Transcription transport disconnected');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.audioOnly,
+        );
+        expect(audioService.startRecordingCount, 1);
+        expect(audioService.isRecording, isTrue);
+
+        final savedPath = await coordinator.toggleRecording(
+          source: TranscriptSource.phone,
+        );
+        expect(savedPath, '/tmp/late-fallback.wav');
+
+        await coordinator.debugDispose();
+        await audioService.dispose();
+        await listeningErrors.close();
+      },
+    );
+
+    test(
       'downgrades an active recording to audio-only when transcription later fails',
       () async {
         final listeningErrors = StreamController<String?>.broadcast();
@@ -428,11 +514,12 @@ void main() {
         final coordinator = RecordingCoordinator.test(
           audioServiceFactory: () => audioService,
           listeningErrors: listeningErrors.stream,
-          startTranscription: ({
-            required TranscriptSource source,
-            required RecordingMode mode,
-            required bool useGlasses,
-          }) async {},
+          startTranscription:
+              ({
+                required TranscriptSource source,
+                required RecordingMode mode,
+                required bool useGlasses,
+              }) async {},
           stopTranscription: ({required bool startedViaEvenAI}) async {},
         );
 
@@ -447,7 +534,10 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         expect(coordinator.isRecording.value, isTrue);
-        expect(coordinator.currentCaptureState, RecordingCaptureState.audioOnly);
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.audioOnly,
+        );
         expect(audioService.isRecording, isTrue);
 
         await coordinator.toggleRecording(source: TranscriptSource.phone);
