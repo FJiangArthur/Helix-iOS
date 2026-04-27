@@ -238,7 +238,6 @@ void main() {
         SettingsManager.instance.openAIRealtimePrompt =
             'Answer only questions.';
         SettingsManager.instance.noiseReduction = false;
-        SettingsManager.instance.voiceActivityDetection = true;
         SettingsManager.instance.vadSensitivity = 0.7;
         await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
 
@@ -264,7 +263,6 @@ void main() {
         expect(startArgs['apiKey'], 'sk-live-test');
         expect(startArgs['model'], 'gpt-4o-mini-transcribe');
         expect(startArgs['noiseReduction'], isFalse);
-        expect(startArgs['voiceActivityDetection'], isTrue);
         expect(startArgs['vadSensitivity'], 0.7);
         final prompt = startArgs['systemPrompt'] as String;
         expect(prompt, contains('Answer only questions.'));

@@ -38,11 +38,6 @@ class SpeechStreamRecognizer {
     private let speakerTurnDetector = SpeakerTurnDetector()
     var enableDiarization = false
     var noiseReductionEnabled = false
-    var realtimeSilenceSuppressionEnabled = true {
-        didSet {
-            openaiTranscriber.localSilenceSuppressionEnabled = realtimeSilenceSuppressionEnabled
-        }
-    }
     private lazy var rnnoiseProcessor = RNNoiseProcessor()
     /// Tracks consecutive silence duration for VAD-gated audio engine pause.
     private var consecutiveSilenceDuration: TimeInterval = 0
@@ -241,7 +236,6 @@ class SpeechStreamRecognizer {
         let rawThreshold = 0.6 - (vadSensitivity * 0.4)
         openaiTranscriber.vadThreshold = (rawThreshold * 1_000_000).rounded() / 1_000_000
         openaiTranscriber.transcriptionPrompt = transcriptionPrompt
-        openaiTranscriber.localSilenceSuppressionEnabled = realtimeSilenceSuppressionEnabled
 
         if backend == .openai {
             startOpenAIRecognition(

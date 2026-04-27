@@ -251,7 +251,6 @@ class ConversationListeningSession {
           'systemPrompt': systemPrompt,
           'transcriptionPrompt': settings.transcriptionPrompt,
           'noiseReduction': settings.noiseReduction,
-          'voiceActivityDetection': settings.voiceActivityDetection,
           'vadSensitivity': settings.vadSensitivity,
           if (voiceEnabled) 'voice': voiceName,
           if (effectiveBackend == 'whisper') ...{
