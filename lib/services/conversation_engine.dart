@@ -1893,11 +1893,11 @@ Reply with JSON only (no markdown code fence):
       if (remaining > const Duration(milliseconds: 100)) {
         _analysisTimer = Timer(
           remaining,
-          () => _analyzeRecentTranscriptWindow(token),
+          () => _analyzeRecentTranscriptWindow(_analysisToken),
         );
         return;
       }
-      _analyzeRecentTranscriptWindow(token);
+      _analyzeRecentTranscriptWindow(_analysisToken);
     });
   }
 

@@ -31,6 +31,7 @@ class FakeJsonProvider implements LlmProvider {
   final Queue<String> _responses;
   final Queue<FakeStreamResponse> _streamResponses;
   int streamCallCount = 0;
+  int getResponseCallCount = 0;
 
   @override
   List<String> get availableModels => const ['fake-model'];
@@ -53,6 +54,7 @@ class FakeJsonProvider implements LlmProvider {
     LlmRequestOptions? requestOptions,
     void Function(LlmResponseMetadata metadata)? onMetadata,
   }) async {
+    getResponseCallCount++;
     if (_responses.isEmpty) {
       return '{"shouldRespond": false, "question": "", "questionExcerpt": ""}';
     }
@@ -1100,6 +1102,39 @@ void main() {
       // In non-realtime mode, analysis runs and triggers streaming response.
       expect(results, hasLength(1));
       expect(results.single.question, 'What is the plan?');
+      expect(provider.streamCallCount, 1);
+    });
+
+    test('debounced partial analysis uses the latest reschedule token', () async {
+      SettingsManager.instance.transcriptionBackend = 'openai';
+      SettingsManager.instance.openAISessionMode = 'transcription';
+
+      final provider = await configureFakeLlm(
+        responses: [
+          '{"shouldRespond": true, "question": "What is the next step?", "questionExcerpt": "What is the next step?"}',
+          '["Follow up"]',
+        ],
+        streamResponses: const [
+          FakeStreamResponse(['Use the latest partial.']),
+        ],
+      );
+
+      final results = <QuestionDetectionResult>[];
+      final sub = engine.questionDetectionStream.listen(results.add);
+
+      engine.start(source: TranscriptSource.phone);
+      engine.onTranscriptionUpdate('Can you');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      engine.onTranscriptionUpdate('Can you explain');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      engine.onTranscriptionUpdate('Can you explain what is the next step?');
+
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
+      await sub.cancel();
+
+      expect(provider.getResponseCallCount, greaterThanOrEqualTo(1));
+      expect(results, hasLength(1));
+      expect(results.single.question, 'What is the next step?');
       expect(provider.streamCallCount, 1);
     });
   });

@@ -28,6 +28,7 @@ class _FakeAudioService implements AudioService {
   @override
   bool get isRecording => _isRecording;
   bool _isRecording = false;
+  int startRecordingCount = 0;
 
   @override
   String? get currentRecordingPath => path;
@@ -88,6 +89,7 @@ class _FakeAudioService implements AudioService {
 
   @override
   Future<void> startRecording() async {
+    startRecordingCount++;
     _isRecording = true;
     _durationController.add(Duration.zero);
   }
@@ -363,6 +365,52 @@ void main() {
         );
 
         expect(savedPath, '/tmp/audio-only.wav');
+        expect(coordinator.isRecording.value, isFalse);
+        expect(coordinator.currentCaptureState, RecordingCaptureState.idle);
+
+        await coordinator.debugDispose();
+        await audioService.dispose();
+        await listeningErrors.close();
+      },
+    );
+
+    test(
+      'skips the phone file recorder when glasses audio is selected',
+      () async {
+        final listeningErrors = StreamController<String?>.broadcast();
+        final audioService = _FakeAudioService(path: '/tmp/phone-recorder.wav');
+        var receivedUseGlasses = false;
+        final coordinator = RecordingCoordinator.test(
+          audioServiceFactory: () => audioService,
+          listeningErrors: listeningErrors.stream,
+          useGlassesResolver: () => true,
+          startTranscription:
+              ({
+                required TranscriptSource source,
+                required RecordingMode mode,
+                required bool useGlasses,
+              }) async {
+                receivedUseGlasses = useGlasses;
+              },
+          stopTranscription: ({required bool startedViaEvenAI}) async {},
+        );
+
+        await coordinator.toggleRecording(source: TranscriptSource.phone);
+
+        expect(receivedUseGlasses, isTrue);
+        expect(coordinator.isRecording.value, isTrue);
+        expect(
+          coordinator.currentCaptureState,
+          RecordingCaptureState.transcribing,
+        );
+        expect(audioService.startRecordingCount, 0);
+        expect(audioService.isRecording, isFalse);
+
+        final savedPath = await coordinator.toggleRecording(
+          source: TranscriptSource.phone,
+        );
+
+        expect(savedPath, isNull);
         expect(coordinator.isRecording.value, isFalse);
         expect(coordinator.currentCaptureState, RecordingCaptureState.idle);
 

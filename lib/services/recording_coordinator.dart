@@ -42,6 +42,7 @@ typedef RecordingStartTranscription =
     });
 typedef RecordingStopTranscription =
     Future<void> Function({required bool startedViaEvenAI});
+typedef RecordingUseGlassesResolver = bool Function();
 
 /// Singleton that coordinates recording across both the conversation
 /// listening session (transcription) and the audio file recorder.
@@ -53,10 +54,12 @@ class RecordingCoordinator {
     RecordingAudioServiceFactory? audioServiceFactory,
     RecordingStartTranscription? startTranscription,
     RecordingStopTranscription? stopTranscription,
+    RecordingUseGlassesResolver? useGlassesResolver,
     Stream<String?>? listeningErrors,
   }) : _audioServiceFactory = audioServiceFactory ?? AudioServiceImpl.new,
        _startTranscription = startTranscription ?? _defaultStartTranscription,
-       _stopTranscription = stopTranscription ?? _defaultStopTranscription {
+       _stopTranscription = stopTranscription ?? _defaultStopTranscription,
+       _useGlassesResolver = useGlassesResolver ?? BleManager.isBothConnected {
     _listeningErrorSubscription =
         (listeningErrors ?? ConversationListeningSession.instance.errorStream)
             .listen(_handleListeningError);
@@ -72,12 +75,14 @@ class RecordingCoordinator {
     required RecordingStartTranscription startTranscription,
     required RecordingStopTranscription stopTranscription,
     required Stream<String?> listeningErrors,
+    RecordingUseGlassesResolver? useGlassesResolver,
   }) {
     return RecordingCoordinator._(
       audioServiceFactory: audioServiceFactory,
       startTranscription: startTranscription,
       stopTranscription: stopTranscription,
       listeningErrors: listeningErrors,
+      useGlassesResolver: useGlassesResolver,
     );
   }
 
@@ -109,6 +114,7 @@ class RecordingCoordinator {
   final RecordingAudioServiceFactory _audioServiceFactory;
   final RecordingStartTranscription _startTranscription;
   final RecordingStopTranscription _stopTranscription;
+  final RecordingUseGlassesResolver _useGlassesResolver;
   late final StreamSubscription<String?> _listeningErrorSubscription;
 
   AudioService? _audioService;
@@ -207,16 +213,30 @@ class RecordingCoordinator {
     _currentMode = mode;
     _lastAudioFilePath = null;
 
+    final settings = SettingsManager.instance;
+    final useGlasses = switch (settings.preferredMicSource) {
+      'phone' => false,
+      _ => _useGlassesResolver(),
+    };
+
     var audioRecordingStarted = false;
+    final shouldStartPhoneFileRecorder = !useGlasses;
     try {
-      await _ensureAudioInitialized();
-      if (_audioInitialized && _audioService != null) {
-        await _audioService!.startRecording();
-        audioRecordingStarted = _audioService!.isRecording;
-        if (audioRecordingStarted) {
-          _durationSubscription = _audioService!.durationStream.listen((d) {
-            _durationController.add(d);
-          });
+      if (!shouldStartPhoneFileRecorder) {
+        appLogger.d(
+          '[RecordingCoordinator] Skipping phone file recorder while using glasses audio',
+        );
+      }
+      if (shouldStartPhoneFileRecorder) {
+        await _ensureAudioInitialized();
+        if (_audioInitialized && _audioService != null) {
+          await _audioService!.startRecording();
+          audioRecordingStarted = _audioService!.isRecording;
+          if (audioRecordingStarted) {
+            _durationSubscription = _audioService!.durationStream.listen((d) {
+              _durationController.add(d);
+            });
+          }
         }
       }
     } catch (e) {
@@ -236,15 +256,8 @@ class RecordingCoordinator {
       });
     }
 
-    final settings = SettingsManager.instance;
-    final useGlasses = switch (settings.preferredMicSource) {
-      'phone' => false,
-      _ => BleManager.isBothConnected(),
-    };
-
     appLogger.d(
       '[RecordingCoordinator] micPref=${settings.preferredMicSource} '
-      'bleConnected=${BleManager.isBothConnected()} '
       'useGlasses=$useGlasses source=$source mode=$mode',
     );
 
@@ -286,7 +299,7 @@ class RecordingCoordinator {
 
     String? filePath;
     try {
-      if (_audioInitialized && _audioService != null) {
+      if (_audioInitialized && _audioService?.isRecording == true) {
         await _audioService!.stopRecording();
         filePath = _audioService!.currentRecordingPath;
         _lastAudioFilePath = filePath;
