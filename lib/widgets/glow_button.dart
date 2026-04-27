@@ -22,21 +22,21 @@ class GlowButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseColor = color ?? HelixTheme.cyan;
     final shadowColor = Color.lerp(baseColor, Colors.black, 0.35)!;
-    final darkEdge = Color.lerp(baseColor, HelixTheme.background, 0.45)!;
+    final darkEdge = Color.lerp(baseColor, HelixTheme.surfaceRaised, 0.62)!;
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
         boxShadow: [
           BoxShadow(
-            color: shadowColor.withValues(alpha: 0.26),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
+            color: shadowColor.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
           BoxShadow(
-            color: baseColor.withValues(alpha: 0.2),
-            blurRadius: 18,
-            spreadRadius: -4,
+            color: baseColor.withValues(alpha: 0.12),
+            blurRadius: 10,
+            spreadRadius: -6,
           ),
         ],
       ),
@@ -44,19 +44,17 @@ class GlowButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isLoading ? null : onPressed,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
           child: Ink(
             padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [baseColor, darkEdge],
               ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.14),
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
             ),
             child: isLoading
                 ? const SizedBox(

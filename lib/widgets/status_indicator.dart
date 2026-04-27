@@ -30,9 +30,10 @@ class _StatusIndicatorState extends State<StatusIndicator>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    _animation = Tween<double>(begin: 0.4, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.4,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
     if (widget.isActive) {
       _controller.repeat(reverse: true);
     }
@@ -69,7 +70,7 @@ class _StatusIndicatorState extends State<StatusIndicator>
         color: widget.isActive
             ? HelixTheme.surfaceInteractive.withValues(alpha: 0.96)
             : HelixTheme.surface.withValues(alpha: 0.96),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(HelixTheme.radiusPill),
         border: Border.all(
           color: widget.isActive
               ? dotColor.withValues(alpha: 0.3)
@@ -92,10 +93,10 @@ class _StatusIndicatorState extends State<StatusIndicator>
                       ? [
                           BoxShadow(
                             color: dotColor.withValues(
-                              alpha: _animation.value * 0.55,
+                              alpha: _animation.value * 0.32,
                             ),
-                            blurRadius: 8,
-                            spreadRadius: 2,
+                            blurRadius: 6,
+                            spreadRadius: 1,
                           ),
                         ]
                       : null,
@@ -112,7 +113,7 @@ class _StatusIndicatorState extends State<StatusIndicator>
                   : HelixTheme.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
+              letterSpacing: 0,
             ),
           ),
         ],

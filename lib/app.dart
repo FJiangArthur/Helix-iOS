@@ -16,7 +16,7 @@ class HelixApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Even Companion',
+      title: 'Helix',
       theme: HelixTheme.darkTheme,
       home: const AppEntry(),
       debugShowCheckedModeBanner: false,
@@ -144,8 +144,8 @@ class _MainScreenState extends State<MainScreen> {
         ),
         child: NavigationBar(
           key: const Key('main-navigation-bar'),
-          height: 56,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+          height: 62,
+          labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
           selectedIndex: _currentIndex,
           onDestinationSelected: (index) {
             setState(() {
@@ -165,8 +165,8 @@ class _MainScreenState extends State<MainScreen> {
               label: tr('Glasses', '眼镜'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.radio_button_checked_rounded),
-              selectedIcon: const Icon(Icons.radio_button_checked_rounded),
+              icon: const Icon(Icons.graphic_eq_rounded),
+              selectedIcon: const Icon(Icons.graphic_eq_rounded),
               label: tr('Live', '实时'),
             ),
             NavigationDestination(

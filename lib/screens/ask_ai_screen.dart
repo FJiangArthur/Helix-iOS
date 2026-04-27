@@ -10,6 +10,7 @@ import '../services/buzz/buzz_service.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/helix_visuals.dart';
 import 'pending_facts_review.dart';
 import 'settings_screen.dart';
 
@@ -267,10 +268,10 @@ class _AskAiScreenState extends State<AskAiScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.auto_awesome,
-              size: 48,
-              color: HelixTheme.cyan.withValues(alpha: 0.6),
+            const HelixVisual(
+              type: HelixVisualType.knowledge,
+              height: 132,
+              compact: true,
             ),
             const SizedBox(height: 16),
             Text(
@@ -300,7 +301,7 @@ class _AskAiScreenState extends State<AskAiScreen> {
                   backgroundColor: Colors.transparent,
                   side: const BorderSide(color: HelixTheme.cyan),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(HelixTheme.radiusPill),
                   ),
                   onPressed: () => _sendBuzz(chip),
                 );
@@ -339,7 +340,7 @@ class _AskAiScreenState extends State<AskAiScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: HelixTheme.surfaceInteractive,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(HelixTheme.radiusPanel),
         ),
         child: Text(
           msg.staticText ?? '',
@@ -418,8 +419,8 @@ class _AskAiScreenState extends State<AskAiScreen> {
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: HelixTheme.purple.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(12),
+            color: HelixTheme.purple.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(HelixTheme.radiusPanel),
             border: Border.all(color: HelixTheme.purple.withValues(alpha: 0.3)),
           ),
           child: Text(
@@ -465,15 +466,15 @@ class _AskAiScreenState extends State<AskAiScreen> {
                   vertical: 12,
                 ),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
                   borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
                   borderSide: const BorderSide(color: HelixTheme.borderSubtle),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
                   borderSide: const BorderSide(color: HelixTheme.cyan),
                 ),
               ),

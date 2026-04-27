@@ -148,7 +148,7 @@ void main() {
       // Tab 0 is selected (Home), so it shows chat_bubble_rounded
       expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
       expect(find.byIcon(Icons.bluetooth_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.radio_button_checked_rounded), findsWidgets);
+      expect(find.byIcon(Icons.graphic_eq_rounded), findsWidgets);
       expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
       expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
     });
@@ -194,16 +194,16 @@ void main() {
       expect(find.text('Review'), findsOneWidget);
     });
 
-    testWidgets('navigation bar height is compact at 56', (tester) async {
+    testWidgets('navigation bar height is compact at 62', (tester) async {
       await pumpMainScreen(tester);
 
       final navBar = tester.widget<NavigationBar>(
         find.byKey(const Key('main-navigation-bar')),
       );
-      expect(navBar.height, 56);
+      expect(navBar.height, 62);
     });
 
-    testWidgets('navigation bar hides labels', (tester) async {
+    testWidgets('navigation bar shows only the selected label', (tester) async {
       await pumpMainScreen(tester);
 
       final navBar = tester.widget<NavigationBar>(
@@ -211,7 +211,7 @@ void main() {
       );
       expect(
         navBar.labelBehavior,
-        NavigationDestinationLabelBehavior.alwaysHide,
+        NavigationDestinationLabelBehavior.onlyShowSelected,
       );
     });
 

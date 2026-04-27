@@ -22,18 +22,20 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = borderRadius ?? 16.0;
+    final radius = borderRadius ?? HelixTheme.radiusPanel;
     final emphasis = (opacity / 0.2).clamp(0.0, 1.0);
     final fill = HelixTheme.panelFill(emphasis);
-    final topFill = Color.lerp(fill, Colors.white, 0.04)!.withValues(
-      alpha: fill.a,
-    );
+    final topFill = Color.lerp(
+      fill,
+      Colors.white,
+      0.025,
+    )!.withValues(alpha: fill.a);
     final stroke = borderColor ?? HelixTheme.panelBorder(emphasis);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Container(
           padding: padding ?? const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -46,14 +48,13 @@ class GlassCard extends StatelessWidget {
             border: Border.all(color: stroke),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.24),
-                blurRadius: 18,
-                offset: const Offset(0, 10),
+                color: Colors.black.withValues(alpha: 0.18),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
               ),
               BoxShadow(
-                color: Colors.white.withValues(alpha: 0.03),
+                color: Colors.white.withValues(alpha: 0.02),
                 blurRadius: 1,
-                spreadRadius: 0.5,
               ),
             ],
           ),

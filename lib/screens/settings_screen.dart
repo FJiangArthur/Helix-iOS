@@ -444,6 +444,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildSetupSummary(),
+              const SizedBox(height: 20),
               _buildSection(tr('AI Provider', 'AI 服务商'), Icons.psychology, [
                 _buildProviderSelector(),
                 const SizedBox(height: 12),
@@ -833,6 +835,156 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSetupSummary() {
+    final provider =
+        _llmService.providers[_settings.activeProviderId]?.name ??
+        _settings.activeProviderId;
+    final providerConfigured =
+        _configuredProviders[_settings.activeProviderId] == true;
+    final transcription = _transcriptionPresentation(
+      _settings.transcriptionBackend,
+    );
+    final hudLabel = _settings.hudRenderPath == 'bitmap'
+        ? 'Bitmap HUD'
+        : 'Text HUD';
+
+    return GlassCard(
+      padding: const EdgeInsets.all(14),
+      borderColor: (providerConfigured ? HelixTheme.cyan : HelixTheme.amber)
+          .withValues(alpha: 0.24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: HelixTheme.cyan.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(HelixTheme.radiusPanel),
+                  border: Border.all(
+                    color: HelixTheme.cyan.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  color: HelixTheme.cyan,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tr('Setup Status', '设置状态'),
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      providerConfigured
+                          ? tr(
+                              'Ready for live conversation workflows',
+                              '已准备好进行实时对话',
+                            )
+                          : tr(
+                              'Add an API key before recording',
+                              '录音前请先添加 API key',
+                            ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _buildSetupMetric(
+                  icon: Icons.psychology_alt_rounded,
+                  label: tr('Provider', '服务商'),
+                  value: provider,
+                  color: providerConfigured
+                      ? HelixTheme.statusReady
+                      : HelixTheme.amber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSetupMetric(
+                  icon: transcription.icon,
+                  label: tr('Speech', '语音'),
+                  value: transcription.label,
+                  color: transcription.accent,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildSetupMetric(
+                  icon: Icons.visibility_outlined,
+                  label: tr('HUD', 'HUD'),
+                  value: hudLabel,
+                  color: HelixTheme.purple,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSetupMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: 78),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(HelixTheme.radiusPanel),
+        border: Border.all(color: color.withValues(alpha: 0.16)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color.withValues(alpha: 0.9), size: 16),
+          const SizedBox(height: 12),
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: HelixTheme.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: HelixTheme.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

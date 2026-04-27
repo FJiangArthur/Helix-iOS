@@ -19,11 +19,13 @@ import '../theme/helix_theme.dart';
 import '../utils/transcript_timestamps.dart';
 import '../widgets/active_project_chip.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/helix_visuals.dart';
 import '../widgets/session_cost_badge.dart';
 import '../widgets/home_assistant_modules.dart';
 import '../widgets/status_indicator.dart';
 import '../app.dart';
 import '../ble_manager.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -131,8 +133,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         _checkApiKey();
         _engine.autoDetectQuestions =
             SettingsManager.instance.autoDetectQuestions;
-        _engine.answerAll =
-            SettingsManager.instance.answerAll;
+        _engine.answerAll = SettingsManager.instance.answerAll;
         if (mounted) {
           setState(() {
             _assistantProfileId = SettingsManager.instance.assistantProfileId;
@@ -170,8 +171,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }),
       _engine.transcriptSnapshotStream.listen((snapshot) {
         if (!mounted) return;
-        debugPrint('[HomeScreen] transcriptSnapshot: segments=${snapshot.finalizedSegments.length}, '
-            'transcript="${snapshot.fullTranscript.length > 60 ? snapshot.fullTranscript.substring(0, 60) : snapshot.fullTranscript}"');
+        debugPrint(
+          '[HomeScreen] transcriptSnapshot: segments=${snapshot.finalizedSegments.length}, '
+          'transcript="${snapshot.fullTranscript.length > 60 ? snapshot.fullTranscript.substring(0, 60) : snapshot.fullTranscript}"',
+        );
         setState(() {
           _transcription = snapshot.fullTranscript;
           _transcriptEntries = snapshot.finalizedTimelineEntries;
@@ -884,8 +887,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _segmentCount > 0 || _transcription.trim().isNotEmpty;
 
   Future<void> _handleAnalyzePressed() async {
-    debugPrint('[HomeScreen] _handleAnalyzePressed called, canAnalyze=$_canAnalyzeCurrentSession, '
-        'segmentCount=$_segmentCount, transcription="${_transcription.length > 40 ? _transcription.substring(0, 40) : _transcription}"');
+    debugPrint(
+      '[HomeScreen] _handleAnalyzePressed called, canAnalyze=$_canAnalyzeCurrentSession, '
+      'segmentCount=$_segmentCount, transcription="${_transcription.length > 40 ? _transcription.substring(0, 40) : _transcription}"',
+    );
     if (!_canAnalyzeCurrentSession) {
       return;
     }
@@ -1235,9 +1240,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Row(
         children: [
-          chip('tavily', _tr(en: 'Tavily', zh: 'Tavily', ja: 'Tavily', ko: 'Tavily', es: 'Tavily', ru: 'Tavily')),
+          chip(
+            'tavily',
+            _tr(
+              en: 'Tavily',
+              zh: 'Tavily',
+              ja: 'Tavily',
+              ko: 'Tavily',
+              es: 'Tavily',
+              ru: 'Tavily',
+            ),
+          ),
           const SizedBox(width: 8),
-          chip('openai', _tr(en: 'OpenAI Web', zh: 'OpenAI 网络', ja: 'OpenAI Web', ko: 'OpenAI 웹', es: 'OpenAI Web', ru: 'OpenAI Web')),
+          chip(
+            'openai',
+            _tr(
+              en: 'OpenAI Web',
+              zh: 'OpenAI 网络',
+              ja: 'OpenAI Web',
+              ko: 'OpenAI 웹',
+              es: 'OpenAI Web',
+              ru: 'OpenAI Web',
+            ),
+          ),
         ],
       ),
     );
@@ -1265,7 +1290,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: GlassCard(
                   opacity: 0.18,
-                  borderColor: _profileColor(_assistantProfileId).withValues(alpha: 0.24),
+                  borderColor: _profileColor(
+                    _assistantProfileId,
+                  ).withValues(alpha: 0.24),
                   padding: const EdgeInsets.all(18),
                   child: SingleChildScrollView(
                     child: Column(
@@ -1381,19 +1408,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                         const SizedBox(height: 16),
                         _buildCollapsibleSectionHeader(
-                          title: _tr(en: 'AUTOMATION', zh: '自动化', ja: 'オートメーション', ko: '자동화', es: 'AUTOMATIZACION', ru: 'АВТОМАТИЗАЦИЯ'),
+                          title: _tr(
+                            en: 'AUTOMATION',
+                            zh: '自动化',
+                            ja: 'オートメーション',
+                            ko: '자동화',
+                            es: 'AUTOMATIZACION',
+                            ru: 'АВТОМАТИЗАЦИЯ',
+                          ),
                           expanded: automationExpanded,
-                          onTap: () => setSheetState(() => automationExpanded = !automationExpanded),
+                          onTap: () => setSheetState(
+                            () => automationExpanded = !automationExpanded,
+                          ),
                         ),
                         if (automationExpanded) ...[
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
                             key: const Key('home-setup-auto-detect-toggle'),
-                            title: _tr(en: 'Auto Detect Questions', zh: '自动检测问题', ja: '質問自動検出', ko: '질문 자동 감지', es: 'Detectar preguntas', ru: 'Автообнаружение вопросов'),
-                            description: _tr(en: 'Listen for questions in conversations.', zh: '在对话中监听问题。', ja: '会話内の質問を検出します。', ko: '대화에서 질문을 감지합니다.', es: 'Escucha preguntas en las conversaciones.', ru: 'Слушает вопросы в разговорах.'),
+                            title: _tr(
+                              en: 'Auto Detect Questions',
+                              zh: '自动检测问题',
+                              ja: '質問自動検出',
+                              ko: '질문 자동 감지',
+                              es: 'Detectar preguntas',
+                              ru: 'Автообнаружение вопросов',
+                            ),
+                            description: _tr(
+                              en: 'Listen for questions in conversations.',
+                              zh: '在对话中监听问题。',
+                              ja: '会話内の質問を検出します。',
+                              ko: '대화에서 질문을 감지합니다.',
+                              es: 'Escucha preguntas en las conversaciones.',
+                              ru: 'Слушает вопросы в разговорах.',
+                            ),
                             value: SettingsManager.instance.autoDetectQuestions,
                             onTap: () async {
-                              final next = !SettingsManager.instance.autoDetectQuestions;
+                              final next =
+                                  !SettingsManager.instance.autoDetectQuestions;
                               await SettingsManager.instance.update((s) {
                                 s.autoDetectQuestions = next;
                               });
@@ -1403,12 +1454,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
                             key: const Key('home-setup-auto-insights-toggle'),
-                            title: _tr(en: 'Auto Insights', zh: '自动洞察', ja: '自動インサイト', ko: '자동 인사이트', es: 'Insights automaticos', ru: 'Автоинсайты'),
-                            description: _tr(en: 'Surfaces conversation overview and insights on your phone.', zh: '在手机上自动展示对话概览和洞察。', ja: 'スマホに会話の概要とインサイトを表示します。', ko: '휴대폰에 대화 개요와 인사이트를 표시합니다.', es: 'Muestra resumen e insights de la conversacion en tu telefono.', ru: 'Показывает обзор разговора и инсайты на телефоне.'),
+                            title: _tr(
+                              en: 'Auto Insights',
+                              zh: '自动洞察',
+                              ja: '自動インサイト',
+                              ko: '자동 인사이트',
+                              es: 'Insights automaticos',
+                              ru: 'Автоинсайты',
+                            ),
+                            description: _tr(
+                              en: 'Surfaces conversation overview and insights on your phone.',
+                              zh: '在手机上自动展示对话概览和洞察。',
+                              ja: 'スマホに会話の概要とインサイトを表示します。',
+                              ko: '휴대폰에 대화 개요와 인사이트를 표시합니다.',
+                              es: 'Muestra resumen e insights de la conversacion en tu telefono.',
+                              ru: 'Показывает обзор разговора и инсайты на телефоне.',
+                            ),
                             value: sheetAutoShowSummary,
                             onTap: () async {
                               final nextValue = !sheetAutoShowSummary;
-                              setSheetState(() => sheetAutoShowSummary = nextValue);
+                              setSheetState(
+                                () => sheetAutoShowSummary = nextValue,
+                              );
                               await SettingsManager.instance.update((settings) {
                                 settings.autoShowSummary = nextValue;
                               });
@@ -1416,13 +1483,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
-                            key: const Key('home-setup-proactive-followups-toggle'),
-                            title: _tr(en: 'Proactive Follow-ups', zh: '主动追问', ja: 'プロアクティブフォローアップ', ko: '선제적 후속 질문', es: 'Seguimientos proactivos', ru: 'Проактивные вопросы'),
-                            description: _tr(en: 'Suggests follow-up questions to ask the other side.', zh: '自动建议向对方提问的后续问题。', ja: '相手に聞くフォローアップ質問を提案します。', ko: '상대방에게 할 후속 질문을 제안합니다.', es: 'Sugiere preguntas de seguimiento para la otra parte.', ru: 'Предлагает уточняющие вопросы для собеседника.'),
+                            key: const Key(
+                              'home-setup-proactive-followups-toggle',
+                            ),
+                            title: _tr(
+                              en: 'Proactive Follow-ups',
+                              zh: '主动追问',
+                              ja: 'プロアクティブフォローアップ',
+                              ko: '선제적 후속 질문',
+                              es: 'Seguimientos proactivos',
+                              ru: 'Проактивные вопросы',
+                            ),
+                            description: _tr(
+                              en: 'Suggests follow-up questions to ask the other side.',
+                              zh: '自动建议向对方提问的后续问题。',
+                              ja: '相手に聞くフォローアップ質問を提案します。',
+                              ko: '상대방에게 할 후속 질문을 제안합니다.',
+                              es: 'Sugiere preguntas de seguimiento para la otra parte.',
+                              ru: 'Предлагает уточняющие вопросы для собеседника.',
+                            ),
                             value: sheetAutoShowFollowUps,
                             onTap: () async {
                               final nextValue = !sheetAutoShowFollowUps;
-                              setSheetState(() => sheetAutoShowFollowUps = nextValue);
+                              setSheetState(
+                                () => sheetAutoShowFollowUps = nextValue,
+                              );
                               await SettingsManager.instance.update((settings) {
                                 settings.autoShowFollowUps = nextValue;
                               });
@@ -1431,8 +1516,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
                             key: const Key('home-setup-answer-all-toggle'),
-                            title: _tr(en: 'Auto-Answer to Glasses', zh: '自动回答到眼镜', ja: 'メガネへ自動回答', ko: '안경으로 자동 응답', es: 'Respuesta automatica a gafas', ru: 'Автоответ на очки'),
-                            description: _tr(en: 'Auto-answers detected questions and sends to glasses HUD.', zh: '自动回答检测到的问题并发送到眼镜HUD。', ja: '検出した質問に自動回答しメガネHUDに送信します。', ko: '감지된 질문에 자동 응답하고 안경 HUD로 전송합니다.', es: 'Responde automaticamente y envia al HUD de las gafas.', ru: 'Автоматически отвечает на вопросы и отправляет на HUD очков.'),
+                            title: _tr(
+                              en: 'Auto-Answer to Glasses',
+                              zh: '自动回答到眼镜',
+                              ja: 'メガネへ自動回答',
+                              ko: '안경으로 자동 응답',
+                              es: 'Respuesta automatica a gafas',
+                              ru: 'Автоответ на очки',
+                            ),
+                            description: _tr(
+                              en: 'Auto-answers detected questions and sends to glasses HUD.',
+                              zh: '自动回答检测到的问题并发送到眼镜HUD。',
+                              ja: '検出した質問に自動回答しメガネHUDに送信します。',
+                              ko: '감지된 질문에 자동 응답하고 안경 HUD로 전송합니다.',
+                              es: 'Responde automaticamente y envia al HUD de las gafas.',
+                              ru: 'Автоматически отвечает на вопросы и отправляет на HUD очков.',
+                            ),
                             value: SettingsManager.instance.answerAll,
                             onTap: () async {
                               final next = !SettingsManager.instance.answerAll;
@@ -1447,28 +1546,58 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
-                            key: const Key('home-setup-active-factcheck-toggle'),
-                            title: _tr(en: 'Active Fact-Check', zh: '实时事实核查', ja: 'アクティブ事実確認', ko: '실시간 팩트체크', es: 'Verificacion activa', ru: 'Активная проверка'),
-                            description: _tr(en: 'Verify AI answers against live web sources after each response.', zh: '每次回答后根据在线资料验证 AI 答案。', ja: '各回答後にウェブソースで AI の回答を検証します。', ko: '각 응답 후 웹 소스로 AI 답변을 검증합니다.', es: 'Verifica respuestas con fuentes web en vivo.', ru: 'Проверяет ответы AI по живым источникам.'),
-                            value: SettingsManager.instance.activeFactCheckEnabled,
+                            key: const Key(
+                              'home-setup-active-factcheck-toggle',
+                            ),
+                            title: _tr(
+                              en: 'Active Fact-Check',
+                              zh: '实时事实核查',
+                              ja: 'アクティブ事実確認',
+                              ko: '실시간 팩트체크',
+                              es: 'Verificacion activa',
+                              ru: 'Активная проверка',
+                            ),
+                            description: _tr(
+                              en: 'Verify AI answers against live web sources after each response.',
+                              zh: '每次回答后根据在线资料验证 AI 答案。',
+                              ja: '各回答後にウェブソースで AI の回答を検証します。',
+                              ko: '각 응답 후 웹 소스로 AI 답변을 검증합니다.',
+                              es: 'Verifica respuestas con fuentes web en vivo.',
+                              ru: 'Проверяет ответы AI по живым источникам.',
+                            ),
+                            value:
+                                SettingsManager.instance.activeFactCheckEnabled,
                             onTap: () async {
-                              final next = !SettingsManager.instance.activeFactCheckEnabled;
+                              final next = !SettingsManager
+                                  .instance
+                                  .activeFactCheckEnabled;
                               await SettingsManager.instance.update((s) {
                                 s.activeFactCheckEnabled = next;
                               });
                               setSheetState(() {});
                             },
                           ),
-                          if (SettingsManager.instance.activeFactCheckEnabled) ...[
+                          if (SettingsManager
+                              .instance
+                              .activeFactCheckEnabled) ...[
                             const SizedBox(height: 8),
                             _buildFactCheckBackendPicker(setSheetState),
                           ],
                         ],
                         const SizedBox(height: 16),
                         _buildCollapsibleSectionHeader(
-                          title: _tr(en: 'OUTPUT TOOLS', zh: '输出工具', ja: '出力ツール', ko: '출력 도구', es: 'HERRAMIENTAS DE SALIDA', ru: 'ИНСТРУМЕНТЫ ВЫВОДА'),
+                          title: _tr(
+                            en: 'OUTPUT TOOLS',
+                            zh: '输出工具',
+                            ja: '出力ツール',
+                            ko: '출력 도구',
+                            es: 'HERRAMIENTAS DE SALIDA',
+                            ru: 'ИНСТРУМЕНТЫ ВЫВОДА',
+                          ),
                           expanded: outputToolsExpanded,
-                          onTap: () => setSheetState(() => outputToolsExpanded = !outputToolsExpanded),
+                          onTap: () => setSheetState(
+                            () => outputToolsExpanded = !outputToolsExpanded,
+                          ),
                         ),
                         if (outputToolsExpanded) ...[
                           const SizedBox(height: 8),
@@ -1496,9 +1625,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 showSummaryTool: !sheetProfile.showSummaryTool,
                               );
                               setSheetState(() => sheetProfile = updated);
-                              await SettingsManager.instance.saveAssistantProfile(
-                                updated,
-                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
                             },
                           ),
                           const SizedBox(height: 8),
@@ -1526,9 +1654,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 showFollowUps: !sheetProfile.showFollowUps,
                               );
                               setSheetState(() => sheetProfile = updated);
-                              await SettingsManager.instance.saveAssistantProfile(
-                                updated,
-                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
                             },
                           ),
                           const SizedBox(height: 8),
@@ -1556,30 +1683,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 showFactCheck: !sheetProfile.showFactCheck,
                               );
                               setSheetState(() => sheetProfile = updated);
-                              await SettingsManager.instance.saveAssistantProfile(
-                                updated,
-                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
                             },
                           ),
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
                             key: const Key('home-setup-tool-websearch-toggle'),
-                            title: _tr(en: 'Web Search', zh: '网络搜索', ja: 'ウェブ検索', ko: '웹 검색', es: 'Busqueda web', ru: 'Веб-поиск'),
-                            description: _tr(en: 'Use OpenAI Search API for fact-checking and grounding.', zh: '使用OpenAI搜索API进行事实核查和信息验证。', ja: 'OpenAI検索APIでファクトチェックと情報検証を行います。', ko: 'OpenAI 검색 API로 사실 확인과 정보 검증을 합니다.', es: 'Usa la API de busqueda de OpenAI para verificacion de hechos.', ru: 'Использует OpenAI Search API для проверки фактов.'),
+                            title: _tr(
+                              en: 'Web Search',
+                              zh: '网络搜索',
+                              ja: 'ウェブ検索',
+                              ko: '웹 검색',
+                              es: 'Busqueda web',
+                              ru: 'Веб-поиск',
+                            ),
+                            description: _tr(
+                              en: 'Use OpenAI Search API for fact-checking and grounding.',
+                              zh: '使用OpenAI搜索API进行事实核查和信息验证。',
+                              ja: 'OpenAI検索APIでファクトチェックと情報検証を行います。',
+                              ko: 'OpenAI 검색 API로 사실 확인과 정보 검증을 합니다.',
+                              es: 'Usa la API de busqueda de OpenAI para verificacion de hechos.',
+                              ru: 'Использует OpenAI Search API для проверки фактов.',
+                            ),
                             value: sheetProfile.showWebSearch,
                             onTap: () async {
                               final updated = sheetProfile.copyWith(
                                 showWebSearch: !sheetProfile.showWebSearch,
                               );
                               setSheetState(() => sheetProfile = updated);
-                              await SettingsManager.instance.saveAssistantProfile(
-                                updated,
-                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
                             },
                           ),
                           const SizedBox(height: 8),
                           AssistantSettingsToggleTile(
-                            key: const Key('home-setup-tool-actionitems-toggle'),
+                            key: const Key(
+                              'home-setup-tool-actionitems-toggle',
+                            ),
                             title: _tr(
                               en: 'Action Items',
                               zh: '行动项',
@@ -1602,9 +1743,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 showActionItems: !sheetProfile.showActionItems,
                               );
                               setSheetState(() => sheetProfile = updated);
-                              await SettingsManager.instance.saveAssistantProfile(
-                                updated,
-                              );
+                              await SettingsManager.instance
+                                  .saveAssistantProfile(updated);
                             },
                           ),
                         ],
@@ -1684,9 +1824,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   label: '$sheetMaxChars',
                                   onChanged: (v) {
                                     final val = v.round();
-                                    setSheetState(
-                                      () => sheetMaxChars = val,
-                                    );
+                                    setSheetState(() => sheetMaxChars = val);
                                     SettingsManager.instance.update(
                                       (s) => s.maxResponseChars = val,
                                     );
@@ -1703,51 +1841,91 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             _showSystemPromptEditor(sheetProfile);
                           },
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.04),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.08),
+                              ),
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.edit_note_rounded, size: 20, color: Colors.white.withValues(alpha: 0.72)),
+                                Icon(
+                                  Icons.edit_note_rounded,
+                                  size: 20,
+                                  color: Colors.white.withValues(alpha: 0.72),
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        _tr(en: 'Customize Prompt', zh: '自定义提示词', ja: 'プロンプトをカスタマイズ', ko: '프롬프트 커스터마이즈', es: 'Personalizar Prompt', ru: 'Настроить промпт'),
+                                        _tr(
+                                          en: 'Customize Prompt',
+                                          zh: '自定义提示词',
+                                          ja: 'プロンプトをカスタマイズ',
+                                          ko: '프롬프트 커스터마이즈',
+                                          es: 'Personalizar Prompt',
+                                          ru: 'Настроить промпт',
+                                        ),
                                         style: TextStyle(
-                                          color: Colors.white.withValues(alpha: 0.88),
+                                          color: Colors.white.withValues(
+                                            alpha: 0.88,
+                                          ),
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                       if (sheetProfile.systemPrompt != null &&
-                                          sheetProfile.systemPrompt!.trim().isNotEmpty)
+                                          sheetProfile.systemPrompt!
+                                              .trim()
+                                              .isNotEmpty)
                                         Text(
-                                          sheetProfile.systemPrompt!.trim().length > 40
+                                          sheetProfile.systemPrompt!
+                                                      .trim()
+                                                      .length >
+                                                  40
                                               ? '${sheetProfile.systemPrompt!.trim().substring(0, 40)}...'
-                                              : sheetProfile.systemPrompt!.trim(),
+                                              : sheetProfile.systemPrompt!
+                                                    .trim(),
                                           style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.48),
+                                            color: Colors.white.withValues(
+                                              alpha: 0.48,
+                                            ),
                                             fontSize: 11,
                                           ),
                                         )
                                       else
                                         Text(
-                                          _tr(en: 'Using default prompt', zh: '使用默认提示词', ja: 'デフォルトプロンプトを使用', ko: '기본 프롬프트 사용', es: 'Usando prompt predeterminado', ru: 'Используется промпт по умолчанию'),
+                                          _tr(
+                                            en: 'Using default prompt',
+                                            zh: '使用默认提示词',
+                                            ja: 'デフォルトプロンプトを使用',
+                                            ko: '기본 프롬프트 사용',
+                                            es: 'Usando prompt predeterminado',
+                                            ru: 'Используется промпт по умолчанию',
+                                          ),
                                           style: TextStyle(
-                                            color: Colors.white.withValues(alpha: 0.38),
+                                            color: Colors.white.withValues(
+                                              alpha: 0.38,
+                                            ),
                                             fontSize: 11,
                                           ),
                                         ),
                                     ],
                                   ),
                                 ),
-                                Icon(Icons.chevron_right, size: 18, color: Colors.white.withValues(alpha: 0.42)),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: Colors.white.withValues(alpha: 0.42),
+                                ),
                               ],
                             ),
                           ),
@@ -1785,7 +1963,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           builder: (ctx, setSheetState) {
             return Padding(
               padding: EdgeInsets.only(
-                left: 20, right: 20, top: 20,
+                left: 20,
+                right: 20,
+                top: 20,
                 bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
               ),
               child: SingleChildScrollView(
@@ -1794,9 +1974,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _tr(en: 'Custom System Prompt', zh: '自定义系统提示词', ja: 'カスタムシステムプロンプト', ko: '커스텀 시스템 프롬프트', es: 'Prompt de Sistema Personalizado', ru: 'Пользовательский системный промпт'),
+                      _tr(
+                        en: 'Custom System Prompt',
+                        zh: '自定义系统提示词',
+                        ja: 'カスタムシステムプロンプト',
+                        ko: '커스텀 시스템 프롬프트',
+                        es: 'Prompt de Sistema Personalizado',
+                        ru: 'Пользовательский системный промпт',
+                      ),
                       style: const TextStyle(
-                        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -1809,17 +1998,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         es: 'Personaliza cómo responde la IA. Las reglas (límite de oraciones, formato) siempre se aplican.',
                         ru: 'Настройте стиль ответов ИИ. Правила (лимит предложений, формат) всегда применяются.',
                       ),
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.52), fontSize: 12),
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.52),
+                        fontSize: 12,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _buildTemplateChip('Keep it brief', '简短回答', controller, setSheetState),
-                        _buildTemplateChip('Explain like I\'m 5', '像跟5岁小孩解释', controller, setSheetState),
-                        _buildTemplateChip('Technical detail', '技术细节', controller, setSheetState),
-                        _buildTemplateChip('Translate to Spanish', '翻译成西班牙语', controller, setSheetState),
+                        _buildTemplateChip(
+                          'Keep it brief',
+                          '简短回答',
+                          controller,
+                          setSheetState,
+                        ),
+                        _buildTemplateChip(
+                          'Explain like I\'m 5',
+                          '像跟5岁小孩解释',
+                          controller,
+                          setSheetState,
+                        ),
+                        _buildTemplateChip(
+                          'Technical detail',
+                          '技术细节',
+                          controller,
+                          setSheetState,
+                        ),
+                        _buildTemplateChip(
+                          'Translate to Spanish',
+                          '翻译成西班牙语',
+                          controller,
+                          setSheetState,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -1831,20 +2043,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       style: const TextStyle(color: Colors.white, fontSize: 14),
                       decoration: InputDecoration(
                         hintText: defaultPersona,
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.22)),
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.22),
+                        ),
                         filled: true,
                         fillColor: Colors.white.withValues(alpha: 0.06),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                          borderSide: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: HelixTheme.cyan.withValues(alpha: 0.5)),
+                          borderSide: BorderSide(
+                            color: HelixTheme.cyan.withValues(alpha: 0.5),
+                          ),
                         ),
                       ),
                     ),
@@ -1858,8 +2078,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               setSheetState(() {});
                             },
                             child: Text(
-                              _tr(en: 'Reset to default', zh: '恢复默认', ja: 'デフォルトに戻す', ko: '기본값으로 재설정', es: 'Restablecer predeterminado', ru: 'Сбросить по умолчанию'),
-                              style: TextStyle(color: Colors.white.withValues(alpha: 0.52)),
+                              _tr(
+                                en: 'Reset to default',
+                                zh: '恢复默认',
+                                ja: 'デフォルトに戻す',
+                                ko: '기본값으로 재설정',
+                                es: 'Restablecer predeterminado',
+                                ru: 'Сбросить по умолчанию',
+                              ),
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.52),
+                              ),
                             ),
                           ),
                         const Spacer(),
@@ -1869,12 +2098,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             final updated = text.isEmpty
                                 ? profile.copyWith(clearSystemPrompt: true)
                                 : profile.copyWith(systemPrompt: text);
-                            await SettingsManager.instance.saveAssistantProfile(updated);
+                            await SettingsManager.instance.saveAssistantProfile(
+                              updated,
+                            );
                             if (mounted) setState(() {});
                             if (ctx.mounted) Navigator.pop(ctx);
                           },
-                          style: ElevatedButton.styleFrom(backgroundColor: HelixTheme.cyan),
-                          child: Text(_tr(en: 'Save', zh: '保存', ja: '保存', ko: '저장', es: 'Guardar', ru: 'Сохранить')),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: HelixTheme.cyan,
+                          ),
+                          child: Text(
+                            _tr(
+                              en: 'Save',
+                              zh: '保存',
+                              ja: '保存',
+                              ko: '저장',
+                              es: 'Guardar',
+                              ru: 'Сохранить',
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -1909,7 +2151,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         child: Text(
           label,
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 12),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.68),
+            fontSize: 12,
+          ),
         ),
       ),
     );
@@ -1994,18 +2239,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildSetupBanner() {
     return GestureDetector(
       onTap: () {
-        MainScreen.switchToTab(4); // Insights tab
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       },
       child: GlassCard(
         opacity: 0.08,
-        borderColor: Colors.orange.withValues(alpha: 0.3),
+        borderColor: HelixTheme.amber.withValues(alpha: 0.3),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             Icon(
               Icons.warning_amber_rounded,
               size: 16,
-              color: Colors.orange.withValues(alpha: 0.8),
+              color: HelixTheme.amber.withValues(alpha: 0.8),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2038,13 +2285,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.12),
+                color: HelixTheme.amber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 _isChinese ? '设置' : 'Settings',
                 style: TextStyle(
-                  color: Colors.orange.withValues(alpha: 0.9),
+                  color: HelixTheme.amber.withValues(alpha: 0.9),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2140,6 +2387,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (!hasLiveConversation)
             Column(
               children: [
+                HelixVisual(
+                  type: HelixVisualType.conversation,
+                  height: 112,
+                  accent: modeColor,
+                  compact: true,
+                ),
+                const SizedBox(height: 8),
                 _buildLoadoutCard(),
                 const SizedBox(height: 8),
                 _buildSuggestionChips(),
@@ -2187,7 +2441,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   if (chunks.isEmpty) return const SizedBox.shrink();
                   return Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Wrap(
                       spacing: 6,
                       runSpacing: 4,
@@ -2195,16 +2451,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         for (var i = 0; i < chunks.length; i++)
                           ActionChip(
                             label: Text(
-                                '[${i + 1}] ${chunks[i].documentFilename}'
-                                '${chunks[i].pageStart != null ? ' p.${chunks[i].pageStart}' : ''}',
-                                style: const TextStyle(fontSize: 11)),
+                              '[${i + 1}] ${chunks[i].documentFilename}'
+                              '${chunks[i].pageStart != null ? ' p.${chunks[i].pageStart}' : ''}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
                             onPressed: () => showDialog<void>(
                               context: context,
                               builder: (_) => AlertDialog(
                                 title: Text(chunks[i].documentFilename),
                                 content: SingleChildScrollView(
-                                  child:
-                                      SelectableText(chunks[i].chunkText),
+                                  child: SelectableText(chunks[i].chunkText),
                                 ),
                                 actions: [
                                   TextButton(
@@ -2312,10 +2568,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   const SizedBox(width: 8),
                   Text(
                     'Sources (${result.sources.length})',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   const Spacer(),
                   Icon(
@@ -2597,7 +2850,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ru: 'НЕ УДАЛОСЬ ЗАПУСТИТЬ РАСШИФРОВКУ',
           );
 
-    final hasRawDetail = _rawListeningError != null &&
+    final hasRawDetail =
+        _rawListeningError != null &&
         _rawListeningError!.trim().isNotEmpty &&
         _rawListeningError!.trim() != _listeningError?.trim();
 
@@ -2663,10 +2917,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ),
             if (hasRawDetail && _errorDetailExpanded) ...[
-              Divider(
-                color: Colors.white.withValues(alpha: 0.12),
-                height: 20,
-              ),
+              Divider(color: Colors.white.withValues(alpha: 0.12), height: 20),
               Text(
                 _rawListeningError!,
                 style: TextStyle(
@@ -3541,7 +3792,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return GlassCard(
       key: const Key('home-fixed-composer-dock'),
       opacity: 0.18,
-      borderRadius: 24,
+      borderRadius: HelixTheme.radiusControl,
       borderColor: accentColor.withValues(alpha: 0.2),
       padding: const EdgeInsets.all(6),
       child: Row(
@@ -3581,7 +3832,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
             border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             boxShadow: isRecordingActive
                 ? [
@@ -3717,9 +3968,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       settings.assistantProfileId = profile.id;
     });
     // Sync engine mode from profile
-    _engine.setMode(
-      ConversationMode.values.byName(profile.engineModeName),
-    );
+    _engine.setMode(ConversationMode.values.byName(profile.engineModeName));
   }
 
   void _selectPreset(AssistantQuickAskPreset preset) {
@@ -4001,15 +4250,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     switch (_status) {
       case EngineStatus.idle:
-        return Colors.grey;
+        return HelixTheme.statusReady;
       case EngineStatus.listening:
-        return Colors.green;
+        return HelixTheme.statusListening;
       case EngineStatus.thinking:
-        return HelixTheme.cyan;
+        return HelixTheme.statusThinking;
       case EngineStatus.responding:
         return HelixTheme.purple;
       case EngineStatus.error:
-        return const Color(0xFFFF6B6B);
+        return HelixTheme.error;
     }
   }
 
@@ -4022,7 +4271,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       case 'technical':
         return HelixTheme.purple;
       case 'social':
-        return const Color(0xFF00FF88);
+        return HelixTheme.lime;
       default:
         return HelixTheme.cyan;
     }

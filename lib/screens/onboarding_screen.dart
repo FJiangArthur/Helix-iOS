@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/helix_theme.dart';
 import '../widgets/glow_button.dart';
+import '../widgets/helix_visuals.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -18,74 +19,46 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const _pages = [
     _OnboardingPage(
-      icon: Icons.auto_awesome,
-      title: 'Welcome to Even Companion',
-      subtitle: 'Your AI-powered conversation edge',
+      visualType: HelixVisualType.onboarding,
+      title: 'Helix',
+      subtitle: 'A quiet edge for live conversations',
       description:
-          'Get real-time AI coaching, instant answers, and brilliant talking points \u2014 on your phone or streamed to your G1 glasses.',
+          'Listen, detect the moment that matters, and send concise answers to your phone or G1 glasses.',
       gradient: [HelixTheme.cyan, HelixTheme.purple],
     ),
     _OnboardingPage(
-      icon: Icons.chat_bubble_rounded,
-      title: 'Your AI Assistant',
+      visualType: HelixVisualType.conversation,
+      title: 'Live Assistant',
       subtitle: 'Home',
       description:
-          'Ask questions, start conversations, and get AI-powered answers instantly. Choose from 4 quick modes \u2014 Concise, Speak For Me, Interview Coach, or Fact Check. Tap the mic to start recording and let AI listen along.',
+          'Use Tune presets for concise answers, speakable replies, interview coaching, and fact checking.',
       gradient: [HelixTheme.cyan, HelixTheme.lime],
-      bullets: [
-        'Quick Ask',
-        'Live Transcription',
-        'AI Answers',
-        'Follow-up Chips',
-      ],
+      bullets: ['Tune presets', 'Live transcript', 'Q&A handoff', 'Follow-ups'],
     ),
     _OnboardingPage(
-      icon: Icons.bluetooth_connected_rounded,
-      title: 'G1 Glasses Control',
+      visualType: HelixVisualType.glasses,
+      title: 'G1 Control',
       subtitle: 'Glasses',
       description:
-          'Connect and manage your Even Realities G1 smart glasses. Choose your microphone source (Phone or Glasses), monitor connection status, and configure your HUD display.',
+          'Connect your glasses, choose the mic source, and keep HUD delivery visible at a glance.',
       gradient: [HelixTheme.purple, HelixTheme.cyan],
       bullets: ['BLE Pairing', 'Mic Source', 'HUD Config', 'Dashboard'],
     ),
     _OnboardingPage(
-      icon: Icons.history_rounded,
-      title: 'Conversation History',
-      subtitle: 'History',
-      description:
-          'Browse, search, and filter all your past conversations. Filter by mode (General, Interview, Answer All, or Answer On-demand), mark favorites, and find action items or fact-check flags.',
-      gradient: [HelixTheme.purple, HelixTheme.amber],
-      bullets: ['Search', 'Filter by Mode', 'Favorites', 'Action Items'],
-    ),
-    _OnboardingPage(
-      icon: Icons.radio_button_checked_rounded,
-      title: 'Live Conversation',
-      subtitle: 'Live',
-      description:
-          'See your conversation unfold in real-time. Live transcription, AI Q&A as it happens, word and segment counts, and post-conversation analysis with topics, summaries, and action items.',
-      gradient: [Color(0xFFFF6B6B), HelixTheme.amber],
-      bullets: [
-        'Real-time Transcript',
-        'Live Q&A',
-        'Word Count',
-        'Post Analysis',
-      ],
-    ),
-    _OnboardingPage(
-      icon: Icons.lightbulb_rounded,
-      title: 'Your Knowledge Hub',
+      visualType: HelixVisualType.knowledge,
+      title: 'Knowledge Hub',
       subtitle: 'Insights',
       description:
-          'Three powerful tools in one tab. Facts extracts and organizes knowledge from your conversations. Memories creates daily narratives. Ask Buzz lets you chat with AI about everything you\'ve discussed.',
+          'Facts, memories, projects, and citations stay organized after the conversation ends.',
       gradient: [HelixTheme.amber, HelixTheme.lime],
-      bullets: ['Facts', 'Daily Memories', 'Ask Buzz', 'Citations'],
+      bullets: ['Facts', 'Memories', 'Projects', 'Citations'],
     ),
     _OnboardingPage(
-      icon: Icons.rocket_launch_rounded,
+      visualType: HelixVisualType.mark,
       title: "You're All Set",
       subtitle: 'Start your first conversation',
       description:
-          'Head to Settings (gear icon) to add your AI provider API key, then tap the record button on the Home tab to begin. Your AI assistant is ready.',
+          'Add an AI provider key, confirm your speech backend, then tap the record button on Home.',
       gradient: [HelixTheme.lime, HelixTheme.cyan],
     ),
   ];
@@ -133,37 +106,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Icon with gradient background
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: page.gradient,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: page.gradient.first.withValues(
-                                  alpha: 0.3,
-                                ),
-                                blurRadius: 30,
-                                spreadRadius: 5,
-                              ),
-                            ],
-                          ),
-                          child: Icon(page.icon, size: 44, color: Colors.white),
+                        HelixVisual(
+                          type: page.visualType,
+                          height: 132,
+                          accent: page.gradient.first,
                         ),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 32),
                         Text(
                           page.title,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
-                            letterSpacing: -0.5,
+                            letterSpacing: 0,
                           ),
                           textAlign: TextAlign.center,
                         ),
@@ -272,7 +227,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _OnboardingPage {
-  final IconData icon;
+  final HelixVisualType visualType;
   final String title;
   final String subtitle;
   final String description;
@@ -280,7 +235,7 @@ class _OnboardingPage {
   final List<String>? bullets;
 
   const _OnboardingPage({
-    required this.icon,
+    required this.visualType,
     required this.title,
     required this.subtitle,
     required this.description,

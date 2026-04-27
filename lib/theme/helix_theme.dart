@@ -3,22 +3,30 @@ import 'package:flutter/material.dart';
 class HelixTheme {
   HelixTheme._();
 
-  static const Color background = Color(0xFF07111F);
-  static const Color backgroundRaised = Color(0xFF0D1726);
-  static const Color surface = Color(0xFF131D2B);
-  static const Color surfaceRaised = Color(0xFF1A2636);
-  static const Color surfaceInteractive = Color(0xFF23344A);
-  static const Color borderSubtle = Color(0xFF2A3A4D);
-  static const Color borderStrong = Color(0xFF3A5167);
-  static const Color cyan = Color(0xFF39D7FF);
-  static const Color cyanDeep = Color(0xFF117A9D);
-  static const Color purple = Color(0xFF6E86FF);
-  static const Color lime = Color(0xFF75E8A3);
-  static const Color amber = Color(0xFFFFB14A);
-  static const Color error = Color(0xFFFF6B6B);
-  static const Color textPrimary = Color(0xFFF4F7FB);
-  static const Color textSecondary = Color(0xFFAAB6C7);
-  static const Color textMuted = Color(0xFF76859A);
+  static const Color background = Color(0xFF090D12);
+  static const Color backgroundRaised = Color(0xFF10161D);
+  static const Color surface = Color(0xFF151B23);
+  static const Color surfaceRaised = Color(0xFF1B232D);
+  static const Color surfaceInteractive = Color(0xFF222D38);
+  static const Color borderSubtle = Color(0xFF2B3541);
+  static const Color borderStrong = Color(0xFF3B4956);
+  static const Color cyan = Color(0xFF55C7E8);
+  static const Color cyanDeep = Color(0xFF1C7892);
+  static const Color purple = Color(0xFF8B96C9);
+  static const Color lime = Color(0xFF8CD6A4);
+  static const Color amber = Color(0xFFE7AE62);
+  static const Color error = Color(0xFFE56C6C);
+  static const Color textPrimary = Color(0xFFF1F4F7);
+  static const Color textSecondary = Color(0xFFB1BBC6);
+  static const Color textMuted = Color(0xFF7D8996);
+
+  static const Color statusListening = Color(0xFF55C7E8);
+  static const Color statusThinking = Color(0xFFE7AE62);
+  static const Color statusReady = Color(0xFF8CD6A4);
+  static const Color statusOffline = Color(0xFF7D8996);
+  static const double radiusPanel = 8;
+  static const double radiusControl = 10;
+  static const double radiusPill = 999;
 
   static Color panelFill([double emphasis = 0.0]) {
     final strength = emphasis.clamp(0.0, 1.0);
@@ -51,7 +59,7 @@ class HelixTheme {
         color: textPrimary,
         fontSize: 28,
         fontWeight: FontWeight.w700,
-        letterSpacing: -0.5,
+        letterSpacing: 0,
       ),
       titleLarge: TextStyle(
         color: textPrimary,
@@ -93,7 +101,7 @@ class HelixTheme {
         color: textMuted,
         fontSize: 11,
         fontWeight: FontWeight.w700,
-        letterSpacing: 1.0,
+        letterSpacing: 0.7,
       ),
     ),
     appBarTheme: const AppBarTheme(
@@ -114,11 +122,11 @@ class HelixTheme {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: surfaceRaised.withValues(alpha: 0.94),
-      indicatorColor: surfaceInteractive,
+      indicatorColor: cyan.withValues(alpha: 0.14),
       surfaceTintColor: Colors.transparent,
-      shadowColor: Colors.black.withValues(alpha: 0.28),
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-      height: 56,
+      shadowColor: Colors.black.withValues(alpha: 0.22),
+      labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+      height: 62,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final isSelected = states.contains(WidgetState.selected);
         return TextStyle(
@@ -130,16 +138,16 @@ class HelixTheme {
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return const IconThemeData(color: cyan, size: 24);
+          return const IconThemeData(color: cyan, size: 23);
         }
-        return const IconThemeData(color: textMuted, size: 24);
+        return const IconThemeData(color: textMuted, size: 23);
       }),
     ),
     cardTheme: CardThemeData(
       color: panelFill(0.3),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(radiusPanel),
         side: const BorderSide(color: borderSubtle),
       ),
     ),
@@ -152,7 +160,7 @@ class HelixTheme {
       ),
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         side: const BorderSide(color: borderStrong),
       ),
     ),
@@ -170,23 +178,23 @@ class HelixTheme {
         fontWeight: FontWeight.w600,
       ),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         borderSide: const BorderSide(color: borderSubtle),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         borderSide: const BorderSide(color: borderSubtle),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         borderSide: const BorderSide(color: cyan),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         borderSide: const BorderSide(color: error),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(radiusControl),
         borderSide: const BorderSide(color: error),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),

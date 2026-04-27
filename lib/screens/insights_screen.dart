@@ -17,6 +17,7 @@ import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../widgets/fact_card.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/helix_visuals.dart';
 import 'conversation_detail_screen.dart';
 import 'settings_screen.dart';
 
@@ -212,11 +213,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
       final sections = <_DaySection>[];
       for (final dateStr in sortedDates) {
-        sections.add(_DaySection(
-          dateStr: dateStr,
-          memory: memoryByDate[dateStr],
-          conversations: convsByDate[dateStr] ?? [],
-        ));
+        sections.add(
+          _DaySection(
+            dateStr: dateStr,
+            memory: memoryByDate[dateStr],
+            conversations: convsByDate[dateStr] ?? [],
+          ),
+        );
       }
 
       setState(() {
@@ -284,60 +287,62 @@ class _InsightsScreenState extends State<InsightsScreen> {
     );
     setState(() => _messages.add(assistantMsg));
 
-    _activeSub = BuzzService.instance.ask(question).listen(
-      (event) {
-        switch (event) {
-          case BuzzSearching():
-            break;
-          case BuzzCitationsAvailable():
-            final newCitations = event.citations;
-            citations = newCitations;
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  textStream: streamController.stream,
-                  citations: newCitations,
-                );
-              }
-            });
-          case BuzzTextDelta(:final text):
-            fullText += text;
-            streamController.add(text);
-            _scrollToBottom();
-          case BuzzComplete():
+    _activeSub = BuzzService.instance
+        .ask(question)
+        .listen(
+          (event) {
+            switch (event) {
+              case BuzzSearching():
+                break;
+              case BuzzCitationsAvailable():
+                final newCitations = event.citations;
+                citations = newCitations;
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      textStream: streamController.stream,
+                      citations: newCitations,
+                    );
+                  }
+                });
+              case BuzzTextDelta(:final text):
+                fullText += text;
+                streamController.add(text);
+                _scrollToBottom();
+              case BuzzComplete():
+                streamController.close();
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      staticText: fullText,
+                      citations: citations,
+                    );
+                  }
+                  _isProcessing = false;
+                });
+              case BuzzError(:final message):
+                streamController.close();
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      staticText: 'Error: $message',
+                    );
+                  }
+                  _isProcessing = false;
+                });
+            }
+          },
+          onError: (Object e) {
             streamController.close();
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  staticText: fullText,
-                  citations: citations,
-                );
-              }
-              _isProcessing = false;
-            });
-          case BuzzError(:final message):
-            streamController.close();
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  staticText: 'Error: $message',
-                );
-              }
-              _isProcessing = false;
-            });
-        }
-      },
-      onError: (Object e) {
-        streamController.close();
-        setState(() => _isProcessing = false);
-      },
-    );
+            setState(() => _isProcessing = false);
+          },
+        );
   }
 
   void _clearBuzzHistory() {
@@ -368,48 +373,56 @@ class _InsightsScreenState extends State<InsightsScreen> {
       child: Scaffold(
         backgroundColor: HelixTheme.background,
         appBar: AppBar(
-          title: Text(tr('Insights', '洞察')),
+          toolbarHeight: 0,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: tr('Settings', '设置'),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const SettingsScreen(),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(kTextTabBarHeight + 8),
+            child: SizedBox(
+              height: kTextTabBarHeight + 8,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TabBar(
+                      indicatorColor: HelixTheme.cyan,
+                      indicatorWeight: 2.5,
+                      labelColor: HelixTheme.textPrimary,
+                      unselectedLabelColor: HelixTheme.textMuted,
+                      labelStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      unselectedLabelStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      dividerColor: Colors.transparent,
+                      tabs: [
+                        Tab(text: tr('Facts', '事实')),
+                        Tab(text: tr('Memories', '记忆')),
+                      ],
+                    ),
                   ),
-                );
-              },
+                  IconButton(
+                    icon: const Icon(
+                      Icons.settings_outlined,
+                      color: HelixTheme.textSecondary,
+                    ),
+                    tooltip: tr('Settings', '设置'),
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const SettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
-          ],
-          bottom: TabBar(
-            indicatorColor: HelixTheme.cyan,
-            indicatorWeight: 2.5,
-            labelColor: HelixTheme.textPrimary,
-            unselectedLabelColor: HelixTheme.textMuted,
-            labelStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-            unselectedLabelStyle: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
-            dividerColor: Colors.transparent,
-            tabs: [
-              Tab(text: tr('Facts', '事实')),
-              Tab(text: tr('Memories', '记忆')),
-            ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildFactsTab(),
-            _buildMemoriesTab(),
-          ],
-        ),
+        body: TabBarView(children: [_buildFactsTab(), _buildMemoriesTab()]),
       ),
     );
   }
@@ -449,8 +462,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           child: CustomScrollView(
             slivers: [
               // Search bar
-              if (_searchExpanded)
-                SliverToBoxAdapter(child: _buildSearchBar()),
+              if (_searchExpanded) SliverToBoxAdapter(child: _buildSearchBar()),
 
               // Confirmed section header
               SliverToBoxAdapter(child: _buildConfirmedHeader()),
@@ -476,8 +488,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
         style: const TextStyle(color: HelixTheme.textPrimary, fontSize: 14),
         decoration: InputDecoration(
           hintText: tr('Search facts...', '搜索事实...'),
-          prefixIcon:
-              const Icon(Icons.search, color: HelixTheme.textMuted, size: 20),
+          prefixIcon: const Icon(
+            Icons.search,
+            color: HelixTheme.textMuted,
+            size: 20,
+          ),
         ),
         onChanged: _onSearch,
       ),
@@ -490,9 +505,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       child: Text(
         '${_pendingFacts.length} new fact${_pendingFacts.length == 1 ? '' : 's'} to review',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: HelixTheme.textSecondary,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(color: HelixTheme.textSecondary),
       ),
     );
   }
@@ -617,12 +632,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
               Text(
                 tr('All caught up!', '已全部查看！'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HelixTheme.textSecondary,
-                    ),
+                  color: HelixTheme.textSecondary,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
-                tr('New facts will appear here after conversations.', '对话后新发现的事实将出现在这里。'),
+                tr(
+                  'New facts will appear here after conversations.',
+                  '对话后新发现的事实将出现在这里。',
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -655,11 +673,26 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Center(
-        child: Text(
-          _searchQuery.isNotEmpty
-              ? 'No facts match "$_searchQuery"'
-              : tr('Confirmed facts will appear here.', '已确认的事实将显示在这里。'),
-          style: Theme.of(context).textTheme.bodyMedium,
+        child: GlassCard(
+          opacity: 0.08,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const HelixVisual(
+                type: HelixVisualType.knowledge,
+                height: 110,
+                compact: true,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                _searchQuery.isNotEmpty
+                    ? 'No facts match "$_searchQuery"'
+                    : tr('Confirmed facts will appear here.', '已确认的事实将显示在这里。'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -697,8 +730,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   });
                 },
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -712,10 +747,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       const SizedBox(width: 10),
                       Text(
                         catEnum.displayName,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: color,
-                                ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(color: color),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -735,36 +769,38 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 ),
               ),
               if (!isCollapsed)
-                ...facts.map((fact) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: GlassCard(
-                        opacity: 0.10,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fact.content,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            if (fact.sourceQuote != null &&
-                                fact.sourceQuote!.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                fact.sourceQuote!,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(fontStyle: FontStyle.italic),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
+                ...facts.map(
+                  (fact) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GlassCard(
+                      opacity: 0.10,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                    )),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fact.content,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          if (fact.sourceQuote != null &&
+                              fact.sourceQuote!.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              fact.sourceQuote!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontStyle: FontStyle.italic),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -796,8 +832,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           child: ListView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             itemCount: _sections.length,
-            itemBuilder: (context, index) =>
-                _buildDaySection(_sections[index]),
+            itemBuilder: (context, index) => _buildDaySection(_sections[index]),
           ),
         ),
         if (_isRegenerating)
@@ -824,10 +859,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.auto_stories_outlined,
-              size: 64,
-              color: HelixTheme.textMuted.withValues(alpha: 0.4),
+            const HelixVisual(
+              type: HelixVisualType.knowledge,
+              height: 132,
+              accent: HelixTheme.amber,
+              compact: true,
             ),
             const SizedBox(height: 16),
             Text(
@@ -836,7 +872,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              tr('Your daily memories and conversation history will appear here after you start recording.', '开始录音后，你的每日记忆和对话历史将显示在这里。'),
+              tr(
+                'Your daily memories and conversation history will appear here after you start recording.',
+                '开始录音后，你的每日记忆和对话历史将显示在这里。',
+              ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
@@ -856,9 +895,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: Text(
               _formatDateHeader(section.dateStr),
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: HelixTheme.cyan,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: HelixTheme.cyan),
             ),
           ),
           if (section.memory != null) _buildMemoryCard(section.memory!),
@@ -886,9 +925,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
                 const SizedBox(width: 8),
                 Text(
                   tr('Daily Memory', '每日记忆'),
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: HelixTheme.purple,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: HelixTheme.purple),
                 ),
               ],
             ),
@@ -952,15 +991,15 @@ class _InsightsScreenState extends State<InsightsScreen> {
       durationStr = minutes < 1
           ? '<1 min'
           : minutes < 60
-              ? '$minutes min'
-              : '${(minutes / 60).floor()}h ${minutes % 60}m';
+          ? '$minutes min'
+          : '${(minutes / 60).floor()}h ${minutes % 60}m';
     }
 
     final title = conv.title?.isNotEmpty == true
         ? conv.title!
         : conv.summary?.isNotEmpty == true
-            ? conv.summary!
-            : 'Untitled conversation';
+        ? conv.summary!
+        : 'Untitled conversation';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -968,8 +1007,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute<void>(
-              builder: (_) =>
-                  ConversationDetailScreen(conversationId: conv.id),
+              builder: (_) => ConversationDetailScreen(conversationId: conv.id),
             ),
           );
         },
@@ -985,9 +1023,9 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontSize: 14,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(fontSize: 14),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -1010,10 +1048,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Text(
-                    timeStr,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  Text(timeStr, style: Theme.of(context).textTheme.bodySmall),
                   if (durationStr != null) ...[
                     const SizedBox(width: 8),
                     Text(
@@ -1021,8 +1056,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
-                  if (conv.sentiment != null &&
-                      conv.sentiment!.isNotEmpty) ...[
+                  if (conv.sentiment != null && conv.sentiment!.isNotEmpty) ...[
                     const SizedBox(width: 8),
                     _buildSentimentDot(conv.sentiment!),
                   ],
@@ -1071,10 +1105,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return Container(
       width: 8,
       height: 8,
-      decoration: BoxDecoration(
-        color: dotColor,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
     );
   }
 
@@ -1095,8 +1126,10 @@ class _InsightsScreenState extends State<InsightsScreen> {
               child: Padding(
                 padding: const EdgeInsets.only(right: 8, top: 4),
                 child: IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: HelixTheme.textMuted),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: HelixTheme.textMuted,
+                  ),
                   tooltip: tr('Clear history', '清除历史'),
                   onPressed: _clearBuzzHistory,
                 ),
@@ -1118,14 +1151,20 @@ class _InsightsScreenState extends State<InsightsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome,
-                size: 48, color: HelixTheme.cyan.withValues(alpha: 0.6)),
+            Icon(
+              Icons.auto_awesome,
+              size: 48,
+              color: HelixTheme.cyan.withValues(alpha: 0.6),
+            ),
             const SizedBox(height: 16),
             Text(
-              tr('Ask Buzz anything about your conversations', '向 Buzz 询问关于你对话的任何问题'),
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: HelixTheme.textSecondary,
-                  ),
+              tr(
+                'Ask Buzz anything about your conversations',
+                '向 Buzz 询问关于你对话的任何问题',
+              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: HelixTheme.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -1135,9 +1174,13 @@ class _InsightsScreenState extends State<InsightsScreen> {
               alignment: WrapAlignment.center,
               children: _starterChips.map((chip) {
                 return ActionChip(
-                  label: Text(chip,
-                      style: const TextStyle(
-                          color: HelixTheme.cyan, fontSize: 13)),
+                  label: Text(
+                    chip,
+                    style: const TextStyle(
+                      color: HelixTheme.cyan,
+                      fontSize: 13,
+                    ),
+                  ),
                   backgroundColor: Colors.transparent,
                   side: const BorderSide(color: HelixTheme.cyan),
                   shape: RoundedRectangleBorder(
@@ -1262,8 +1305,7 @@ class _InsightsScreenState extends State<InsightsScreen> {
           decoration: BoxDecoration(
             color: HelixTheme.purple.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(12),
-            border:
-                Border.all(color: HelixTheme.purple.withValues(alpha: 0.3)),
+            border: Border.all(color: HelixTheme.purple.withValues(alpha: 0.3)),
           ),
           child: Text(
             c.label,
@@ -1285,7 +1327,8 @@ class _InsightsScreenState extends State<InsightsScreen> {
         color: HelixTheme.backgroundRaised,
         border: Border(
           top: BorderSide(
-              color: HelixTheme.borderSubtle.withValues(alpha: 0.5)),
+            color: HelixTheme.borderSubtle.withValues(alpha: 0.5),
+          ),
         ),
       ),
       child: Row(
@@ -1295,21 +1338,24 @@ class _InsightsScreenState extends State<InsightsScreen> {
               controller: _buzzController,
               focusNode: _focusNode,
               style: const TextStyle(
-                  color: HelixTheme.textPrimary, fontSize: 15),
+                color: HelixTheme.textPrimary,
+                fontSize: 15,
+              ),
               decoration: InputDecoration(
                 hintText: tr('Ask Buzz a question...', '向 Buzz 提问...'),
                 filled: true,
                 fillColor: HelixTheme.surfaceInteractive,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
-                  borderSide:
-                      const BorderSide(color: HelixTheme.borderSubtle),
+                  borderSide: const BorderSide(color: HelixTheme.borderSubtle),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
@@ -1324,11 +1370,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
           IconButton(
             icon: Icon(
               Icons.send_rounded,
-              color:
-                  _isProcessing ? HelixTheme.textMuted : HelixTheme.cyan,
+              color: _isProcessing ? HelixTheme.textMuted : HelixTheme.cyan,
             ),
-            onPressed:
-                _isProcessing ? null : () => _sendBuzz(_buzzController.text),
+            onPressed: _isProcessing
+                ? null
+                : () => _sendBuzz(_buzzController.text),
           ),
         ],
       ),
@@ -1383,9 +1429,6 @@ class _StreamingTextState extends State<_StreamingText> {
         ),
       );
     }
-    return SelectableText(
-      _text,
-      style: Theme.of(context).textTheme.bodyLarge,
-    );
+    return SelectableText(_text, style: Theme.of(context).textTheme.bodyLarge);
   }
 }

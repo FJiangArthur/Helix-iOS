@@ -342,13 +342,13 @@ void main() {
     );
   });
 
-  test('navigation theme is compact and icons only', () {
+  test('navigation theme is compact and shows the selected label', () {
     final navigationBar = HelixTheme.darkTheme.navigationBarTheme;
     expect(
       navigationBar.labelBehavior,
-      NavigationDestinationLabelBehavior.alwaysHide,
+      NavigationDestinationLabelBehavior.onlyShowSelected,
     );
-    expect(navigationBar.height, 56);
+    expect(navigationBar.height, 62);
   });
 
   testWidgets(
