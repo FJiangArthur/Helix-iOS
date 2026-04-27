@@ -206,15 +206,14 @@ class ConversationListeningSession {
       final isBatchTransport =
           settings.transcriptionTransport == '48kHz Batch Proc' &&
           (settings.transcriptionModel == 'gpt-4o-transcribe' ||
-           settings.transcriptionModel == 'gpt-4o-mini-transcribe');
+              settings.transcriptionModel == 'gpt-4o-mini-transcribe');
       final effectiveBackend = (isBatchApiModel || isBatchTransport)
           ? 'whisper'
           : settings.transcriptionBackend;
 
       String? apiKey;
       String? systemPrompt;
-      if (effectiveBackend == 'openai' ||
-          effectiveBackend == 'whisper') {
+      if (effectiveBackend == 'openai' || effectiveBackend == 'whisper') {
         try {
           apiKey = await settings.getApiKey('openai');
         } catch (e) {
@@ -222,9 +221,11 @@ class ConversationListeningSession {
         }
       }
       if (settings.usesOpenAIRealtimeSession) {
-        systemPrompt = settings.openAIRealtimePrompt?.trim().isNotEmpty == true
+        final basePrompt =
+            settings.openAIRealtimePrompt?.trim().isNotEmpty == true
             ? settings.openAIRealtimePrompt!.trim()
             : _engine.systemPrompt;
+        systemPrompt = _buildRealtimeConversationPrompt(basePrompt);
       }
 
       final voiceEnabled = settings.voiceResponseEnabled;
@@ -249,11 +250,13 @@ class ConversationListeningSession {
           'model': settings.transcriptionModel,
           'systemPrompt': systemPrompt,
           'transcriptionPrompt': settings.transcriptionPrompt,
+          'noiseReduction': settings.noiseReduction,
+          'voiceActivityDetection': settings.voiceActivityDetection,
           'vadSensitivity': settings.vadSensitivity,
           if (voiceEnabled) 'voice': voiceName,
           if (effectiveBackend == 'whisper') ...{
             'enableDiarization': settings.enableDiarization,
-            'whisperChunkDurationSec': settings.whisperChunkDurationSec,
+            'chunkDurationSec': settings.whisperChunkDurationSec.toDouble(),
           },
         });
         _isRunning = true;
@@ -389,5 +392,62 @@ class ConversationListeningSession {
       default:
         return 'EN';
     }
+  }
+
+  String _buildRealtimeConversationPrompt(String basePrompt) {
+    final trimmed = basePrompt.trim();
+    if (_containsDelimitedContract(trimmed)) {
+      return trimmed;
+    }
+
+    final contract = _realtimeDelimitedContract();
+    if (trimmed.isEmpty) {
+      return contract;
+    }
+
+    final isChinese = SettingsManager.instance.language == 'zh';
+    final heading = isChinese
+        ? '输出格式要求（必须严格遵守）：'
+        : 'Output format requirements (must follow exactly):';
+    return '$trimmed\n\n$heading\n\n$contract';
+  }
+
+  bool _containsDelimitedContract(String prompt) {
+    return prompt.contains('§Q§') &&
+        prompt.contains('§A§') &&
+        prompt.contains('§END§');
+  }
+
+  String _realtimeDelimitedContract() {
+    final isChinese = SettingsManager.instance.language == 'zh';
+    if (isChinese) {
+      return '''每一次回复都必须严格按照以下三段式格式输出，不允许任何额外内容：
+
+§Q§
+<对方刚刚问佩戴者的一句话问题。如果没有明确的问题，写 NONE。>
+§A§
+<如果 §Q§ 是 NONE，这里也写 NONE。否则给出直接的口语化答案，不要写"你可以说"之类的开场白，只用自然句子。>
+§END§
+
+规则：
+- 永远不要在 §Q§ / §A§ / §END§ 结构之外写任何字。
+- 不要使用 markdown、列表或项目符号。
+- 如果对方只是在聊天或陈述，两个部分都写 NONE。
+- 如果是佩戴者自己在说话，两个部分也都写 NONE。''';
+    }
+
+    return '''EVERY response MUST follow this EXACT format — three labeled sections, in this order, with no extra text:
+
+§Q§
+<one short sentence: the question the other person asked the wearer. If no clear question was asked, write NONE.>
+§A§
+<if §Q§ is NONE, write NONE here too. Otherwise: a direct spoken answer with no preamble, no "you could say", and plain sentences only.>
+§END§
+
+RULES:
+- NEVER write anything outside the §Q§ / §A§ / §END§ structure.
+- NEVER use markdown, bullets, or lists.
+- If the other person is just chatting or making a statement, BOTH sections are NONE.
+- If the wearer is the one speaking, BOTH sections are NONE.''';
   }
 }

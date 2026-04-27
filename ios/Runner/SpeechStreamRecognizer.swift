@@ -38,6 +38,11 @@ class SpeechStreamRecognizer {
     private let speakerTurnDetector = SpeakerTurnDetector()
     var enableDiarization = false
     var noiseReductionEnabled = false
+    var realtimeSilenceSuppressionEnabled = true {
+        didSet {
+            openaiTranscriber.localSilenceSuppressionEnabled = realtimeSilenceSuppressionEnabled
+        }
+    }
     private lazy var rnnoiseProcessor = RNNoiseProcessor()
     /// Tracks consecutive silence duration for VAD-gated audio engine pause.
     private var consecutiveSilenceDuration: TimeInterval = 0
@@ -236,6 +241,7 @@ class SpeechStreamRecognizer {
         let rawThreshold = 0.6 - (vadSensitivity * 0.4)
         openaiTranscriber.vadThreshold = (rawThreshold * 1_000_000).rounded() / 1_000_000
         openaiTranscriber.transcriptionPrompt = transcriptionPrompt
+        openaiTranscriber.localSilenceSuppressionEnabled = realtimeSilenceSuppressionEnabled
 
         if backend == .openai {
             startOpenAIRecognition(
@@ -607,6 +613,7 @@ class SpeechStreamRecognizer {
             "ES": "es", "RU": "ru", "FR": "fr", "DE": "de",
         ]
         let lang = langMap[identifier] ?? "en"
+        openaiTranscriber.inputAlready24kHz = (activeInputSource == .microphone)
 
         // When the Dart layer asks for realtime conversation, route into
         // the new `.structuredConversation` mode which uses the modern
@@ -658,7 +665,6 @@ class SpeechStreamRecognizer {
                                   let data = self.convertBufferToOpenAI24kHz(buffer) else { return }
                             self.openaiTranscriber.appendAudio(data)
                         }
-                        self.openaiTranscriber.inputAlready24kHz = true
                         self.isInputTapInstalled = true
                         self.audioEngine.prepare()
                         try self.audioEngine.start()

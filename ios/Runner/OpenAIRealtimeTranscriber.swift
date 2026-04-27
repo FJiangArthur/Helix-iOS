@@ -80,6 +80,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     var vadThreshold: Double = 0.35
     /// Transcription prompt for accuracy hints.
     var transcriptionPrompt: String = ""
+    /// Local low-energy suppression for realtime audio. Server VAD still owns
+    /// turn detection; this only stops sending extended quiet-room audio after
+    /// a trailing window so idle sessions do less CPU, base64, and network work.
+    var localSilenceSuppressionEnabled = true
     /// Stale-partial detection: tracks consecutive identical transcription emissions
     /// to detect when the OpenAI API stops making progress and needs a reconnect.
     private var lastEmittedPartialText = ""
@@ -90,6 +94,10 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private let pingIntervalSeconds: TimeInterval = 10
     private let targetSampleRate = 24000
     private let sourceSampleRate = 16000
+    private let localSilenceRmsThreshold: Float = 0.0015
+    private let localSilenceTrailingSec: Double = 0.8
+    private var localQuietDurationSec: Double = 0
+    private var localSuppressedAudioCount = 0
 
     private func debugLog(_ message: @autoclosure () -> String) {
         #if DEBUG
@@ -287,12 +295,18 @@ RULES:
         self.flushLogCount = 0
         self.messageLogCount = 0
         self.transcriptionFailureTimestamps = []
+        self.localQuietDurationSec = 0
+        self.localSuppressedAudioCount = 0
 
         connect(completion: completion)
     }
 
     private var appendAudioLogCount = 0
     func appendAudio(_ pcmData: Data) {
+        let sampleRate = inputAlready24kHz ? targetSampleRate : sourceSampleRate
+        if shouldSuppressLocalSilence(pcmData, sampleRate: sampleRate) {
+            return
+        }
         audioQueue.async {
             self.audioBuffer.append(pcmData)
             let maxBufferSize = 5 * 24000 * 2
@@ -305,6 +319,47 @@ RULES:
         if appendAudioLogCount == 1 || appendAudioLogCount % 50 == 0 {
             warningLog("[OpenAITranscriber] appendAudio #\(appendAudioLogCount)")
         }
+    }
+
+    private func shouldSuppressLocalSilence(_ pcmData: Data, sampleRate: Int) -> Bool {
+        guard localSilenceSuppressionEnabled, !pcmData.isEmpty else { return false }
+        let rms = computeRMS(pcmData)
+        let duration = Double(pcmData.count / MemoryLayout<Int16>.size) / Double(sampleRate)
+        if rms >= localSilenceRmsThreshold {
+            localQuietDurationSec = 0
+            localSuppressedAudioCount = 0
+            return false
+        }
+
+        localQuietDurationSec += duration
+        guard localQuietDurationSec > localSilenceTrailingSec else {
+            return false
+        }
+
+        localSuppressedAudioCount += 1
+        if localSuppressedAudioCount == 1 || localSuppressedAudioCount % 250 == 0 {
+            debugLog(
+                "[OpenAITranscriber] suppressing quiet realtime audio "
+                + "rms=\(String(format: "%.5f", rms)) count=\(localSuppressedAudioCount)"
+            )
+        }
+        return true
+    }
+
+    private func computeRMS(_ pcmData: Data) -> Float {
+        let sampleCount = pcmData.count / MemoryLayout<Int16>.size
+        guard sampleCount > 0 else { return 0 }
+
+        var sumSquares: Float = 0
+        pcmData.withUnsafeBytes { rawBuffer in
+            guard let ptr = rawBuffer.baseAddress?.assumingMemoryBound(to: Int16.self) else { return }
+            for i in 0..<sampleCount {
+                let sample = Float(ptr[i]) / Float(Int16.max)
+                sumSquares += sample * sample
+            }
+        }
+
+        return sqrt(sumSquares / Float(sampleCount))
     }
 
     func stop() {

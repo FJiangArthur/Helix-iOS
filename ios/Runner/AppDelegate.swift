@@ -81,7 +81,12 @@ import NaturalLanguage
 
                 let enableDiarization = args["enableDiarization"] as? Bool ?? false
                 let noiseReduction = args["noiseReduction"] as? Bool ?? false
-                let chunkDurationSec = args["chunkDurationSec"] as? Double ?? 5.0
+                let voiceActivityDetection = args["voiceActivityDetection"] as? Bool ?? true
+                let chunkDurationSec =
+                    args["chunkDurationSec"] as? Double
+                    ?? (args["whisperChunkDurationSec"] as? Double)
+                    ?? ((args["whisperChunkDurationSec"] as? Int).map { Double($0) })
+                    ?? 5.0
 
                 let backend: TranscriptionBackend
                 switch backendStr {
@@ -99,6 +104,7 @@ import NaturalLanguage
                 let recognizer = SpeechStreamRecognizer.shared
                 recognizer.enableDiarization = enableDiarization
                 recognizer.noiseReductionEnabled = noiseReduction
+                recognizer.realtimeSilenceSuppressionEnabled = voiceActivityDetection
                 recognizer.whisperTranscriber.chunkDurationSec = chunkDurationSec
 
                 recognizer.startRecognition(

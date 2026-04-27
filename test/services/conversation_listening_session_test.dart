@@ -66,14 +66,15 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'appleCloud';
       SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
       engine.autoDetectQuestions = false;
     });
 
     tearDown(() {
       engine.autoDetectQuestions = true;
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test(
@@ -234,7 +235,11 @@ void main() {
         SettingsManager.instance.transcriptionBackend = 'openai';
         SettingsManager.instance.openAISessionMode = 'realtime';
         SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
-        SettingsManager.instance.openAIRealtimePrompt = 'Answer only questions.';
+        SettingsManager.instance.openAIRealtimePrompt =
+            'Answer only questions.';
+        SettingsManager.instance.noiseReduction = false;
+        SettingsManager.instance.voiceActivityDetection = true;
+        SettingsManager.instance.vadSensitivity = 0.7;
         await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
 
         final session = ConversationListeningSession.test(
@@ -258,74 +263,146 @@ void main() {
         expect(startArgs['source'], 'microphone');
         expect(startArgs['apiKey'], 'sk-live-test');
         expect(startArgs['model'], 'gpt-4o-mini-transcribe');
-        expect(startArgs['systemPrompt'], 'Answer only questions.');
+        expect(startArgs['noiseReduction'], isFalse);
+        expect(startArgs['voiceActivityDetection'], isTrue);
+        expect(startArgs['vadSensitivity'], 0.7);
+        final prompt = startArgs['systemPrompt'] as String;
+        expect(prompt, contains('Answer only questions.'));
+        expect(prompt, contains('§Q§'));
+        expect(prompt, contains('§A§'));
+        expect(prompt, contains('§END§'));
 
         await session.stopSession();
         await speechEvents.close();
       },
     );
 
+    test('openai batch transport forwards native chunk duration key', () async {
+      final speechEvents = StreamController<dynamic>.broadcast();
+      final methodCalls = <(String, Object?)>[];
+
+      SettingsManager.instance.transcriptionBackend = 'openai';
+      SettingsManager.instance.openAISessionMode = 'transcription';
+      SettingsManager.instance.transcriptionTransport = '48kHz Batch Proc';
+      SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
+      SettingsManager.instance.whisperChunkDurationSec = 3;
+      SettingsManager.instance.noiseReduction = true;
+      await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
+
+      final session = ConversationListeningSession.test(
+        speechEvents: speechEvents.stream,
+        engine: engine,
+        finalizationTimeout: const Duration(milliseconds: 10),
+        invokeMethod: (method, [arguments]) async {
+          methodCalls.add((method, arguments));
+          return null;
+        },
+      );
+
+      await session.startSession(source: TranscriptSource.phone);
+
+      final startArgs = Map<String, dynamic>.from(
+        methodCalls.single.$2! as Map,
+      );
+      expect(startArgs['backend'], 'whisper');
+      expect(startArgs['chunkDurationSec'], 3.0);
+      expect(startArgs.containsKey('whisperChunkDurationSec'), isFalse);
+      expect(startArgs['noiseReduction'], isTrue);
+
+      await session.stopSession();
+      await speechEvents.close();
+    });
+
     test(
-      'duplicate partials are filtered before reaching the engine',
+      'openai realtime session wraps default engine prompt with delimited contract',
       () async {
         final speechEvents = StreamController<dynamic>.broadcast();
+        final methodCalls = <(String, Object?)>[];
+
+        SettingsManager.instance.transcriptionBackend = 'openai';
+        SettingsManager.instance.openAISessionMode = 'realtime';
+        SettingsManager.instance.transcriptionModel = 'gpt-4o-mini-transcribe';
+        SettingsManager.instance.openAIRealtimePrompt = null;
+        await SettingsManager.instance.setApiKey('openai', 'sk-live-test');
+
         final session = ConversationListeningSession.test(
           speechEvents: speechEvents.stream,
           engine: engine,
           finalizationTimeout: const Duration(milliseconds: 10),
-          invokeMethod: (method, [arguments]) async => null,
+          invokeMethod: (method, [arguments]) async {
+            methodCalls.add((method, arguments));
+            return null;
+          },
         );
 
-        final snapshots = <TranscriptSnapshot>[];
-        final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
-
         await session.startSession(source: TranscriptSource.phone);
-        // engine.start() emits an initial empty snapshot
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-        final baselineCount = snapshots.length;
 
-        // Emit the same partial 20 times (simulating Apple recognizer flooding)
-        for (var i = 0; i < 20; i++) {
-          speechEvents.add({
-            'script': 'Islam is fine.',
-            'isFinal': false,
-          });
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+        final startArgs = Map<String, dynamic>.from(
+          methodCalls.single.$2! as Map,
+        );
+        final prompt = startArgs['systemPrompt'] as String;
+        expect(prompt, contains('§Q§'));
+        expect(prompt, contains('§A§'));
+        expect(prompt, contains('§END§'));
+        expect(prompt, contains('Give the answer directly'));
 
-        // Only ONE new snapshot should have been emitted (dedup filters the rest)
-        expect(snapshots.length - baselineCount, 1);
-        expect(snapshots.last.partialText, 'Islam is fine.');
+        await session.stopSession();
+        await speechEvents.close();
+      },
+    );
 
-        // Now emit different text — this should go through.
-        // "Islam is fine. I think" has a sentence boundary, so the engine
-        // will finalize "Islam is fine." and set partial to "I think".
+    test('duplicate partials are filtered before reaching the engine', () async {
+      final speechEvents = StreamController<dynamic>.broadcast();
+      final session = ConversationListeningSession.test(
+        speechEvents: speechEvents.stream,
+        engine: engine,
+        finalizationTimeout: const Duration(milliseconds: 10),
+        invokeMethod: (method, [arguments]) async => null,
+      );
+
+      final snapshots = <TranscriptSnapshot>[];
+      final sub = engine.transcriptSnapshotStream.listen(snapshots.add);
+
+      await session.startSession(source: TranscriptSource.phone);
+      // engine.start() emits an initial empty snapshot
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      final baselineCount = snapshots.length;
+
+      // Emit the same partial 20 times (simulating Apple recognizer flooding)
+      for (var i = 0; i < 20; i++) {
+        speechEvents.add({'script': 'Islam is fine.', 'isFinal': false});
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Only ONE new snapshot should have been emitted (dedup filters the rest)
+      expect(snapshots.length - baselineCount, 1);
+      expect(snapshots.last.partialText, 'Islam is fine.');
+
+      // Now emit different text — this should go through.
+      // "Islam is fine. I think" has a sentence boundary, so the engine
+      // will finalize "Islam is fine." and set partial to "I think".
+      speechEvents.add({'script': 'Islam is fine. I think', 'isFinal': false});
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(snapshots.last.partialText, 'I think');
+      expect(snapshots.last.finalizedSegments, contains('Islam is fine.'));
+
+      final afterSentenceSplit = snapshots.length;
+
+      // Then flood the same text again
+      for (var i = 0; i < 15; i++) {
         speechEvents.add({
           'script': 'Islam is fine. I think',
           'isFinal': false,
         });
-        await Future<void>.delayed(const Duration(milliseconds: 5));
-        expect(snapshots.last.partialText, 'I think');
-        expect(snapshots.last.finalizedSegments, contains('Islam is fine.'));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      // No new snapshots — duplicates filtered (partial is still "I think")
+      expect(snapshots.length, afterSentenceSplit);
 
-        final afterSentenceSplit = snapshots.length;
-
-        // Then flood the same text again
-        for (var i = 0; i < 15; i++) {
-          speechEvents.add({
-            'script': 'Islam is fine. I think',
-            'isFinal': false,
-          });
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 10));
-        // No new snapshots — duplicates filtered (partial is still "I think")
-        expect(snapshots.length, afterSentenceSplit);
-
-        await session.stopSession();
-        await sub.cancel();
-        await speechEvents.close();
-      },
-    );
+      await session.stopSession();
+      await sub.cancel();
+      await speechEvents.close();
+    });
 
     test(
       'dedup resets after finalization so new segment partials pass through',
