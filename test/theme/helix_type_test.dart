@@ -59,4 +59,23 @@ void main() {
       expect(s.color, const Color(0xFFAABBCC));
     });
   });
+
+  // Phase 1 parity locks: when Phase 2 swaps the serif/sans families to
+  // Fraunces / Inter, this group intentionally fails — update the expected
+  // family strings deliberately at that point so the typography flip is
+  // gate-tracked rather than silent drift.
+  group('HelixType — Phase 1 SF Pro family pins', () {
+    test('display uses SF Pro Display (serif Phase 1 placeholder)', () {
+      expect(HelixType.display().fontFamily, 'SF Pro Display');
+    });
+    test('title1 uses SF Pro Display (serif Phase 1 placeholder)', () {
+      expect(HelixType.title1().fontFamily, 'SF Pro Display');
+    });
+    test('body uses SF Pro Display (sans Phase 1 placeholder)', () {
+      expect(HelixType.body().fontFamily, 'SF Pro Display');
+    });
+    test('label uses SF Pro Display (sans Phase 1 placeholder)', () {
+      expect(HelixType.label().fontFamily, 'SF Pro Display');
+    });
+  });
 }
