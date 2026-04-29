@@ -62,5 +62,87 @@ void main() {
       final icon = tester.widget<PhosphorIcon>(find.byType(PhosphorIcon));
       expect(icon.size, 32);
     });
+
+    testWidgets('default useDuotone renders the duotone glyph', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: HelixIcon(HelixIcons.listen),
+          ),
+        ),
+      );
+      final icon = tester.widget<PhosphorIcon>(find.byType(PhosphorIcon));
+      expect(icon.icon, PhosphorIconsDuotone.microphone,
+          reason: 'duotone is the default weight');
+    });
+
+    testWidgets('useDuotone: false renders the regular glyph', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: HelixIcon(HelixIcons.listen, useDuotone: false),
+          ),
+        ),
+      );
+      final icon = tester.widget<PhosphorIcon>(find.byType(PhosphorIcon));
+      expect(icon.icon, PhosphorIconsRegular.microphone);
+    });
+
+    testWidgets('color and duotoneTint overrides propagate', (tester) async {
+      const ink = Color(0xFF112233);
+      const tint = Color(0xFFAABBCC);
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: HelixIcon(
+              HelixIcons.listen,
+              color: ink,
+              duotoneTint: tint,
+            ),
+          ),
+        ),
+      );
+      final icon = tester.widget<PhosphorIcon>(find.byType(PhosphorIcon));
+      expect(icon.color, ink);
+      expect(icon.duotoneSecondaryColor, tint);
+    });
+  });
+
+  // Parity lock — guards against silent drift when a new HelixIcons concept
+  // is added without a matching duotone map entry. Adding a new icon would
+  // otherwise fall back to the regular weight at render time and no test
+  // would notice.
+  group('HelixIcons ↔ duotone map parity', () {
+    test('every registry entry has a duotone counterpart', () {
+      final missing = <IconData>[];
+      for (final icon in HelixIcons.all) {
+        if (!HelixIcon.duotoneMap.containsKey(icon)) {
+          missing.add(icon);
+        }
+      }
+      expect(missing, isEmpty,
+          reason: 'HelixIcons.all has ${missing.length} entries with no '
+              'matching HelixIcon._duotoneMap key — duotone widget would '
+              'silently fall back to regular weight at render time.');
+    });
+
+    test('duotone map has no entries beyond the registry', () {
+      final extra = <IconData>[];
+      for (final key in HelixIcon.duotoneMap.keys) {
+        if (!HelixIcons.all.contains(key)) {
+          extra.add(key);
+        }
+      }
+      expect(extra, isEmpty,
+          reason: 'HelixIcon._duotoneMap has ${extra.length} keys not '
+              'present in HelixIcons.all — orphaned mappings.');
+    });
+
+    test('registry size matches expected count', () {
+      // Phase 1 baseline: 25 semantic concepts. If this number changes,
+      // the spec, the registry, and the duotone map should all be updated
+      // together.
+      expect(HelixIcons.all.length, 25);
+    });
   });
 }

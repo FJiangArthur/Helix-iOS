@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -5,15 +6,50 @@ import 'helix_tokens.dart';
 
 /// Semantic icon registry for Helix.
 ///
+/// Phase 1: defined but unused; screens migrate from `Icon(Icons.xxx)` to
+/// `HelixIcon(HelixIcons.xxx)` in Phase 3.
+///
 /// Each constant names a *concept* used in the product (listen, ai, fact,
 /// glasses…) and binds it to a Phosphor regular-weight glyph. Screens render
 /// these via [HelixIcon], which substitutes the matching duotone variant by
 /// default so the look (line outline + soft accent fill) is consistent.
 ///
 /// Adding a new concept: pick a Phosphor regular icon, add it here, then add
-/// the duotone counterpart to [HelixIcon._duotoneMap].
+/// the duotone counterpart to [HelixIcon._duotoneMap]. The parity test
+/// `helix_icons_test.dart` will fail until both sides are updated.
 class HelixIcons {
   HelixIcons._();
+
+  /// Every public concept in the registry, ordered by declaration. Used by
+  /// the parity-lock test to verify each entry has a duotone counterpart.
+  @visibleForTesting
+  static const List<IconData> all = <IconData>[
+    listen,
+    pause,
+    glasses,
+    ai,
+    chat,
+    fact,
+    memory,
+    todo,
+    insight,
+    settings,
+    home,
+    search,
+    bookmark,
+    book,
+    bluetooth,
+    battery,
+    caret,
+    close,
+    more,
+    play,
+    record,
+    cost,
+    device,
+    cloud,
+    lightning,
+  ];
 
   static const IconData listen = PhosphorIconsRegular.microphone;
   static const IconData pause = PhosphorIconsRegular.pause;
@@ -82,6 +118,9 @@ class HelixIcon extends StatelessWidget {
     }
     return PhosphorIcon(icon, size: size, color: inkColor);
   }
+
+  @visibleForTesting
+  static Map<IconData, IconData> get duotoneMap => _duotoneMap;
 
   static final Map<IconData, IconData> _duotoneMap = {
     PhosphorIconsRegular.microphone: PhosphorIconsDuotone.microphone,
