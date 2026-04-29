@@ -14,7 +14,8 @@ dependencies:
 
   # UI and Material Design
   cupertino_icons: ^1.0.8
-  
+  phosphor_flutter: ^2.1.0
+
   # Audio Processing
   flutter_sound: 9.28.0
   
