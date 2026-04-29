@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'helix_tokens.dart';
+
 class HelixTheme {
   HelixTheme._();
 
@@ -24,9 +26,11 @@ class HelixTheme {
   static const Color statusThinking = Color(0xFFE7AE62);
   static const Color statusReady = Color(0xFF8CD6A4);
   static const Color statusOffline = Color(0xFF7D8996);
-  static const double radiusPanel = 8;
-  static const double radiusControl = 10;
-  static const double radiusPill = 999;
+  // Radius aliases — pass through to tokens so Phase 2 can flip values
+  // centrally. Values are identical to the current inline cyan theme.
+  static const double radiusPanel = HelixTokens.radiusPanel;
+  static const double radiusControl = HelixTokens.radiusControl;
+  static const double radiusPill = HelixTokens.radiusPill;
 
   static Color panelFill([double emphasis = 0.0]) {
     final strength = emphasis.clamp(0.0, 1.0);
@@ -200,4 +204,8 @@ class HelixTheme {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     ),
   );
+
+  /// Phase 1: lightTheme aliases darkTheme so the app shows no change. Phase 2
+  /// rebuilds this from Warm Linen tokens.
+  static ThemeData get lightTheme => darkTheme;
 }
