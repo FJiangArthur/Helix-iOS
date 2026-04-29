@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:async';
 
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/assistant_profile.dart';
@@ -77,9 +78,9 @@ class SettingsManager {
   /// 3-sentence answer lands comfortably within the budget.
   int maxResponseChars = 400;
 
-  /// Fact-check backend identifier. Currently only `'openai'` is implemented
-  /// (uses the OpenAI Responses API with built-in web search). Future values
-  /// may include `'tavily'`.
+  /// Fact-check backend identifier. Supported values:
+  /// - `'openai'`: OpenAI Responses API with built-in web search
+  /// - `'tavily'`: Tavily search plus LLM verification
   String activeFactCheckBackend = 'openai';
 
   /// OpenAI realtime conversation model identifier. Used by the Realtime
@@ -410,12 +411,10 @@ class SettingsManager {
     if (!migrated) {
       if (legacyMode == 'passive') {
         answerAll = true;
-        assistantProfileId =
-            prefs.getString('assistantProfileId') ?? 'general';
+        assistantProfileId = prefs.getString('assistantProfileId') ?? 'general';
       } else if (legacyMode == 'proactive') {
         answerAll = false;
-        assistantProfileId =
-            prefs.getString('assistantProfileId') ?? 'general';
+        assistantProfileId = prefs.getString('assistantProfileId') ?? 'general';
       } else {
         // general/interview: preserve autoAnswerQuestions as answerAll
         answerAll = prefs.getBool('autoAnswerQuestions') ?? true;
@@ -740,19 +739,47 @@ class SettingsManager {
 
   static const String _apiKeyPrefix = 'helix_api_key_';
 
+  // Unsigned simulator builds (and any environment without keychain-access-groups
+  // entitlements) raise PlatformException -34018 from FlutterSecureStorage. We
+  // never want a missing entitlement to crash main() before runApp() — degrade
+  // to "no key configured" instead.
+  Future<String?> _readSecure(String key) async {
+    try {
+      return await _secureStorage.read(key: key);
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  Future<void> _writeSecure(String key, String? value) async {
+    try {
+      await _secureStorage.write(key: key, value: value);
+    } on PlatformException {
+      // Best-effort: silently drop writes when the keychain is unavailable.
+    }
+  }
+
+  Future<void> _deleteSecure(String key) async {
+    try {
+      await _secureStorage.delete(key: key);
+    } on PlatformException {
+      // Best-effort: silently drop deletes when the keychain is unavailable.
+    }
+  }
+
   /// Store an API key for the given [providerId].
   Future<void> setApiKey(String providerId, String apiKey) async {
-    await _secureStorage.write(key: '$_apiKeyPrefix$providerId', value: apiKey);
+    await _writeSecure('$_apiKeyPrefix$providerId', apiKey);
   }
 
   /// Retrieve the API key for [providerId], or null if not configured.
   Future<String?> getApiKey(String providerId) async {
-    return _secureStorage.read(key: '$_apiKeyPrefix$providerId');
+    return _readSecure('$_apiKeyPrefix$providerId');
   }
 
   /// Delete the API key for [providerId].
   Future<void> deleteApiKey(String providerId) async {
-    await _secureStorage.delete(key: '$_apiKeyPrefix$providerId');
+    await _deleteSecure('$_apiKeyPrefix$providerId');
   }
 
   // ---------------------------------------------------------------------------
@@ -762,17 +789,16 @@ class SettingsManager {
   static const String _tavilyKeyName = 'helix_tavily_api_key';
 
   /// Retrieve the Tavily API key, or null if not configured.
-  Future<String?> get tavilyApiKey =>
-      _secureStorage.read(key: _tavilyKeyName);
+  Future<String?> get tavilyApiKey => _readSecure(_tavilyKeyName);
 
   /// Store the Tavily API key.
   Future<void> setTavilyApiKey(String key) async {
-    await _secureStorage.write(key: _tavilyKeyName, value: key);
+    await _writeSecure(_tavilyKeyName, key);
   }
 
   /// Delete the Tavily API key.
   Future<void> deleteTavilyApiKey() async {
-    await _secureStorage.delete(key: _tavilyKeyName);
+    await _deleteSecure(_tavilyKeyName);
   }
 
   /// Returns a map of provider IDs to whether they have an API key configured.
@@ -789,7 +815,7 @@ class SettingsManager {
 
     final result = <String, bool>{};
     for (final id in providerIds) {
-      final key = await _secureStorage.read(key: '$_apiKeyPrefix$id');
+      final key = await _readSecure('$_apiKeyPrefix$id');
       result[id] = key != null && key.isNotEmpty;
     }
     return result;

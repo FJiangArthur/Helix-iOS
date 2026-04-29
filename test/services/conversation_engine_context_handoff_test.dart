@@ -24,12 +24,13 @@ void main() {
       SettingsManager.instance.assistantProfileId = 'general';
       SettingsManager.instance.language = 'en';
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     tearDown(() async {
-      engine.clearHistory();
+      engine.stop();
+      engine.clearHistory(force: true);
       removePlatformMocks();
     });
 

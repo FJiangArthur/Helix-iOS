@@ -37,6 +37,7 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^12.0.1
   shared_preferences: ^2.2.0
+  package_info_plus: ^8.0.0
 
   # Database
   drift: ^2.22.1

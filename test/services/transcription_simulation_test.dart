@@ -17,8 +17,7 @@ void main() {
   final secureStorageValues = <String, String>{};
 
   Future<Object?> secureStorageHandler(MethodCall call) async {
-    final arguments =
-        (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+    final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
     final key = arguments['key'] as String?;
     switch (call.method) {
       case 'read':
@@ -60,14 +59,15 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       await SettingsManager.instance.initialize();
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
       engine.autoDetectQuestions = false;
     });
 
     tearDown(() {
       engine.autoDetectQuestions = true;
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test(
@@ -112,30 +112,27 @@ void main() {
       },
     );
 
-    test(
-      'simulation shows progressive word-by-word partial updates',
-      () async {
-        final partials = <String>[];
-        final sub = engine.transcriptSnapshotStream.listen((s) {
-          if (s.partialText.isNotEmpty) {
-            partials.add(s.partialText);
-          }
-        });
+    test('simulation shows progressive word-by-word partial updates', () async {
+      final partials = <String>[];
+      final sub = engine.transcriptSnapshotStream.listen((s) {
+        if (s.partialText.isNotEmpty) {
+          partials.add(s.partialText);
+        }
+      });
 
-        await engine.simulateTranscription(
-          segments: ['Hello world from the test'],
-          wordDelay: const Duration(milliseconds: 5),
-        );
+      await engine.simulateTranscription(
+        segments: ['Hello world from the test'],
+        wordDelay: const Duration(milliseconds: 5),
+      );
 
-        // Should see progressive partials: "Hello", "Hello world", etc.
-        expect(partials.length, greaterThanOrEqualTo(4));
-        expect(partials.first, 'Hello');
-        expect(partials[1], 'Hello world');
-        expect(partials.last, 'Hello world from the test');
+      // Should see progressive partials: "Hello", "Hello world", etc.
+      expect(partials.length, greaterThanOrEqualTo(4));
+      expect(partials.first, 'Hello');
+      expect(partials[1], 'Hello world');
+      expect(partials.last, 'Hello world from the test');
 
-        await sub.cancel();
-      },
-    );
+      await sub.cancel();
+    });
 
     test(
       'simulation with many segments verifies no content loss over long session',
@@ -143,7 +140,8 @@ void main() {
         // Simulate a longer interview with 8 segments (~3+ minutes equivalent)
         final segments = List.generate(
           8,
-          (i) => 'Interview question number ${i + 1}: '
+          (i) =>
+              'Interview question number ${i + 1}: '
               'This is a detailed question about topic ${i + 1} '
               'that tests the candidate on their knowledge.',
         );
@@ -173,30 +171,27 @@ void main() {
       },
     );
 
-    test(
-      'transcriptStats computes WPM after multiple segments',
-      () async {
-        // Use segments with known word counts
-        final segments = [
-          'one two three four five six seven eight nine ten', // 10 words
-          'eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty', // 10 words
-        ];
+    test('transcriptStats computes WPM after multiple segments', () async {
+      // Use segments with known word counts
+      final segments = [
+        'one two three four five six seven eight nine ten', // 10 words
+        'eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty', // 10 words
+      ];
 
-        await engine.simulateTranscription(
-          segments: segments,
-          segmentDelay: const Duration(milliseconds: 200),
-          wordDelay: const Duration(milliseconds: 10),
-        );
+      await engine.simulateTranscription(
+        segments: segments,
+        segmentDelay: const Duration(milliseconds: 200),
+        wordDelay: const Duration(milliseconds: 10),
+      );
 
-        final stats = engine.transcriptStats;
-        expect(stats.wordCount, 20);
-        expect(stats.segmentCount, 2);
-        // WPM requires >6s between first and last segment to avoid noise.
-        // In test the total time is <1s, so WPM stays 0 — just verify the
-        // field exists and doesn't throw.
-        expect(stats.wordsPerMinute, isA<double>());
-      },
-    );
+      final stats = engine.transcriptStats;
+      expect(stats.wordCount, 20);
+      expect(stats.segmentCount, 2);
+      // WPM requires >6s between first and last segment to avoid noise.
+      // In test the total time is <1s, so WPM stays 0 — just verify the
+      // field exists and doesn't throw.
+      expect(stats.wordsPerMinute, isA<double>());
+    });
 
     test(
       'STAR coaching triggers for behavioral questions in interview simulation',

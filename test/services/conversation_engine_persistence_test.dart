@@ -47,12 +47,13 @@ void main() {
       SettingsManager.instance.assistantProfileId = 'general';
       engine = ConversationEngine.instance;
       await clearConversationData();
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     tearDown(() async {
-      engine.clearHistory();
+      engine.stop();
+      engine.clearHistory(force: true);
       await clearConversationData();
       await resetTestDatabase();
       removePlatformMocks();

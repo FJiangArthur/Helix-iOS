@@ -438,18 +438,18 @@ class ConversationEngine {
       // Write per-session cost totals onto the Conversations row.
       final snap = _conversationCostTracker.current;
       int micros(double usd) => (usd * 1e6).round();
-      await (db.update(db.conversations)
-            ..where((c) => c.id.equals(conversationId)))
-          .write(
-            database_pkg.ConversationsCompanion(
-              costSmartUsdMicros: drift.Value(micros(snap.smartUsd)),
-              costLightUsdMicros: drift.Value(micros(snap.lightUsd)),
-              costTranscriptionUsdMicros: drift.Value(
-                micros(snap.transcriptionUsd),
-              ),
-              costTotalUsdMicros: drift.Value(micros(snap.totalUsd)),
-            ),
-          );
+      await (db.update(
+        db.conversations,
+      )..where((c) => c.id.equals(conversationId))).write(
+        database_pkg.ConversationsCompanion(
+          costSmartUsdMicros: drift.Value(micros(snap.smartUsd)),
+          costLightUsdMicros: drift.Value(micros(snap.lightUsd)),
+          costTranscriptionUsdMicros: drift.Value(
+            micros(snap.transcriptionUsd),
+          ),
+          costTotalUsdMicros: drift.Value(micros(snap.totalUsd)),
+        ),
+      );
 
       // Trigger cloud pipeline asynchronously
       CloudPipelineService.instance.processConversation(conversationId);
@@ -528,9 +528,7 @@ class ConversationEngine {
           ),
         );
         _lastSavedConversationId = conversationId;
-        appLogger.i(
-          'Created audio-only conversation $conversationId',
-        );
+        appLogger.i('Created audio-only conversation $conversationId');
         _sessionSavedController.add(conversationId);
         return;
       }
@@ -917,10 +915,7 @@ class ConversationEngine {
     return parser;
   }
 
-  void _handleStructuredRealtimeDelta(
-    String text, {
-    required bool isFinal,
-  }) {
+  void _handleStructuredRealtimeDelta(String text, {required bool isFinal}) {
     final parser = _ensureStructuredParser();
     if (text.isNotEmpty) {
       parser.addDelta(text);
@@ -1218,14 +1213,11 @@ Current topic: $_currentTranscription''';
 
   /// Check if the transcription contains a behavioral question and emit coaching
   void _checkForBehavioralQuestion(String text) {
-    // STAR coaching is an interview-profile-only feature. Before this gate
-    // the regex ran on every profile, so a behavioral phrase uttered by the
-    // other party (e.g. "tell me about a time") would push a STAR card to
-    // the HUD even in General / Passive profiles — and worse, do it while
-    // the AI answer was still streaming, causing the HUD to flash through
-    // the template mid-answer. Only run when the interview coach profile
-    // is actually selected.
-    if (_activeAssistantProfile().engineModeName != 'interview') {
+    // STAR coaching should follow the explicit engine mode as well as the
+    // selected assistant profile. Test/simulation entry points drive
+    // `ConversationMode.interview` directly, while the app shell can also
+    // express interview behavior through the profile selector.
+    if (!_usesInterviewCoaching) {
       return;
     }
     final isChinese = _language == 'zh';
@@ -1748,9 +1740,7 @@ Reply with JSON only (no markdown code fence):
 
       final cleaned = _stripMarkdownCodeFence(raw);
       final decoded = jsonDecode(cleaned) as Map<String, dynamic>;
-      final verdict = factCheckVerdictFromString(
-        decoded['verdict'] as String?,
-      );
+      final verdict = factCheckVerdictFromString(decoded['verdict'] as String?);
       final rawCorrection = decoded['correction'];
       String? correction;
       if (rawCorrection is String) {
@@ -1994,10 +1984,7 @@ Reply with JSON only (no markdown code fence):
       // Phase 0 instrumentation: marker (b) — question detection fires.
       LatencyTracker.instance.record(
         LatencyMarker.questionDetected,
-        extra: {
-          'source': 'auto',
-          'questionLength': detection.question.length,
-        },
+        extra: {'source': 'auto', 'questionLength': detection.question.length},
       );
 
       _recordDetectedQuestionTurn(detection);
@@ -2327,8 +2314,10 @@ $profileInstruction''';
   }
 
   Future<void> _runManualContextualQa() async {
-    debugPrint('[Engine] _runManualContextualQa called, isActive=$_isActive, '
-        'segments=${_finalizedSegments.length}, partial="${_partialTranscription.length > 40 ? _partialTranscription.substring(0, 40) : _partialTranscription}"');
+    debugPrint(
+      '[Engine] _runManualContextualQa called, isActive=$_isActive, '
+      'segments=${_finalizedSegments.length}, partial="${_partialTranscription.length > 40 ? _partialTranscription.substring(0, 40) : _partialTranscription}"',
+    );
     if (!_isActive) {
       debugPrint('[Engine] _runManualContextualQa aborted: not active');
       return;
@@ -2340,16 +2329,21 @@ $profileInstruction''';
     _cancelInFlightResponse();
 
     final transcriptWindow = _buildRecentTranscriptWindow();
-    debugPrint('[Engine] _runManualContextualQa transcriptWindow length=${transcriptWindow.length}');
+    debugPrint(
+      '[Engine] _runManualContextualQa transcriptWindow length=${transcriptWindow.length}',
+    );
     if (transcriptWindow.trim().isEmpty) {
-      debugPrint('[Engine] _runManualContextualQa aborted: empty transcript window');
+      debugPrint(
+        '[Engine] _runManualContextualQa aborted: empty transcript window',
+      );
       _statusController.add(
         _isActive ? EngineStatus.listening : EngineStatus.idle,
       );
       return;
     }
 
-    final detection = _buildManualQuestionDetection(transcriptWindow) ??
+    final detection =
+        _buildManualQuestionDetection(transcriptWindow) ??
         // Fallback: the user explicitly pressed Q&A but no question pattern
         // was detected (e.g. Chinese text without '？', or statements only).
         // Use the tail of the transcript as the question so the LLM can
@@ -2358,8 +2352,8 @@ $profileInstruction''';
           question: _finalizedSegments.isNotEmpty
               ? _finalizedSegments.last.text
               : transcriptWindow.length > 200
-                  ? transcriptWindow.substring(transcriptWindow.length - 200)
-                  : transcriptWindow,
+              ? transcriptWindow.substring(transcriptWindow.length - 200)
+              : transcriptWindow,
           questionExcerpt: '',
           timestamp: DateTime.now(),
         );
@@ -2378,10 +2372,7 @@ $profileInstruction''';
     // (manual / on-demand path).
     LatencyTracker.instance.record(
       LatencyMarker.questionDetected,
-      extra: {
-        'source': 'manual',
-        'questionLength': detection.question.length,
-      },
+      extra: {'source': 'manual', 'questionLength': detection.question.length},
     );
 
     _recordDetectedQuestionTurn(detection);
@@ -2415,9 +2406,7 @@ $profileInstruction''';
       // this, the timer cancelled at the top of this method is never
       // rescheduled until new speech arrives — which the user perceives
       // as "transcription stopped working."
-      if (_isActive &&
-          autoDetectQuestions &&
-          answerAll) {
+      if (_isActive && autoDetectQuestions && answerAll) {
         _scheduleTranscriptAnalysis();
       }
     }
@@ -2500,11 +2489,15 @@ $profileInstruction''';
         final activeProjectId =
             ActiveProjectController.instance.activeProjectId;
         if (activeProjectId != null) {
-          final rag = await ProjectRagService.instance
-              .retrieve(projectId: activeProjectId, query: question);
+          final rag = await ProjectRagService.instance.retrieve(
+            projectId: activeProjectId,
+            query: question,
+          );
           if (rag.chunks.isNotEmpty) {
-            effectiveBasePrompt =
-                ProjectContextFormatter.prepend(baseSystemPrompt, rag.chunks);
+            effectiveBasePrompt = ProjectContextFormatter.prepend(
+              baseSystemPrompt,
+              rag.chunks,
+            );
             _projectCitationsController.add(rag.chunks);
           }
         }
@@ -2895,6 +2888,10 @@ Answer the detected question directly using the recent conversation context abov
   /// Get the current language setting
   String get _language => SettingsManager.instance.language;
 
+  bool get _usesInterviewCoaching =>
+      _mode == ConversationMode.interview ||
+      _activeAssistantProfile().engineModeName == 'interview';
+
   /// Get system prompt for current mode, localized to selected language
   /// Returns cached KB context, refreshing asynchronously every 60 seconds.
   String _getKbContext() {
@@ -2927,7 +2924,7 @@ Answer the detected question directly using the recent conversation context abov
     final rules = _modeRules(isChinese, maxChars);
 
     // For interview/technical profiles, always prepend STAR coaching context
-    final interviewPrefix = (profile.engineModeName == 'interview')
+    final interviewPrefix = _usesInterviewCoaching
         ? _interviewCoachingPrefix(isChinese)
         : '';
 
@@ -3015,8 +3012,7 @@ Answer the detected question directly using the recent conversation context abov
 
   /// Test seam: consecutive compaction failure counter (BUG-005 regression).
   @visibleForTesting
-  int get debugCompactionConsecutiveFailures =>
-      _compactionConsecutiveFailures;
+  int get debugCompactionConsecutiveFailures => _compactionConsecutiveFailures;
 
   /// Test seam: whether a compaction Future is in flight.
   @visibleForTesting
@@ -3037,10 +3033,7 @@ Answer the detected question directly using the recent conversation context abov
   /// should not use this — it exists so unit tests can exercise the
   /// HudStreamSession routing without spinning up a full LLM stream.
   @visibleForTesting
-  Future<void> debugStreamToGlasses(
-    String text, {
-    required bool isStreaming,
-  }) =>
+  Future<void> debugStreamToGlasses(String text, {required bool isStreaming}) =>
       _streamToGlasses(text, isStreaming: isStreaming);
 
   /// Test seam: clear any active line-streaming session (mirrors what

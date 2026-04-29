@@ -149,7 +149,8 @@ void main() {
         () => throw StateError('missing llm provider'),
       );
       engine = ConversationEngine.instance;
-      engine.clearHistory();
+      engine.stop();
+      engine.clearHistory(force: true);
       await HudController.instance.resetToIdle(source: 'test.engine.setup');
     });
 
@@ -201,8 +202,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test(
@@ -258,50 +259,44 @@ void main() {
       },
     );
 
-    test(
-      'WS-B: start() re-entry while active preserves live transcript and '
-      'does not emit empty ai response',
-      () async {
-        await configureFakeLlm(
-          responses: [
-            '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
-          ],
-        );
+    test('WS-B: start() re-entry while active preserves live transcript and '
+        'does not emit empty ai response', () async {
+      await configureFakeLlm(
+        responses: [
+          '{"shouldRespond": false, "question": "", "questionExcerpt": ""}',
+        ],
+      );
 
-        engine.start(source: TranscriptSource.phone);
-        engine.onTranscriptionFinalized('Persistent segment one');
-        engine.onTranscriptionFinalized('Persistent segment two');
-        engine.onRealtimeResponse('In-flight answer', isFinal: false);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+      engine.start(source: TranscriptSource.phone);
+      engine.onTranscriptionFinalized('Persistent segment one');
+      engine.onTranscriptionFinalized('Persistent segment two');
+      engine.onRealtimeResponse('In-flight answer', isFinal: false);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-        final responseEvents = <String>[];
-        final responseSub = engine.aiResponseStream.listen(responseEvents.add);
-        final snapshots = <TranscriptSnapshot>[];
-        final snapSub = engine.transcriptSnapshotStream.listen(snapshots.add);
+      final responseEvents = <String>[];
+      final responseSub = engine.aiResponseStream.listen(responseEvents.add);
+      final snapshots = <TranscriptSnapshot>[];
+      final snapSub = engine.transcriptSnapshotStream.listen(snapshots.add);
 
-        // Re-enter start() mid-session (simulates native restart / mic
-        // interrupt / double-tap startSession). Must be idempotent.
-        engine.start(source: TranscriptSource.phone);
-        await Future<void>.delayed(const Duration(milliseconds: 10));
+      // Re-enter start() mid-session (simulates native restart / mic
+      // interrupt / double-tap startSession). Must be idempotent.
+      engine.start(source: TranscriptSource.phone);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
 
-        await responseSub.cancel();
-        await snapSub.cancel();
+      await responseSub.cancel();
+      await snapSub.cancel();
 
-        // Live segments must be preserved.
-        expect(
-          engine.currentTranscriptSnapshot.finalizedSegments,
-          ['Persistent segment one', 'Persistent segment two'],
-        );
-        // aiResponseStream must NOT emit an empty string (which would blank
-        // the Home live card).
-        expect(responseEvents.where((e) => e.isEmpty), isEmpty);
-        // No empty transcript snapshot should be emitted either.
-        expect(
-          snapshots.where((s) => s.finalizedSegments.isEmpty),
-          isEmpty,
-        );
-      },
-    );
+      // Live segments must be preserved.
+      expect(engine.currentTranscriptSnapshot.finalizedSegments, [
+        'Persistent segment one',
+        'Persistent segment two',
+      ]);
+      // aiResponseStream must NOT emit an empty string (which would blank
+      // the Home live card).
+      expect(responseEvents.where((e) => e.isEmpty), isEmpty);
+      // No empty transcript snapshot should be emitted either.
+      expect(snapshots.where((s) => s.finalizedSegments.isEmpty), isEmpty);
+    });
 
     test(
       'WS-B: clearHistory() while active preserves live transcript segments',
@@ -321,10 +316,10 @@ void main() {
         engine.clearHistory();
 
         // Live transcript must remain intact.
-        expect(
-          engine.currentTranscriptSnapshot.finalizedSegments,
-          ['Live segment A', 'Live segment B'],
-        );
+        expect(engine.currentTranscriptSnapshot.finalizedSegments, [
+          'Live segment A',
+          'Live segment B',
+        ]);
       },
     );
 
@@ -421,6 +416,7 @@ void main() {
           ],
           streamResponses: [FakeStreamResponse(rawChunks)],
         );
+        SettingsManager.instance.hudLineStreamingEnabled = false;
         final results = <QuestionDetectionResult>[];
         final aiUpdates = <String>[];
         final glassesFrames = <(String, bool)>[];
@@ -486,6 +482,7 @@ void main() {
         streamResponses: [FakeStreamResponse(rawChunks)],
       );
 
+      SettingsManager.instance.hudLineStreamingEnabled = false;
       final aiUpdates = <String>[];
       final glassesFrames = <(String, bool)>[];
       ConversationEngine.setGlassesConnectionChecker(() => true);
@@ -562,6 +559,7 @@ void main() {
         ],
       );
 
+      SettingsManager.instance.hudLineStreamingEnabled = false;
       final aiUpdates = <String>[];
       final statusEvents = <EngineStatus>[];
       final glassesFrames = <(String, bool)>[];
@@ -614,8 +612,8 @@ void main() {
       SettingsManager.instance.answerAll =
           true; // answerAll must be true for auto-detection to fire
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test(
@@ -799,8 +797,8 @@ void main() {
       // Disable auto-detect so analysis LLM calls don't interfere.
       SettingsManager.instance.autoDetectQuestions = false;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('segments accumulate on finalized transcription', () async {
@@ -923,8 +921,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('same question within session is deduplicated', () async {
@@ -978,7 +976,7 @@ void main() {
 
       // Restart resets deduplication state.
       engine.stop();
-      engine.clearHistory();
+      engine.clearHistory(force: true);
       engine.start(source: TranscriptSource.phone);
       engine.onTranscriptionFinalized('What time is lunch?');
       await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -1040,8 +1038,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('skips question analysis in realtime conversation mode', () async {
@@ -1160,8 +1158,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('returns null when askedBy is "wearer"', () async {
@@ -1260,8 +1258,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('segments with timestamps preserve ordering', () async {
@@ -1364,8 +1362,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('returns structured JSON data when history has content', () async {
@@ -1504,8 +1502,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('bypasses realtime guard and triggers analysis', () async {
@@ -1588,8 +1586,8 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'realtime';
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
       await HudController.instance.resetToIdle(
         source: 'test.ws_a.response_tools.setup',
       );
@@ -1598,9 +1596,7 @@ void main() {
     Future<void> expectPromptStreams(String prompt, String expected) async {
       final provider = await configureFakeLlm(
         responses: const [],
-        streamResponses: [
-          FakeStreamResponse(expected.split('')),
-        ],
+        streamResponses: [FakeStreamResponse(expected.split(''))],
       );
       final aiUpdates = <String>[];
       final aiSub = engine.aiResponseStream.listen(aiUpdates.add);
@@ -1612,13 +1608,15 @@ void main() {
       expect(
         provider.streamCallCount,
         greaterThanOrEqualTo(1),
-        reason: 'askQuestion must reach the LLM stream in realtime mode '
+        reason:
+            'askQuestion must reach the LLM stream in realtime mode '
             '(prompt="$prompt")',
       );
       expect(
         aiUpdates.last,
         expected,
-        reason: 'Final aiResponse should render the streamed answer '
+        reason:
+            'Final aiResponse should render the streamed answer '
             '(prompt="$prompt")',
       );
       // History = user turn + assistant turn.
@@ -1683,28 +1681,24 @@ void main() {
       SettingsManager.instance.transcriptionBackend = 'openai';
       SettingsManager.instance.openAISessionMode = 'realtime';
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
       await HudController.instance.resetToIdle(
         source: 'test.ws_c.qa_button.setup',
       );
     });
 
-    test('handleQAButtonPressed streams an answer (no error toast)',
-        () async {
+    test('handleQAButtonPressed streams an answer (no error toast)', () async {
       const expected = 'The status is green.';
       final provider = await configureFakeLlm(
         responses: const [],
-        streamResponses: [
-          FakeStreamResponse(expected.split('')),
-        ],
+        streamResponses: [FakeStreamResponse(expected.split(''))],
       );
 
       final aiUpdates = <String>[];
       final aiSub = engine.aiResponseStream.listen(aiUpdates.add);
       final providerErrors = <ProviderErrorState?>[];
-      final errSub =
-          engine.providerErrorStream.listen(providerErrors.add);
+      final errSub = engine.providerErrorStream.listen(providerErrors.add);
 
       engine.start(source: TranscriptSource.phone);
       // Seed the transcript window with a question so the manual Q&A path
@@ -1721,24 +1715,26 @@ void main() {
       expect(
         provider.streamCallCount,
         greaterThanOrEqualTo(1),
-        reason: 'handleQAButtonPressed must reach the LLM stream in '
+        reason:
+            'handleQAButtonPressed must reach the LLM stream in '
             'realtime mode (WS-C acceptance)',
       );
       expect(
         aiUpdates.isNotEmpty && aiUpdates.last == expected,
         isTrue,
-        reason: 'Final aiResponse should render the streamed answer, '
+        reason:
+            'Final aiResponse should render the streamed answer, '
             'not an "Assistant request failed" message',
       );
       // No non-null provider error should have been published — that is
       // the signal the UI uses to show the "Assistant request failed"
       // toast.
-      final nonNullErrors =
-          providerErrors.where((e) => e != null).toList();
+      final nonNullErrors = providerErrors.where((e) => e != null).toList();
       expect(
         nonNullErrors,
         isEmpty,
-        reason: 'No ProviderErrorState should be published on a '
+        reason:
+            'No ProviderErrorState should be published on a '
             'successful live-session Q&A (WS-C acceptance: no '
             '"assistant request failed" toast)',
       );
@@ -1765,8 +1761,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('deduplicates same question within 45-second window', () async {
@@ -1815,8 +1811,8 @@ void main() {
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine = ConversationEngine.instance;
-      engine.clearHistory();
       engine.stop();
+      engine.clearHistory(force: true);
     });
 
     test('emits analysis on stream when engine stops with history', () async {

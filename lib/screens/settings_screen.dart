@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'dev/input_inspector_screen.dart';
 import 'session_prep_screen.dart';
@@ -81,13 +82,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   _connectionTestResult; // null = not tested, true = success, false = failure
   String? _connectionTestError;
 
+  String _appVersion = '...';
+  String _appBuild = '...';
+
   @override
   void initState() {
     super.initState();
     _loadProviderStatus();
+    _loadPackageInfo();
     _settingsSub = _settings.onSettingsChanged.listen((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  Future<void> _loadPackageInfo() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = info.version;
+          _appBuild = info.buildNumber;
+        });
+      }
+    } catch (_) {
+      // Boundary: leave defaults if platform channel fails (e.g. in tests).
+    }
   }
 
   Future<void> _loadProviderStatus() async {
@@ -583,7 +602,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       onChanged: (value) {
                         if (value != null) {
                           _settings.update(
-                              (s) => s.transcriptionTransport = value);
+                            (s) => s.transcriptionTransport = value,
+                          );
                         }
                       },
                     ),
@@ -595,8 +615,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _settings.transcriptionPrompt.isEmpty
                           ? 'None (tap to add vocabulary hints)'
                           : _settings.transcriptionPrompt.length > 50
-                              ? '${_settings.transcriptionPrompt.substring(0, 50)}...'
-                              : _settings.transcriptionPrompt,
+                          ? '${_settings.transcriptionPrompt.substring(0, 50)}...'
+                          : _settings.transcriptionPrompt,
                       style: const TextStyle(
                         color: Colors.white54,
                         fontSize: 12,
@@ -684,8 +704,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _buildToggle(
                     tr('Active Fact-Check (Web)', '实时事实核查（网络）'),
                     tr(
-                      'Verify AI answers against live web sources via Tavily',
-                      '使用 Tavily 针对在线资料验证 AI 答案',
+                      'Verify AI answers against live web sources after each response',
+                      '每次回答后根据在线资料验证 AI 答案',
                     ),
                     _settings.activeFactCheckEnabled,
                     (v) =>
@@ -693,7 +713,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   if (_settings.activeFactCheckEnabled) ...[
                     const SizedBox(height: 8),
-                    _buildTavilyKeyRow(),
+                    _buildActiveFactCheckBackendRow(),
+                    if (_settings.activeFactCheckBackend == 'tavily') ...[
+                      const SizedBox(height: 8),
+                      _buildTavilyKeyRow(),
+                    ],
                   ],
                   const SizedBox(height: 8),
                   _buildToggle(
@@ -734,7 +758,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   tr('Session Prep', '会话准备'),
                   tr(
                     "Inject your pasted prep material into LLM calls during prepared "
-                    "conversations",
+                        "conversations",
                     '将粘贴的准备材料注入到准备好的会话的 LLM 调用中',
                   ),
                   _settings.sessionPrepEnabled,
@@ -826,8 +850,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const SizedBox(height: 20),
               _buildSection(tr('About', '关于'), Icons.info_outline, [
-                _buildInfoTile(tr('Version', '版本'), '1.0.0'),
-                _buildInfoTile(tr('Build', '构建'), '1'),
+                _buildInfoTile(tr('Version', '版本'), _appVersion),
+                _buildInfoTile(tr('Build', '构建'), _appBuild),
               ]),
               const SizedBox(height: 20),
               _buildDebugSection(),
@@ -2169,13 +2193,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Row(
           children: [
             Icon(
-              _tavilyKeyConfigured
-                  ? Icons.check_circle
-                  : Icons.key_outlined,
+              _tavilyKeyConfigured ? Icons.check_circle : Icons.key_outlined,
               size: 18,
-              color: _tavilyKeyConfigured
-                  ? Colors.greenAccent
-                  : Colors.white54,
+              color: _tavilyKeyConfigured ? Colors.greenAccent : Colors.white54,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -2202,14 +2222,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: Colors.white54,
-            ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.white54),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildActiveFactCheckBackendRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tr('Fact-Check Backend', '事实核查后端'),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                tr(
+                  'Choose OpenAI Web or Tavily search + verify',
+                  '选择 OpenAI 网络搜索或 Tavily 搜索校验',
+                ),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        DropdownButton<String>(
+          value: _settings.activeFactCheckBackend,
+          dropdownColor: const Color(0xFF1A1F35),
+          underline: const SizedBox.shrink(),
+          items: [
+            DropdownMenuItem(
+              value: 'openai',
+              child: Text(tr('OpenAI Web', 'OpenAI 网络')),
+            ),
+            const DropdownMenuItem(value: 'tavily', child: Text('Tavily')),
+          ],
+          onChanged: (value) {
+            if (value != null) {
+              _settings.update((s) => s.activeFactCheckBackend = value);
+            }
+          },
+        ),
+      ],
     );
   }
 
@@ -2317,140 +2383,124 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildDebugSection() {
     final debugService = G1DebugService.instance;
-    return _buildSection(
-      tr('G1 Debug', 'G1 调试'),
-      Icons.bug_report,
-      [
-        _buildToggle(
-          tr('Debug Logging', '调试日志'),
-          tr(
-            'Enable firmware debug output from glasses',
-            '启用眼镜固件调试输出',
+    return _buildSection(tr('G1 Debug', 'G1 调试'), Icons.bug_report, [
+      _buildToggle(
+        tr('Debug Logging', '调试日志'),
+        tr('Enable firmware debug output from glasses', '启用眼镜固件调试输出'),
+        _settings.g1DebugLogging,
+        (value) async {
+          await debugService.toggle(value);
+          setState(() {});
+        },
+      ),
+      if (kDebugMode) ...[
+        const SizedBox(height: 8),
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            Icons.keyboard_command_key,
+            color: HelixTheme.cyan.withValues(alpha: 0.8),
           ),
-          _settings.g1DebugLogging,
-          (value) async {
-            await debugService.toggle(value);
-            setState(() {});
+          title: Text(
+            tr('Input Inspector (Dev)', '输入检查器(开发)'),
+            style: const TextStyle(color: Colors.white),
+          ),
+          subtitle: Text(
+            tr(
+              'Capture BT HID events for ring-remote binding',
+              '捕获 BT HID 事件用于戒指遥控器绑定',
+            ),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 11,
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const InputInspectorScreen()),
+            );
           },
         ),
-        if (kDebugMode) ...[
-          const SizedBox(height: 8),
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              Icons.keyboard_command_key,
-              color: HelixTheme.cyan.withValues(alpha: 0.8),
-            ),
-            title: Text(
-              tr('Input Inspector (Dev)', '输入检查器(开发)'),
-              style: const TextStyle(color: Colors.white),
-            ),
-            subtitle: Text(
-              tr(
-                'Capture BT HID events for ring-remote binding',
-                '捕获 BT HID 事件用于戒指遥控器绑定',
-              ),
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 11,
-              ),
-            ),
-            trailing: const Icon(Icons.chevron_right, color: Colors.white38),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const InputInspectorScreen(),
-                ),
-              );
-            },
-          ),
-        ],
-        if (_settings.g1DebugLogging) ...[
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                tr('Debug Output', '调试输出'),
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  debugService.clearLogs();
-                  setState(() {});
-                },
-                child: Text(
-                  tr('Clear', '清除'),
-                  style: TextStyle(
-                    color: HelixTheme.cyan.withValues(alpha: 0.7),
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          StreamBuilder<String>(
-            stream: debugService.debugMessages,
-            builder: (context, snapshot) {
-              final lines = debugService.logBuffer;
-              return Container(
-                height: 200,
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-                child: lines.isEmpty
-                    ? Center(
-                        child: Text(
-                          tr(
-                            'No debug messages yet',
-                            '暂无调试消息',
-                          ),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        reverse: true,
-                        itemCount: lines.length,
-                        itemBuilder: (context, index) {
-                          final line =
-                              lines[lines.length - 1 - index];
-                          return Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 1),
-                            child: Text(
-                              line,
-                              style: const TextStyle(
-                                color: Color(0xFF00FF88),
-                                fontSize: 10,
-                                fontFamily: 'monospace',
-                                height: 1.4,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              );
-            },
-          ),
-        ],
       ],
-    );
+      if (_settings.g1DebugLogging) ...[
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              tr('Debug Output', '调试输出'),
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            GestureDetector(
+              onTap: () {
+                debugService.clearLogs();
+                setState(() {});
+              },
+              child: Text(
+                tr('Clear', '清除'),
+                style: TextStyle(
+                  color: HelixTheme.cyan.withValues(alpha: 0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        StreamBuilder<String>(
+          stream: debugService.debugMessages,
+          builder: (context, snapshot) {
+            final lines = debugService.logBuffer;
+            return Container(
+              height: 200,
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              ),
+              child: lines.isEmpty
+                  ? Center(
+                      child: Text(
+                        tr('No debug messages yet', '暂无调试消息'),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      reverse: true,
+                      itemCount: lines.length,
+                      itemBuilder: (context, index) {
+                        final line = lines[lines.length - 1 - index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Text(
+                            line,
+                            style: const TextStyle(
+                              color: Color(0xFF00FF88),
+                              fontSize: 10,
+                              fontFamily: 'monospace',
+                              height: 1.4,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            );
+          },
+        ),
+      ],
+    ]);
   }
 
   Widget _buildVoiceSelector() {
@@ -2503,8 +2553,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showTranscriptionPromptDialog() {
-    final controller =
-        TextEditingController(text: _settings.transcriptionPrompt);
+    final controller = TextEditingController(
+      text: _settings.transcriptionPrompt,
+    );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -2537,8 +2588,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           TextButton(
             onPressed: () {
-              _settings
-                  .update((s) => s.transcriptionPrompt = controller.text.trim());
+              _settings.update(
+                (s) => s.transcriptionPrompt = controller.text.trim(),
+              );
               Navigator.pop(context);
             },
             child: const Text('Save'),

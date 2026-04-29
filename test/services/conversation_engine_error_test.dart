@@ -75,8 +75,8 @@ void main() {
         ConversationEngine.setLlmServiceGetter(() => llm);
 
         engine = ConversationEngine.instance;
-        engine.clearHistory();
         engine.stop();
+        engine.clearHistory(force: true);
         recorder = StreamRecorder(engine);
 
         // Listen for provider errors

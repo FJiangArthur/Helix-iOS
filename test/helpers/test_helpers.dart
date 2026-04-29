@@ -277,8 +277,8 @@ setupTestEngine({
     streamResponses: streamResponses,
   );
   final engine = ConversationEngine.instance;
-  engine.clearHistory();
   engine.stop();
+  engine.clearHistory(force: true);
   await HudController.instance.resetToIdle(source: 'test.setup');
   return (engine: engine, provider: provider);
 }
@@ -287,6 +287,7 @@ setupTestEngine({
 void teardownTestEngine(ConversationEngine engine) {
   engine.autoDetectQuestions = true;
   engine.stop();
+  engine.clearHistory(force: true);
 }
 
 // ---------------------------------------------------------------------------
