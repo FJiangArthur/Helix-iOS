@@ -1,0 +1,26 @@
+G1 AI Glasses Companion turns smart glasses into a private, real-time assistant for conversations, meetings, interviews, and daily context.
+
+Listen with your iPhone, read concise answers on your glasses HUD, and keep useful context organized without accounts or tracking.
+
+LIVE CONVERSATION ANSWERS
+Capture speech in real time and get short, direct AI answers when questions come up. Use it for meetings, classes, interviews, hallway conversations, and quick follow-ups when reaching for your phone would break focus.
+
+SMART GLASSES HUD
+Send answers and useful context to your G1 glasses display. The app includes a rich bitmap HUD, text fallback, touchpad page scrolling, weather, time, calendar, and compact status widgets.
+
+INTERVIEW COACH
+Practice and answer with clearer structure. Interview mode can shape responses around Situation, Task, Action, and Result so your answer is easier to deliver under pressure.
+
+QUIET FACT-CHECKING
+When AI answers need grounding, the app can run a background fact-check and keep verification context available without interrupting the conversation.
+
+PROJECT MEMORY
+Save useful conversation context, project notes, action items, and memories so recurring work does not start from zero every time.
+
+PRIVATE BY DESIGN
+No account is required. API keys stay on your device in iOS Keychain. You choose the AI and transcription providers you want to use, and the app does not include ad tracking or analytics SDKs.
+
+MODEL CHOICE
+Connect OpenAI, Anthropic, DeepSeek, Qwen, Zhipu AI, SiliconFlow, or OpenRouter-compatible providers. Bring your own API key and switch providers from Settings.
+
+Full HUD functionality requires compatible G1 smart glasses over Bluetooth. Core phone workflows, provider setup, transcription tests, and HUD previews are available without glasses.

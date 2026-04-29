@@ -1,0 +1,9 @@
+This app is a companion for Even Realities G1 smart glasses. Full HUD functionality requires paired glasses over Bluetooth.
+
+Review can still test the app without glasses:
+1. Home tab: tap the microphone to record and transcribe speech, then receive AI responses after configuring a provider.
+2. Settings: configure an AI provider and enter the reviewer's own API key if live model testing is required.
+3. Glasses tab: preview HUD widgets, layout behavior, and smart-glasses display modes without hardware.
+4. History and memory flows: review saved conversations, facts, and project context after using the phone-only flows.
+
+No login is required. The app does not include ads or cross-app tracking. API keys are stored locally in iOS Keychain and are sent only to the user's selected AI provider endpoint.

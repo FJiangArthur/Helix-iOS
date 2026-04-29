@@ -1,0 +1,1 @@
+Improved live conversation restarts, clearer session reset behavior, and updated HUD and AI assistant presentation for a smoother smart-glasses workflow.

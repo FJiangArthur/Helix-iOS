@@ -1,11 +1,11 @@
-# App Store Connect Metadata — Even Companion
+# App Store Connect Metadata - G1 AI Glasses Companion
 
 Copy-paste content for App Store Connect submission fields.
 
 ## App Information
 
-- **Name:** `Even Companion` (30 char max)
-- **Subtitle:** `AI Assistant for Smart Glasses` (30 char max)
+- **Name:** `G1 AI Glasses Companion` (30 char max)
+- **Subtitle:** `Live Answers on Your HUD` (30 char max)
 - **Primary Category:** Productivity
 - **Secondary Category:** Utilities
 - **Copyright:** `© 2026 Art Jiang`
@@ -13,66 +13,57 @@ Copy-paste content for App Store Connect submission fields.
 
 ## URLs
 
-- Privacy: `https://fjiangarthur.github.io/Helix-iOS/privacy`
-- Support: `https://fjiangarthur.github.io/Helix-iOS/support`
-- Marketing: `https://fjiangarthur.github.io/Helix-iOS/`
+- Privacy: `https://github.com/FJiangArthur/Helix-iOS/blob/main/docs/privacy.html`
+- Support: `https://github.com/FJiangArthur/Helix-iOS/blob/main/docs/support.html`
+- Marketing: `https://github.com/FJiangArthur/Helix-iOS/blob/main/docs/index.html`
+
+## Promotional Text (170 chars max)
+
+```
+Real-time transcription, interview coaching, fact-checking, and private AI answers for smart glasses.
+```
 
 ## Description (4000 chars max)
 
 ```
-Even Companion is the AI-powered companion app for Even Realities G1 smart glasses. It transforms your glasses into an intelligent heads-up display with real-time conversation transcription, AI-assisted analysis, and a rich bitmap HUD — all while keeping your data private and under your control.
+G1 AI Glasses Companion turns smart glasses into a private, real-time assistant for conversations, meetings, interviews, and daily context.
 
-REAL-TIME CONVERSATION INTELLIGENCE
-Transcribe conversations in real time using either Apple's Speech framework or an optional cloud transcription backend that you explicitly select in Settings. Even Companion listens, transcribes, and streams AI-generated insights directly to your G1 glasses display. Whether you're in a meeting, an interview, or a casual conversation, your AI assistant works quietly in the background.
+Listen with your iPhone, read concise answers on your glasses HUD, and keep useful context organized without accounts or tracking.
 
-THREE CONVERSATION MODES
-- General: Summarize discussions, surface key points, and get instant follow-up suggestions.
-- Interview: Get real-time STAR-method coaching — the AI helps you structure your answers around Situation, Task, Action, and Result as you speak.
-- Passive: Silent monitoring that captures and transcribes without sending prompts, perfect for recording lectures or talks.
+LIVE CONVERSATION ANSWERS
+Capture speech in real time and get short, direct AI answers when questions come up. Use it for meetings, classes, interviews, hallway conversations, and quick follow-ups when reaching for your phone would break focus.
 
-RICH BITMAP HUD
-Your G1 glasses become a full heads-up display. See the time, live weather, stock tickers, upcoming calendar events, and phone notifications — all rendered as crisp bitmap graphics on your lens. Choose from layout presets including Classic, Minimal, Dense, and Conversation to match your workflow.
+SMART GLASSES HUD
+Send answers and useful context to your G1 glasses display. The app includes a rich bitmap HUD, text fallback, touchpad page scrolling, weather, time, calendar, and compact status widgets.
 
-CHOOSE YOUR AI PROVIDER
-Even Companion supports six AI providers so you can pick the model that fits your needs and budget:
-- OpenAI (GPT-4o, GPT-4o mini, and more)
-- Anthropic (Sonnet, Haiku)
-- DeepSeek (DeepSeek Chat, DeepSeek Reasoner)
-- Qwen (Qwen Turbo, Qwen Plus, Qwen Max)
-- Zhipu AI (GLM-4-Flash — free, GLM-4.5-Flash — free, GLM-4.7-Flash — free)
-- SiliconFlow (free models available)
+INTERVIEW COACH
+Practice and answer with clearer structure. Interview mode can shape responses around Situation, Task, Action, and Result so your answer is easier to deliver under pressure.
 
-FREE AI OPTIONS — No credit card required. Select Zhipu AI and use GLM-4-Flash, GLM-4.5-Flash, or GLM-4.7-Flash for zero-cost AI assistance. SiliconFlow also offers free-tier models.
+QUIET FACT-CHECKING
+When AI answers need grounding, the app can run a background fact-check and keep verification context available without interrupting the conversation.
 
-PRIVACY FIRST
-Speech recognition can run on-device through Apple's Speech framework, or through the cloud transcription provider you explicitly choose in Settings. API keys are stored locally in iOS Keychain. No analytics, no tracking, no accounts required.
+PROJECT MEMORY
+Save useful conversation context, project notes, action items, and memories so recurring work does not start from zero every time.
 
-SEAMLESS BLUETOOTH CONNECTION
-Pair your G1 glasses once and Even Companion handles the rest. The app maintains a reliable BLE connection in the background so your HUD stays live and conversation insights keep flowing.
+PRIVATE BY DESIGN
+No account is required. API keys stay on your device in iOS Keychain. You choose the AI and transcription providers you want to use, and the app does not include ad tracking or analytics SDKs.
 
-Even Companion is free to download and use. AI features require an API key from your chosen provider, or use one of the free model options listed above.
+MODEL CHOICE
+Connect OpenAI, Anthropic, DeepSeek, Qwen, Zhipu AI, SiliconFlow, or OpenRouter-compatible providers. Bring your own API key and switch providers from Settings.
+
+Full HUD functionality requires compatible G1 smart glasses over Bluetooth. Core phone workflows, provider setup, transcription tests, and HUD previews are available without glasses.
 ```
 
 ## Keywords (100 chars max)
 
 ```
-smart glasses,AI assistant,conversation,transcription,HUD,Even Realities,G1,speech,bluetooth,real-time
+conversation,transcription,speech,bluetooth,meeting,interview,coach,notes,voice,wearable,assistant
 ```
 
-## What's New — v2.2.6
+## What's New
 
 ```
-MORE RELIABLE CONVERSATION RESTARTS
-Starting a new conversation now clears the previous live transcript and response immediately, and transcription continues correctly after restarting from the Home screen.
-
-FASTER MAIN-SCREEN RESET
-Finished-session content no longer lingers on the main screen when you begin a fresh recording session.
-
-STABILITY IMPROVEMENTS
-Improved live-session reset behavior across transcription, answer streaming, and follow-up chips so each conversation starts cleanly.
-
-APP STORE SUBMISSION POLISH
-Updated launch assets and review metadata to better match the current app experience and privacy behavior.
+Improved live conversation restarts, clearer session reset behavior, and updated HUD and AI assistant presentation for a smoother smart-glasses workflow.
 ```
 
 ## Review Notes
@@ -104,13 +95,20 @@ diagnostics, sensitive info.
 
 ## Screenshots
 
-Required sizes (portrait): 6.9" (1320x2868) and 6.3" (1206x2622) for
-iPhone. 5-6 per size recommended (1-10 allowed).
+Current App Store screenshot set:
 
-Suggested sequence: hero shot with glasses connected → live
-transcription + streaming AI answer → HUD widgets (clock/weather/
-stocks/calendar) → AI provider settings → Interview STAR coaching →
-layout presets side-by-side.
+- `ios/fastlane/screenshots/en-US/01-live-conversation.png`
+- `ios/fastlane/screenshots/en-US/02-smart-glasses-hud.png`
+- `ios/fastlane/screenshots/en-US/03-interview-coach.png`
+- `ios/fastlane/screenshots/en-US/04-fact-check.png`
+- `ios/fastlane/screenshots/en-US/05-project-memory.png`
+
+Each screenshot is 1290x2796 PNG, accepted by Apple for the iPhone 6.9"
+display screenshot requirement. App Store Connect can scale these for
+smaller iPhone display classes.
+
+Suggested sequence: live conversation hero -> smart glasses HUD ->
+interview coach -> fact-check -> project memory.
 
 Tips: clean status bar (full battery, Wi-Fi, 9:41), dark theme, PNG
 or JPEG without alpha, sRGB.
