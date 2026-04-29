@@ -44,6 +44,8 @@
 	<string>Even Companion displays your reminders on your smart glasses HUD.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Even Companion uses your location to show local weather conditions on your smart glasses HUD.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Even Companion lets you choose photos or screenshots from your library when importing files or adding visual context to AI conversations. Selected items are used only for the action you choose.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Even Companion reads your activity data, including steps, active calories, exercise minutes, and stand hours, to show your daily progress on your smart glasses HUD.</string>
 	<key>NSHealthUpdateUsageDescription</key>

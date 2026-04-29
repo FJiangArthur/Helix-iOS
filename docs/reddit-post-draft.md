@@ -1,73 +1,88 @@
-# Reddit Post Draft — r/EvenRealities
+# Reddit Promotion Draft
 
----
+Target subreddit: `r/EvenRealities`
 
-**Title:** I built an open-source AI companion app for the G1 — live transcription, real-time AI answers on the HUD, interview coaching, fact-checking, and 6 AI providers to choose from (free options included)
+## Recommended Title
 
----
+I built an iOS AI companion for G1 glasses: live transcription, HUD answers, interview coaching, fact-checking, and private project memory
+
+## Alternate Titles
+
+- I made a G1 companion app that puts real-time AI answers directly on the glasses HUD
+- Built a smart-glasses AI assistant for G1: live conversation answers, interview coach, fact-checking, and memory
+- Sharing my open-source G1 app: a real-time AI assistant for conversations, meetings, and interviews
+
+## Image Gallery Order
+
+Attach these five App Store screenshots first:
+
+1. `/Users/artjiang/develop/Helix-iOS/ios/fastlane/screenshots/en-US/01-live-conversation.png`
+2. `/Users/artjiang/develop/Helix-iOS/ios/fastlane/screenshots/en-US/02-smart-glasses-hud.png`
+3. `/Users/artjiang/develop/Helix-iOS/ios/fastlane/screenshots/en-US/03-interview-coach.png`
+4. `/Users/artjiang/develop/Helix-iOS/ios/fastlane/screenshots/en-US/04-fact-check.png`
+5. `/Users/artjiang/develop/Helix-iOS/ios/fastlane/screenshots/en-US/05-project-memory.png`
+
+Optional contact sheet for comments or follow-up:
+
+- `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/previews/final-contact-sheet.png`
+
+Generated source images, if you want to show the artwork separately:
+
+1. `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/raw/01-live-conversation-base.png`
+2. `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/raw/02-smart-glasses-hud-base.png`
+3. `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/raw/03-interview-coach-base.png`
+4. `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/raw/04-fact-check-base.png`
+5. `/Users/artjiang/develop/Helix-iOS/docs/superpowers/assets/app-store-screenshots/raw/05-project-memory-base.png`
+
+Original generation outputs:
+
+1. `/Users/artjiang/.codex/generated_images/019dd776-84b6-79b3-926f-76eaa573f7ef/ig_08ad69f345a609800169f18734b274819082d133a39ab91e3b.png`
+2. `/Users/artjiang/.codex/generated_images/019dd776-84b6-79b3-926f-76eaa573f7ef/ig_08ad69f345a609800169f1876238008190a2aa529492c75eaa.png`
+3. `/Users/artjiang/.codex/generated_images/019dd776-84b6-79b3-926f-76eaa573f7ef/ig_08ad69f345a609800169f187917810819093143ed958401522.png`
+4. `/Users/artjiang/.codex/generated_images/019dd776-84b6-79b3-926f-76eaa573f7ef/ig_08ad69f345a609800169f187c60074819096e8e8406d66dcf5.png`
+5. `/Users/artjiang/.codex/generated_images/019dd776-84b6-79b3-926f-76eaa573f7ef/ig_08ad69f345a609800169f187f4cd3481908f1b7fb736b4eb1e.png`
+
+## Post Body
 
 Hey everyone,
 
-I've been wearing my G1s daily and wanted more out of the conversation experience, so I built **Even Companion** — a free, open-source iOS app that turns the G1 into a real-time AI assistant.
+I have been building **G1 AI Glasses Companion**, an iOS companion app for Even Realities G1 glasses. The goal is simple: make the glasses useful during real conversations without having to pull out the phone.
 
-I just shipped the latest build to TestFlight and wanted to share what it does.
+The app listens from the iPhone, transcribes speech in real time, detects useful questions or moments, and can send concise AI answers directly to the G1 HUD. It is built around live meetings, interviews, hallway conversations, study sessions, and any situation where quick context in your line of sight is more useful than another screen.
 
-## What it does
+What it does:
 
-**Live conversation mode.** Start a recording, and the app transcribes your conversation in real time. When it detects a question, it generates an AI answer and streams it directly to your G1 HUD. You scroll pages with the touchpad. After every AI response, a background fact-check runs automatically so you know if something needs a correction.
+- **Live conversation answers:** start listening, let the app transcribe, and get short answers when a question comes up.
+- **G1 HUD output:** answers can be displayed on the glasses with touchpad page scrolling.
+- **Interview coach:** interview mode structures responses around STAR so answers are easier to say under pressure.
+- **Background fact-checking:** after an AI answer, the app can keep verification context available without interrupting the conversation.
+- **Project memory:** save useful conversation context, project notes, action items, and recurring details.
+- **Provider choice:** bring your own key for OpenAI, Anthropic, DeepSeek, Qwen, Zhipu AI, SiliconFlow, or OpenRouter-compatible providers.
+- **Private by design:** no account required, API keys stay in iOS Keychain, no ad tracking or analytics SDKs.
 
-**Interview coaching.** Switch to Interview mode and the AI coaches you using the STAR framework (Situation, Task, Action, Result). Responses are phrased as directly speakable output — no "you could say..." — just the words you'd actually say out loud. Useful for job interview prep or any high-stakes conversation where you want structured thinking in your line of sight.
+The app can still be used without glasses for provider setup, transcription testing, history, memories, and HUD previews, but the full experience is obviously best with paired G1 glasses.
 
-**Session Prep (new).** Paste your prep material before a conversation — a job description, resume, meeting notes, customer history, whatever. The app grounds every AI response in YOUR material, surfacing specific facts when they're relevant to the question being asked. Prep auto-clears when the conversation ends so it never bleeds into your next one.
+I am looking for feedback from other G1 owners:
 
-**Bitmap HUD dashboard.** When you're not in a conversation, the G1 displays a live dashboard: clock, weather, stock ticker, calendar events, phone notifications, battery — all rendered as crisp bitmap graphics. Multiple layout presets (Classic, Minimal, Dense, Conversation). It refreshes on a smart interval and uses delta-diffing so only changed pixels get pushed over BLE.
+- Would you use live AI answers during meetings or interviews?
+- Is the HUD output more useful as short direct answers, bullet points, or richer context?
+- What would you want on the idle dashboard when the glasses are not actively answering?
+- Any features you would avoid because they feel too distracting in real conversation?
 
-**Real-time translation.** Enable live translation in Settings and foreign-language segments get translated on the fly.
+I can share the TestFlight link with anyone who wants to try it. The project is also open source, so feedback on the implementation is welcome too.
 
-## AI providers — pick your own
+## Short First Comment
 
-You bring your own API key. Six providers supported:
+For anyone testing it: full HUD functionality requires Even Realities G1 glasses over Bluetooth. You can still try transcription, provider setup, memory/history, and HUD previews without glasses.
 
-| Provider | Models | Cost |
-|----------|--------|------|
-| OpenAI | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano | Paid |
-| Anthropic | Claude Sonnet 4, Claude Haiku 4 | Paid |
-| DeepSeek | deepseek-chat, deepseek-reasoner | Cheap |
-| Qwen | qwen-turbo, qwen-plus, qwen-max | Paid |
-| Zhipu AI | GLM-4-Flash, GLM-4.5-Flash, GLM-4.7-Flash | **Free** |
-| SiliconFlow | Multiple models | **Free tier** |
+The app is intentionally bring-your-own-provider so users control which AI/transcription service they use. No account, no analytics SDK, no ad tracking.
 
-**No credit card needed** if you go with Zhipu or SiliconFlow. The free models are surprisingly capable for live conversation use.
+## Shorter Version
 
-## Transcription backends
+I built **G1 AI Glasses Companion**, an iOS app that turns Even Realities G1 glasses into a real-time AI assistant.
 
-Four options, configurable in Settings:
+It listens from the iPhone, transcribes live conversations, detects useful questions, and can send short AI answers directly to the glasses HUD. It also includes interview coaching, background fact-checking, project memory, HUD previews, and support for multiple AI providers.
 
-- **Apple Cloud** (recommended for reliability — continuous conversation)
-- **Apple On-Device** (fully offline, no data leaves your phone)
-- **OpenAI Realtime** (lowest latency, requires OpenAI key)
-- **Whisper** (batch mode, good for short segments)
+I am trying to make it useful without making it distracting: short answers, touchpad page scrolling, and private local setup with your own API key.
 
-## Privacy
-
-- Speech recognition can run fully on-device (Apple On-Device backend)
-- API keys stored in iOS Keychain
-- No accounts, no analytics, no tracking
-- Session prep text is sent to your configured LLM provider only — never to us
-- Open source: you can read every line of code
-
-## What's coming next
-
-Working on improving question detection speed and response latency. Also exploring a document library feature (upload PDFs, have the AI reference them during live conversations) but only if users actually want it — so let me know.
-
-## How to get it
-
-The app is free on TestFlight. Drop a comment or DM me and I'll send the link. Source code is on GitHub.
-
-Requirements: iPhone (iOS 17+), Even Realities G1 glasses, and an API key from any of the supported providers (or use a free one).
-
-Would love feedback from other G1 owners. What conversation scenarios do you use your glasses for? What would make this more useful for you?
-
----
-
-*Built by a solo dev who wears G1s every day and got tired of pulling out the phone mid-conversation.*
+Looking for feedback from G1 owners. Would you use live AI answers in meetings, interviews, classes, or daily conversations? What would you want shown on the glasses when the app is idle?
