@@ -99,29 +99,34 @@ class HelixTokens {
   static const Curve easeTransition = Curves.easeInOutCubic;
 
   // --- Elevation ---
+  // Phase 1: black-tinted shadows match existing widgets (GlassCard, GlowButton).
+  // Phase 2 will swap the base color to warm brown (0x..3C2814) alongside the
+  // Warm Linen palette flip so shadows stay coherent with the new surfaces.
   static const List<BoxShadow> e1 = [
     BoxShadow(
-      color: Color(0x0A3C2814),
+      color: Color(0x0A000000),
       offset: Offset(0, 1),
       blurRadius: 2,
     ),
   ];
   static const List<BoxShadow> e2 = [
     BoxShadow(
-      color: Color(0x0F3C2814),
+      color: Color(0x0F000000),
       offset: Offset(0, 4),
       blurRadius: 12,
     ),
   ];
   static const List<BoxShadow> e3 = [
     BoxShadow(
-      color: Color(0x1A3C2814),
+      color: Color(0x1A000000),
       offset: Offset(0, 12),
       blurRadius: 32,
     ),
   ];
 
-  /// Resolve the token set for the current brightness.
+  /// Resolve the token set for the current brightness. In Phase 1, [light]
+  /// and [dark] share the same values, so the result is identical regardless
+  /// of brightness. Phase 2 forks them when Warm Linen lands.
   static ColorTokens of(BuildContext context) {
     final brightness = Theme.of(context).brightness;
     return brightness == Brightness.dark ? dark : light;
