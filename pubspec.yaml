@@ -87,11 +87,15 @@ flutter:
   assets:
     - assets/brand/
     - assets/illustrations/
+    - assets/fonts/
 
-  # Add custom fonts
-  # fonts:
-  #   - family: Schyler
-  #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
+  fonts:
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/Fraunces-VariableFont.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-VariableFont.ttf
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-VariableFont.ttf
