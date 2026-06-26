@@ -1,5 +1,5 @@
 // ABOUTME: Standalone pending facts review widget with swipeable card stack.
-// ABOUTME: Extracted from InsightsScreen for use in the Ask AI tab.
+// ABOUTME: Extracted from InsightsScreen for use in the Knowledge tab.
 
 import 'dart:async';
 
@@ -13,7 +13,9 @@ import '../widgets/fact_card.dart';
 import '../widgets/glass_card.dart';
 
 class PendingFactsReview extends StatefulWidget {
-  const PendingFactsReview({super.key});
+  final bool showScaffold;
+
+  const PendingFactsReview({super.key, this.showScaffold = true});
 
   @override
   State<PendingFactsReview> createState() => _PendingFactsReviewState();
@@ -56,13 +58,13 @@ class _PendingFactsReviewState extends State<PendingFactsReview> {
 
   @override
   Widget build(BuildContext context) {
+    final content = _pendingFacts.isEmpty
+        ? _buildAllCaughtUp()
+        : _buildReviewContent();
+    if (!widget.showScaffold) return content;
     return Scaffold(
       backgroundColor: HelixTheme.background,
-      body: SafeArea(
-        child: _pendingFacts.isEmpty
-            ? _buildAllCaughtUp()
-            : _buildReviewContent(),
-      ),
+      body: SafeArea(child: content),
     );
   }
 
@@ -74,14 +76,13 @@ class _PendingFactsReviewState extends State<PendingFactsReview> {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
           child: Row(
             children: [
-              Icon(Icons.swipe_rounded,
-                  color: HelixTheme.cyan, size: 20),
+              Icon(Icons.swipe_rounded, color: HelixTheme.cyan, size: 20),
               const SizedBox(width: 8),
               Text(
                 '${_pendingFacts.length} fact${_pendingFacts.length == 1 ? '' : 's'} to review',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HelixTheme.textSecondary,
-                    ),
+                  color: HelixTheme.textSecondary,
+                ),
               ),
             ],
           ),
@@ -90,8 +91,7 @@ class _PendingFactsReviewState extends State<PendingFactsReview> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
           child: Text(
-            tr('Swipe right to confirm, left to reject',
-                '向右滑动确认，向左滑动拒绝'),
+            tr('Swipe right to confirm, left to reject', '向右滑动确认，向左滑动拒绝'),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
@@ -224,13 +224,15 @@ class _PendingFactsReviewState extends State<PendingFactsReview> {
               Text(
                 tr('All caught up!', '已全部查看！'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HelixTheme.textSecondary,
-                    ),
+                  color: HelixTheme.textSecondary,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                tr('New facts will appear here after conversations.',
-                    '对话后新发现的事实将出现在这里。'),
+                tr(
+                  'New facts will appear here after conversations.',
+                  '对话后新发现的事实将出现在这里。',
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),

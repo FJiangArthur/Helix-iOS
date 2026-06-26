@@ -5,50 +5,67 @@ import 'package:flutter/material.dart';
 
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
+import '../widgets/helix/helix_segmented_tabs.dart';
 import 'conversation_history_screen.dart';
 import 'detail_analysis_screen.dart';
 import 'projects/projects_list_screen.dart';
 import 'settings_screen.dart';
 
-class LiveHistoryScreen extends StatelessWidget {
+class LiveHistoryScreen extends StatefulWidget {
   const LiveHistoryScreen({super.key});
 
   @override
+  State<LiveHistoryScreen> createState() => _LiveHistoryScreenState();
+}
+
+class _LiveHistoryScreenState extends State<LiveHistoryScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _controller;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TabController(length: 3, vsync: this);
+    _controller.addListener(() {
+      if (!_controller.indexIsChanging && mounted) {
+        setState(() => _index = _controller.index);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _setIndex(int index) {
+    setState(() => _index = index);
+    _controller.animateTo(index);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Scaffold(
-        backgroundColor: HelixTheme.background,
-        appBar: AppBar(
-          toolbarHeight: 0,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(kTextTabBarHeight + 8),
-            child: SizedBox(
-              height: kTextTabBarHeight + 8,
+    return Scaffold(
+      backgroundColor: HelixTheme.background,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
               child: Row(
                 children: [
                   Expanded(
-                    child: TabBar(
-                      indicatorColor: HelixTheme.cyan,
-                      indicatorWeight: 2.5,
-                      labelColor: HelixTheme.textPrimary,
-                      unselectedLabelColor: HelixTheme.textMuted,
-                      labelStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      dividerColor: Colors.transparent,
-                      tabs: [
-                        Tab(text: tr('Live', '实时')),
-                        Tab(text: tr('History', '历史')),
-                        Tab(text: tr('Projects', '项目')),
+                    child: HelixSegmentedTabs(
+                      labels: [
+                        tr('Monitor', '监控'),
+                        tr('Archive', '归档'),
+                        tr('Projects', '项目'),
                       ],
+                      selectedIndex: _index,
+                      onChanged: _setIndex,
                     ),
                   ),
                   IconButton(
@@ -68,13 +85,16 @@ class LiveHistoryScreen extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-        body: const TabBarView(
-          children: [
-            DetailAnalysisScreen(),
-            ConversationHistoryScreen(),
-            ProjectsListScreen(),
+            Expanded(
+              child: TabBarView(
+                controller: _controller,
+                children: const [
+                  DetailAnalysisScreen(),
+                  ConversationHistoryScreen(),
+                  ProjectsListScreen(),
+                ],
+              ),
+            ),
           ],
         ),
       ),

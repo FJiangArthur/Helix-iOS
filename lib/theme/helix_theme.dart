@@ -24,6 +24,12 @@ class HelixTheme {
   static const Color statusThinking = Color(0xFFE7AE62);
   static const Color statusReady = Color(0xFF8CD6A4);
   static const Color statusOffline = Color(0xFF7D8996);
+  static const double spaceXs = 4;
+  static const double spaceSm = 8;
+  static const double spaceMd = 12;
+  static const double spaceLg = 16;
+  static const double spaceXl = 24;
+  static const double radiusCompact = 8;
   static const double radiusPanel = 8;
   static const double radiusControl = 10;
   static const double radiusPill = 999;

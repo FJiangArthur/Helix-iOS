@@ -12,7 +12,7 @@ import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
-import '../widgets/glass_card.dart';
+import '../widgets/helix/helix_surface.dart';
 
 const _automaticModelSelection = '__provider_default__';
 const _providerDisplayOrder = [
@@ -876,10 +876,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? 'Bitmap HUD'
         : 'Text HUD';
 
-    return GlassCard(
+    return HelixSurface(
       padding: const EdgeInsets.all(14),
-      borderColor: (providerConfigured ? HelixTheme.cyan : HelixTheme.amber)
-          .withValues(alpha: 0.24),
+      emphasis: 0.22,
+      accent: providerConfigured ? HelixTheme.cyan : HelixTheme.amber,
+      active: providerConfigured,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1039,7 +1040,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
           ),
         ),
-        GlassCard(
+        HelixSurface(
+          emphasis: 0.16,
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: children,

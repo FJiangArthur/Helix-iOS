@@ -19,8 +19,7 @@ void main() {
   final secureStorageValues = <String, String>{};
 
   Future<Object?> secureStorageHandler(MethodCall call) async {
-    final arguments =
-        (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+    final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
     final key = arguments['key'] as String?;
 
     switch (call.method) {
@@ -52,15 +51,15 @@ void main() {
         .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(bluetoothChannel, (call) async {
-      switch (call.method) {
-        case 'startEvenAI':
-          return 'started';
-        case 'stopEvenAI':
-          return 'stopped';
-        default:
-          return null;
-      }
-    });
+          switch (call.method) {
+            case 'startEvenAI':
+              return 'started';
+            case 'stopEvenAI':
+              return 'stopped';
+            default:
+              return null;
+          }
+        });
     SharedPreferences.setMockInitialValues({});
     await SettingsManager.instance.initialize();
     LlmService.instance.initializeDefaults();
@@ -107,7 +106,7 @@ void main() {
       expect(find.byType(HomeScreen), findsOneWidget);
     });
 
-    testWidgets('displays control deck and conversation hub headers', (
+    testWidgets('displays assistant and conversation hub headers', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -115,7 +114,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('CONTROL DECK'), findsOneWidget);
+      expect(find.text('ASSISTANT'), findsOneWidget);
       expect(find.text('CONVERSATION HUB'), findsOneWidget);
     });
 
@@ -125,10 +124,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.byKey(const Key('home-fixed-composer-dock')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('home-fixed-composer-dock')), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('home-fixed-composer-dock')),
@@ -168,10 +164,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.byKey(const Key('home-quick-start-strip')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('home-quick-start-strip')), findsOneWidget);
     });
 
     testWidgets('session loadout card (READY STACK) is present', (
@@ -207,10 +200,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.text('How do I start a good conversation?'),
-        findsOneWidget,
-      );
+      expect(find.text('How do I start a good conversation?'), findsOneWidget);
       expect(find.text('Tell me about yourself'), findsNothing);
 
       ConversationEngine.instance.setMode(ConversationMode.interview);
@@ -233,10 +223,7 @@ void main() {
           find.byKey(const Key('home-conversation-summary-card')),
           findsNothing,
         );
-        expect(
-          find.byKey(const Key('home-follow-up-chip-deck')),
-          findsNothing,
-        );
+        expect(find.byKey(const Key('home-follow-up-chip-deck')), findsNothing);
       },
     );
 
@@ -246,10 +233,7 @@ void main() {
       );
       await tester.pump();
 
-      expect(
-        find.byKey(const Key('home-response-tools-card')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('home-response-tools-card')), findsNothing);
     });
 
     testWidgets('insights card is NOT shown at idle', (tester) async {

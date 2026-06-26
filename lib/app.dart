@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'screens/ask_ai_screen.dart';
 import 'screens/g1_test_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/insights_screen.dart';
+import 'screens/knowledge_screen.dart';
 import 'screens/live_history_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/settings_screen.dart';
 import 'theme/helix_theme.dart';
 import 'utils/i18n.dart';
 
@@ -91,8 +91,8 @@ class _MainScreenState extends State<MainScreen> {
     (_) => const HomeScreen(),
     (_) => const G1TestScreen(),
     (_) => const LiveHistoryScreen(),
-    (_) => const AskAiScreen(),
-    (_) => const InsightsScreen(),
+    (_) => const KnowledgeScreen(),
+    (_) => const SettingsScreen(),
   ];
   late final List<Widget?> _loadedScreens = List<Widget?>.filled(
     _screenBuilders.length,
@@ -157,27 +157,27 @@ class _MainScreenState extends State<MainScreen> {
             NavigationDestination(
               icon: const Icon(Icons.chat_bubble_outline_rounded),
               selectedIcon: const Icon(Icons.chat_bubble_rounded),
-              label: tr('Home', '首页'),
+              label: tr('Assistant', '助手'),
             ),
             NavigationDestination(
               icon: const Icon(Icons.bluetooth_rounded),
               selectedIcon: const Icon(Icons.bluetooth_connected_rounded),
-              label: tr('Glasses', '眼镜'),
+              label: tr('Device', '设备'),
             ),
             NavigationDestination(
               icon: const Icon(Icons.graphic_eq_rounded),
               selectedIcon: const Icon(Icons.graphic_eq_rounded),
-              label: tr('Live', '实时'),
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.auto_awesome_outlined),
-              selectedIcon: const Icon(Icons.auto_awesome),
-              label: tr('Ask AI', '问 AI'),
+              label: tr('Sessions', '会话'),
             ),
             NavigationDestination(
               icon: const Icon(Icons.lightbulb_outline_rounded),
               selectedIcon: const Icon(Icons.lightbulb_rounded),
-              label: tr('Insights', '洞察'),
+              label: tr('Knowledge', '知识'),
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.settings_outlined),
+              selectedIcon: const Icon(Icons.settings),
+              label: tr('Settings', '设置'),
             ),
           ],
         ),

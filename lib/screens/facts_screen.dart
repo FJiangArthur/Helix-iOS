@@ -14,7 +14,9 @@ import '../widgets/glass_card.dart';
 /// 1. **Pending** — swipeable card stack for quick confirm/reject.
 /// 2. **Confirmed** — searchable, category-grouped knowledge graph.
 class FactsScreen extends StatefulWidget {
-  const FactsScreen({super.key});
+  final bool showAppBar;
+
+  const FactsScreen({super.key, this.showAppBar = true});
 
   @override
   State<FactsScreen> createState() => _FactsScreenState();
@@ -104,54 +106,63 @@ class _FactsScreenState extends State<FactsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = Column(
+      children: [
+        if (!widget.showAppBar)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _buildSearchToggle(),
+            ),
+          ),
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              if (_searchExpanded) SliverToBoxAdapter(child: _buildSearchBar()),
+              if (_pendingFacts.isNotEmpty) ...[
+                SliverToBoxAdapter(child: _buildPendingHeader()),
+                SliverToBoxAdapter(child: _buildPendingCards()),
+              ],
+              if (_pendingFacts.isEmpty)
+                SliverToBoxAdapter(child: _buildAllCaughtUp()),
+              SliverToBoxAdapter(child: _buildConfirmedHeader()),
+              if (_confirmedFacts.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyConfirmed())
+              else
+                ..._buildCategoryGroups(),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    if (!widget.showAppBar) return content;
     return Scaffold(
       backgroundColor: HelixTheme.background,
       appBar: AppBar(
         title: const Text('Facts'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _searchExpanded ? Icons.close : Icons.search,
-              color: HelixTheme.textSecondary,
-            ),
-            onPressed: () {
-              setState(() {
-                _searchExpanded = !_searchExpanded;
-                if (!_searchExpanded) {
-                  _searchController.clear();
-                  _onSearch('');
-                }
-              });
-            },
-          ),
-        ],
+        actions: [_buildSearchToggle()],
       ),
-      body: CustomScrollView(
-        slivers: [
-          // Search bar
-          if (_searchExpanded)
-            SliverToBoxAdapter(child: _buildSearchBar()),
+      body: content,
+    );
+  }
 
-          // Pending section
-          if (_pendingFacts.isNotEmpty) ...[
-            SliverToBoxAdapter(child: _buildPendingHeader()),
-            SliverToBoxAdapter(child: _buildPendingCards()),
-          ],
-
-          // Empty pending state
-          if (_pendingFacts.isEmpty)
-            SliverToBoxAdapter(child: _buildAllCaughtUp()),
-
-          // Confirmed section header
-          SliverToBoxAdapter(child: _buildConfirmedHeader()),
-
-          // Confirmed grouped list
-          if (_confirmedFacts.isEmpty)
-            SliverToBoxAdapter(child: _buildEmptyConfirmed())
-          else
-            ..._buildCategoryGroups(),
-        ],
+  Widget _buildSearchToggle() {
+    return IconButton(
+      icon: Icon(
+        _searchExpanded ? Icons.close : Icons.search,
+        color: HelixTheme.textSecondary,
       ),
+      onPressed: () {
+        setState(() {
+          _searchExpanded = !_searchExpanded;
+          if (!_searchExpanded) {
+            _searchController.clear();
+            _onSearch('');
+          }
+        });
+      },
     );
   }
 
@@ -184,9 +195,9 @@ class _FactsScreenState extends State<FactsScreen> {
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
       child: Text(
         '${_pendingFacts.length} new fact${_pendingFacts.length == 1 ? '' : 's'} to review',
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: HelixTheme.textSecondary,
-            ),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(color: HelixTheme.textSecondary),
       ),
     );
   }
@@ -313,8 +324,8 @@ class _FactsScreenState extends State<FactsScreen> {
               Text(
                 'All caught up!',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: HelixTheme.textSecondary,
-                    ),
+                  color: HelixTheme.textSecondary,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
@@ -400,8 +411,10 @@ class _FactsScreenState extends State<FactsScreen> {
                   });
                 },
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 10,
+                  ),
                   child: Row(
                     children: [
                       Container(
@@ -415,10 +428,9 @@ class _FactsScreenState extends State<FactsScreen> {
                       const SizedBox(width: 10),
                       Text(
                         catEnum.displayName,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: color,
-                                ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.titleMedium?.copyWith(color: color),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -440,36 +452,38 @@ class _FactsScreenState extends State<FactsScreen> {
 
               // Fact items
               if (!isCollapsed)
-                ...facts.map((fact) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: GlassCard(
-                        opacity: 0.10,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fact.content,
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            if (fact.sourceQuote != null &&
-                                fact.sourceQuote!.isNotEmpty) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                fact.sourceQuote!,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(fontStyle: FontStyle.italic),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ],
-                        ),
+                ...facts.map(
+                  (fact) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: GlassCard(
+                      opacity: 0.10,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                    )),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            fact.content,
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                          if (fact.sourceQuote != null &&
+                              fact.sourceQuote!.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              fact.sourceQuote!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontStyle: FontStyle.italic),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

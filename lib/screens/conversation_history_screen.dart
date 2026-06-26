@@ -13,6 +13,8 @@ import '../utils/i18n.dart';
 import '../utils/transcript_timestamps.dart';
 import '../services/cost/session_cost_snapshot.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/helix/helix_metric_chip.dart';
+import '../widgets/helix/helix_preview_card.dart';
 import '../widgets/session_cost_breakdown_sheet.dart';
 
 class ConversationHistoryScreen extends StatefulWidget {
@@ -869,8 +871,7 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
                   Icons.bolt_outlined,
                   '${session.assistantCount} ${tr('AI replies', 'AI 回复')}',
                 ),
-                if (session.costTotalUsdMicros != null)
-                  _buildCostChip(session),
+                if (session.costTotalUsdMicros != null) _buildCostChip(session),
                 if (session.reviewSignalCount > 0)
                   _buildMetaChip(
                     Icons.description_outlined,
@@ -999,71 +1000,29 @@ class _ConversationHistoryScreenState extends State<ConversationHistoryScreen> {
     required String text,
     required Color accent,
   }) {
-    return Container(
+    return HelixPreviewCard(
+      label: label,
+      icon: icon,
+      accent: accent,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: accent.withValues(alpha: 0.86)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: accent.withValues(alpha: 0.86),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.6,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            text,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.76),
-              fontSize: 12,
-              height: 1.45,
-            ),
-          ),
-        ],
+      child: Text(
+        text,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.76),
+          fontSize: 12,
+          height: 1.45,
+        ),
       ),
     );
   }
 
   Widget _buildMetaChip(IconData icon, String value, {Color? accent}) {
-    final color = accent ?? Colors.white.withValues(alpha: 0.54);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            value,
-            style: TextStyle(
-              color: accent ?? Colors.white.withValues(alpha: 0.68),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+    return HelixMetricChip(
+      icon: icon,
+      label: value,
+      color: accent ?? Colors.white.withValues(alpha: 0.68),
     );
   }
 

@@ -215,7 +215,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('CONTROL DECK'), findsOneWidget);
+    expect(find.text('ASSISTANT'), findsOneWidget);
     expect(find.text('CONVERSATION HUB'), findsOneWidget);
     expect(find.text('Expand'), findsNothing);
     expect(find.text('Tune'), findsOneWidget);
@@ -287,7 +287,7 @@ void main() {
       isTrue,
     );
 
-    await tester.tap(find.text('CONTROL DECK'));
+    await tester.tap(find.text('ASSISTANT'));
     await tester.pump();
 
     expect(

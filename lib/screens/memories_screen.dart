@@ -12,7 +12,9 @@ import '../widgets/glass_card.dart';
 import 'conversation_detail_screen.dart';
 
 class MemoriesScreen extends StatefulWidget {
-  const MemoriesScreen({super.key});
+  final bool showAppBar;
+
+  const MemoriesScreen({super.key, this.showAppBar = true});
 
   @override
   State<MemoriesScreen> createState() => _MemoriesScreenState();
@@ -120,6 +122,43 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _isLoading
+        ? const Center(child: CircularProgressIndicator(color: HelixTheme.cyan))
+        : _sections.isEmpty
+        ? _buildEmptyState()
+        : Stack(
+            children: [
+              RefreshIndicator(
+                onRefresh: _onRefresh,
+                color: HelixTheme.cyan,
+                backgroundColor: HelixTheme.surfaceRaised,
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  itemCount: _sections.length,
+                  itemBuilder: (context, index) =>
+                      _buildDaySection(_sections[index]),
+                ),
+              ),
+              if (!widget.showAppBar && _isRegenerating)
+                const Positioned(
+                  top: 8,
+                  right: 16,
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: HelixTheme.cyan,
+                    ),
+                  ),
+                ),
+            ],
+          );
+
+    if (!widget.showAppBar) return body;
     return Scaffold(
       backgroundColor: HelixTheme.background,
       appBar: AppBar(
@@ -139,26 +178,7 @@ class _MemoriesScreenState extends State<MemoriesScreen> {
             ),
         ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: HelixTheme.cyan),
-            )
-          : _sections.isEmpty
-          ? _buildEmptyState()
-          : RefreshIndicator(
-              onRefresh: _onRefresh,
-              color: HelixTheme.cyan,
-              backgroundColor: HelixTheme.surfaceRaised,
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                itemCount: _sections.length,
-                itemBuilder: (context, index) =>
-                    _buildDaySection(_sections[index]),
-              ),
-            ),
+      body: body,
     );
   }
 

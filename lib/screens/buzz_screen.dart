@@ -35,7 +35,9 @@ class _ChatMessage {
 // ---------------------------------------------------------------------------
 
 class BuzzScreen extends StatefulWidget {
-  const BuzzScreen({super.key});
+  final bool showAppBar;
+
+  const BuzzScreen({super.key, this.showAppBar = true});
 
   @override
   State<BuzzScreen> createState() => _BuzzScreenState();
@@ -95,63 +97,65 @@ class _BuzzScreenState extends State<BuzzScreen> {
     );
     setState(() => _messages.add(assistantMsg));
 
-    _activeSub = BuzzService.instance.ask(question).listen(
-      (event) {
-        switch (event) {
-          case BuzzSearching():
-            // Already showing the searching indicator.
-            break;
-          case BuzzCitationsAvailable():
-            final newCitations = event.citations;
-            citations = newCitations;
-            // Replace with streaming bubble (no longer "searching").
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  textStream: streamController.stream,
-                  citations: newCitations,
-                );
-              }
-            });
-          case BuzzTextDelta(:final text):
-            fullText += text;
-            streamController.add(text);
-            _scrollToBottom();
-          case BuzzComplete():
+    _activeSub = BuzzService.instance
+        .ask(question)
+        .listen(
+          (event) {
+            switch (event) {
+              case BuzzSearching():
+                // Already showing the searching indicator.
+                break;
+              case BuzzCitationsAvailable():
+                final newCitations = event.citations;
+                citations = newCitations;
+                // Replace with streaming bubble (no longer "searching").
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      textStream: streamController.stream,
+                      citations: newCitations,
+                    );
+                  }
+                });
+              case BuzzTextDelta(:final text):
+                fullText += text;
+                streamController.add(text);
+                _scrollToBottom();
+              case BuzzComplete():
+                streamController.close();
+                // Replace stream bubble with static text bubble for performance.
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      staticText: fullText,
+                      citations: citations,
+                    );
+                  }
+                  _isProcessing = false;
+                });
+              case BuzzError(:final message):
+                streamController.close();
+                setState(() {
+                  final idx = _messages.indexOf(assistantMsg);
+                  if (idx >= 0) {
+                    _messages[idx] = _ChatMessage(
+                      role: 'assistant',
+                      staticText: 'Error: $message',
+                    );
+                  }
+                  _isProcessing = false;
+                });
+            }
+          },
+          onError: (Object e) {
             streamController.close();
-            // Replace stream bubble with static text bubble for performance.
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  staticText: fullText,
-                  citations: citations,
-                );
-              }
-              _isProcessing = false;
-            });
-          case BuzzError(:final message):
-            streamController.close();
-            setState(() {
-              final idx = _messages.indexOf(assistantMsg);
-              if (idx >= 0) {
-                _messages[idx] = _ChatMessage(
-                  role: 'assistant',
-                  staticText: 'Error: $message',
-                );
-              }
-              _isProcessing = false;
-            });
-        }
-      },
-      onError: (Object e) {
-        streamController.close();
-        setState(() => _isProcessing = false);
-      },
-    );
+            setState(() => _isProcessing = false);
+          },
+        );
   }
 
   void _clearHistory() {
@@ -177,6 +181,30 @@ class _BuzzScreenState extends State<BuzzScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final content = SafeArea(
+      top: widget.showAppBar,
+      child: Column(
+        children: [
+          if (!widget.showAppBar && _messages.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: HelixTheme.textMuted,
+                ),
+                tooltip: 'Clear history',
+                onPressed: _clearHistory,
+              ),
+            ),
+          Expanded(
+            child: _messages.isEmpty ? _buildStarters() : _buildChatList(),
+          ),
+          _buildInputBar(),
+        ],
+      ),
+    );
+    if (!widget.showAppBar) return content;
     return Scaffold(
       backgroundColor: HelixTheme.background,
       appBar: AppBar(
@@ -184,22 +212,16 @@ class _BuzzScreenState extends State<BuzzScreen> {
         actions: [
           if (_messages.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.delete_outline, color: HelixTheme.textMuted),
+              icon: const Icon(
+                Icons.delete_outline,
+                color: HelixTheme.textMuted,
+              ),
               tooltip: 'Clear history',
               onPressed: _clearHistory,
             ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _messages.isEmpty ? _buildStarters() : _buildChatList(),
-            ),
-            _buildInputBar(),
-          ],
-        ),
-      ),
+      body: content,
     );
   }
 
@@ -214,13 +236,17 @@ class _BuzzScreenState extends State<BuzzScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 48, color: HelixTheme.cyan.withValues(alpha: 0.6)),
+            Icon(
+              Icons.auto_awesome,
+              size: 48,
+              color: HelixTheme.cyan.withValues(alpha: 0.6),
+            ),
             const SizedBox(height: 16),
             Text(
               'Ask Buzz anything about your conversations',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: HelixTheme.textSecondary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: HelixTheme.textSecondary),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -230,7 +256,13 @@ class _BuzzScreenState extends State<BuzzScreen> {
               alignment: WrapAlignment.center,
               children: _starterChips.map((chip) {
                 return ActionChip(
-                  label: Text(chip, style: const TextStyle(color: HelixTheme.cyan, fontSize: 13)),
+                  label: Text(
+                    chip,
+                    style: const TextStyle(
+                      color: HelixTheme.cyan,
+                      fontSize: 13,
+                    ),
+                  ),
                   backgroundColor: Colors.transparent,
                   side: const BorderSide(color: HelixTheme.cyan),
                   shape: RoundedRectangleBorder(
@@ -385,7 +417,9 @@ class _BuzzScreenState extends State<BuzzScreen> {
       decoration: BoxDecoration(
         color: HelixTheme.backgroundRaised,
         border: Border(
-          top: BorderSide(color: HelixTheme.borderSubtle.withValues(alpha: 0.5)),
+          top: BorderSide(
+            color: HelixTheme.borderSubtle.withValues(alpha: 0.5),
+          ),
         ),
       ),
       child: Row(
@@ -394,13 +428,18 @@ class _BuzzScreenState extends State<BuzzScreen> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              style: const TextStyle(color: HelixTheme.textPrimary, fontSize: 15),
+              style: const TextStyle(
+                color: HelixTheme.textPrimary,
+                fontSize: 15,
+              ),
               decoration: InputDecoration(
                 hintText: 'Ask Buzz a question...',
                 filled: true,
                 fillColor: HelixTheme.surfaceInteractive,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 12),
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -422,9 +461,7 @@ class _BuzzScreenState extends State<BuzzScreen> {
           IconButton(
             icon: Icon(
               Icons.send_rounded,
-              color: _isProcessing
-                  ? HelixTheme.textMuted
-                  : HelixTheme.cyan,
+              color: _isProcessing ? HelixTheme.textMuted : HelixTheme.cyan,
             ),
             onPressed: _isProcessing ? null : () => _send(_controller.text),
           ),
@@ -481,9 +518,6 @@ class _StreamingTextState extends State<_StreamingText> {
         ),
       );
     }
-    return SelectableText(
-      _text,
-      style: Theme.of(context).textTheme.bodyLarge,
-    );
+    return SelectableText(_text, style: Theme.of(context).textTheme.bodyLarge);
   }
 }

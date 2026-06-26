@@ -20,6 +20,9 @@ import '../utils/transcript_timestamps.dart';
 import '../widgets/active_project_chip.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/helix_visuals.dart';
+import '../widgets/helix/helix_action_dock.dart';
+import '../widgets/helix/helix_status_badge.dart';
+import '../widgets/helix/helix_surface.dart';
 import '../widgets/session_cost_badge.dart';
 import '../widgets/home_assistant_modules.dart';
 import '../widgets/status_indicator.dart';
@@ -88,9 +91,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   CitedFactCheckResult? _citedFactCheck;
   bool _citedFactCheckExpanded = false;
 
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-
   late AnimationController _modeSwitchController;
   late Animation<double> _modeSwitchAnimation;
 
@@ -109,14 +109,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _engine.autoDetectQuestions = settings.autoDetectQuestions;
     _engine.answerAll = settings.answerAll;
     _recordingCaptureState = _coordinator.currentCaptureState;
-
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
 
     _modeSwitchController = AnimationController(
       duration: const Duration(milliseconds: 300),
@@ -228,12 +220,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _manualAnalyzePending = false;
           }
         });
-        if (status == EngineStatus.listening) {
-          _pulseController.repeat(reverse: true);
-        } else {
-          _pulseController.stop();
-          _pulseController.reset();
-        }
       }),
       _engine.modeStream.listen((mode) {
         if (!mounted) return;
@@ -324,7 +310,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _navigateToDetail() {
-    MainScreen.switchToTab(2); // Live tab
+    MainScreen.switchToTab(2);
   }
 
   Future<void> _runResponseToolPrompt(
@@ -507,7 +493,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     for (final sub in _subscriptions) {
       sub.cancel();
     }
-    _pulseController.dispose();
     _modeSwitchController.dispose();
     _scrollController.removeListener(_handleScrollPositionChange);
     _scrollController.dispose();
@@ -580,10 +565,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _buildOverviewCard() {
     final modeColor = _profileColor(_assistantProfileId);
 
-    return GlassCard(
+    return HelixSurface(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      opacity: 0.16,
-      borderColor: modeColor.withValues(alpha: 0.2),
+      emphasis: 0.28,
+      accent: modeColor,
+      active: _isRecording,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -599,7 +585,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _isChinese ? '控制台' : 'CONTROL DECK',
+                      _isChinese ? '助手' : 'ASSISTANT',
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.72),
                         fontSize: 13,
@@ -2202,36 +2188,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
         const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: _getStatusColor().withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: _getStatusColor().withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _getStatusColor(),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                statusText,
-                style: TextStyle(
-                  color: _getStatusColor(),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
+        HelixStatusBadge(label: statusText, tone: _getStatusTone()),
       ],
     );
   }
@@ -2803,7 +2760,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (errorState.actionLabel != null) ...[
             const SizedBox(height: 12),
             GestureDetector(
-              onTap: () => MainScreen.switchToTab(3), // Insights tab
+              onTap: () => MainScreen.switchToTab(3),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -3782,113 +3739,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildComposerCard() {
-    final accentColor =
-        _recordingCaptureState == RecordingCaptureState.audioOnly
-        ? const Color(0xFFFFB547)
-        : _isRecording
-        ? const Color(0xFFFF6B6B)
-        : _profileColor(_assistantProfileId);
-
-    return GlassCard(
+    return HelixActionDock(
       key: const Key('home-fixed-composer-dock'),
-      opacity: 0.18,
-      borderRadius: HelixTheme.radiusControl,
-      borderColor: accentColor.withValues(alpha: 0.2),
-      padding: const EdgeInsets.all(6),
-      child: Row(
-        children: [
-          Expanded(child: _buildQuickAskField()),
-          const SizedBox(width: 6),
-          _buildRecordButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRecordButton() {
-    return AnimatedBuilder(
-      animation: _pulseAnimation,
-      builder: (context, child) {
-        final isRecordingActive =
-            _isRecording && _status == EngineStatus.listening;
-        final baseColor =
-            _recordingCaptureState == RecordingCaptureState.audioOnly
-            ? const Color(0xFFFFB547)
-            : _isRecording
-            ? const Color(0xFFFF6B6B)
-            : HelixTheme.cyan;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                baseColor.withValues(alpha: 0.9),
-                Color.lerp(baseColor, HelixTheme.background, 0.38)!,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(HelixTheme.radiusControl),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-            boxShadow: isRecordingActive
-                ? [
-                    BoxShadow(
-                      color: baseColor.withValues(alpha: 0.32),
-                      blurRadius: 14,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                : null,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _status == EngineStatus.thinking ? null : _toggleRecording,
-              borderRadius: BorderRadius.circular(14),
-              child: Semantics(
-                button: true,
-                label: _isRecording
-                    ? _tr(
-                        en: 'Stop recording',
-                        zh: '停止录音',
-                        ja: '録音を停止',
-                        ko: '녹음 중지',
-                        es: 'Detener grabación',
-                        ru: 'Остановить запись',
-                      )
-                    : _tr(
-                        en: 'Start recording',
-                        zh: '开始录音',
-                        ja: '録音を開始',
-                        ko: '녹음 시작',
-                        es: 'Iniciar grabación',
-                        ru: 'Начать запись',
-                      ),
-                child: Center(
-                  child: _status == EngineStatus.thinking
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(
-                          _isRecording ? Icons.stop_rounded : Icons.mic_rounded,
-                          size: 18,
-                          color: Colors.white,
-                        ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+      controller: _askController,
+      focusNode: _askFocusNode,
+      hintText: _isRecording
+          ? _tr(
+              en: 'Listening...',
+              zh: '监听中...',
+              ja: '聞き取り中...',
+              ko: '듣는 중...',
+              es: 'Escuchando...',
+              ru: 'Слушаем...',
+            )
+          : _getAskHint(),
+      inputEnabled: !_isRecording,
+      isRecording: _isRecording,
+      isBusy: _status == EngineStatus.thinking,
+      onSend: _submitQuestion,
+      onRecordTap: _toggleRecording,
+      onTapOutside: _dismissQuickAskFocus,
     );
   }
 
@@ -4027,110 +3897,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  Widget _buildQuickAskField() {
-    final inputFill = Color.lerp(
-      HelixTheme.surfaceInteractive,
-      HelixTheme.surfaceRaised,
-      0.28,
-    )!.withValues(alpha: 0.82);
-    final shellFill = Colors.black.withValues(alpha: 0.18);
-
-    return Container(
-      key: const Key('home-composer-input-shell'),
-      height: 44,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: shellFill,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: inputFill,
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: TextField(
-                controller: _askController,
-                focusNode: _askFocusNode,
-                enabled: !_isRecording,
-                style: TextStyle(
-                  color: Colors.white.withValues(
-                    alpha: _isRecording ? 0.42 : 1,
-                  ),
-                  fontSize: 14,
-                ),
-                decoration: InputDecoration(
-                  hintText: _isRecording
-                      ? _tr(
-                          en: 'Listening...',
-                          zh: '监听中...',
-                          ja: '聞き取り中...',
-                          ko: '듣는 중...',
-                          es: 'Escuchando...',
-                          ru: 'Слушаем...',
-                        )
-                      : _getAskHint(),
-                  hintStyle: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.3),
-                    fontSize: 14,
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                ),
-                textInputAction: TextInputAction.send,
-                onTapOutside: (_) => _dismissQuickAskFocus(),
-                onSubmitted: (_) {
-                  if (!_isRecording) {
-                    _submitQuestion();
-                  }
-                },
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: _isRecording ? null : _submitQuestion,
-            child: Container(
-              key: const Key('home-composer-send-button'),
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color:
-                    (_isRecording
-                            ? Colors.white
-                            : Color.lerp(
-                                HelixTheme.cyanDeep,
-                                HelixTheme.cyan,
-                                0.18,
-                              )!)
-                        .withValues(alpha: _isRecording ? 0.08 : 0.22),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: (_isRecording ? Colors.white : HelixTheme.cyan)
-                      .withValues(alpha: 0.12),
-                ),
-              ),
-              child: Icon(
-                Icons.send_rounded,
-                color: (_isRecording ? Colors.white : HelixTheme.cyan)
-                    .withValues(alpha: 0.85),
-                size: 17,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _getAskHint() {
     if (_isChinese) {
       switch (_currentMode) {
@@ -4259,6 +4025,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         return HelixTheme.purple;
       case EngineStatus.error:
         return HelixTheme.error;
+    }
+  }
+
+  HelixStatusTone _getStatusTone() {
+    if (_providerError != null || _status == EngineStatus.error) {
+      return HelixStatusTone.error;
+    }
+    if (!_hasApiKey) {
+      return HelixStatusTone.thinking;
+    }
+    final micSource = SettingsManager.instance.preferredMicSource;
+    if (micSource == 'glasses' && !BleManager.isBothConnected()) {
+      return HelixStatusTone.thinking;
+    }
+    switch (_status) {
+      case EngineStatus.idle:
+        return HelixStatusTone.ready;
+      case EngineStatus.listening:
+        return HelixStatusTone.listening;
+      case EngineStatus.thinking:
+      case EngineStatus.responding:
+        return HelixStatusTone.thinking;
+      case EngineStatus.error:
+        return HelixStatusTone.error;
     }
   }
 

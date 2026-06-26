@@ -139,18 +139,24 @@ void main() {
         find.byType(NavigationDestination),
       );
       final labels = destinations.map((d) => d.label).toList();
-      expect(labels, ['Home', 'Glasses', 'Live', 'Ask AI', 'Insights']);
+      expect(labels, [
+        'Assistant',
+        'Device',
+        'Sessions',
+        'Knowledge',
+        'Settings',
+      ]);
     });
 
     testWidgets('tab icons are present for each destination', (tester) async {
       await pumpMainScreen(tester);
 
-      // Tab 0 is selected (Home), so it shows chat_bubble_rounded
+      // Tab 0 is selected (Assistant), so it shows chat_bubble_rounded.
       expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
       expect(find.byIcon(Icons.bluetooth_rounded), findsOneWidget);
       expect(find.byIcon(Icons.graphic_eq_rounded), findsWidgets);
-      expect(find.byIcon(Icons.auto_awesome_outlined), findsOneWidget);
       expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     });
 
     testWidgets('uses IndexedStack for state preservation', (tester) async {
@@ -162,36 +168,57 @@ void main() {
     testWidgets('Home tab (0) has no main AppBar on launch', (tester) async {
       await pumpMainScreen(tester);
 
-      // Home is tab 0 (default), no main AppBar — HomeScreen manages its own
+      // Assistant is tab 0 (default), no main AppBar.
       final mainAppBars = tester.widgetList<AppBar>(find.byType(AppBar));
-      final hasHomeTitle = mainAppBars.any(
-        (bar) => bar.title is Text && (bar.title as Text).data == 'Home',
+      final hasAssistantTitle = mainAppBars.any(
+        (bar) => bar.title is Text && (bar.title as Text).data == 'Assistant',
       );
-      expect(hasHomeTitle, isFalse);
+      expect(hasAssistantTitle, isFalse);
     });
 
-    testWidgets('tapping Live tab shows Live sub-tabs', (tester) async {
+    testWidgets('tapping Sessions tab shows Sessions sub-tabs', (tester) async {
       await pumpMainScreen(tester);
 
-      // Live is tab 2
-      final liveDest = find.byType(NavigationDestination).at(2);
-      await tester.tap(liveDest);
+      final sessionsDest = find.byType(NavigationDestination).at(2);
+      await tester.tap(sessionsDest);
       await tester.pumpAndSettle();
 
-      expect(find.text('Live'), findsWidgets);
-      expect(find.text('History'), findsOneWidget);
+      expect(find.text('Monitor'), findsOneWidget);
+      expect(find.text('Archive'), findsOneWidget);
+      expect(find.text('Projects'), findsOneWidget);
     });
 
-    testWidgets('tapping Ask AI tab shows Ask AI sub-tabs', (tester) async {
+    testWidgets('tapping Knowledge tab shows Knowledge sub-tabs', (
+      tester,
+    ) async {
       await pumpMainScreen(tester);
 
-      // Ask AI is tab 3
-      final askAiDest = find.byType(NavigationDestination).at(3);
-      await tester.tap(askAiDest);
+      final knowledgeDest = find.byType(NavigationDestination).at(3);
+      await tester.tap(knowledgeDest);
       await tester.pumpAndSettle();
 
-      expect(find.text('Daily AI'), findsOneWidget);
+      expect(find.text('Ask'), findsOneWidget);
+      expect(find.text('Facts'), findsOneWidget);
+      expect(find.text('Memories'), findsOneWidget);
       expect(find.text('Review'), findsOneWidget);
+    });
+
+    testWidgets('MainScreen.switchToTab loads migrated destinations', (
+      tester,
+    ) async {
+      await pumpMainScreen(tester);
+
+      MainScreen.switchToTab(2);
+      await tester.pumpAndSettle();
+      expect(find.text('Monitor'), findsOneWidget);
+
+      MainScreen.switchToTab(3);
+      await tester.pumpAndSettle();
+      expect(find.text('Ask'), findsOneWidget);
+
+      MainScreen.switchToTab(4);
+      await tester.pumpAndSettle();
+      expect(find.text('Settings'), findsWidgets);
     });
 
     testWidgets('navigation bar height is compact at 62', (tester) async {
@@ -215,15 +242,19 @@ void main() {
       );
     });
 
-    testWidgets('settings gear icon is in AppBar on Live tab', (tester) async {
+    testWidgets('settings gear icon remains available on Sessions tab', (
+      tester,
+    ) async {
       await pumpMainScreen(tester);
 
-      // Switch to Live tab (2) which has its own AppBar with settings
-      final liveDest = find.byType(NavigationDestination).at(2);
-      await tester.tap(liveDest);
+      final sessionsDest = find.byType(NavigationDestination).at(2);
+      await tester.tap(sessionsDest);
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      expect(
+        find.widgetWithIcon(IconButton, Icons.settings_outlined),
+        findsOneWidget,
+      );
     });
   });
 }

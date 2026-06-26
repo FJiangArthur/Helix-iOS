@@ -13,6 +13,9 @@ import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glow_button.dart';
+import '../widgets/helix/helix_metric_chip.dart';
+import '../widgets/helix/helix_status_badge.dart';
+import '../widgets/helix/helix_surface.dart';
 import '../widgets/helix_visuals.dart';
 import 'even_features_screen.dart';
 import 'hud_widgets_screen.dart';
@@ -131,20 +134,38 @@ class _G1TestScreenState extends State<G1TestScreen> {
     final isConnected = _isConnected;
     final accent = isConnected ? HelixTheme.cyan : HelixTheme.amber;
 
-    return GlassCard(
+    return HelixSurface(
       padding: const EdgeInsets.all(20),
+      emphasis: 0.30,
+      accent: accent,
+      active: isConnected,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               SizedBox(
-                width: 86,
-                child: HelixVisual(
-                  type: HelixVisualType.glasses,
-                  height: 58,
-                  accent: isConnected ? HelixTheme.cyan : HelixTheme.amber,
-                  compact: true,
+                width: 96,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    HelixVisual(
+                      type: HelixVisualType.glasses,
+                      height: 62,
+                      accent: accent,
+                      compact: true,
+                    ),
+                    Positioned(
+                      left: 8,
+                      bottom: 0,
+                      child: _buildLensDot('L', isConnected),
+                    ),
+                    Positioned(
+                      right: 8,
+                      bottom: 0,
+                      child: _buildLensDot('R', isConnected),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 16),
@@ -174,25 +195,35 @@ class _G1TestScreenState extends State<G1TestScreen> {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: accent.withValues(alpha: 0.22)),
-                ),
-                child: Text(
-                  isConnected ? tr('ONLINE', '在线') : tr('OFFLINE', '离线'),
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                  ),
-                ),
+              HelixStatusBadge(
+                label: isConnected ? tr('ONLINE', '在线') : tr('OFFLINE', '离线'),
+                tone: isConnected
+                    ? HelixStatusTone.ready
+                    : HelixStatusTone.offline,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              HelixMetricChip(
+                icon: Icons.visibility_rounded,
+                label: tr('Dual channel', '双通道'),
+                color: accent,
+              ),
+              HelixMetricChip(
+                icon: Icons.mic_rounded,
+                label: SettingsManager.instance.preferredMicSource == 'phone'
+                    ? tr('Phone mic', '手机麦克风')
+                    : tr('G1 mic', 'G1 麦克风'),
+                color: HelixTheme.purple,
+              ),
+              HelixMetricChip(
+                icon: Icons.dashboard_customize_outlined,
+                label: _dashboardState.renderPath.label,
+                color: HelixTheme.lime,
               ),
             ],
           ),
@@ -211,6 +242,37 @@ class _G1TestScreenState extends State<G1TestScreen> {
               color: Colors.white.withValues(alpha: 0.7),
               fontSize: 14,
               height: 1.45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLensDot(String side, bool connected) {
+    final color = connected ? HelixTheme.lime : HelixTheme.amber;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            side,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
