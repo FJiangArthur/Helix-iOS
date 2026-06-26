@@ -11,6 +11,13 @@ import '../utils/conversation_mode_labels.dart';
 import '../utils/transcript_timestamps.dart';
 import '../widgets/glass_card.dart';
 
+String conversationSegmentSpeakerLabel(String? speakerLabel) {
+  final normalizedSpeaker = speakerLabel?.toLowerCase();
+  if (normalizedSpeaker == 'assistant') return 'Even AI';
+  if (normalizedSpeaker == 'me' || normalizedSpeaker == 'user') return 'You';
+  return speakerLabel ?? 'Conversation';
+}
+
 class ConversationDetailScreen extends StatefulWidget {
   final String conversationId;
 
@@ -451,16 +458,11 @@ class _ConversationDetailScreenState extends State<ConversationDetailScreen>
   Widget _buildTranscriptBubble(ConversationSegment seg) {
     final normalizedSpeaker = seg.speakerLabel?.toLowerCase();
     final isAssistant = normalizedSpeaker == 'assistant';
-    final isMe =
-        normalizedSpeaker == 'me' ||
-        normalizedSpeaker == 'user' ||
-        seg.speakerLabel == null;
+    final isMe = normalizedSpeaker == 'me' || normalizedSpeaker == 'user';
     final speakerColor = isAssistant
         ? HelixTheme.amber
         : (isMe ? HelixTheme.cyan : HelixTheme.purple);
-    final speakerLabel = isAssistant
-        ? 'Even AI'
-        : (isMe ? 'Conversation' : (seg.speakerLabel ?? 'Other'));
+    final speakerLabel = conversationSegmentSpeakerLabel(seg.speakerLabel);
 
     final time = DateTime.fromMillisecondsSinceEpoch(seg.startedAt);
     final sessionStart = _segments.isNotEmpty
@@ -614,12 +616,13 @@ class _TopicSectionState extends State<_TopicSection> {
               const Divider(height: 1),
               const SizedBox(height: 12),
               ...widget.segments.map((seg) {
+                final normalizedSpeaker = seg.speakerLabel?.toLowerCase();
                 final isMe =
-                    seg.speakerLabel?.toLowerCase() == 'me' ||
-                    seg.speakerLabel?.toLowerCase() == 'user' ||
-                    seg.speakerLabel == null;
+                    normalizedSpeaker == 'me' || normalizedSpeaker == 'user';
                 final speakerColor = isMe ? HelixTheme.cyan : HelixTheme.purple;
-                final speaker = isMe ? 'Me' : (seg.speakerLabel ?? 'Other');
+                final speaker = conversationSegmentSpeakerLabel(
+                  seg.speakerLabel,
+                );
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 6),

@@ -6,8 +6,11 @@ import 'package:flutter_helix/models/assistant_profile.dart';
 import 'package:flutter_helix/screens/detail_analysis_screen.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/llm/llm_service.dart';
+import 'package:flutter_helix/services/recording_coordinator.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../helpers/test_helpers.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -19,8 +22,7 @@ void main() {
   final secureStorageValues = <String, String>{};
 
   Future<Object?> secureStorageHandler(MethodCall call) async {
-    final arguments =
-        (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+    final arguments = (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
     final key = arguments['key'] as String?;
 
     switch (call.method) {
@@ -52,15 +54,15 @@ void main() {
         .setMockMethodCallHandler(secureStorageChannel, secureStorageHandler);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(bluetoothChannel, (call) async {
-      switch (call.method) {
-        case 'startEvenAI':
-          return 'started';
-        case 'stopEvenAI':
-          return 'stopped';
-        default:
-          return null;
-      }
-    });
+          switch (call.method) {
+            case 'startEvenAI':
+              return 'started';
+            case 'stopEvenAI':
+              return 'stopped';
+            default:
+              return null;
+          }
+        });
     SharedPreferences.setMockInitialValues({});
     await SettingsManager.instance.initialize();
     LlmService.instance.initializeDefaults();
@@ -79,6 +81,9 @@ void main() {
     ConversationEngine.instance.clearHistory();
     ConversationEngine.instance.stop();
     ConversationEngine.instance.setMode(ConversationMode.general);
+    RecordingCoordinator.instance.isRecording.value = false;
+    RecordingCoordinator.instance.captureState.value =
+        RecordingCaptureState.idle;
     BleManager.get().isConnected = false;
     for (final profile in AssistantProfile.defaults) {
       await SettingsManager.instance.saveAssistantProfile(profile);
@@ -168,9 +173,7 @@ void main() {
       expect(find.text('Recording'), findsNothing);
     });
 
-    testWidgets('LIVE TRANSCRIPT label is NOT shown when idle', (
-      tester,
-    ) async {
+    testWidgets('LIVE TRANSCRIPT label is NOT shown when idle', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: DetailAnalysisScreen())),
       );
@@ -199,9 +202,7 @@ void main() {
       expect(find.text('FULL TRANSCRIPT'), findsNothing);
     });
 
-    testWidgets('CONVERSATION ANALYSIS is NOT shown when idle', (
-      tester,
-    ) async {
+    testWidgets('CONVERSATION ANALYSIS is NOT shown when idle', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: DetailAnalysisScreen())),
       );
@@ -209,5 +210,43 @@ void main() {
 
       expect(find.text('CONVERSATION ANALYSIS'), findsNothing);
     });
+
+    testWidgets(
+      'hydrates live transcript and manual Q&A when opened mid-recording',
+      (tester) async {
+        await configureFakeLlm(
+          streamResponses: const [
+            FakeStreamResponse(['It means the beta could slip by a week.']),
+          ],
+        );
+
+        final engine = ConversationEngine.instance;
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized(
+          'We are discussing launch readiness with the team.',
+        );
+        await engine.askQuestion('What does the risk mean?');
+
+        RecordingCoordinator.instance.isRecording.value = true;
+        RecordingCoordinator.instance.captureState.value =
+            RecordingCaptureState.transcribing;
+
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: DetailAnalysisScreen())),
+        );
+        await tester.pump();
+
+        expect(find.text('LIVE TRANSCRIPT'), findsOneWidget);
+        expect(
+          find.text('We are discussing launch readiness with the team.'),
+          findsOneWidget,
+        );
+        expect(find.text('What does the risk mean?'), findsOneWidget);
+        expect(
+          find.text('It means the beta could slip by a week.'),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

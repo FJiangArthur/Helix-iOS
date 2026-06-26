@@ -451,6 +451,40 @@ void main() {
     );
 
     test(
+      'string segmentId payloads do not drop finalized transcripts',
+      () async {
+        final speechEvents = StreamController<dynamic>.broadcast();
+        final session = ConversationListeningSession.test(
+          speechEvents: speechEvents.stream,
+          engine: engine,
+          finalizationTimeout: const Duration(milliseconds: 10),
+          invokeMethod: (method, [arguments]) async => null,
+        );
+
+        await session.startSession(source: TranscriptSource.phone);
+        speechEvents.add({
+          'script': 'This segment has a string identifier',
+          'isFinal': false,
+          'segmentId': 'seg_1',
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        speechEvents.add({
+          'script': 'This segment has a string identifier',
+          'isFinal': true,
+          'segmentId': 'seg_1',
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+
+        expect(engine.currentTranscriptSnapshot.finalizedSegments, [
+          'This segment has a string identifier',
+        ]);
+
+        await session.stopSession();
+        await speechEvents.close();
+      },
+    );
+
+    test(
       'multi-segment conversation preserves all finalized segments',
       () async {
         final speechEvents = StreamController<dynamic>.broadcast();

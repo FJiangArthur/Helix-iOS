@@ -45,6 +45,7 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
 
     _isRecording = _coordinator.isRecording.value;
     _recordingCaptureState = _coordinator.currentCaptureState;
+    _hydrateFromEngine();
 
     _subs.addAll([
       _coordinator.recordingStateStream.listen((recording) {
@@ -147,17 +148,97 @@ class _DetailAnalysisScreenState extends State<DetailAnalysisScreen> {
   }
 
   void _buildPostAnalysis() {
+    final snapshot = _buildPostAnalysisSnapshot();
+    if (snapshot != null && snapshot.hasContent) {
+      setState(() => _postAnalysis = snapshot);
+    }
+  }
+
+  AssistantInsightSnapshot? _buildPostAnalysisSnapshot() {
     final isChinese = SettingsManager.instance.language == 'zh';
-    final snapshot = AssistantInsightSnapshot.fromConversation(
+    return AssistantInsightSnapshot.fromConversation(
       transcription: _transcription,
       aiResponse: _aiResponse,
       history: _engine.history,
       isChinese: isChinese,
     );
-    if (snapshot != null && snapshot.hasContent) {
-      setState(() => _postAnalysis = snapshot);
+  }
+
+  void _hydrateFromEngine() {
+    final snapshot = _engine.currentTranscriptSnapshot;
+    _transcription = snapshot.fullTranscript;
+    _transcriptEntries = snapshot.finalizedTimelineEntries;
+    _segmentCount = _transcriptEntries.length;
+    _wordCount = _transcription
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .length;
+    _aiResponse = _engine.latestAssistantResponse;
+
+    _qaEntries
+      ..clear()
+      ..addAll(_buildQaEntriesFromHistory());
+
+    final latestDetection = _engine.latestQuestionDetection;
+    if (latestDetection != null &&
+        !_qaEntries.any(
+          (entry) =>
+              _normalizeQaText(entry.question) ==
+              _normalizeQaText(latestDetection.question),
+        )) {
+      _qaEntries.add(
+        _QAEntry(
+          question: latestDetection.question,
+          questionExcerpt: latestDetection.questionExcerpt,
+          timestamp: latestDetection.timestamp,
+          answer: '',
+        ),
+      );
+    }
+
+    if (_aiResponse.trim().isNotEmpty && _qaEntries.isNotEmpty) {
+      final lastEntry = _qaEntries.last;
+      if (lastEntry.answer.trim().isEmpty) {
+        _qaEntries.last = lastEntry.copyWith(answer: _aiResponse);
+      }
+    }
+
+    if (!_isRecording) {
+      final postAnalysis = _buildPostAnalysisSnapshot();
+      if (postAnalysis != null && postAnalysis.hasContent) {
+        _postAnalysis = postAnalysis;
+      }
     }
   }
+
+  List<_QAEntry> _buildQaEntriesFromHistory() {
+    final entries = <_QAEntry>[];
+    for (final turn in _engine.history) {
+      if (turn.role == 'user') {
+        entries.add(
+          _QAEntry(
+            question: turn.content,
+            questionExcerpt: '',
+            timestamp: turn.timestamp,
+            answer: '',
+          ),
+        );
+      } else if (turn.role == 'assistant' && turn.content.trim().isNotEmpty) {
+        final unansweredIndex = entries.lastIndexWhere(
+          (entry) => entry.answer.trim().isEmpty,
+        );
+        if (unansweredIndex != -1) {
+          entries[unansweredIndex] = entries[unansweredIndex].copyWith(
+            answer: turn.content,
+          );
+        }
+      }
+    }
+    return entries;
+  }
+
+  String _normalizeQaText(String text) =>
+      text.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {

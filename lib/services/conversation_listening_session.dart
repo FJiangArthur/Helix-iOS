@@ -113,7 +113,7 @@ class ConversationListeningSession {
           final isFinal = payload['isFinal'] == true;
           final error = (payload['error'] as String?)?.trim();
           final timestampMs = payload['timestampMs'] as int?;
-          final segmentId = payload['segmentId'] as int?;
+          final segmentId = _parseSegmentId(payload['segmentId']);
           final speaker = payload['speaker'] as String?;
           final usagePayload = payload['usage'];
 
@@ -292,6 +292,16 @@ class ConversationListeningSession {
     } finally {
       _starting = false;
     }
+  }
+
+  int? _parseSegmentId(Object? rawSegmentId) {
+    if (rawSegmentId == null) return null;
+    if (rawSegmentId is int) return rawSegmentId;
+    if (rawSegmentId is num) return rawSegmentId.toInt();
+
+    final text = rawSegmentId.toString().trim();
+    if (text.isEmpty) return null;
+    return int.tryParse(text);
   }
 
   Future<void> stopSession() async {

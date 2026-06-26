@@ -108,6 +108,7 @@ class ConversationEngine {
   String _realtimeResponseBuffer = '';
   String _latestAssistantResponse = '';
   DateTime? _latestAssistantResponseTimestamp;
+  List<String> _latestFollowUpChips = const [];
   String _lastEmittedSnapshot = '';
   String _lastEmittedPartial = '';
   DateTime? _silenceTimerTarget;
@@ -222,6 +223,9 @@ class ConversationEngine {
   ProviderErrorState? get lastProviderError => _lastProviderError;
   QuestionDetectionResult? get latestQuestionDetection =>
       _latestQuestionDetection;
+  String get latestAssistantResponse => _latestAssistantResponse;
+  List<String> get currentFollowUpChips =>
+      List.unmodifiable(_latestFollowUpChips);
 
   /// Compute live transcript statistics for UI display.
   TranscriptStats get transcriptStats {
@@ -285,6 +289,7 @@ class ConversationEngine {
     _sentimentSegmentCounter = 0;
     _entitySegmentCounter = 0;
     _analyticsRunning = false;
+    _analyticsPendingRuns = 0;
     _conversationCostTracker.reset();
     _clearProviderError();
     _lastSavedConversationId = null;
@@ -373,6 +378,13 @@ class ConversationEngine {
       final db = database_pkg.HelixDatabase.instance;
       final conversationId = const Uuid().v4();
       final now = DateTime.now().millisecondsSinceEpoch;
+      final timelineEntries = _buildPersistedTimelineEntries();
+      if (timelineEntries.isEmpty) {
+        appLogger.w(
+          'Skipping conversation save because there are no timeline entries',
+        );
+        return;
+      }
       _lastSavedConversationId = conversationId;
 
       // Save conversation record
@@ -385,8 +397,6 @@ class ConversationEngine {
           source: drift.Value('glasses'),
         ),
       );
-
-      final timelineEntries = _buildPersistedTimelineEntries();
 
       // Save timeline entries in chronological order so transcript and
       // assistant replies remain part of the same persisted session.
@@ -459,6 +469,9 @@ class ConversationEngine {
   }
 
   List<TranscriptSegment> _buildPersistedTimelineEntries() {
+    final finalizedTranscriptKey = _normalizeQuestion(
+      _finalizedSegments.map((segment) => segment.text).join(' '),
+    );
     final entries = <TranscriptSegment>[
       ..._finalizedSegments.map(
         (segment) => TranscriptSegment(
@@ -468,7 +481,26 @@ class ConversationEngine {
         ),
       ),
       ..._history
+          .where((turn) => turn.role == 'user')
+          .where((turn) {
+            final turnKey = _normalizeQuestion(turn.content);
+            if (turnKey.isEmpty || turnKey == finalizedTranscriptKey) {
+              return false;
+            }
+            return !_finalizedSegments.any(
+              (segment) => _normalizeQuestion(segment.text) == turnKey,
+            );
+          })
+          .map(
+            (turn) => TranscriptSegment(
+              text: turn.content,
+              timestamp: turn.timestamp,
+              speakerLabel: 'user',
+            ),
+          ),
+      ..._history
           .where((turn) => turn.role == 'assistant')
+          .where((turn) => turn.content.trim().isNotEmpty)
           .map(
             (turn) => TranscriptSegment(
               text: turn.content,
@@ -499,7 +531,16 @@ class ConversationEngine {
     }
 
     entries.sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    return entries;
+    return entries
+        .where((entry) => entry.text.trim().isNotEmpty)
+        .map(
+          (entry) => TranscriptSegment(
+            text: entry.text.trim(),
+            timestamp: entry.timestamp,
+            speakerLabel: entry.speakerLabel,
+          ),
+        )
+        .toList();
   }
 
   Future<void> attachLatestAudioFilePath(String? path) async {
@@ -1012,7 +1053,8 @@ class ConversationEngine {
   /// User explicitly asks a question (Direct Q&A mode)
   /// Works even when engine is not actively listening (standalone text mode)
   Future<void> askQuestion(String question) async {
-    if (question.trim().isEmpty) return;
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) return;
 
     await TextService.get.stopTextSendingByOS();
     await HudController.instance.beginQuickAsk(
@@ -1020,15 +1062,17 @@ class ConversationEngine {
     );
     _clearProviderError();
 
+    final now = DateTime.now();
     _history.add(
       ConversationTurn(
         role: 'user',
-        content: question,
-        timestamp: DateTime.now(),
+        content: trimmedQuestion,
+        timestamp: now,
         mode: _mode.name,
         assistantProfileId: _activeAssistantProfile().id,
       ),
     );
+    _publishManualQuestionDetection(trimmedQuestion, now);
     _persistHistory();
 
     _aiResponseController.add('');
@@ -1042,9 +1086,33 @@ class ConversationEngine {
     // `_handleDetectedQuestion` already passes `bypassRealtimeGuard: true`
     // for the same reason.
     await _generateResponse(
-      question,
+      trimmedQuestion,
       responseToken: responseToken,
       bypassRealtimeGuard: true,
+    );
+  }
+
+  void _publishManualQuestionDetection(String question, DateTime timestamp) {
+    final detection = QuestionDetectionResult(
+      question: question,
+      questionExcerpt: '',
+      timestamp: timestamp,
+      askedBy: 'wearer',
+      priority: QuestionPriority.manual,
+    );
+    _latestQuestionDetection = detection;
+    final questionKey = _normalizeQuestion(question);
+    if (questionKey.isNotEmpty) {
+      _lastHandledQuestionKey = questionKey;
+      _lastHandledQuestionTime = timestamp;
+    }
+    _questionDetectionController.add(detection);
+    _questionDetectedController.add(
+      DetectedQuestion(
+        question: question,
+        fullContext: _composeFullTranscript(),
+        timestamp: timestamp,
+      ),
     );
   }
 
@@ -1513,7 +1581,7 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
 
       final chips = _parseFollowUpChips(response);
       if (chips.isNotEmpty) {
-        _followUpChipsController.add(chips);
+        _emitFollowUpChips(chips);
       }
     } catch (e) {
       appLogger.d('Failed to generate follow-up chips: $e');
@@ -1539,6 +1607,11 @@ Example format: ["Tell me more", "Give an example", "How do I apply this?"]''';
       appLogger.d('Could not parse follow-up chips: $e');
       return [];
     }
+  }
+
+  void _emitFollowUpChips(List<String> chips) {
+    _latestFollowUpChips = List.unmodifiable(chips);
+    _followUpChipsController.add(_latestFollowUpChips);
   }
 
   Future<void> _backgroundFactCheck(String answer) async {
@@ -1626,7 +1699,7 @@ factCheck: check answer for factual accuracy — "null" if correct, one-sentence
             .take(3)
             .toList();
         if (chips.isNotEmpty) {
-          _followUpChipsController.add(chips);
+          _emitFollowUpChips(chips);
         }
       }
 
@@ -3222,6 +3295,7 @@ Answer the detected question directly using the recent conversation context abov
     _realtimeResponseBuffer = '';
     _latestAssistantResponse = '';
     _latestAssistantResponseTimestamp = null;
+    _analyticsPendingRuns = 0;
     _lastHandledQuestionKey = '';
     _lastHandledQuestionTime = null;
     _lastCoachingQuestionKey = '';
@@ -3229,7 +3303,7 @@ Answer the detected question directly using the recent conversation context abov
     _sessionStopHandled = false;
     _lastEmittedSnapshot = '__session_reset__';
     _lastEmittedPartial = '__session_reset__';
-    _followUpChipsController.add(const []);
+    _emitFollowUpChips(const []);
     _aiResponseController.add('');
     _postConversationController.add(null);
     _emitTranscriptSnapshot();
@@ -3293,17 +3367,22 @@ Answer the detected question directly using the recent conversation context abov
   // ---------------------------------------------------------------------------
 
   bool _analyticsRunning = false;
+  int _analyticsPendingRuns = 0;
 
   /// Timeout for each individual background analytics call to prevent
   /// permanent lockout if an LLM call hangs.
   static const _analyticsTimeout = Duration(seconds: 30);
 
   /// Runs sentiment analysis then entity extraction sequentially so they
-  /// never overlap with each other. Skips if a prior run is still in-flight.
+  /// never overlap with each other. If new segments finalize while a pass is
+  /// in-flight, one rerun is scheduled against the latest counters.
   /// Each call is individually guarded by [_analyticsTimeout] to prevent
   /// a hung LLM call from permanently disabling analytics.
   Future<void> _runBackgroundAnalytics() async {
-    if (_analyticsRunning) return;
+    if (_analyticsRunning) {
+      _analyticsPendingRuns++;
+      return;
+    }
     _analyticsRunning = true;
     try {
       await _maybeTriggerSentimentAnalysis().timeout(
@@ -3320,6 +3399,10 @@ Answer the detected question directly using the recent conversation context abov
       );
     } finally {
       _analyticsRunning = false;
+      if (_analyticsPendingRuns > 0 && _isActive) {
+        _analyticsPendingRuns--;
+        scheduleMicrotask(_runBackgroundAnalytics);
+      }
     }
   }
 

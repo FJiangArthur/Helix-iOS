@@ -2,7 +2,7 @@ name: flutter_helix
 description: "Helix - Cross-platform companion app for Even Realities smart glasses"
 publish_to: 'none'
 
-version: 2.2.44+202606251723
+version: 2.2.45+202606261006
 
 environment:
   sdk: ^3.9.0

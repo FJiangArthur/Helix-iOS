@@ -64,6 +64,22 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       expect(recorder.sentiments, isEmpty);
     });
+
+    test('sentiment emitted after 3 rapid finalized segments', () async {
+      SettingsManager.instance.sentimentMonitorEnabled = true;
+      engine.autoDetectQuestions = false;
+      engine.start();
+
+      provider.enqueueResponse('0.7');
+
+      engine.onTranscriptionFinalized('First rapid segment.');
+      engine.onTranscriptionFinalized('Second rapid segment.');
+      engine.onTranscriptionFinalized('Third rapid segment.');
+      await Future<void>.delayed(const Duration(seconds: 2));
+
+      expect(recorder.sentiments, isNotEmpty);
+      expect(recorder.sentiments.first, closeTo(0.7, 0.01));
+    });
   });
 
   group('B10 - Entity extraction triggers every 2nd segment', () {
@@ -107,6 +123,24 @@ void main() {
 
       await Future<void>.delayed(const Duration(milliseconds: 500));
       expect(recorder.entities, isEmpty);
+    });
+
+    test('entity emitted after 2 rapid finalized segments', () async {
+      SettingsManager.instance.entityMemoryEnabled = true;
+      SettingsManager.instance.sentimentMonitorEnabled = false;
+      engine.autoDetectQuestions = false;
+      engine.start();
+
+      provider.enqueueResponse(
+        '[{"name": "John Smith", "title": "CEO", "company": "Acme"}]',
+      );
+
+      engine.onTranscriptionFinalized('John Smith joined the review.');
+      engine.onTranscriptionFinalized('Acme is expanding this quarter.');
+      await Future<void>.delayed(const Duration(seconds: 2));
+
+      expect(recorder.entities, isNotEmpty);
+      expect(recorder.entities.first.name, 'John Smith');
     });
   });
 

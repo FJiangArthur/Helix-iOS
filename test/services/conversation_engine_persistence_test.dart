@@ -167,5 +167,76 @@ void main() {
         );
       },
     );
+
+    test(
+      'stop persists manual live questions and answers in chronological timeline',
+      () async {
+        await configureFakeLlm(
+          responses: const [
+            '{"chips": ["Risk?"], "factCheck": "null"}',
+            '{"summary": "Risk review", "topics": ["risk"], "actionItems": [], "sentiment": "neutral"}',
+          ],
+          streamResponses: const [
+            FakeStreamResponse(['The risk is a delayed rollout window.']),
+          ],
+        );
+
+        final detectedQuestions = <QuestionDetectionResult>[];
+        final sub = engine.questionDetectionStream.listen(
+          detectedQuestions.add,
+        );
+
+        engine.start(source: TranscriptSource.phone);
+        engine.onTranscriptionFinalized(
+          'We are reviewing launch risk with the team.',
+        );
+        await engine.askQuestion('What is the biggest rollout risk?');
+        engine.stop();
+
+        await waitForCondition(() async {
+          final conversations = await HelixDatabase.instance.conversationDao
+              .getAllConversations();
+          if (conversations.isEmpty) return false;
+          final segments = await HelixDatabase.instance.conversationDao
+              .getSegmentsForConversation(conversations.single.id);
+          return segments.any(
+                (segment) =>
+                    segment.text_ == 'What is the biggest rollout risk?' &&
+                    segment.speakerLabel == 'user',
+              ) &&
+              segments.any(
+                (segment) =>
+                    segment.text_ == 'The risk is a delayed rollout window.' &&
+                    segment.speakerLabel == 'assistant',
+              );
+        });
+
+        expect(detectedQuestions, hasLength(1));
+        expect(
+          detectedQuestions.single.question,
+          'What is the biggest rollout risk?',
+        );
+        expect(detectedQuestions.single.askedBy, 'wearer');
+        expect(detectedQuestions.single.priority, QuestionPriority.manual);
+
+        final conversations = await HelixDatabase.instance.conversationDao
+            .getAllConversations();
+        final segments = await HelixDatabase.instance.conversationDao
+            .getSegmentsForConversation(conversations.single.id);
+
+        expect(segments.map((segment) => segment.text_).toList(), [
+          'We are reviewing launch risk with the team.',
+          'What is the biggest rollout risk?',
+          'The risk is a delayed rollout window.',
+        ]);
+        expect(segments.map((segment) => segment.speakerLabel).toList(), [
+          null,
+          'user',
+          'assistant',
+        ]);
+
+        await sub.cancel();
+      },
+    );
   });
 }

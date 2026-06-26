@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_helix/screens/conversation_detail_screen.dart';
 import 'package:flutter_helix/screens/conversation_history_screen.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/database/helix_database.dart';
@@ -155,4 +156,11 @@ void main() {
       expect(find.text('Answer On-demand'), findsAtLeastNWidgets(1));
     },
   );
+
+  test('conversation detail maps manual user speaker labels to You', () {
+    expect(conversationSegmentSpeakerLabel('user'), 'You');
+    expect(conversationSegmentSpeakerLabel('me'), 'You');
+    expect(conversationSegmentSpeakerLabel('assistant'), 'Even AI');
+    expect(conversationSegmentSpeakerLabel(null), 'Conversation');
+  });
 }
