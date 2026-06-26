@@ -6,10 +6,11 @@ import Speech
 import NaturalLanguage
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var speechEventSink: FlutterEventSink?
     private var realtimeAudioEventSink: FlutterEventSink?
     private var bluetoothChannel: FlutterMethodChannel?
+    private var didRegisterLiveActivityButtonObservers = false
 
     override func application(
         _ application: UIApplication,
@@ -22,18 +23,20 @@ import NaturalLanguage
             LiveActivityManager.shared.cleanupStaleActivities()
         }
 
-        GeneratedPluginRegistrant.register(with: self)
-
-        guard let controller = resolveFlutterViewController() else {
-            assertionFailure("Failed to locate FlutterViewController during launch.")
-            return super.application(application, didFinishLaunchingWithOptions: launchOptions)
-        }
-
-        // Setup real Bluetooth manager
-        let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
-        self.bluetoothChannel = channel
-
         registerLiveActivityButtonObservers()
+
+        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
+        GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+        configureFlutterChannels(binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    }
+
+    private func configureFlutterChannels(binaryMessenger: FlutterBinaryMessenger) {
+        // Setup real Bluetooth manager
+        let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: binaryMessenger)
+        self.bluetoothChannel = channel
 
         // Initialize BluetoothManager with the Flutter channel (like EvenDemoApp)
         let bluetoothManager = BluetoothManager.configure(channel: channel)
@@ -200,13 +203,13 @@ import NaturalLanguage
             }
         }
      
-        let scheduleEvent = FlutterEventChannel(name: "eventBleReceive", binaryMessenger: controller.binaryMessenger)
+        let scheduleEvent = FlutterEventChannel(name: "eventBleReceive", binaryMessenger: binaryMessenger)
         scheduleEvent.setStreamHandler(self)
         
-        let speechEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: controller.binaryMessenger)
+        let speechEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: binaryMessenger)
         speechEvent.setStreamHandler(self)
 
-        let realtimeAudioEvent = FlutterEventChannel(name: "eventRealtimeAudio", binaryMessenger: controller.binaryMessenger)
+        let realtimeAudioEvent = FlutterEventChannel(name: "eventRealtimeAudio", binaryMessenger: binaryMessenger)
         realtimeAudioEvent.setStreamHandler(self)
 
         // Wire up OpenAI Realtime audio output to the event channel
@@ -218,7 +221,7 @@ import NaturalLanguage
         }
 
         // NaturalLanguage channel (NLTagger NER, nouns, language detection)
-        let nlChannel = FlutterMethodChannel(name: "method.naturalLanguage", binaryMessenger: controller.binaryMessenger)
+        let nlChannel = FlutterMethodChannel(name: "method.naturalLanguage", binaryMessenger: binaryMessenger)
         nlChannel.setMethodCallHandler { (call, result) in
             guard call.method == "analyzeText" else {
                 result(FlutterMethodNotImplemented)
@@ -299,13 +302,13 @@ import NaturalLanguage
         }
 
         // EventKit channel (Calendar + Reminders)
-        let eventKitChannel = FlutterMethodChannel(name: "method.eventkit", binaryMessenger: controller.binaryMessenger)
+        let eventKitChannel = FlutterMethodChannel(name: "method.eventkit", binaryMessenger: binaryMessenger)
         eventKitChannel.setMethodCallHandler { (call, result) in
             EventKitChannel.shared.handle(call, result: result)
         }
 
         // HealthKit channel (Activity data for Enhanced HUD)
-        let healthKitChannel = FlutterMethodChannel(name: "method.healthkit", binaryMessenger: controller.binaryMessenger)
+        let healthKitChannel = FlutterMethodChannel(name: "method.healthkit", binaryMessenger: binaryMessenger)
         healthKitChannel.setMethodCallHandler { (call, result) in
             switch call.method {
             case "getActivityData":
@@ -320,7 +323,7 @@ import NaturalLanguage
         // Passive Audio Monitor channels
         let passiveAudioChannel = FlutterMethodChannel(
             name: "method.passiveAudio",
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: binaryMessenger)
         passiveAudioChannel.setMethodCallHandler { (call, result) in
             let monitor = PassiveAudioMonitor.shared
             switch call.method {
@@ -352,14 +355,13 @@ import NaturalLanguage
 
         let passiveEventChannel = FlutterEventChannel(
             name: "eventPassiveTranscription",
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: binaryMessenger)
         passiveEventChannel.setStreamHandler(PassiveAudioEventHandler())
 
         // WS-F: Input Inspector — dev-only capture of BT HID ring remote events
-        InputInspectorController.shared.configure(host: controller)
         let inputInspectorChannel = FlutterMethodChannel(
             name: "method.input_inspector",
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: binaryMessenger)
         inputInspectorChannel.setMethodCallHandler { (call, result) in
             switch call.method {
             case "startInspector":
@@ -382,20 +384,21 @@ import NaturalLanguage
         }
         let inputInspectorEventChannel = FlutterEventChannel(
             name: "event.input_inspector",
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: binaryMessenger)
         inputInspectorEventChannel.setStreamHandler(InputInspectorStreamHandler.shared)
 
         let glassesMicHealthChannel = FlutterEventChannel(
             name: "eventGlassesMicHealth",
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: binaryMessenger)
         glassesMicHealthChannel.setStreamHandler(GlassesMicHealthEventHandler())
 
         // Audio session is configured when recording starts (Flutter/SpeechRecognizer handles it)
-
-        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
     }
 
     private func registerLiveActivityButtonObservers() {
+        guard !didRegisterLiveActivityButtonObservers else { return }
+        didRegisterLiveActivityButtonObservers = true
+
         let center = CFNotificationCenterGetDarwinNotifyCenter()
         let observer = Unmanaged.passUnretained(self).toOpaque()
         let callback: CFNotificationCallback = { _, observer, name, _, _ in
@@ -442,27 +445,6 @@ import NaturalLanguage
             Unmanaged.passUnretained(self).toOpaque()
         )
         super.applicationWillTerminate(application)
-    }
-
-    private func resolveFlutterViewController() -> FlutterViewController? {
-        if let controller = window?.rootViewController as? FlutterViewController {
-            return controller
-        }
-
-        let activeScenes = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter { $0.activationState == .foregroundActive || $0.activationState == .foregroundInactive }
-
-        for scene in activeScenes {
-            if let controller = scene.windows.first(where: \.isKeyWindow)?.rootViewController as? FlutterViewController {
-                return controller
-            }
-            if let controller = scene.windows.first?.rootViewController as? FlutterViewController {
-                return controller
-            }
-        }
-
-        return nil
     }
 }
 

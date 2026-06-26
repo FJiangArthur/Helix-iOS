@@ -1,2 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Even Companion/Pods-Even Companion.debug.xcconfig"
 #include "Generated.xcconfig"
+
+// Xcode 27's lipo rejects Flutter's two-arch simulator verification call.
+// Keep simulator builds on the host arch; device builds still use Flutter defaults.
+ARCHS[sdk=iphonesimulator*] = $(NATIVE_ARCH_ACTUAL)
