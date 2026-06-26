@@ -166,11 +166,18 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     var userInitiatedDisconnect = false
     private var reconnectAttemptsByPeripheral: [UUID: Int] = [:]
+    private var connectionTimeoutWorkItems: [UUID: DispatchWorkItem] = [:]
+    private var reportedConnectionFailurePeripheralIds = Set<UUID>()
+    private var pendingConnectionPeripherals: [UUID: CBPeripheral] = [:]
     private static let maxReconnectAttempts = 10
+    private static let connectionTimeoutSeconds: TimeInterval = 30
     private let connectionPersistence = BluetoothConnectionPersistence()
 
     private var deviceNameByPeripheralId: [UUID: String] = [:]
     private var sideByPeripheralId: [UUID: String] = [:]
+    private var discoveredNameByPeripheralId: [UUID: String] = [:]
+    private var discoveredRSSIByPeripheralId: [UUID: Int] = [:]
+    private var discoveredConnectableByPeripheralId: [UUID: Bool] = [:]
     private lazy var pcmConverter = PcmConverter()
     private lazy var rnnoiseProcessor = RNNoiseProcessor()
     /// Whether noise reduction is applied to incoming glasses audio.
@@ -218,6 +225,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             return
         }
 
+        pairedDevices.removeAll()
+        discoveredNameByPeripheralId.removeAll()
+        discoveredRSSIByPeripheralId.removeAll()
+        discoveredConnectableByPeripheralId.removeAll()
+
         centralManager.scanForPeripherals(
             withServices: nil,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
@@ -226,11 +238,18 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func stopScan(result: @escaping FlutterResult) {
-        centralManager.stopScan()
+        if centralManager.state == .poweredOn {
+            centralManager.stopScan()
+        }
         result("Scan stopped")
     }
 
     func connectToDevice(deviceName: String, result: @escaping FlutterResult) {
+        guard centralManager.state == .poweredOn else {
+            result(FlutterError(code: "BluetoothOff", message: "Bluetooth is not powered on.", details: nil))
+            return
+        }
+
         centralManager.stopScan()
 
         guard let peripheralPair = pairedDevices[deviceName] else {
@@ -248,8 +267,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         registerPeripheral(rightPeripheral, deviceName: deviceName, side: "R")
         channel.invokeMethod("glassesConnecting", arguments: ["deviceName": deviceName])
 
-        centralManager.connect(leftPeripheral, options: connectionOptions())
-        centralManager.connect(rightPeripheral, options: connectionOptions())
+        connectPeripheralWithTimeout(leftPeripheral, deviceName: deviceName, side: "L")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak rightPeripheral] in
+            guard let self, let rightPeripheral else { return }
+            guard !self.userInitiatedDisconnect else { return }
+            guard self.deviceNameByPeripheralId[rightPeripheral.identifier] == deviceName else { return }
+            guard rightPeripheral.state != .connected else { return }
+            self.connectPeripheralWithTimeout(rightPeripheral, deviceName: deviceName, side: "R")
+        }
 
         result("Connecting to \(deviceName)...")
     }
@@ -259,16 +284,19 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         clearStoredConnection()
 
         for (_, devices) in connectedDevices {
-            if let leftPeripheral = devices.0 {
+            if centralManager.state == .poweredOn, let leftPeripheral = devices.0 {
                 centralManager.cancelPeripheralConnection(leftPeripheral)
             }
-            if let rightPeripheral = devices.1 {
+            if centralManager.state == .poweredOn, let rightPeripheral = devices.1 {
                 centralManager.cancelPeripheralConnection(rightPeripheral)
             }
         }
 
         connectedDevices.removeAll()
         reconnectAttemptsByPeripheral.removeAll()
+        reportedConnectionFailurePeripheralIds.removeAll()
+        pendingConnectionPeripherals.removeAll()
+        cancelAllConnectionTimeouts()
         resetActivePeripherals()
         channel.invokeMethod("glassesDisconnected", arguments: ["status": "disconnected"])
         result("Disconnected all devices.")
@@ -276,30 +304,59 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     // MARK: - CBCentralManagerDelegate Methods
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        guard let name = peripheral.name else { return }
-        let components = name.components(separatedBy: "_")
-        guard components.count > 1, let channelNumber = components[safe: 1] else { return }
+        let advertisedName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
+        guard let name = advertisedName ?? peripheral.name else { return }
+        guard let parsedName = parseG1PeripheralName(name) else { return }
 
+        let isConnectable = (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? true
+        let serviceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID]) ?? []
+
+        #if DEBUG
+        let uuidList = serviceUUIDs.map(\.uuidString).joined(separator: ",")
+        print(
+            "didDiscoverG1 name=\(name) side=\(parsedName.side) "
+                + "channel=\(parsedName.channelNumber) rssi=\(RSSI.intValue) "
+                + "connectable=\(isConnectable) services=[\(uuidList)] "
+                + "id=\(peripheral.identifier.uuidString)"
+        )
+        #endif
+
+        guard isConnectable else { return }
+
+        let channelNumber = parsedName.channelNumber
+        let side = parsedName.side
         let pairKey = "Pair_\(channelNumber)"
-        if name.contains("_L_") {
+        discoveredNameByPeripheralId[peripheral.identifier] = name
+        discoveredRSSIByPeripheralId[peripheral.identifier] = RSSI.intValue
+        discoveredConnectableByPeripheralId[peripheral.identifier] = isConnectable
+
+        if side == "L" {
             pairedDevices[pairKey, default: (nil, nil)].0 = peripheral
             registerPeripheral(peripheral, deviceName: pairKey, side: "L")
-        } else if name.contains("_R_") {
+        } else if side == "R" {
             pairedDevices[pairKey, default: (nil, nil)].1 = peripheral
             registerPeripheral(peripheral, deviceName: pairKey, side: "R")
         }
 
         if let leftPeripheral = pairedDevices[pairKey]?.0, let rightPeripheral = pairedDevices[pairKey]?.1 {
             let deviceInfo: [String: String] = [
-                "leftDeviceName": leftPeripheral.name ?? "",
-                "rightDeviceName": rightPeripheral.name ?? "",
-                "channelNumber": channelNumber
+                "leftDeviceName": discoveredNameByPeripheralId[leftPeripheral.identifier] ?? leftPeripheral.name ?? "",
+                "rightDeviceName": discoveredNameByPeripheralId[rightPeripheral.identifier] ?? rightPeripheral.name ?? "",
+                "channelNumber": channelNumber,
+                "leftPeripheralId": leftPeripheral.identifier.uuidString,
+                "rightPeripheralId": rightPeripheral.identifier.uuidString,
+                "leftRssi": "\(discoveredRSSIByPeripheralId[leftPeripheral.identifier] ?? 0)",
+                "rightRssi": "\(discoveredRSSIByPeripheralId[rightPeripheral.identifier] ?? 0)",
+                "leftConnectable": "\(discoveredConnectableByPeripheralId[leftPeripheral.identifier] ?? true)",
+                "rightConnectable": "\(discoveredConnectableByPeripheralId[rightPeripheral.identifier] ?? true)"
             ]
             channel.invokeMethod("foundPairedGlasses", arguments: deviceInfo)
         }
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        cancelConnectionTimeout(for: peripheral)
+        pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
         reconnectAttemptsByPeripheral[peripheral.identifier] = 0
         #if DEBUG
         print("didConnectPeripheral id=\(peripheral.identifier.uuidString) name=\(peripheral.name ?? "")")
@@ -307,7 +364,40 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         handleConnectedPeripheral(peripheral)
     }
 
+    func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        cancelConnectionTimeout(for: peripheral)
+        pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
+        reconnectAttemptsByPeripheral[peripheral.identifier] = 0
+
+        let deviceName = deviceNameByPeripheralId[peripheral.identifier] ?? ""
+        let side = sideByPeripheralId[peripheral.identifier] ?? ""
+        let errorMessage = error?.localizedDescription ?? "CoreBluetooth did not provide a failure reason."
+        reportedConnectionFailurePeripheralIds.insert(peripheral.identifier)
+
+        #if DEBUG
+        print("didFailToConnectPeripheral side=\(side) deviceName=\(deviceName) error=\(errorMessage)")
+        #endif
+        os_log(
+            "didFailToConnect side=%{public}s device=%{public}s error=%{public}s",
+            log: bleLog,
+            type: .error,
+            side,
+            deviceName,
+            errorMessage
+        )
+
+        markPeripheralDisconnected(peripheral)
+        channel.invokeMethod("glassesDisconnected", arguments: [
+            "deviceName": deviceName,
+            "disconnectedSide": side,
+            "status": "connectFailed",
+            "error": errorMessage
+        ])
+    }
+
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        cancelConnectionTimeout(for: peripheral)
+        pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
         #if DEBUG
         print("\(Date()) didDisconnectPeripheral-----peripheral-----\(peripheral)--")
 
@@ -322,6 +412,11 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             os_log("didDisconnect: %{public}s", log: bleLog, type: .error, error.localizedDescription)
         }
 
+        if reportedConnectionFailurePeripheralIds.remove(peripheral.identifier) != nil {
+            markPeripheralDisconnected(peripheral)
+            return
+        }
+
         markPeripheralDisconnected(peripheral)
         channel.invokeMethod("glassesDisconnected", arguments: [
             "deviceName": deviceNameByPeripheralId[peripheral.identifier] ?? "",
@@ -330,27 +425,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             "error": error?.localizedDescription ?? NSNull()
         ] as [String: Any])
 
-        if userInitiatedDisconnect {
-            reconnectAttemptsByPeripheral[peripheral.identifier] = 0
-            return
-        }
-
-        let currentAttempts = reconnectAttemptsByPeripheral[peripheral.identifier] ?? 0
-        if currentAttempts >= BluetoothManager.maxReconnectAttempts {
-            #if DEBUG
-            print("Max reconnect attempts reached for \(peripheral.identifier)")
-            #endif
-            os_log("reconnect_exhausted peripheral=%{public}s", log: bleLog, type: .error, peripheral.identifier.uuidString)
-            channel.invokeMethod("glassesStatus", arguments: ["status": "reconnect_exhausted"])
-            reconnectAttemptsByPeripheral[peripheral.identifier] = 0
-            return
-        }
-
-        reconnectAttemptsByPeripheral[peripheral.identifier] = currentAttempts + 1
-        channel.invokeMethod("glassesConnecting", arguments: [
-            "deviceName": deviceNameByPeripheralId[peripheral.identifier] ?? ""
-        ])
-        central.connect(peripheral, options: connectionOptions())
+        // During explicit user-driven connection attempts, do not immediately
+        // reconnect from a disconnect callback. It obscures the original
+        // failure and can issue commands while CoreBluetooth is resetting.
+        reconnectAttemptsByPeripheral[peripheral.identifier] = 0
     }
 
     func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
@@ -372,11 +450,17 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             #if DEBUG
             print("Bluetooth is powered off.")
             #endif
+            cancelAllConnectionTimeouts()
+            pendingConnectionPeripherals.removeAll()
+            reconnectAttemptsByPeripheral.removeAll()
             channel.invokeMethod("glassesDisconnected", arguments: ["status": "poweredOff"])
         default:
             #if DEBUG
             print("Bluetooth state is unknown or unsupported.")
             #endif
+            cancelAllConnectionTimeouts()
+            pendingConnectionPeripherals.removeAll()
+            reconnectAttemptsByPeripheral.removeAll()
         }
     }
 
@@ -875,10 +959,183 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
             if peripheral.state == .connected {
                 handleConnectedPeripheral(peripheral)
-            } else if peripheral.state != .connecting {
-                centralManager.connect(peripheral, options: connectionOptions())
+            } else {
+                let side = peripheral.identifier == leftUUID ? "L" : "R"
+                connectPeripheralWithTimeout(peripheral, deviceName: deviceName, side: side)
             }
         }
+    }
+
+    private func connectPeripheralWithTimeout(_ peripheral: CBPeripheral, deviceName: String, side: String) {
+        #if DEBUG
+        print(
+            "connectStart side=\(side) deviceName=\(deviceName) "
+                + "state=\(peripheralStateName(peripheral.state)) "
+                + "id=\(peripheral.identifier.uuidString) name=\(peripheral.name ?? "")"
+        )
+        #endif
+        reportedConnectionFailurePeripheralIds.remove(peripheral.identifier)
+        pendingConnectionPeripherals[peripheral.identifier] = peripheral
+
+        if peripheral.state == .connected {
+            handleConnectedPeripheral(peripheral)
+            return
+        }
+
+        guard centralManager.state == .poweredOn else {
+            pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
+            channel.invokeMethod("glassesDisconnected", arguments: [
+                "deviceName": deviceName,
+                "disconnectedSide": side,
+                "status": "connectFailed",
+                "error": "Bluetooth changed to \(centralStateName(centralManager.state)) before connecting."
+            ])
+            return
+        }
+
+        scheduleConnectionTimeout(for: peripheral, deviceName: deviceName, side: side)
+        if peripheral.state == .connecting {
+            return
+        }
+        centralManager.connect(peripheral, options: connectionOptions())
+    }
+
+    private func scheduleConnectionTimeout(for peripheral: CBPeripheral, deviceName: String, side: String) {
+        cancelConnectionTimeout(for: peripheral)
+
+        let workItem = DispatchWorkItem { [weak self, weak peripheral] in
+            guard let self, let peripheral else { return }
+
+            if peripheral.state == .connected {
+                #if DEBUG
+                print("connectTimeoutRecovered side=\(side) deviceName=\(deviceName) peripheral=\(peripheral.identifier.uuidString)")
+                #endif
+                self.connectionTimeoutWorkItems.removeValue(forKey: peripheral.identifier)
+                self.pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
+                self.handleConnectedPeripheral(peripheral)
+                return
+            }
+
+            guard peripheral.state == .connecting else {
+                self.connectionTimeoutWorkItems.removeValue(forKey: peripheral.identifier)
+                self.pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
+                return
+            }
+
+            #if DEBUG
+            print("connectTimeout side=\(side) deviceName=\(deviceName) peripheral=\(peripheral.identifier.uuidString)")
+            #endif
+            os_log(
+                "connectTimeout side=%{public}s device=%{public}s peripheral=%{public}s",
+                log: bleLog,
+                type: .error,
+                side,
+                deviceName,
+                peripheral.identifier.uuidString
+            )
+
+            self.reportedConnectionFailurePeripheralIds.insert(peripheral.identifier)
+            if self.centralManager.state == .poweredOn {
+                self.centralManager.cancelPeripheralConnection(peripheral)
+            }
+            self.markPeripheralDisconnected(peripheral)
+            self.channel.invokeMethod("glassesDisconnected", arguments: [
+                "deviceName": deviceName,
+                "disconnectedSide": side,
+                "status": "connectTimeout",
+                "error": "Timed out while connecting to the \(side) side of the glasses."
+            ])
+            self.connectionTimeoutWorkItems.removeValue(forKey: peripheral.identifier)
+            self.pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
+        }
+
+        connectionTimeoutWorkItems[peripheral.identifier] = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + BluetoothManager.connectionTimeoutSeconds,
+            execute: workItem
+        )
+    }
+
+    private func cancelConnectionTimeout(for peripheral: CBPeripheral) {
+        connectionTimeoutWorkItems.removeValue(forKey: peripheral.identifier)?.cancel()
+    }
+
+    private func cancelAllConnectionTimeouts() {
+        for workItem in connectionTimeoutWorkItems.values {
+            workItem.cancel()
+        }
+        connectionTimeoutWorkItems.removeAll()
+    }
+
+    private func peripheralStateName(_ state: CBPeripheralState) -> String {
+        switch state {
+        case .disconnected:
+            return "disconnected"
+        case .connecting:
+            return "connecting"
+        case .connected:
+            return "connected"
+        case .disconnecting:
+            return "disconnecting"
+        @unknown default:
+            return "unknown"
+        }
+    }
+
+    private func centralStateName(_ state: CBManagerState) -> String {
+        switch state {
+        case .unknown:
+            return "unknown"
+        case .resetting:
+            return "resetting"
+        case .unsupported:
+            return "unsupported"
+        case .unauthorized:
+            return "unauthorized"
+        case .poweredOff:
+            return "poweredOff"
+        case .poweredOn:
+            return "poweredOn"
+        @unknown default:
+            return "unknown"
+        }
+    }
+
+    private func parseG1PeripheralName(_ name: String) -> (channelNumber: String, side: String)? {
+        let components = name.split(separator: "_").map(String.init)
+        guard let sideIndex = components.firstIndex(where: { $0 == "L" || $0 == "R" }) else {
+            return nil
+        }
+
+        let side = components[sideIndex]
+        let previousIndex = sideIndex > 0 ? sideIndex - 1 : nil
+        let nextIndex = sideIndex + 1 < components.count ? sideIndex + 1 : nil
+
+        if let previousIndex {
+            let candidate = components[previousIndex]
+            if isLikelyChannelNumber(candidate) {
+                return (candidate, side)
+            }
+        }
+
+        if let nextIndex {
+            let candidate = components[nextIndex]
+            if isLikelyChannelNumber(candidate) {
+                return (candidate, side)
+            }
+        }
+
+        if let previousIndex {
+            return (components[previousIndex], side)
+        }
+        if let nextIndex {
+            return (components[nextIndex], side)
+        }
+        return nil
+    }
+
+    private func isLikelyChannelNumber(_ value: String) -> Bool {
+        return !value.isEmpty && value.allSatisfy { $0.isNumber }
     }
 
     private func resetActivePeripherals() {

@@ -145,6 +145,8 @@ class BleManager {
 
   Future<void> startScan() async {
     try {
+      pairedGlasses.clear();
+      onStatusChanged?.call();
       await _channel.invokeMethod('startScan');
     } catch (e) {
       appLogger.e('Error starting scan', error: e);
@@ -166,6 +168,9 @@ class BleManager {
       });
       connectionStatus = 'Connecting...';
     } catch (e) {
+      connectionStatus = _formatConnectionFailure('connectFailed', '$e');
+      _updateConnectionState(BleConnectionState.disconnected);
+      onStatusChanged?.call();
       appLogger.e('Error connecting to device: $e');
     }
   }
@@ -219,6 +224,9 @@ class BleManager {
         break;
       case 'glassesDisconnected':
         _onGlassesDisconnected(call.arguments);
+        break;
+      case 'glassesStatus':
+        _onGlassesStatus(call.arguments);
         break;
       case 'foundPairedGlasses':
         _onPairedGlassesFound(Map<String, String>.from(call.arguments));
@@ -337,6 +345,8 @@ class BleManager {
   }
 
   void _onGlassesDisconnected([dynamic arguments]) {
+    final status = arguments is Map ? arguments['status'] as String? : null;
+    final error = arguments is Map ? arguments['error']?.toString() : null;
     final disconnectedSide = arguments is Map
         ? arguments['disconnectedSide'] as String?
         : null;
@@ -356,6 +366,14 @@ class BleManager {
     if (isConnected) {
       connectionStatus = 'Partially connected';
       _updateConnectionState(BleConnectionState.connected);
+    } else if (status == 'connectFailed' || status == 'connectTimeout') {
+      connectionStatus = _formatConnectionFailure(status, error);
+      _updateConnectionState(BleConnectionState.disconnected);
+    } else if (status == 'poweredOff') {
+      connectionStatus = 'Bluetooth is powered off';
+      _updateConnectionState(BleConnectionState.disconnected);
+    } else if (status == 'disconnected' && _hasConnectionFailureStatus) {
+      _updateConnectionState(BleConnectionState.disconnected);
     } else {
       connectionStatus = 'Not connected';
       _updateConnectionState(BleConnectionState.disconnected);
@@ -370,7 +388,35 @@ class BleManager {
     onStatusChanged?.call();
   }
 
+  void _onGlassesStatus(dynamic arguments) {
+    final status = arguments is Map ? arguments['status']?.toString() : null;
+    if (status == 'reconnect_exhausted') {
+      _isLeftConnected = false;
+      _isRightConnected = false;
+      isConnected = false;
+      connectionStatus = 'Connection failed after repeated retries';
+      _updateConnectionState(BleConnectionState.disconnected);
+      emitDeviceDiagnostic('BLE', 'reconnect_exhausted args=$arguments');
+      onStatusChanged?.call();
+    }
+  }
+
+  String _formatConnectionFailure(String? status, String? error) {
+    final reason = error == null || error == 'null' || error.trim().isEmpty
+        ? 'No failure reason reported by iOS.'
+        : error.trim();
+    final label = status == 'connectTimeout'
+        ? 'Connection timed out'
+        : 'Connection failed';
+    return '$label: $reason';
+  }
+
+  bool get _hasConnectionFailureStatus =>
+      connectionStatus.startsWith('Connection timed out') ||
+      connectionStatus.startsWith('Connection failed');
+
   void _onPairedGlassesFound(Map<String, String> deviceInfo) {
+    appLogger.d('BLE pair discovered: $deviceInfo');
     final String channelNumber = deviceInfo['channelNumber']!;
     final isAlreadyPaired = pairedGlasses.any(
       (glasses) => glasses['channelNumber'] == channelNumber,
