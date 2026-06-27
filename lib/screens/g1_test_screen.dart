@@ -9,14 +9,15 @@ import '../services/handoff_memory.dart';
 import '../services/hud_widget_registry.dart';
 import '../services/settings_manager.dart';
 import '../services/text_service.dart';
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/glow_button.dart';
+import '../widgets/helix/helix_generated_art.dart';
 import '../widgets/helix/helix_metric_chip.dart';
 import '../widgets/helix/helix_status_badge.dart';
 import '../widgets/helix/helix_surface.dart';
-import '../widgets/helix_visuals.dart';
 import 'even_features_screen.dart';
 import 'hud_widgets_screen.dart';
 
@@ -142,33 +143,32 @@ class _G1TestScreenState extends State<G1TestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          HelixGeneratedBackdrop(
+            key: const Key('device-generated-hero'),
+            asset: HelixAssets.deviceHero,
+            accent: accent,
+            height: 116,
+            child: Align(
+              alignment: Alignment.bottomLeft,
+              child: Row(
+                children: [
+                  const HelixGeneratedIcon(
+                    asset: HelixAssets.navDevice,
+                    selected: true,
+                    size: 42,
+                    semanticLabel: 'Device',
+                  ),
+                  const SizedBox(width: 10),
+                  _buildLensDot('L', isConnected),
+                  const SizedBox(width: 6),
+                  _buildLensDot('R', isConnected),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
-              SizedBox(
-                width: 96,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    HelixVisual(
-                      type: HelixVisualType.glasses,
-                      height: 62,
-                      accent: accent,
-                      compact: true,
-                    ),
-                    Positioned(
-                      left: 8,
-                      bottom: 0,
-                      child: _buildLensDot('L', isConnected),
-                    ),
-                    Positioned(
-                      right: 8,
-                      bottom: 0,
-                      child: _buildLensDot('R', isConnected),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

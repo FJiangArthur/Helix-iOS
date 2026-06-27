@@ -15,12 +15,13 @@ import '../services/llm/llm_service.dart';
 import '../services/projects/project_rag_service.dart';
 import '../services/provider_error_state.dart';
 import '../services/settings_manager.dart';
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../utils/transcript_timestamps.dart';
 import '../widgets/active_project_chip.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/helix_visuals.dart';
 import '../widgets/helix/helix_action_dock.dart';
+import '../widgets/helix/helix_generated_art.dart';
 import '../widgets/helix/helix_status_badge.dart';
 import '../widgets/helix/helix_surface.dart';
 import '../widgets/session_cost_badge.dart';
@@ -573,8 +574,43 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildStatusBar(),
-          const SizedBox(height: 8),
+          HelixGeneratedBackdrop(
+            key: const Key('assistant-generated-hero'),
+            asset: HelixAssets.assistantHero,
+            accent: modeColor,
+            height: 112,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildStatusBar(),
+                const Spacer(),
+                Row(
+                  children: [
+                    const HelixGeneratedIcon(
+                      asset: HelixAssets.navAssistant,
+                      selected: true,
+                      size: 38,
+                      semanticLabel: 'Assistant',
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _isChinese ? '实时助手工作台' : 'Live assistant workspace',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
           _buildModeSelector(),
           const SizedBox(height: 8),
           Row(
@@ -2344,11 +2380,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           if (!hasLiveConversation)
             Column(
               children: [
-                HelixVisual(
-                  type: HelixVisualType.conversation,
+                HelixGeneratedBackdrop(
+                  key: const Key('assistant-empty-generated-backdrop'),
+                  asset: HelixAssets.assistantHero,
                   height: 112,
                   accent: modeColor,
-                  compact: true,
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Text(
+                      _isChinese ? '等待实时上下文' : 'Waiting for live context',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.86),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 _buildLoadoutCard(),

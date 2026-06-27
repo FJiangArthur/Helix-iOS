@@ -9,6 +9,7 @@ import 'package:flutter_helix/models/assistant_profile.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
 import 'package:flutter_helix/services/llm/llm_service.dart';
 import 'package:flutter_helix/services/settings_manager.dart';
+import 'package:flutter_helix/widgets/helix/helix_generated_art.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -151,12 +152,17 @@ void main() {
     testWidgets('tab icons are present for each destination', (tester) async {
       await pumpMainScreen(tester);
 
-      // Tab 0 is selected (Assistant), so it shows chat_bubble_rounded.
-      expect(find.byIcon(Icons.chat_bubble_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.bluetooth_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.graphic_eq_rounded), findsWidgets);
-      expect(find.byIcon(Icons.lightbulb_outline_rounded), findsOneWidget);
-      expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+      final destinations = tester.widgetList<NavigationDestination>(
+        find.byType(NavigationDestination),
+      );
+      for (final destination in destinations) {
+        expect(destination.icon, isA<HelixGeneratedIcon>());
+        expect(destination.selectedIcon, isA<HelixGeneratedIcon>());
+      }
+      expect(
+        find.byKey(const Key('nav-icon-assistant-selected')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('uses IndexedStack for state preservation', (tester) async {
@@ -183,6 +189,7 @@ void main() {
       await tester.tap(sessionsDest);
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('sessions-generated-hero')), findsOneWidget);
       expect(find.text('Monitor'), findsOneWidget);
       expect(find.text('Archive'), findsOneWidget);
       expect(find.text('Projects'), findsOneWidget);
@@ -197,6 +204,7 @@ void main() {
       await tester.tap(knowledgeDest);
       await tester.pumpAndSettle();
 
+      expect(find.byKey(const Key('knowledge-generated-hero')), findsOneWidget);
       expect(find.text('Ask'), findsOneWidget);
       expect(find.text('Facts'), findsOneWidget);
       expect(find.text('Memories'), findsOneWidget);

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../widgets/glow_button.dart';
-import '../widgets/helix_visuals.dart';
+import '../widgets/helix/helix_generated_art.dart';
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onComplete;
@@ -19,46 +20,61 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   static const _pages = [
     _OnboardingPage(
-      visualType: HelixVisualType.onboarding,
+      heroAsset: HelixAssets.assistantHero,
+      iconAsset: HelixAssets.navAssistant,
       title: 'Helix',
-      subtitle: 'A quiet edge for live conversations',
+      subtitle: 'Assistant',
       description:
           'Listen, detect the moment that matters, and send concise answers to your phone or G1 glasses.',
       gradient: [HelixTheme.cyan, HelixTheme.purple],
     ),
     _OnboardingPage(
-      visualType: HelixVisualType.conversation,
+      heroAsset: HelixAssets.assistantHero,
+      iconAsset: HelixAssets.navAssistant,
       title: 'Live Assistant',
-      subtitle: 'Home',
+      subtitle: 'Assistant',
       description:
           'Use Tune presets for concise answers, speakable replies, interview coaching, and fact checking.',
       gradient: [HelixTheme.cyan, HelixTheme.lime],
       bullets: ['Tune presets', 'Live transcript', 'Q&A handoff', 'Follow-ups'],
     ),
     _OnboardingPage(
-      visualType: HelixVisualType.glasses,
+      heroAsset: HelixAssets.deviceHero,
+      iconAsset: HelixAssets.navDevice,
       title: 'G1 Control',
-      subtitle: 'Glasses',
+      subtitle: 'Device',
       description:
           'Connect your glasses, choose the mic source, and keep HUD delivery visible at a glance.',
       gradient: [HelixTheme.purple, HelixTheme.cyan],
       bullets: ['BLE Pairing', 'Mic Source', 'HUD Config', 'Dashboard'],
     ),
     _OnboardingPage(
-      visualType: HelixVisualType.knowledge,
+      heroAsset: HelixAssets.sessionsHero,
+      iconAsset: HelixAssets.navSessions,
+      title: 'Sessions',
+      subtitle: 'Monitor, archive, projects',
+      description:
+          'Review live analysis, archived conversations, project context, and metrics in one place.',
+      gradient: [HelixTheme.lime, HelixTheme.cyan],
+      bullets: ['Monitor', 'Archive', 'Projects', 'Metrics'],
+    ),
+    _OnboardingPage(
+      heroAsset: HelixAssets.knowledgeHero,
+      iconAsset: HelixAssets.navKnowledge,
       title: 'Knowledge Hub',
-      subtitle: 'Insights',
+      subtitle: 'Knowledge',
       description:
           'Facts, memories, projects, and citations stay organized after the conversation ends.',
       gradient: [HelixTheme.amber, HelixTheme.lime],
-      bullets: ['Facts', 'Memories', 'Projects', 'Citations'],
+      bullets: ['Ask', 'Facts', 'Memories', 'Review'],
     ),
     _OnboardingPage(
-      visualType: HelixVisualType.mark,
+      heroAsset: HelixAssets.settingsHero,
+      iconAsset: HelixAssets.navSettings,
       title: "You're All Set",
-      subtitle: 'Start your first conversation',
+      subtitle: 'Settings',
       description:
-          'Add an AI provider key, confirm your speech backend, then tap the record button on Home.',
+          'Add an AI provider key, confirm your speech backend, then tap the record button on Assistant.',
       gradient: [HelixTheme.lime, HelixTheme.cyan],
     ),
   ];
@@ -106,10 +122,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        HelixVisual(
-                          type: page.visualType,
-                          height: 132,
+                        HelixGeneratedBackdrop(
+                          key: Key('onboarding-generated-hero-$index'),
+                          asset: page.heroAsset,
+                          height: 156,
                           accent: page.gradient.first,
+                          child: Align(
+                            alignment: Alignment.bottomLeft,
+                            child: HelixGeneratedIcon(
+                              asset: page.iconAsset,
+                              selected: true,
+                              size: 44,
+                              semanticLabel: page.subtitle,
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 32),
                         Text(
@@ -227,7 +253,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 }
 
 class _OnboardingPage {
-  final HelixVisualType visualType;
+  final String heroAsset;
+  final String iconAsset;
   final String title;
   final String subtitle;
   final String description;
@@ -235,7 +262,8 @@ class _OnboardingPage {
   final List<String>? bullets;
 
   const _OnboardingPage({
-    required this.visualType,
+    required this.heroAsset,
+    required this.iconAsset,
     required this.title,
     required this.subtitle,
     required this.description,

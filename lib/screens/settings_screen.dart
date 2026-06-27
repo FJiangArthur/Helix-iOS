@@ -10,8 +10,10 @@ import '../services/g1_debug_service.dart';
 import '../services/llm/llm_provider.dart';
 import '../services/llm/llm_service.dart';
 import '../services/settings_manager.dart';
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
+import '../widgets/helix/helix_generated_art.dart';
 import '../widgets/helix/helix_surface.dart';
 
 const _automaticModelSelection = '__provider_default__';
@@ -463,6 +465,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              HelixGeneratedBackdrop(
+                key: const Key('settings-generated-hero'),
+                asset: HelixAssets.settingsHero,
+                accent: HelixTheme.cyan,
+                height: 116,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Row(
+                    children: [
+                      const HelixGeneratedIcon(
+                        asset: HelixAssets.navSettings,
+                        selected: true,
+                        size: 40,
+                        semanticLabel: 'Settings',
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        tr('Configuration console', '配置控制台'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               _buildSetupSummary(),
               const SizedBox(height: 20),
               _buildSection(tr('AI Provider', 'AI 服务商'), Icons.psychology, [
@@ -886,21 +917,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Row(
             children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: HelixTheme.cyan.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(HelixTheme.radiusPanel),
-                  border: Border.all(
-                    color: HelixTheme.cyan.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.tune_rounded,
-                  color: HelixTheme.cyan,
-                  size: 18,
-                ),
+              const HelixGeneratedIcon(
+                asset: HelixAssets.navSettings,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Settings',
               ),
               const SizedBox(width: 10),
               Expanded(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/theme/helix_theme.dart';
 import 'package:flutter_helix/widgets/helix/helix_action_dock.dart';
+import 'package:flutter_helix/widgets/helix/helix_generated_art.dart';
 import 'package:flutter_helix/widgets/helix/helix_metric_chip.dart';
 import 'package:flutter_helix/widgets/helix/helix_preview_card.dart';
 import 'package:flutter_helix/widgets/helix/helix_segmented_tabs.dart';
@@ -145,5 +146,31 @@ void main() {
     expect(find.text('12 min'), findsOneWidget);
     expect(find.byIcon(Icons.notes_rounded), findsOneWidget);
     expect(find.byIcon(Icons.timer_outlined), findsOneWidget);
+  });
+
+  testWidgets('HelixGeneratedIcon and backdrop render asset-backed visuals', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      wrap(
+        const Center(
+          child: HelixGeneratedBackdrop(
+            asset:
+                'assets/illustrations/wireframe-redesign/backgrounds/assistant-hero.png',
+            accent: HelixTheme.cyan,
+            child: HelixGeneratedIcon(
+              asset:
+                  'assets/illustrations/wireframe-redesign/icons/nav-assistant.png',
+              selected: true,
+              semanticLabel: 'Assistant',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(HelixGeneratedBackdrop), findsOneWidget);
+    expect(find.byType(HelixGeneratedIcon), findsOneWidget);
+    expect(find.byType(Image), findsWidgets);
   });
 }

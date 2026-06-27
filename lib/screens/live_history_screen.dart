@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
+import '../widgets/helix/helix_generated_art.dart';
 import '../widgets/helix/helix_segmented_tabs.dart';
 import 'conversation_history_screen.dart';
 import 'detail_analysis_screen.dart';
@@ -54,7 +56,38 @@ class _LiveHistoryScreenState extends State<LiveHistoryScreen>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: HelixGeneratedBackdrop(
+                key: const Key('sessions-generated-hero'),
+                asset: HelixAssets.sessionsHero,
+                accent: HelixTheme.lime,
+                height: 104,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Row(
+                    children: [
+                      const HelixGeneratedIcon(
+                        asset: HelixAssets.navSessions,
+                        selected: true,
+                        size: 38,
+                        semanticLabel: 'Sessions',
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        tr('Sessions cockpit', '会话座舱'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
               child: Row(
                 children: [
                   Expanded(

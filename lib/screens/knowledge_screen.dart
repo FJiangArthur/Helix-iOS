@@ -2,8 +2,10 @@
 
 import 'package:flutter/material.dart';
 
+import '../theme/helix_assets.dart';
 import '../theme/helix_theme.dart';
 import '../utils/i18n.dart';
+import '../widgets/helix/helix_generated_art.dart';
 import '../widgets/helix/helix_segmented_tabs.dart';
 import 'buzz_screen.dart';
 import 'facts_screen.dart';
@@ -54,6 +56,37 @@ class _KnowledgeScreenState extends State<KnowledgeScreen>
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+              child: HelixGeneratedBackdrop(
+                key: const Key('knowledge-generated-hero'),
+                asset: HelixAssets.knowledgeHero,
+                accent: HelixTheme.purple,
+                height: 104,
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Row(
+                    children: [
+                      const HelixGeneratedIcon(
+                        asset: HelixAssets.navKnowledge,
+                        selected: true,
+                        size: 38,
+                        semanticLabel: 'Knowledge',
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        tr('Knowledge surface', '知识界面'),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: HelixSegmentedTabs(
                 labels: [
                   tr('Ask', '提问'),

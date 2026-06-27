@@ -2,7 +2,7 @@ name: flutter_helix
 description: "Helix - Cross-platform companion app for Even Realities smart glasses"
 publish_to: 'none'
 
-version: 2.2.48+202606261320
+version: 2.2.49+202606261830
 
 environment:
   sdk: ^3.9.0
@@ -86,6 +86,8 @@ flutter:
   assets:
     - assets/brand/
     - assets/illustrations/
+    - assets/illustrations/wireframe-redesign/backgrounds/
+    - assets/illustrations/wireframe-redesign/icons/
 
   # Add custom fonts
   # fonts:

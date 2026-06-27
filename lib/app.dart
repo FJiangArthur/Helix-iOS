@@ -7,8 +7,10 @@ import 'screens/knowledge_screen.dart';
 import 'screens/live_history_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
+import 'theme/helix_assets.dart';
 import 'theme/helix_theme.dart';
 import 'utils/i18n.dart';
+import 'widgets/helix/helix_generated_art.dart';
 
 class HelixApp extends StatelessWidget {
   const HelixApp({super.key});
@@ -155,28 +157,78 @@ class _MainScreenState extends State<MainScreen> {
           },
           destinations: [
             NavigationDestination(
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
-              selectedIcon: const Icon(Icons.chat_bubble_rounded),
+              icon: const HelixGeneratedIcon(
+                key: Key('nav-icon-assistant'),
+                asset: HelixAssets.navAssistant,
+                semanticLabel: 'Assistant',
+              ),
+              selectedIcon: const HelixGeneratedIcon(
+                key: Key('nav-icon-assistant-selected'),
+                asset: HelixAssets.navAssistant,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Assistant',
+              ),
               label: tr('Assistant', '助手'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.bluetooth_rounded),
-              selectedIcon: const Icon(Icons.bluetooth_connected_rounded),
+              icon: const HelixGeneratedIcon(
+                key: Key('nav-icon-device'),
+                asset: HelixAssets.navDevice,
+                semanticLabel: 'Device',
+              ),
+              selectedIcon: const HelixGeneratedIcon(
+                key: Key('nav-icon-device-selected'),
+                asset: HelixAssets.navDevice,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Device',
+              ),
               label: tr('Device', '设备'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.graphic_eq_rounded),
-              selectedIcon: const Icon(Icons.graphic_eq_rounded),
+              icon: const HelixGeneratedIcon(
+                key: Key('nav-icon-sessions'),
+                asset: HelixAssets.navSessions,
+                semanticLabel: 'Sessions',
+              ),
+              selectedIcon: const HelixGeneratedIcon(
+                key: Key('nav-icon-sessions-selected'),
+                asset: HelixAssets.navSessions,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Sessions',
+              ),
               label: tr('Sessions', '会话'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.lightbulb_outline_rounded),
-              selectedIcon: const Icon(Icons.lightbulb_rounded),
+              icon: const HelixGeneratedIcon(
+                key: Key('nav-icon-knowledge'),
+                asset: HelixAssets.navKnowledge,
+                semanticLabel: 'Knowledge',
+              ),
+              selectedIcon: const HelixGeneratedIcon(
+                key: Key('nav-icon-knowledge-selected'),
+                asset: HelixAssets.navKnowledge,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Knowledge',
+              ),
               label: tr('Knowledge', '知识'),
             ),
             NavigationDestination(
-              icon: const Icon(Icons.settings_outlined),
-              selectedIcon: const Icon(Icons.settings),
+              icon: const HelixGeneratedIcon(
+                key: Key('nav-icon-settings'),
+                asset: HelixAssets.navSettings,
+                semanticLabel: 'Settings',
+              ),
+              selectedIcon: const HelixGeneratedIcon(
+                key: Key('nav-icon-settings-selected'),
+                asset: HelixAssets.navSettings,
+                selected: true,
+                size: 34,
+                semanticLabel: 'Settings',
+              ),
               label: tr('Settings', '设置'),
             ),
           ],
