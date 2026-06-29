@@ -20,6 +20,7 @@ import 'services/projects/projects_service.dart';
 import 'services/settings_manager.dart';
 import 'utils/app_logger.dart';
 import 'services/conversation_engine.dart';
+import 'services/conversation_eval_gate.dart';
 import 'services/bitmap_hud/bitmap_hud_service.dart';
 import 'services/dashboard_service.dart';
 import 'services/button_gesture_detector.dart';
@@ -52,8 +53,7 @@ void main() async {
   // Must happen before runApp so Home can read ActiveProjectController.instance
   // without a race on first paint.
   await ActiveProjectController.load();
-  final openAiKey =
-      await SettingsManager.instance.getApiKey('openai') ?? '';
+  final openAiKey = await SettingsManager.instance.getApiKey('openai') ?? '';
   ProjectRagService.initialize(
     db: HelixDatabase.instance,
     embeddingClient: OpenAiEmbeddingsClient(
@@ -91,6 +91,10 @@ void main() async {
 
   // Initialize LLM service and wire to conversation engine
   await _initializeLlmService();
+
+  if (kHelixEvalGateEnabled) {
+    unawaited(ConversationEvalGate().runAndWriteReport());
+  }
 
   // WS-F: Start Bluetooth HID ring-remote listener
   // (no-op at runtime until a signature is bound via dev Input Inspector).

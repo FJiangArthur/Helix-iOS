@@ -63,7 +63,11 @@ coverage/
 # Phase 0 latency corpus — audio clips stay local; manifest.json
 # and baseline.json ARE committed.
 test/fixtures/latency_corpus/*.wav
+test/fixtures/latency_corpus/*.m4a
+test/fixtures/latency_corpus/*.mp3
 test/fixtures/latency_corpus/baseline*.json
+test/fixtures/latency_corpus/youtube_manifest.local.json
+test/fixtures/latency_corpus/eval_report*.json
 
 # Superpowers brainstorm ephemeral state
 .superpowers/

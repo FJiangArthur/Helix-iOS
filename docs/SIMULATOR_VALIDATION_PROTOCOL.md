@@ -10,11 +10,84 @@ simulator with the agent team in `docs/AGENT_TEAM_CONFIG.md`.
 ## Prerequisites
 
 - Xcode 26.3+, Flutter 3.35+, iOS Simulator runtime 26.4
-- OpenAI API key with `gpt-4o-mini` access
-  (`HELIX_TEST_OPENAI_KEY` env var)
+- OpenAI API key with `gpt-4o-mini` and `gpt-4o-mini-transcribe`
+  access. The eval scripts prefer `HELIX_TEST_OPENAI_KEY`; if it is unset
+  they use Codex's `OPENAI_API_KEY`.
 - 10 WAV audio fixtures at `test/fixtures/`
 - `bash scripts/run_gate.sh` passes
 - `mcp__ios-simulator__*` tools available
+
+## Conversation eval gate
+
+The conversation-quality eval gate is optional in the default pre-release
+gate and is enabled explicitly:
+
+```bash
+HELIX_RUN_CONVERSATION_EVAL=1 bash scripts/run_gate.sh
+```
+
+It runs:
+
+- deterministic Flutter tests for passive corrections, question detection,
+  active answers, RAG prompt injection, and web-search tool routing
+- a dedicated simulator launch with `HELIX_EVAL_GATE=true`
+- OpenAI audio-file transcription against a local WAV fixture
+- JSON/Markdown pass-fail reports
+
+Reports are copied to:
+
+- `/tmp/Helix-QA/helix_eval_report.json`
+- `/tmp/Helix-QA/helix_eval_report.md`
+- the simulator app container at
+  `Documents/helix_eval_report.json` and `Documents/helix_eval_report.md`
+
+The JSON schema is:
+
+```json
+{
+  "overall": "PASS",
+  "startedAt": "2026-06-29T00:00:00.000Z",
+  "gitSha": "abcdef0",
+  "simulatorUdid": "....",
+  "latencySummary": {"p50Ms": 123, "p95Ms": 456},
+  "checks": [
+    {
+      "id": "Q1",
+      "area": "question-detection",
+      "status": "PASS",
+      "latencyMs": 120,
+      "expected": "...",
+      "actual": "...",
+      "details": "..."
+    }
+  ]
+}
+```
+
+### Audio fixture setup
+
+Downloaded YouTube audio is local-only and not committed. Create
+`test/fixtures/latency_corpus/youtube_manifest.local.json` from
+`youtube_manifest.example.json`, using only Creative Commons or
+user-authorized sources, then run:
+
+```bash
+bash scripts/setup_youtube_eval_audio.sh
+```
+
+The script uses `yt-dlp` and `ffmpeg`, converts clips to 16 kHz mono WAV,
+and writes `test/fixtures/latency_corpus/manifest.json` with source license
+notes and expected markers. If no YouTube corpus is present, the eval gate
+falls back to existing local WAV fixtures under `test/fixtures/audio/`.
+
+### Latency policy
+
+Hard failures: deterministic local pipeline checks must complete under 1s
+from transcript finalization to reminder, detection, or first answer text.
+
+Report-only latency: live OpenAI audio transcription and other network-bound
+checks are measured and shown in the report, but do not fail the gate solely
+for exceeding 1s. Correctness failures still fail their own check.
 
 ## Simulator setup
 

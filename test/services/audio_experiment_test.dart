@@ -2,12 +2,15 @@
 // ABOUTME: Tests text simulation mode (no native deps) and validates
 // ABOUTME: the experiment result structure with honest metrics.
 
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_helix/services/audio_experiment_harness.dart';
 import 'package:flutter_helix/services/conversation_engine.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -25,30 +28,32 @@ void main() {
   setUpAll(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(secureStorageChannel, (call) async {
-      final arguments =
-          (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
-      final key = arguments['key'] as String?;
-      switch (call.method) {
-        case 'read':
-          return key == null ? null : secureStorageValues[key];
-        case 'write':
-          final value = arguments['value'] as String?;
-          if (key != null && value != null) secureStorageValues[key] = value;
-          return null;
-        case 'delete':
-          if (key != null) secureStorageValues.remove(key);
-          return null;
-        case 'deleteAll':
-          secureStorageValues.clear();
-          return null;
-        case 'containsKey':
-          return key != null && secureStorageValues.containsKey(key);
-        case 'readAll':
-          return Map<String, String>.from(secureStorageValues);
-        default:
-          return null;
-      }
-    });
+          final arguments =
+              (call.arguments as Map?)?.cast<Object?, Object?>() ?? {};
+          final key = arguments['key'] as String?;
+          switch (call.method) {
+            case 'read':
+              return key == null ? null : secureStorageValues[key];
+            case 'write':
+              final value = arguments['value'] as String?;
+              if (key != null && value != null) {
+                secureStorageValues[key] = value;
+              }
+              return null;
+            case 'delete':
+              if (key != null) secureStorageValues.remove(key);
+              return null;
+            case 'deleteAll':
+              secureStorageValues.clear();
+              return null;
+            case 'containsKey':
+              return key != null && secureStorageValues.containsKey(key);
+            case 'readAll':
+              return Map<String, String>.from(secureStorageValues);
+            default:
+              return null;
+          }
+        });
 
     SharedPreferences.setMockInitialValues({});
     engine = ConversationEngine.instance;
@@ -88,9 +93,7 @@ void main() {
     });
 
     test('simulation experiment measures timing', () async {
-      final segments = [
-        'This is a short test segment for timing measurement.',
-      ];
+      final segments = ['This is a short test segment for timing measurement.'];
 
       final result = await harness.runSimulationExperiment(
         segments: segments,
@@ -113,6 +116,7 @@ void main() {
 
       final json = result.toJson();
       expect(json['audioFile'], equals('<simulation>'));
+      expect(json['status'], equals('PASS'));
       expect(json['segmentCount'], equals(1));
       expect(json['wordCount'], greaterThan(0));
       expect(json['firstPartialLatencyMs'], isA<int>());
@@ -122,6 +126,59 @@ void main() {
       expect(json.containsKey('realtimeRatio'), isFalse);
       // wordErrorRate absent for simulation (no ground truth)
       expect(json.containsKey('wordErrorRate'), isFalse);
+    });
+
+    test('GPT file transcription experiment parses OpenAI response', () async {
+      final wav = File('${Directory.systemTemp.path}/helix_eval_fake.wav');
+      // Minimal placeholder bytes; the fake client never decodes the content.
+      await wav.writeAsBytes([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0]);
+      final fakeClient = _FakeTranscriptionClient(
+        statusCode: 200,
+        body: jsonEncode({'text': 'What is a vector database?'}),
+      );
+      final h = AudioExperimentHarness(engine: engine, httpClient: fakeClient);
+
+      final result = await h.runGptFileTranscriptionExperiment(
+        filePath: wav.path,
+        apiKey: 'sk-test',
+      );
+
+      expect(fakeClient.seenAuthorization, startsWith('Bearer '));
+      expect(result.status, 'PASS');
+      expect(result.finalTranscript, contains('vector database'));
+      expect(result.wordCount, greaterThan(3));
+      expect(result.latencyStages, contains('openAiAudioTranscriptionMs'));
+
+      await wav.delete();
+    });
+
+    test('GPT file transcription experiment reports HTTP failure', () async {
+      final wav = File('${Directory.systemTemp.path}/helix_eval_fake_fail.wav');
+      await wav.writeAsBytes([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0]);
+      final h = AudioExperimentHarness(
+        engine: engine,
+        httpClient: _FakeTranscriptionClient(
+          statusCode: 401,
+          body:
+              '{"error":"bad key sk-proj-abcdefghijklmnopqrstuvwxyz0123456789 and sk-proj-********p30A"}',
+        ),
+      );
+
+      final result = await h.runGptFileTranscriptionExperiment(
+        filePath: wav.path,
+        apiKey: 'sk-test',
+      );
+
+      expect(result.status, 'FAIL');
+      expect(result.failureReason, contains('HTTP 401'));
+      expect(result.failureReason, contains('sk-REDACTED'));
+      expect(
+        result.failureReason,
+        isNot(contains('abcdefghijklmnopqrstuvwxyz')),
+      );
+      expect(result.failureReason, isNot(contains('p30A')));
+
+      await wav.delete();
     });
 
     test('AudioFixture parses category and groundTruth', () {
@@ -152,11 +209,15 @@ void main() {
 
     test('manifest loads when fixture directory exists', () async {
       final projectRoot = _findProjectRoot();
-      final manifestFile = File('$projectRoot/test/fixtures/audio/manifest.json');
+      final manifestFile = File(
+        '$projectRoot/test/fixtures/audio/manifest.json',
+      );
 
       if (!manifestFile.existsSync()) {
         // Skip if fixtures haven't been set up yet
-        print('Skipping manifest test — run ./scripts/setup_audio_fixtures.sh first');
+        print(
+          'Skipping manifest test — run ./scripts/setup_audio_fixtures.sh first',
+        );
         return;
       }
 
@@ -205,6 +266,24 @@ void main() {
       expect(result.transcriptionDuration.inMilliseconds, lessThan(1000));
     });
   });
+}
+
+class _FakeTranscriptionClient extends http.BaseClient {
+  _FakeTranscriptionClient({required this.statusCode, required this.body});
+
+  final int statusCode;
+  final String body;
+  String? seenAuthorization;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    seenAuthorization = request.headers['Authorization'];
+    return http.StreamedResponse(
+      Stream<List<int>>.value(utf8.encode(body)),
+      statusCode,
+      request: request,
+    );
+  }
 }
 
 String _findProjectRoot() {

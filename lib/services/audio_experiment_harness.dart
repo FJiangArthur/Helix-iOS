@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../utils/app_logger.dart';
 import 'conversation_engine.dart';
@@ -24,6 +25,9 @@ class ExperimentResult {
   final int segmentCount;
   final int wordCount;
   final double? wordErrorRate;
+  final String status;
+  final String? failureReason;
+  final Map<String, int> latencyStages;
 
   ExperimentResult({
     required this.audioFile,
@@ -35,9 +39,13 @@ class ExperimentResult {
     required this.segmentCount,
     required this.wordCount,
     this.wordErrorRate,
+    this.status = 'PASS',
+    this.failureReason,
+    this.latencyStages = const {},
   });
 
   Map<String, dynamic> toJson() => {
+    'status': status,
     'audioFile': audioFile,
     'audioDurationMs': audioDuration.inMilliseconds,
     'transcriptionDurationMs': transcriptionDuration.inMilliseconds,
@@ -46,6 +54,8 @@ class ExperimentResult {
     'segmentCount': segmentCount,
     'wordCount': wordCount,
     if (wordErrorRate != null) 'wordErrorRate': wordErrorRate,
+    if (failureReason != null) 'failureReason': failureReason,
+    if (latencyStages.isNotEmpty) 'latencyStages': latencyStages,
     'eventCount': events.length,
     'events': events.map((e) => e.toJson()).toList(),
   };
@@ -130,9 +140,11 @@ class AudioExperimentHarness {
   static const _fixtureDir = 'test/fixtures/audio';
 
   final ConversationEngine _engine;
+  final http.Client _httpClient;
 
-  AudioExperimentHarness({ConversationEngine? engine})
-      : _engine = engine ?? ConversationEngine.instance;
+  AudioExperimentHarness({ConversationEngine? engine, http.Client? httpClient})
+    : _engine = engine ?? ConversationEngine.instance,
+      _httpClient = httpClient ?? http.Client();
 
   /// Load the audio fixture manifest.
   Future<List<AudioFixture>> loadManifest({String? projectRoot}) async {
@@ -140,7 +152,9 @@ class AudioExperimentHarness {
     final manifestFile = File('$root/$_fixtureDir/manifest.json');
 
     if (!manifestFile.existsSync()) {
-      appLogger.w('[Experiment] No manifest found. Run: ./scripts/setup_audio_fixtures.sh');
+      appLogger.w(
+        '[Experiment] No manifest found. Run: ./scripts/setup_audio_fixtures.sh',
+      );
       return [];
     }
 
@@ -165,9 +179,15 @@ class AudioExperimentHarness {
     required String filePath,
     String language = 'EN',
     String? groundTruth,
+    String backend = 'appleCloud',
+    String? apiKey,
+    String? model,
+    bool realtime = false,
     Duration timeout = const Duration(seconds: 120),
   }) async {
-    appLogger.i('[Experiment] Starting native experiment: ${filePath.split("/").last}');
+    appLogger.i(
+      '[Experiment] Starting native experiment: ${filePath.split("/").last}',
+    );
 
     final events = <TranscriptEvent>[];
     final stopwatch = Stopwatch()..start();
@@ -198,16 +218,20 @@ class AudioExperimentHarness {
       if (text.isNotEmpty) {
         firstPartialMs ??= stopwatch.elapsed.inMilliseconds;
 
-        events.add(TranscriptEvent(
-          text: text,
-          isFinal: isFinal,
-          timestampMs: DateTime.now().millisecondsSinceEpoch,
-          elapsed: stopwatch.elapsed,
-        ));
+        events.add(
+          TranscriptEvent(
+            text: text,
+            isFinal: isFinal,
+            timestampMs: DateTime.now().millisecondsSinceEpoch,
+            elapsed: stopwatch.elapsed,
+          ),
+        );
 
         final preview = text.length > 80 ? '${text.substring(0, 80)}...' : text;
-        appLogger.d('[Experiment] ${isFinal ? "FINAL" : "partial"} '
-            '[${stopwatch.elapsed.inMilliseconds}ms]: $preview');
+        appLogger.d(
+          '[Experiment] ${isFinal ? "FINAL" : "partial"} '
+          '[${stopwatch.elapsed.inMilliseconds}ms]: $preview',
+        );
       }
 
       // Debounce completion: after a final event, wait 2s for trailing events
@@ -221,15 +245,27 @@ class AudioExperimentHarness {
 
     try {
       // 4. Trigger native file transcription (events flow through existing channel)
-      await _methodChannel.invokeMethod('transcribeAudioFile', {
+      final args = <String, Object?>{
         'filePath': filePath,
         'language': language,
-      });
+        'backend': backend,
+        'realtime': realtime,
+      };
+      if (apiKey != null) {
+        args['apiKey'] = apiKey;
+      }
+      if (model != null) {
+        args['model'] = model;
+      }
+      await _methodChannel.invokeMethod('transcribeAudioFile', args);
 
       // 5. Wait for completion or timeout
-      await completer.future.timeout(timeout, onTimeout: () {
-        appLogger.w('[Experiment] Timeout after ${timeout.inSeconds}s');
-      });
+      await completer.future.timeout(
+        timeout,
+        onTimeout: () {
+          appLogger.w('[Experiment] Timeout after ${timeout.inSeconds}s');
+        },
+      );
     } finally {
       completionTimer?.cancel();
       await sub.cancel();
@@ -242,7 +278,9 @@ class AudioExperimentHarness {
         .map((e) => e.text)
         .join(' ');
 
-    final wer = groundTruth != null ? _computeWER(groundTruth, finalText) : null;
+    final wer = groundTruth != null
+        ? _computeWER(groundTruth, finalText)
+        : null;
 
     final result = ExperimentResult(
       audioFile: filePath,
@@ -252,12 +290,156 @@ class AudioExperimentHarness {
       events: events,
       finalTranscript: finalText,
       segmentCount: events.where((e) => e.isFinal).length,
-      wordCount: finalText.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length,
+      wordCount: finalText
+          .split(RegExp(r'\s+'))
+          .where((w) => w.isNotEmpty)
+          .length,
       wordErrorRate: wer,
     );
 
     appLogger.i('[Experiment] $result');
     return result;
+  }
+
+  /// Run batch GPT transcription directly against OpenAI's audio transcription
+  /// endpoint. This is used by the eval gate for real audio-file coverage.
+  Future<ExperimentResult> runGptFileTranscriptionExperiment({
+    required String filePath,
+    required String apiKey,
+    String model = 'gpt-4o-mini-transcribe',
+    String language = 'en',
+    String? groundTruth,
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
+    final file = File(filePath);
+    final audioDuration = await _getAudioDuration(filePath);
+    final stopwatch = Stopwatch()..start();
+    final events = <TranscriptEvent>[];
+
+    if (!file.existsSync()) {
+      stopwatch.stop();
+      return ExperimentResult(
+        audioFile: filePath,
+        audioDuration: audioDuration,
+        transcriptionDuration: stopwatch.elapsed,
+        firstPartialLatencyMs: 0,
+        events: events,
+        finalTranscript: '',
+        segmentCount: 0,
+        wordCount: 0,
+        status: 'FAIL',
+        failureReason: 'Audio file not found: $filePath',
+      );
+    }
+    if (apiKey.trim().isEmpty) {
+      stopwatch.stop();
+      return ExperimentResult(
+        audioFile: filePath,
+        audioDuration: audioDuration,
+        transcriptionDuration: stopwatch.elapsed,
+        firstPartialLatencyMs: 0,
+        events: events,
+        finalTranscript: '',
+        segmentCount: 0,
+        wordCount: 0,
+        status: 'FAIL',
+        failureReason: 'HELIX_TEST_OPENAI_KEY/OPENAI_API_KEY is required',
+      );
+    }
+
+    try {
+      final request =
+          http.MultipartRequest(
+              'POST',
+              Uri.parse('https://api.openai.com/v1/audio/transcriptions'),
+            )
+            ..headers['Authorization'] = 'Bearer ${apiKey.trim()}'
+            ..fields['model'] = model
+            ..fields['language'] = language
+            ..fields['response_format'] = 'json'
+            ..files.add(await http.MultipartFile.fromPath('file', filePath));
+
+      final response = await _httpClient.send(request).timeout(timeout);
+      final body = await response.stream.bytesToString().timeout(timeout);
+      stopwatch.stop();
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final redactedBody = _redactSecrets(body);
+        return ExperimentResult(
+          audioFile: filePath,
+          audioDuration: audioDuration,
+          transcriptionDuration: stopwatch.elapsed,
+          firstPartialLatencyMs: 0,
+          events: events,
+          finalTranscript: '',
+          segmentCount: 0,
+          wordCount: 0,
+          status: 'FAIL',
+          failureReason:
+              'OpenAI transcription HTTP ${response.statusCode}: '
+              '${redactedBody.length > 240 ? redactedBody.substring(0, 240) : redactedBody}',
+        );
+      }
+
+      final decoded = jsonDecode(body) as Map<String, dynamic>;
+      final text = (decoded['text'] as String? ?? '').trim();
+      events.add(
+        TranscriptEvent(
+          text: text,
+          isFinal: true,
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          elapsed: stopwatch.elapsed,
+        ),
+      );
+      final wer = groundTruth != null ? _computeWER(groundTruth, text) : null;
+      return ExperimentResult(
+        audioFile: filePath,
+        audioDuration: audioDuration,
+        transcriptionDuration: stopwatch.elapsed,
+        firstPartialLatencyMs: stopwatch.elapsed.inMilliseconds,
+        events: events,
+        finalTranscript: text,
+        segmentCount: text.isEmpty ? 0 : 1,
+        wordCount: text.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length,
+        wordErrorRate: wer,
+        status: text.isEmpty ? 'FAIL' : 'PASS',
+        failureReason: text.isEmpty
+            ? 'OpenAI returned an empty transcript'
+            : null,
+        latencyStages: {
+          'openAiAudioTranscriptionMs': stopwatch.elapsed.inMilliseconds,
+        },
+      );
+    } on TimeoutException {
+      stopwatch.stop();
+      return ExperimentResult(
+        audioFile: filePath,
+        audioDuration: audioDuration,
+        transcriptionDuration: stopwatch.elapsed,
+        firstPartialLatencyMs: 0,
+        events: events,
+        finalTranscript: '',
+        segmentCount: 0,
+        wordCount: 0,
+        status: 'FAIL',
+        failureReason:
+            'OpenAI transcription timed out after ${timeout.inSeconds}s',
+      );
+    } catch (e) {
+      stopwatch.stop();
+      return ExperimentResult(
+        audioFile: filePath,
+        audioDuration: audioDuration,
+        transcriptionDuration: stopwatch.elapsed,
+        firstPartialLatencyMs: 0,
+        events: events,
+        finalTranscript: '',
+        segmentCount: 0,
+        wordCount: 0,
+        status: 'FAIL',
+        failureReason: 'OpenAI transcription failed: ${_redactSecrets('$e')}',
+      );
+    }
   }
 
   /// Run a text-based simulation experiment (no native audio needed).
@@ -270,7 +452,9 @@ class AudioExperimentHarness {
     Duration segmentDelay = const Duration(milliseconds: 200),
     Duration wordDelay = const Duration(milliseconds: 40),
   }) async {
-    appLogger.i('[Experiment] Starting simulation experiment: ${segments.length} segments');
+    appLogger.i(
+      '[Experiment] Starting simulation experiment: ${segments.length} segments',
+    );
 
     final events = <TranscriptEvent>[];
     final stopwatch = Stopwatch()..start();
@@ -284,12 +468,14 @@ class AudioExperimentHarness {
       if (text.isNotEmpty) {
         firstPartialMs ??= stopwatch.elapsed.inMilliseconds;
       }
-      events.add(TranscriptEvent(
-        text: text,
-        isFinal: snapshot.partialText.isEmpty,
-        timestampMs: DateTime.now().millisecondsSinceEpoch,
-        elapsed: stopwatch.elapsed,
-      ));
+      events.add(
+        TranscriptEvent(
+          text: text,
+          isFinal: snapshot.partialText.isEmpty,
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          elapsed: stopwatch.elapsed,
+        ),
+      );
     });
 
     try {
@@ -309,7 +495,8 @@ class AudioExperimentHarness {
     return ExperimentResult(
       audioFile: '<simulation>',
       audioDuration: Duration(
-        milliseconds: (segments.length * segmentDelay.inMilliseconds) +
+        milliseconds:
+            (segments.length * segmentDelay.inMilliseconds) +
             (segments.join(' ').split(' ').length * wordDelay.inMilliseconds),
       ),
       transcriptionDuration: stopwatch.elapsed,
@@ -333,7 +520,9 @@ class AudioExperimentHarness {
     final fixtures = await loadManifest(projectRoot: root);
 
     if (fixtures.isEmpty) {
-      appLogger.w('[Experiment] No fixtures found. Run setup_audio_fixtures.sh first.');
+      appLogger.w(
+        '[Experiment] No fixtures found. Run setup_audio_fixtures.sh first.',
+      );
       return [];
     }
 
@@ -365,7 +554,8 @@ class AudioExperimentHarness {
   }) async {
     final root = projectRoot ?? _findProjectRoot();
     final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-    final path = outputPath ?? '$root/test/fixtures/audio/results_$timestamp.json';
+    final path =
+        outputPath ?? '$root/test/fixtures/audio/results_$timestamp.json';
 
     final json = const JsonEncoder.withIndent('  ').convert({
       'timestamp': DateTime.now().toIso8601String(),
@@ -388,23 +578,31 @@ class AudioExperimentHarness {
       final wer = r.wordErrorRate != null
           ? ', WER=${(r.wordErrorRate! * 100).toStringAsFixed(1)}%'
           : '';
-      appLogger.i('  $name: ${r.wordCount} words, '
-          '${r.segmentCount} segments, '
-          'firstPartial=${r.firstPartialLatencyMs}ms, '
-          '${r.transcriptionDuration.inMilliseconds}ms total$wer');
+      appLogger.i(
+        '  $name: ${r.wordCount} words, '
+        '${r.segmentCount} segments, '
+        'firstPartial=${r.firstPartialLatencyMs}ms, '
+        '${r.transcriptionDuration.inMilliseconds}ms total$wer',
+      );
     }
 
-    final avgFirstPartial = results
-        .map((r) => r.firstPartialLatencyMs)
-        .reduce((a, b) => a + b) / results.length;
-    appLogger.i('Average first-partial latency: ${avgFirstPartial.toStringAsFixed(0)}ms');
+    final avgFirstPartial =
+        results.map((r) => r.firstPartialLatencyMs).reduce((a, b) => a + b) /
+        results.length;
+    appLogger.i(
+      'Average first-partial latency: ${avgFirstPartial.toStringAsFixed(0)}ms',
+    );
     appLogger.i('═══════════════════════════\n');
   }
 
   /// Compute Word Error Rate using minimum edit distance.
   double _computeWER(String reference, String hypothesis) {
-    final ref = _normalizeForWER(reference).split(' ').where((w) => w.isNotEmpty).toList();
-    final hyp = _normalizeForWER(hypothesis).split(' ').where((w) => w.isNotEmpty).toList();
+    final ref = _normalizeForWER(
+      reference,
+    ).split(' ').where((w) => w.isNotEmpty).toList();
+    final hyp = _normalizeForWER(
+      hypothesis,
+    ).split(' ').where((w) => w.isNotEmpty).toList();
 
     if (ref.isEmpty) return hyp.isEmpty ? 0.0 : 1.0;
 
@@ -413,15 +611,19 @@ class AudioExperimentHarness {
     final m = hyp.length;
     final dp = List.generate(n + 1, (_) => List.filled(m + 1, 0));
 
-    for (var i = 0; i <= n; i++) dp[i][0] = i;
-    for (var j = 0; j <= m; j++) dp[0][j] = j;
+    for (var i = 0; i <= n; i++) {
+      dp[i][0] = i;
+    }
+    for (var j = 0; j <= m; j++) {
+      dp[0][j] = j;
+    }
 
     for (var i = 1; i <= n; i++) {
       for (var j = 1; j <= m; j++) {
         final cost = ref[i - 1] == hyp[j - 1] ? 0 : 1;
         dp[i][j] = [
-          dp[i - 1][j] + 1,     // deletion
-          dp[i][j - 1] + 1,     // insertion
+          dp[i - 1][j] + 1, // deletion
+          dp[i][j - 1] + 1, // insertion
           dp[i - 1][j - 1] + cost, // substitution
         ].reduce(min);
       }
@@ -438,12 +640,19 @@ class AudioExperimentHarness {
         .trim();
   }
 
+  String _redactSecrets(String input) {
+    return input.replaceAll(RegExp(r'sk-[^\s"(),]+'), 'sk-REDACTED');
+  }
+
   Future<Duration> _getAudioDuration(String filePath) async {
     try {
       final result = await Process.run('ffprobe', [
-        '-v', 'quiet',
-        '-show_entries', 'format=duration',
-        '-of', 'csv=p=0',
+        '-v',
+        'quiet',
+        '-show_entries',
+        'format=duration',
+        '-of',
+        'csv=p=0',
         filePath,
       ]);
       final seconds = double.tryParse(result.stdout.toString().trim()) ?? 0;

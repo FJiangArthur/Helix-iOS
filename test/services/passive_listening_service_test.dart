@@ -204,6 +204,42 @@ void main() {
       expect(service.pendingSegmentCount, 1);
     });
 
+    test('false claim emits passive correction reminder under 1s', () async {
+      final service = PassiveListeningService.instance;
+      final future = service.correctionStream.first.timeout(
+        const Duration(seconds: 1),
+      );
+
+      service.onTranscriptForTest({
+        'script': 'The first iPhone launched in 2006.',
+        'isFinal': true,
+        'timestampMs': DateTime.now().millisecondsSinceEpoch,
+        'language': 'en',
+      });
+
+      final alert = await future;
+      expect(alert.reminder, contains('2007'));
+      expect(alert.latencyMs, lessThan(1000));
+      expect(alert.sourceText, contains('2006'));
+    });
+
+    test('correct final transcript does not emit passive correction', () async {
+      final service = PassiveListeningService.instance;
+      var emitted = false;
+      final sub = service.correctionStream.listen((_) => emitted = true);
+
+      service.onTranscriptForTest({
+        'script': 'The first iPhone launched in 2007.',
+        'isFinal': true,
+        'timestampMs': DateTime.now().millisecondsSinceEpoch,
+        'language': 'en',
+      });
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await sub.cancel();
+      expect(emitted, isFalse);
+    });
+
     test('non-final transcript is NOT buffered', () async {
       final service = PassiveListeningService.instance;
 

@@ -139,11 +139,17 @@ import NaturalLanguage
                 let filePath = args["filePath"] as? String ?? ""
                 let lang = args["language"] as? String ?? "EN"
                 let realtime = args["realtime"] as? Bool ?? false
+                let backendStr = args["backend"] as? String ?? "appleCloud"
+                let apiKey = args["apiKey"] as? String
+                let model = args["model"] as? String
 
                 let fileURL = URL(fileURLWithPath: filePath)
                 SpeechStreamRecognizer.shared.transcribeAudioFile(
                     fileURL: fileURL,
                     identifier: lang,
+                    backend: backendStr,
+                    apiKey: apiKey,
+                    model: model,
                     realtime: realtime
                 ) { transcribeResult in
                     switch transcribeResult {

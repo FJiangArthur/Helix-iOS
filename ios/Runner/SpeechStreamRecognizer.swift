@@ -867,10 +867,13 @@ class SpeechStreamRecognizer {
     func transcribeAudioFile(
         fileURL: URL,
         identifier: String = "EN",
+        backend: String = "appleCloud",
+        apiKey: String? = nil,
+        model: String? = nil,
         realtime: Bool = false,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
-        log("transcribeAudioFile path=\(fileURL.path) realtime=\(realtime) lang=\(identifier)")
+        log("transcribeAudioFile path=\(fileURL.path) backend=\(backend) realtime=\(realtime) lang=\(identifier)")
 
         // Stop any active session first
         if recognitionTask != nil || openaiTranscriber.isActive {
@@ -892,6 +895,17 @@ class SpeechStreamRecognizer {
                               userInfo: [NSLocalizedDescriptionKey: "Audio file not found: \(fileURL.path)"])
             failToStart(err)
             completion(.failure(err))
+            return
+        }
+
+        if backend == "openai" || backend == "whisper" {
+            transcribeFileWithOpenAI(
+                fileURL: fileURL,
+                apiKey: apiKey ?? "",
+                model: model ?? "gpt-4o-mini-transcribe",
+                language: languageDic[identifier] ?? "en-US",
+                completion: completion
+            )
             return
         }
 
@@ -954,6 +968,98 @@ class SpeechStreamRecognizer {
         }
 
         log("SFSpeechURLRecognitionRequest started for \(fileURL.lastPathComponent)")
+        completion(.success(()))
+    }
+
+    /// Batch file transcription through OpenAI's audio transcription endpoint.
+    /// Emits the same transcript event shape as Apple file transcription.
+    private func transcribeFileWithOpenAI(
+        fileURL: URL,
+        apiKey: String,
+        model: String,
+        language: String,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let err = NSError(
+                domain: "SpeechStreamRecognizer",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "OpenAI API key is required for file transcription"]
+            )
+            failToStart(err)
+            completion(.failure(err))
+            return
+        }
+
+        let boundary = "HelixAudioBoundary\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        let endpoint = URL(string: "https://api.openai.com/v1/audio/transcriptions")!
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 45
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        do {
+            var body = Data()
+            body.helixAppendMultipartField(name: "model", value: model, boundary: boundary)
+            body.helixAppendMultipartField(name: "language", value: language.prefix(2).lowercased(), boundary: boundary)
+            body.helixAppendMultipartField(name: "response_format", value: "json", boundary: boundary)
+
+            let audioData = try Data(contentsOf: fileURL)
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: audio/wav\r\n\r\n".data(using: .utf8)!)
+            body.append(audioData)
+            body.append("\r\n".data(using: .utf8)!)
+            body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+            request.httpBody = body
+        } catch {
+            emitError("OpenAI file transcription failed to read audio: \(error.localizedDescription)")
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.emitError("OpenAI file transcription failed: \(error.localizedDescription)")
+                }
+                return
+            }
+
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard let data = data else {
+                DispatchQueue.main.async {
+                    self.emitError("OpenAI file transcription returned no data")
+                }
+                return
+            }
+
+            guard status >= 200 && status < 300 else {
+                let body = String(data: data, encoding: .utf8) ?? ""
+                DispatchQueue.main.async {
+                    self.emitError("OpenAI file transcription HTTP \(status): \(body.prefix(240))")
+                }
+                return
+            }
+
+            do {
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                let text = (json?["text"] as? String ?? "")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                DispatchQueue.main.async {
+                    self.emitTranscript(text, isFinal: true)
+                    self.cleanupRecognition(deactivateSession: false)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self.emitError("OpenAI file transcription parse failed: \(error.localizedDescription)")
+                }
+            }
+        }.resume()
+
+        log("OpenAI file transcription started for \(fileURL.lastPathComponent)")
         completion(.success(()))
     }
 
@@ -1573,6 +1679,14 @@ class SpeechStreamRecognizer {
 
         let byteCount = Int(outputBuffer.frameLength) * MemoryLayout<Int16>.size
         return Data(bytes: channelData.pointee, count: byteCount)
+    }
+}
+
+private extension Data {
+    mutating func helixAppendMultipartField(name: String, value: String, boundary: String) {
+        append("--\(boundary)\r\n".data(using: .utf8)!)
+        append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+        append("\(value)\r\n".data(using: .utf8)!)
     }
 }
 

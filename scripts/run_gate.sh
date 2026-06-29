@@ -9,6 +9,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 MIN_COVERAGE=60
 MAX_CRITICAL_TODOS=5
+HELIX_TEST_CONCURRENCY="${HELIX_TEST_CONCURRENCY:-1}"
 CRITICAL_FILES=(
   "lib/services/conversation_engine.dart"
   "lib/services/conversation_listening_session.dart"
@@ -85,7 +86,7 @@ echo ""
 # ===== Gate 3: Unit Tests =====
 printf "${BOLD}[3/7] Unit Tests${NC}\n"
 t=$(gate_start_time)
-if flutter test test/ --reporter expanded 2>&1; then
+if flutter test test/ --reporter expanded --concurrency="$HELIX_TEST_CONCURRENCY" 2>&1; then
   pass "All unit tests passed"
 else
   fail "Unit tests had failures"
@@ -97,7 +98,7 @@ echo ""
 # ===== Gate 4: Test Coverage =====
 printf "${BOLD}[4/7] Test Coverage (>= ${MIN_COVERAGE}%%)${NC}\n"
 t=$(gate_start_time)
-if flutter test --coverage test/ 2>&1; then
+if flutter test --coverage test/ --concurrency="$HELIX_TEST_CONCURRENCY" 2>&1; then
   if command -v lcov &>/dev/null; then
     COVERAGE_SUMMARY=$(lcov --summary coverage/lcov.info 2>&1 || true)
     COVERAGE_PCT=$(echo "$COVERAGE_SUMMARY" | grep -oP 'lines\.*:\s*\K[0-9]+(\.[0-9]+)?' || echo "0")
@@ -161,9 +162,28 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-# ===== Gate 7: Analyzer Warnings (threshold: 10) =====
+# ===== Gate 7: Conversation Eval (optional) =====
+if [ "${HELIX_RUN_CONVERSATION_EVAL:-0}" = "1" ]; then
+  printf "${BOLD}[7/8] Conversation Eval Gate${NC}\n"
+  t=$(gate_start_time)
+  if bash scripts/run_conversation_eval_gate.sh 2>&1; then
+    pass "Conversation eval gate passed"
+  else
+    fail "Conversation eval gate failed"
+    FAILURES=$((FAILURES + 1))
+  fi
+  info "Elapsed: $(gate_elapsed "$t")"
+  echo ""
+  FINAL_GATE_INDEX="8/8"
+else
+  info "Conversation eval gate skipped (set HELIX_RUN_CONVERSATION_EVAL=1 to enable)"
+  echo ""
+  FINAL_GATE_INDEX="7/7"
+fi
+
+# ===== Final Gate: Analyzer Warnings (threshold: 10) =====
 MAX_WARNINGS=10
-printf "${BOLD}[7/7] Analyzer Warnings (threshold: ${MAX_WARNINGS})${NC}\n"
+printf "${BOLD}[${FINAL_GATE_INDEX}] Analyzer Warnings (threshold: ${MAX_WARNINGS})${NC}\n"
 t=$(gate_start_time)
 ANALYZE_WARNINGS=$(echo "$ANALYZE_OUTPUT" | grep -c "warning •" || true)
 ANALYZE_INFOS=$(echo "$ANALYZE_OUTPUT" | grep -c "info •" || true)

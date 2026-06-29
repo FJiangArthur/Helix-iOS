@@ -1,0 +1,12 @@
+[
+  {
+    "id": "llm-qa-01",
+    "sourceUrl": "https://www.youtube.com/watch?v=REPLACE_ME",
+    "license": "Creative Commons or user-authorized",
+    "notes": "LLM or technical Q&A clip for Helix eval",
+    "kind": "qa",
+    "start": "00:00:00",
+    "duration": 30,
+    "expectedMarkers": ["llm", "question"]
+  }
+]

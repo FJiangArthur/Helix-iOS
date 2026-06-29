@@ -33,6 +33,32 @@ class PassiveTranscriptEvent {
       'PassiveTranscriptEvent("$text", isFinal=$isFinal, ts=$timestampMs, lang=$language)';
 }
 
+/// A fast passive reminder emitted when a transcript contains a known false
+/// claim. This is intentionally separate from UI so the behavior is testable.
+class PassiveCorrectionAlert {
+  const PassiveCorrectionAlert({
+    required this.claim,
+    required this.reminder,
+    required this.sourceText,
+    required this.latencyMs,
+    required this.timestamp,
+  });
+
+  final String claim;
+  final String reminder;
+  final String sourceText;
+  final int latencyMs;
+  final DateTime timestamp;
+
+  Map<String, Object?> toJson() => {
+    'claim': claim,
+    'reminder': reminder,
+    'sourceText': sourceText,
+    'latencyMs': latencyMs,
+    'timestamp': timestamp.toIso8601String(),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -76,26 +102,40 @@ class PassiveListeningService {
 
   final _transcriptController =
       StreamController<PassiveTranscriptEvent>.broadcast();
+  final _correctionController =
+      StreamController<PassiveCorrectionAlert>.broadcast();
 
   /// Stream of transcript events from passive listening.
   Stream<PassiveTranscriptEvent> get transcriptStream =>
       _transcriptController.stream;
+
+  /// Stream of passive correction reminders. UI can subscribe later; the eval
+  /// gate uses this directly to prove reminder latency.
+  Stream<PassiveCorrectionAlert> get correctionStream =>
+      _correctionController.stream;
 
   // ---------------------------------------------------------------------------
   // Dependency injection hooks (for testing)
   // ---------------------------------------------------------------------------
 
   /// Override to supply a custom [LocalAnalysisService] (useful in tests).
-  LocalAnalysisService Function() localAnalysisFactory =
-      () => LocalAnalysisService();
+  LocalAnalysisService Function() localAnalysisFactory = () =>
+      LocalAnalysisService();
 
   /// Override to supply a custom [UserKnowledgeBase] (useful in tests).
-  UserKnowledgeBase Function() knowledgeBaseFactory =
-      () => UserKnowledgeBase.instance;
+  UserKnowledgeBase Function() knowledgeBaseFactory = () =>
+      UserKnowledgeBase.instance;
 
   /// Override to supply a custom [AnalysisOrchestrator] builder (useful in tests).
   AnalysisOrchestrator Function(UserKnowledgeBase kb)?
-      analysisOrchestratorFactory;
+  analysisOrchestratorFactory;
+
+  /// Eval/test seam for deterministic passive reminders. Keys are matched
+  /// case-insensitively after light punctuation normalization.
+  Map<String, String> passiveCorrectionRules = const {
+    'the first iphone launched in 2006': 'The first iPhone launched in 2007.',
+    'python is statically typed': 'Python is dynamically typed by default.',
+  };
 
   // ---------------------------------------------------------------------------
   // Lifecycle
@@ -113,8 +153,9 @@ class PassiveListeningService {
     });
 
     // Listen to event channel
-    _eventSubscription =
-        _eventChannel.receiveBroadcastStream().listen(_onTranscript);
+    _eventSubscription = _eventChannel.receiveBroadcastStream().listen(
+      _onTranscript,
+    );
 
     // Start batch analysis timer
     _startBatchTimer();
@@ -167,11 +208,14 @@ class PassiveListeningService {
 
     // On final transcript, process locally and buffer for batch
     if (isFinal && text.trim().isNotEmpty) {
+      _emitCorrectionIfNeeded(text, timestampMs);
       _processLocally(text, language);
-      _pendingSegments.add(TranscriptSegment(
-        text: text,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
-      ));
+      _pendingSegments.add(
+        TranscriptSegment(
+          text: text,
+          timestamp: DateTime.fromMillisecondsSinceEpoch(timestampMs),
+        ),
+      );
     }
   }
 
@@ -195,6 +239,33 @@ class PassiveListeningService {
     }
   }
 
+  void _emitCorrectionIfNeeded(String text, int timestampMs) {
+    final normalized = _normalizeClaim(text);
+    if (normalized.isEmpty || passiveCorrectionRules.isEmpty) return;
+
+    for (final entry in passiveCorrectionRules.entries) {
+      final claim = _normalizeClaim(entry.key);
+      if (claim.isEmpty || !normalized.contains(claim)) continue;
+
+      final now = DateTime.now();
+      final latencyMs = timestampMs > 0
+          ? now
+                .difference(DateTime.fromMillisecondsSinceEpoch(timestampMs))
+                .inMilliseconds
+          : 0;
+      _correctionController.add(
+        PassiveCorrectionAlert(
+          claim: entry.key,
+          reminder: entry.value,
+          sourceText: text,
+          latencyMs: latencyMs < 0 ? 0 : latencyMs,
+          timestamp: now,
+        ),
+      );
+      return;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Batch analysis
   // ---------------------------------------------------------------------------
@@ -202,7 +273,10 @@ class PassiveListeningService {
   void _startBatchTimer() {
     _batchTimer?.cancel();
     final minutes = SettingsManager.instance.batchAnalysisIntervalMinutes;
-    _batchTimer = Timer.periodic(Duration(minutes: minutes), (_) => _flushBatch());
+    _batchTimer = Timer.periodic(
+      Duration(minutes: minutes),
+      (_) => _flushBatch(),
+    );
   }
 
   /// Flush pending segments to the analysis backend.
@@ -215,11 +289,9 @@ class PassiveListeningService {
     if (backend == 'cloud') {
       try {
         final kb = knowledgeBaseFactory();
-        final orchestrator = analysisOrchestratorFactory?.call(kb) ??
-            AnalysisOrchestrator(
-              kb: kb,
-              provider: CloudAnalysisProvider(),
-            );
+        final orchestrator =
+            analysisOrchestratorFactory?.call(kb) ??
+            AnalysisOrchestrator(kb: kb, provider: CloudAnalysisProvider());
         await orchestrator.processSegments(segments);
       } catch (_) {
         // Non-fatal
@@ -249,6 +321,12 @@ class PassiveListeningService {
   /// Convert a dB threshold to linear amplitude.
   double _dbToLinear(double db) => pow(10.0, db / 20.0).toDouble();
 
+  String _normalizeClaim(String text) => text
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
   // ---------------------------------------------------------------------------
   // Visible-for-testing accessors
   // ---------------------------------------------------------------------------
@@ -274,6 +352,7 @@ class PassiveListeningService {
     _eventSubscription?.cancel();
     _eventSubscription = null;
     _transcriptController.close();
+    _correctionController.close();
     _pendingSegments.clear();
     _instance = null;
   }
