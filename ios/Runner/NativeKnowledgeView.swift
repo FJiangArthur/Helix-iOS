@@ -21,28 +21,29 @@ struct NativeKnowledgeView: View {
                         .pickerStyle(.segmented)
 
                         KnowledgeStatsStrip(buckets: knowledgeBuckets)
-                    }
-                }
 
-                NativeSection(selectedBucket.addTitle) {
-                    HStack(spacing: 10) {
-                        TextField(selectedBucket.placeholder, text: $draftItem, axis: .vertical)
-                            .textFieldStyle(.plain)
-                            .font(.body)
-                            .lineLimit(1...3)
-                            .padding(.horizontal, 12)
-                            .frame(minHeight: 44)
-                            .background(NativeHelixTheme.background)
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(NativeHelixTheme.hairline)
-                            }
+                        HStack(spacing: 10) {
+                            TextField(selectedBucket.placeholder, text: $draftItem, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .font(.body)
+                                .lineLimit(1...3)
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 44)
+                                .background(NativeHelixTheme.background)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(NativeHelixTheme.hairline)
+                                }
 
-                        Button("Add", action: addKnowledgeItem)
-                            .buttonStyle(NativeHelixPrimaryButtonStyle())
-                            .disabled(trimmedDraft.isEmpty)
-                            .opacity(trimmedDraft.isEmpty ? 0.45 : 1)
+                            NativeIconButton(
+                                symbolName: "plus",
+                                isPrimary: true,
+                                isDisabled: trimmedDraft.isEmpty,
+                                accessibilityLabel: "Add \(selectedBucket.title.lowercased())",
+                                action: addKnowledgeItem
+                            )
+                        }
                     }
                 }
 
@@ -254,15 +255,6 @@ private enum KnowledgeBucket: String, CaseIterable {
         case .facts: return "Facts"
         case .memories: return "Memories"
         case .todos: return "Todos"
-        }
-    }
-
-    var addTitle: String {
-        switch self {
-        case .projects: return "Add project"
-        case .facts: return "Add fact"
-        case .memories: return "Add memory"
-        case .todos: return "Add todo"
         }
     }
 
