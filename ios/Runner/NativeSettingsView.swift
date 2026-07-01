@@ -18,29 +18,16 @@ struct NativeSettingsView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        Toggle("Auto-detect questions", isOn: autoDetectBinding)
-                        Toggle("Auto-answer", isOn: autoAnswerBinding)
-                        Toggle("Live fact-check", isOn: factCheckBinding)
-                        Toggle("Bitmap HUD", isOn: bitmapHudBinding)
+                        CompactTagGrid(values: runtimeTags)
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Max response sentences: \(runtime.settings.maxResponseSentences)")
-                                .font(.subheadline.weight(.semibold))
-                            Slider(value: sentenceLimitBinding, in: 1...10, step: 1)
-                        }
+                        SettingsToggleGrid(items: settingToggles)
+
+                        SentenceLimitControl(
+                            value: runtime.settings.maxResponseSentences,
+                            binding: sentenceLimitBinding
+                        )
                     }
                     .tint(NativeHelixTheme.teal)
-                }
-
-                NativeSection("Runtime") {
-                    CompactTagGrid(
-                        values: [
-                            runtime.settings.transcriptionBackend.nativeTitle,
-                            runtime.settings.webSearchMode.nativeTitle,
-                            runtime.assistantSession.memorySummary,
-                            runtime.assistantSession.latencySummary
-                        ]
-                    )
                 }
 
                 NativeSection("AI providers") {
@@ -104,6 +91,48 @@ struct NativeSettingsView: View {
         )
     }
 
+    private var runtimeTags: [String] {
+        [
+            runtime.settings.transcriptionBackend.nativeTitle,
+            runtime.settings.webSearchMode.nativeTitle,
+            runtime.assistantSession.memorySummary,
+            runtime.assistantSession.latencySummary
+        ]
+    }
+
+    private var settingToggles: [SettingsToggleItem] {
+        [
+            SettingsToggleItem(
+                id: "auto-detect",
+                title: "Auto-detect",
+                symbolName: "questionmark.bubble",
+                tint: NativeHelixTheme.indigo,
+                binding: autoDetectBinding
+            ),
+            SettingsToggleItem(
+                id: "auto-answer",
+                title: "Auto-answer",
+                symbolName: "arrow.turn.down.left",
+                tint: NativeHelixTheme.green,
+                binding: autoAnswerBinding
+            ),
+            SettingsToggleItem(
+                id: "fact-check",
+                title: "Fact-check",
+                symbolName: "checkmark.seal",
+                tint: NativeHelixTheme.teal,
+                binding: factCheckBinding
+            ),
+            SettingsToggleItem(
+                id: "bitmap-hud",
+                title: "Bitmap HUD",
+                symbolName: "rectangle.on.rectangle",
+                tint: NativeHelixTheme.amber,
+                binding: bitmapHudBinding
+            )
+        ]
+    }
+
     private var providerRows: [NativeProviderRow] {
         runtime.settings.providers.map { provider in
             let readiness = runtime.providerReadiness.first { $0.provider == provider.kind }
@@ -114,6 +143,78 @@ struct NativeSettingsView: View {
                 status: readiness?.hasApiKey == true ? "Key set" : "Needs key",
                 tint: readiness?.hasApiKey == true ? NativeHelixTheme.green : NativeHelixTheme.amber
             )
+        }
+    }
+}
+
+private struct SettingsToggleItem: Identifiable {
+    let id: String
+    let title: String
+    let symbolName: String
+    let tint: Color
+    let binding: Binding<Bool>
+}
+
+private struct SettingsToggleGrid: View {
+    let items: [SettingsToggleItem]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 8)], spacing: 8) {
+            ForEach(items) { item in
+                SettingsToggleTile(item: item)
+            }
+        }
+    }
+}
+
+private struct SettingsToggleTile: View {
+    let item: SettingsToggleItem
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.symbolName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(item.tint)
+                .frame(width: 18, height: 18)
+            Text(item.title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+            Spacer(minLength: 0)
+            Toggle(item.title, isOn: item.binding)
+                .labelsHidden()
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 48)
+        .background(NativeHelixTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(NativeHelixTheme.hairline)
+        }
+    }
+}
+
+private struct SentenceLimitControl: View {
+    let value: Int
+    let binding: Binding<Double>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(NativeHelixTheme.teal)
+                Text("Max response sentences")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                Spacer()
+                Text("\(value)")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(NativeHelixTheme.ink)
+            }
+            Slider(value: binding, in: 1...10, step: 1)
         }
     }
 }
