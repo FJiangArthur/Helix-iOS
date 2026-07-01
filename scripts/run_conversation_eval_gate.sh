@@ -5,7 +5,7 @@
 #   HELIX_RUN_CONVERSATION_EVAL=1 bash scripts/run_gate.sh
 #
 # Useful direct modes:
-#   scripts/run_conversation_eval_gate.sh --deterministic-only
+#   scripts/run_conversation_eval_gate.sh --schema-only
 #   HELIX_EVAL_KEEP_SIMULATOR=1 scripts/run_conversation_eval_gate.sh
 
 set -euo pipefail
@@ -18,7 +18,7 @@ REPORT_DIR="${HELIX_EVAL_REPORT_DIR:-/tmp/Helix-QA}"
 BUNDLE_ID="${HELIX_EVAL_BUNDLE_ID:-com.artjiang.helix}"
 DETERMINISTIC_ONLY=0
 
-if [[ "${1:-}" == "--deterministic-only" ]]; then
+if [[ "${1:-}" == "--deterministic-only" || "${1:-}" == "--schema-only" ]]; then
   DETERMINISTIC_ONLY=1
 fi
 
@@ -33,9 +33,9 @@ if [[ -z "${HELIX_TEST_OPENAI_KEY:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
   export HELIX_TEST_OPENAI_KEY="$OPENAI_API_KEY"
 fi
 
-log "Running deterministic conversation eval tests"
+log "Running conversation eval schema/key-failure tests"
 flutter test test/services/conversation_eval_gate_test.dart --reporter compact
-pass "Deterministic conversation eval tests passed"
+pass "Conversation eval schema/key-failure tests passed"
 
 if [[ "$DETERMINISTIC_ONLY" == "1" || "${HELIX_EVAL_SKIP_SIMULATOR:-0}" == "1" ]]; then
   log "Skipping simulator eval by request"
@@ -149,7 +149,8 @@ log "Building simulator app with HELIX_EVAL_GATE enabled"
 flutter build ios --simulator --no-codesign \
   --dart-define=HELIX_EVAL_GATE=true \
   --dart-define=HELIX_EVAL_GIT_SHA="$GIT_SHA" \
-  --dart-define=HELIX_EVAL_SIMULATOR_UDID="$SIM_UDID"
+  --dart-define=HELIX_EVAL_SIMULATOR_UDID="$SIM_UDID" \
+  --dart-define=HELIX_EVAL_OPENAI_MODEL="${HELIX_EVAL_OPENAI_MODEL:-gpt-4.1-mini}"
 
 APP_PATH="$(find build/ios/iphonesimulator -maxdepth 2 -name "*.app" -print | head -1)"
 if [[ -z "$APP_PATH" || ! -d "$APP_PATH" ]]; then

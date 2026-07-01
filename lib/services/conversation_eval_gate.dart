@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -13,13 +12,14 @@ import 'database/helix_database.dart';
 import 'database/project_dao.dart';
 import 'llm/llm_provider.dart';
 import 'llm/llm_service.dart';
+import 'llm/openai_provider.dart';
 import 'passive_listening_service.dart';
 import 'projects/active_project_controller.dart';
 import 'projects/embedding_math.dart';
 import 'projects/openai_embeddings_client.dart';
 import 'projects/project_rag_service.dart';
 import 'settings_manager.dart';
-import 'tools/tool_executor.dart';
+import 'tools/web_search_tool.dart';
 
 const bool kHelixEvalGateEnabled = bool.fromEnvironment('HELIX_EVAL_GATE');
 const String kHelixEvalOpenAiKey = String.fromEnvironment(
@@ -32,6 +32,10 @@ const String kHelixEvalGitSha = String.fromEnvironment(
 const String kHelixEvalSimulatorUdid = String.fromEnvironment(
   'HELIX_EVAL_SIMULATOR_UDID',
   defaultValue: '',
+);
+const String kHelixEvalOpenAiModel = String.fromEnvironment(
+  'HELIX_EVAL_OPENAI_MODEL',
+  defaultValue: 'gpt-4.1-mini',
 );
 
 class ConversationEvalCheck {
@@ -172,13 +176,14 @@ class ConversationEvalGate {
   Future<ConversationEvalReport> run() async {
     final checks = <ConversationEvalCheck>[];
     await ActiveProjectController.load();
+    checks.add(await _runOpenAiKeyCheck());
     checks.add(await _runPassiveCorrectionCheck());
     checks.add(await _runPassiveNoCorrectionCheck());
     checks.add(await _runQuestionDetectionCheck());
     checks.add(await _runStatementNoAnswerCheck());
     checks.add(await _runActiveAnswerCheck());
     checks.add(await _runRagCheck());
-    checks.add(await _runDeterministicWebSearchCheck());
+    checks.add(await _runLiveWebSearchCheck());
     checks.add(await _runGptAudioTranscriptionCheck());
     return ConversationEvalReport(
       startedAt: DateTime.now(),
@@ -263,17 +268,7 @@ class ConversationEvalGate {
     final started = DateTime.now();
     final engine = ConversationEngine.instance;
     try {
-      final provider = _installEvalProvider(
-        responses: const [
-          '{"shouldRespond":true,"question":"What is Kubernetes used for?",'
-              '"questionExcerpt":"What is Kubernetes used for?",'
-              '"askedBy":"other"}',
-          '{"chips":[],"factCheck":null}',
-        ],
-        streams: const [
-          ['Kubernetes automates deploying and scaling containers.'],
-        ],
-      );
+      await _configureLiveOpenAiProvider();
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       SettingsManager.instance.webSearchEnabled = false;
@@ -289,20 +284,26 @@ class ConversationEvalGate {
       final answerFuture = engine.aiResponseStream
           .firstWhere((text) => text.contains('Kubernetes'))
           .timeout(const Duration(seconds: 2));
-      engine.onTranscriptionFinalized('What is Kubernetes used for?');
+      engine.onTranscriptionFinalized(
+        'What is Kubernetes used for? Answer in one sentence and include '
+        'containers and orchestration.',
+      );
       final detection = await detectionFuture;
       final answer = await answerFuture;
+      final answerLower = answer.toLowerCase();
       final pass =
-          detection.question == 'What is Kubernetes used for?' &&
-          provider.streamCallCount == 1 &&
-          answer.contains('containers');
+          detection.question.toLowerCase().contains('kubernetes') &&
+          !_isErrorAnswer(answer) &&
+          answerLower.contains('containers') &&
+          (answerLower.contains('orchestration') ||
+              answerLower.contains('orchestrates'));
       return _check(
         id: 'Q1',
         area: 'question-detection',
         status: pass ? 'PASS' : 'FAIL',
         started: started,
-        expected: 'One detected question and one generated answer',
-        actual: '${detection.question}; streams=${provider.streamCallCount}',
+        expected: 'One detected question and one live OpenAI answer',
+        actual: '${detection.question}; answer=$answer',
         details: answer,
       );
     } catch (e) {
@@ -322,11 +323,7 @@ class ConversationEvalGate {
     final started = DateTime.now();
     final engine = ConversationEngine.instance;
     try {
-      final provider = _installEvalProvider(
-        responses: const [
-          '{"shouldRespond":false,"question":"","questionExcerpt":""}',
-        ],
-      );
+      await _configureLiveOpenAiProvider();
       SettingsManager.instance.autoDetectQuestions = true;
       SettingsManager.instance.answerAll = true;
       engine.stop();
@@ -340,14 +337,14 @@ class ConversationEvalGate {
       engine.onTranscriptionFinalized('Kubernetes schedules containers.');
       await Future<void>.delayed(const Duration(milliseconds: 250));
       await sub.cancel();
-      final pass = detections == 0 && provider.streamCallCount == 0;
+      final pass = detections == 0;
       return _check(
         id: 'Q2',
         area: 'question-detection',
         status: pass ? 'PASS' : 'FAIL',
         started: started,
         expected: 'Statement does not trigger answer generation',
-        actual: 'detections=$detections streams=${provider.streamCallCount}',
+        actual: 'detections=$detections',
         details: 'Non-question transcript stayed quiet',
       );
     } catch (e) {
@@ -361,21 +358,21 @@ class ConversationEvalGate {
     final started = DateTime.now();
     final engine = ConversationEngine.instance;
     try {
-      _installEvalProvider(
-        responses: const ['{"chips":[],"factCheck":null}'],
-        streams: const [
-          ['A vector database indexes embeddings for semantic retrieval.'],
-        ],
-      );
+      await _configureLiveOpenAiProvider();
       SettingsManager.instance.webSearchEnabled = false;
       final answerFuture = engine.aiResponseStream
           .firstWhere((text) => text.contains('semantic retrieval'))
-          .timeout(const Duration(seconds: 2));
-      await engine.askQuestion('What is a vector database?');
+          .timeout(const Duration(seconds: 20));
+      await engine.askQuestion(
+        'What is a vector database? Answer in one sentence and include '
+        'embeddings and semantic retrieval.',
+      );
       final answer = await answerFuture;
       final lower = answer.toLowerCase();
       final pass =
+          !_isErrorAnswer(answer) &&
           lower.contains('embeddings') &&
+          lower.contains('semantic retrieval') &&
           !lower.contains('you could say') &&
           !lower.contains('here is a suggestion');
       return _check(
@@ -396,6 +393,7 @@ class ConversationEvalGate {
     final started = DateTime.now();
     final engine = ConversationEngine.instance;
     try {
+      await _configureLiveOpenAiProvider();
       final db = HelixDatabase.instance;
       ProjectRagService.initialize(
         db: db,
@@ -426,30 +424,23 @@ class ConversationEvalGate {
       await db.projectDao.updateDocumentStatus(doc.id, status: 'ready');
       await ActiveProjectController.instance.setActive(project.id);
 
-      final provider = _installEvalProvider(
-        responses: const ['{"chips":[],"factCheck":null}'],
-        streams: const [
-          ['Q3 revenue was \$4.2M [1].'],
-        ],
-      );
       SettingsManager.instance.webSearchEnabled = false;
       final answerFuture = engine.aiResponseStream
           .firstWhere((text) => text.contains('\$4.2M'))
-          .timeout(const Duration(seconds: 2));
-      await engine.askQuestion('What was Q3 revenue?');
-      final answer = await answerFuture;
-      final promptHadContext = provider.capturedSystemPrompts.any(
-        (prompt) =>
-            prompt.contains('PROJECT CONTEXT') && prompt.contains(chunk),
+          .timeout(const Duration(seconds: 20));
+      await engine.askQuestion(
+        'Using the active project context, what was Q3 revenue? Answer with '
+        'the exact dollar amount.',
       );
-      final pass = promptHadContext && answer.contains('\$4.2M');
+      final answer = await answerFuture;
+      final pass = !_isErrorAnswer(answer) && answer.contains('\$4.2M');
       return _check(
         id: 'R1',
         area: 'rag',
         status: pass ? 'PASS' : 'FAIL',
         started: started,
-        expected: 'PROJECT CONTEXT injected and answer cites \$4.2M',
-        actual: 'promptHadContext=$promptHadContext answer=$answer',
+        expected: 'Live OpenAI answer uses active project context and \$4.2M',
+        actual: answer,
         details: 'Project ${project.id}',
         latencyReportOnly: true,
       );
@@ -466,55 +457,101 @@ class ConversationEvalGate {
     }
   }
 
-  Future<ConversationEvalCheck> _runDeterministicWebSearchCheck() async {
+  Future<ConversationEvalCheck> _runLiveWebSearchCheck() async {
     final started = DateTime.now();
-    final engine = ConversationEngine.instance;
     try {
-      ToolExecutor.overrideForTesting = (toolName, arguments) async {
-        if (toolName != 'web_search') return 'unexpected tool';
-        return 'Summary: Helix Eval Search Result confirms GPT-4.1 mini.';
-      };
-      _installEvalProvider(
-        responses: const ['{"chips":[],"factCheck":null}'],
-        toolStreams: [
-          [
-            ToolCallRequest(
-              id: 'call_eval_search',
-              name: 'web_search',
-              arguments: {'query': 'GPT-4.1 mini'},
+      final llm = await _configureLiveOpenAiProvider();
+      final searchResult = await WebSearchTool.execute({
+        'query': 'OpenAI',
+      }).timeout(const Duration(seconds: 15));
+      if (_isBadSearchResult(searchResult)) {
+        return _check(
+          id: 'W1',
+          area: 'web-search',
+          status: 'FAIL',
+          started: started,
+          expected: 'Live web search returns usable results',
+          actual: searchResult,
+          details: 'WebSearchTool.execute returned no usable source text',
+        );
+      }
+      final answer = await llm
+          .getResponse(
+            systemPrompt:
+                'Answer only from the provided live web search result. '
+                'Use one concise sentence.',
+            messages: [
+              ChatMessage(
+                role: 'user',
+                content:
+                    'Search result:\n$searchResult\n\n'
+                    'Question: What organization or product is this result about?',
+              ),
+            ],
+            model: kHelixEvalOpenAiModel,
+            requestOptions: const LlmRequestOptions(
+              operationType: AiOperationType.answerGeneration,
+              maxOutputTokens: 80,
             ),
-          ],
-          [TextDelta('Helix Eval Search Result confirms GPT-4.1 mini.')],
-        ],
-      );
-      SettingsManager.instance.webSearchEnabled = true;
-      final answerFuture = engine.aiResponseStream
-          .firstWhere((text) => text.contains('Eval Search Result'))
-          .timeout(const Duration(seconds: 2));
-      await engine.askQuestion(
-        'What does current search say about GPT-4.1 mini?',
-      );
-      final answer = await answerFuture;
+          )
+          .timeout(const Duration(seconds: 30));
+      final pass =
+          !_isErrorAnswer(answer) && answer.toLowerCase().contains('openai');
       return _check(
         id: 'W1',
         area: 'web-search',
-        status: answer.contains('Eval Search Result') ? 'PASS' : 'FAIL',
+        status: pass ? 'PASS' : 'FAIL',
         started: started,
-        expected: 'Tool call result is synthesized into answer',
+        expected: 'Live web search result is synthesized by live OpenAI',
         actual: answer,
-        details: 'Deterministic ToolExecutor override',
+        details: searchResult,
       );
     } catch (e) {
       return _failed(
         'W1',
         'web-search',
         started,
-        'Deterministic tool call',
+        'Live web search + live OpenAI synthesis',
         '$e',
       );
-    } finally {
-      ToolExecutor.overrideForTesting = null;
-      SettingsManager.instance.webSearchEnabled = false;
+    }
+  }
+
+  Future<ConversationEvalCheck> _runOpenAiKeyCheck() async {
+    final started = DateTime.now();
+    try {
+      final llm = await _configureLiveOpenAiProvider();
+      final answer = await llm
+          .getResponse(
+            systemPrompt: 'Reply with exactly: helix-ok',
+            messages: [ChatMessage(role: 'user', content: 'Connection check')],
+            model: kHelixEvalOpenAiModel,
+            requestOptions: const LlmRequestOptions(
+              operationType: AiOperationType.answerGeneration,
+              maxOutputTokens: 16,
+            ),
+          )
+          .timeout(const Duration(seconds: 30));
+      final normalized = answer.trim().toLowerCase();
+      final pass = !_isErrorAnswer(answer) && normalized.contains('helix-ok');
+      return _check(
+        id: 'K1',
+        area: 'openai-backend',
+        status: pass ? 'PASS' : 'FAIL',
+        started: started,
+        expected: 'HELIX_TEST_OPENAI_KEY authenticates with live OpenAI',
+        actual: answer,
+        details: 'model=$kHelixEvalOpenAiModel',
+        latencyReportOnly: true,
+      );
+    } catch (e) {
+      return _failed(
+        'K1',
+        'openai-backend',
+        started,
+        'Valid HELIX_TEST_OPENAI_KEY/OPENAI_API_KEY',
+        '$e',
+      );
     }
   }
 
@@ -531,7 +568,6 @@ class ConversationEvalGate {
           expected: 'At least one WAV copied into app Documents/eval_audio',
           actual: 'no WAV file found',
           details: 'Run scripts/setup_youtube_eval_audio.sh or copy a fixture',
-          reportOnly: true,
         );
       }
       final result = await _audioHarness.runGptFileTranscriptionExperiment(
@@ -547,7 +583,6 @@ class ConversationEvalGate {
         expected: 'OpenAI audio transcription returns non-empty transcript',
         actual: '${result.wordCount} words from ${p.basename(audio.path)}',
         details: result.failureReason ?? result.finalTranscript,
-        reportOnly: true,
       );
     } catch (e) {
       return _failed(
@@ -556,7 +591,6 @@ class ConversationEvalGate {
         started,
         'OpenAI audio transcription',
         '$e',
-        reportOnly: true,
       );
     }
   }
@@ -589,21 +623,34 @@ class ConversationEvalGate {
     return '';
   }
 
-  _EvalProvider _installEvalProvider({
-    List<String> responses = const [],
-    List<List<String>> streams = const [],
-    List<List<LlmResponseEvent>> toolStreams = const [],
-  }) {
-    final provider = _EvalProvider(
-      responses: responses,
-      streams: streams,
-      toolStreams: toolStreams,
-    );
+  Future<LlmService> _configureLiveOpenAiProvider() async {
+    final apiKey = await _resolvedApiKey();
+    if (apiKey.isEmpty) {
+      throw StateError('HELIX_TEST_OPENAI_KEY/OPENAI_API_KEY is required');
+    }
     final llm = LlmService.instance;
-    llm.registerProvider(provider);
-    llm.setActiveProvider(provider.id);
+    if (!llm.providers.containsKey('openai')) {
+      llm.registerProvider(OpenAiProvider());
+    }
+    llm.setApiKey('openai', apiKey);
+    llm.setActiveProvider('openai', model: kHelixEvalOpenAiModel);
+    SettingsManager.instance.activeProviderId = 'openai';
+    SettingsManager.instance.smartModel = kHelixEvalOpenAiModel;
+    SettingsManager.instance.lightModel = kHelixEvalOpenAiModel;
     ConversationEngine.setLlmServiceGetter(() => llm);
-    return provider;
+    return llm;
+  }
+
+  bool _isErrorAnswer(String answer) => answer.trim().startsWith('[Error]');
+
+  bool _isBadSearchResult(String result) {
+    final lower = result.toLowerCase();
+    return result.trim().isEmpty ||
+        lower.startsWith('no results found') ||
+        lower.startsWith('search request failed') ||
+        lower.startsWith('network error') ||
+        lower.startsWith('search error') ||
+        lower.startsWith('no search query');
   }
 
   ConversationEvalCheck _check({
@@ -670,106 +717,4 @@ class _StaticEmbeddings implements EmbeddingClient {
         vectors: List.filled(inputs.length, vector),
         promptTokens: 0,
       );
-}
-
-class _EvalProvider implements LlmProvider {
-  _EvalProvider({
-    List<String> responses = const [],
-    List<List<String>> streams = const [],
-    List<List<LlmResponseEvent>> toolStreams = const [],
-  }) : _responses = Queue<String>.from(responses),
-       _streams = Queue<List<String>>.from(streams),
-       _toolStreams = Queue<List<LlmResponseEvent>>.from(toolStreams);
-
-  final Queue<String> _responses;
-  final Queue<List<String>> _streams;
-  final Queue<List<LlmResponseEvent>> _toolStreams;
-  int streamCallCount = 0;
-  final List<String> capturedSystemPrompts = [];
-
-  @override
-  List<String> get availableModels => const ['helix-eval-model'];
-
-  @override
-  String get defaultModel => 'helix-eval-model';
-
-  @override
-  String get id => 'helix_eval';
-
-  @override
-  String get name => 'Helix Eval';
-
-  @override
-  Future<String> getResponse({
-    required String systemPrompt,
-    required List<ChatMessage> messages,
-    String? model,
-    double temperature = 0.7,
-    LlmRequestOptions? requestOptions,
-    void Function(LlmResponseMetadata metadata)? onMetadata,
-  }) async {
-    capturedSystemPrompts.add(systemPrompt);
-    if (_responses.isEmpty) {
-      return '{"shouldRespond":false,"question":"","questionExcerpt":""}';
-    }
-    return _responses.removeFirst();
-  }
-
-  @override
-  Stream<String> streamResponse({
-    required String systemPrompt,
-    required List<ChatMessage> messages,
-    String? model,
-    double temperature = 0.7,
-    LlmRequestOptions? requestOptions,
-    void Function(LlmResponseMetadata metadata)? onMetadata,
-  }) async* {
-    streamCallCount++;
-    capturedSystemPrompts.add(systemPrompt);
-    final chunks = _streams.isEmpty
-        ? const ['eval answer']
-        : _streams.removeFirst();
-    for (final chunk in chunks) {
-      yield chunk;
-    }
-  }
-
-  @override
-  Stream<LlmResponseEvent> streamWithTools({
-    required String systemPrompt,
-    required List<ChatMessage> messages,
-    List<ToolDefinition>? tools,
-    String? model,
-    double temperature = 0.7,
-    LlmRequestOptions? requestOptions,
-    void Function(LlmResponseMetadata metadata)? onMetadata,
-  }) async* {
-    streamCallCount++;
-    capturedSystemPrompts.add(systemPrompt);
-    if (_toolStreams.isNotEmpty) {
-      for (final event in _toolStreams.removeFirst()) {
-        yield event;
-      }
-      return;
-    }
-    final chunks = _streams.isEmpty
-        ? const ['eval answer']
-        : _streams.removeFirst();
-    for (final chunk in chunks) {
-      yield TextDelta(chunk);
-    }
-  }
-
-  @override
-  Future<List<String>> queryAvailableModels({bool refresh = false}) async =>
-      availableModels;
-
-  @override
-  bool supportsRealtimeModel(String model) => false;
-
-  @override
-  Future<bool> testConnection(String apiKey) async => true;
-
-  @override
-  void updateApiKey(String apiKey) {}
 }
