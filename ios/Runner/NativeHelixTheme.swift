@@ -100,6 +100,33 @@ struct NativeStatusPill: View {
     }
 }
 
+struct NativeIconButton: View {
+    let symbolName: String
+    var isPrimary = false
+    var isDisabled = false
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbolName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isPrimary ? .white : NativeHelixTheme.ink)
+                .frame(width: 48, height: 44)
+                .background(isPrimary ? NativeHelixTheme.ink : NativeHelixTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isPrimary ? Color.clear : NativeHelixTheme.hairline)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 struct NativeEmptyState: View {
     let title: String
     let detail: String

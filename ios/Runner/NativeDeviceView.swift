@@ -15,13 +15,13 @@ struct NativeDeviceView: View {
 
                 NativeSection("HUD controls", subtitle: runtime.g1DeviceState.currentPageSummary) {
                     HStack(spacing: 10) {
-                        DeviceHudButton(
+                        NativeIconButton(
                             symbolName: "chevron.left",
                             accessibilityLabel: "Previous HUD page",
                             action: showPreviousPage
                         )
 
-                        DeviceHudButton(
+                        NativeIconButton(
                             symbolName: "eyeglasses",
                             isPrimary: true,
                             isDisabled: runtime.assistantSession.currentAnswer.isEmpty,
@@ -29,7 +29,7 @@ struct NativeDeviceView: View {
                             action: pushAnswer
                         )
 
-                        DeviceHudButton(
+                        NativeIconButton(
                             symbolName: "chevron.right",
                             accessibilityLabel: "Next HUD page",
                             action: showNextPage
@@ -149,36 +149,5 @@ private struct DeviceMetricTile: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(NativeHelixTheme.hairline)
         }
-    }
-}
-
-private struct DeviceHudButton: View {
-    let symbolName: String
-    var isPrimary = false
-    var isDisabled = false
-    let accessibilityLabel: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbolName)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(isPrimary ? .white : NativeHelixTheme.ink)
-                .frame(width: 48, height: 44)
-                .background(buttonBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isPrimary ? Color.clear : NativeHelixTheme.hairline)
-                }
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .opacity(isDisabled ? 0.45 : 1)
-        .accessibilityLabel(accessibilityLabel)
-    }
-
-    private var buttonBackground: Color {
-        isPrimary ? NativeHelixTheme.ink : NativeHelixTheme.surface
     }
 }

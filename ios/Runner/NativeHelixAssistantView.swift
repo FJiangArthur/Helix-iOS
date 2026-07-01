@@ -115,6 +115,19 @@ private struct AssistantCommandBand: View {
                         tint: runtime.assistantSession.isRunning ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
                     )
                     Spacer(minLength: 0)
+                    NativeIconButton(
+                        symbolName: "eyeglasses",
+                        isPrimary: true,
+                        isDisabled: currentAnswerText.isEmpty,
+                        accessibilityLabel: "Send current answer to G1",
+                        action: sendCurrentAnswerToHud
+                    )
+                    NativeIconButton(
+                        symbolName: "tray.and.arrow.down",
+                        isDisabled: !canSaveSession,
+                        accessibilityLabel: "Save current session",
+                        action: saveSession
+                    )
                 }
 
                 AssistantContextStrip(
@@ -138,26 +151,12 @@ private struct AssistantCommandBand: View {
                                 .stroke(NativeHelixTheme.hairline)
                         }
 
-                    Button(action: askQuestion) {
-                        Label("Ask", systemImage: runtime.assistantSession.isRunning ? "hourglass" : "arrow.up")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(NativeHelixSecondaryButtonStyle())
-                    .disabled(trimmedQuestion.isEmpty || runtime.assistantSession.isRunning)
-                    .opacity(trimmedQuestion.isEmpty || runtime.assistantSession.isRunning ? 0.45 : 1)
-                    .accessibilityLabel("Ask Helix")
-                }
-
-                HStack(spacing: 10) {
-                    Button("Send to G1", action: sendCurrentAnswerToHud)
-                        .buttonStyle(NativeHelixPrimaryButtonStyle())
-                        .disabled(currentAnswerText.isEmpty)
-                        .opacity(currentAnswerText.isEmpty ? 0.45 : 1)
-
-                    Button("Save session", action: saveSession)
-                        .buttonStyle(NativeHelixSecondaryButtonStyle())
-                        .disabled(!canSaveSession)
-                        .opacity(canSaveSession ? 1 : 0.45)
+                    NativeIconButton(
+                        symbolName: runtime.assistantSession.isRunning ? "hourglass" : "arrow.up",
+                        isDisabled: trimmedQuestion.isEmpty || runtime.assistantSession.isRunning,
+                        accessibilityLabel: "Ask Helix",
+                        action: askQuestion
+                    )
                 }
             }
         }
