@@ -3,7 +3,7 @@
 ## Identity
 
 - **Project**: Helix-iOS (v1.1.0+2)
-- **Type**: Flutter + iOS native
+- **Type**: Native iOS headless Swift framework
 - **Purpose**: Companion app for Even Realities G1 smart glasses — real-time conversation intelligence with AI
 
 ## Rules
@@ -11,38 +11,34 @@
 1. Read `CLAUDE.md` before making changes
 2. Run `bash scripts/run_gate.sh` before completing any task
 3. Boot a **dedicated simulator** — `0D7C3AB2` is Album Clean, `6D249AFF` is Pet App
-4. Commit to `main`, always increment version in `pubspec.yaml`
+4. Commit to `main`, always increment version in `pubspec.yaml` while it remains in the repo
+5. Do not add new Flutter, Dart UI, SwiftUI screen, or platform-channel work
 
 ## Architecture
 
 ```
-lib/main.dart → lib/app.dart (4 tabs: Home, Glasses, History, Settings)
+NativeHelix/Package.swift
+  → HelixRuntime (headless dependency container and runtime state)
+  → HelixConversation (general/interview/passive modes)
+  → HelixAI (provider protocols and answer validation)
+  → HelixSpeech (transcription and question detection)
+  → HelixG1 (protocol, HUD pagination, touchpad routing)
+  → HelixPersistence (fresh native stores)
 
-ConversationListeningSession (platform channel bridge)
-  → ConversationEngine (3 modes: general/interview/passive)
-    → LlmService (5 providers: OpenAI, Anthropic, DeepSeek, Qwen, Zhipu)
-    → EvenAI → Proto → BLE → Glasses HUD
-
-Settings: SettingsManager (SharedPreferences + FlutterSecureStorage)
-Database: Drift SQLite (conversations, facts, memories, todos)
-State: GetX + plain Streams
+No Flutter method/event channels, no SwiftUI screens, no UI assets in new work.
 ```
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `lib/services/conversation_engine.dart` | Core: transcription → question detection → AI → HUD |
-| `lib/services/conversation_listening_session.dart` | Speech capture bridge |
-| `lib/services/llm/llm_service.dart` | Multi-provider LLM routing |
-| `lib/services/llm/openai_provider.dart` | OpenAI (gpt-4.1 family + realtime only) |
-| `lib/services/settings_manager.dart` | All settings (maxResponseSentences, hudRenderPath, etc.) |
-| `lib/services/evenai.dart` | Touchpad routing, hasActiveAnswer flag |
-| `lib/services/bitmap_hud/bitmap_hud_service.dart` | Bitmap HUD rendering |
-| `lib/services/button_gesture_detector.dart` | BLE button gestures |
-| `ios/Runner/SpeechStreamRecognizer.swift` | 4-backend speech (Apple Cloud/OnDevice, OpenAI Transcription/Realtime) |
-| `ios/Runner/BluetoothManager.swift` | BLE dual connection (L/R) |
-| `ios/Runner/AppDelegate.swift` | Platform channel handlers |
+| `NativeHelix/Package.swift` | Headless native package graph |
+| `NativeHelix/Sources/HelixRuntime` | Dependency container, runtime state, eval report harness |
+| `NativeHelix/Sources/HelixConversation` | Transcription → question detection → AI → HUD events |
+| `NativeHelix/Sources/HelixAI` | Provider protocol, answer validation |
+| `NativeHelix/Sources/HelixSpeech` | Transcription contracts, question detection |
+| `NativeHelix/Sources/HelixG1` | BLE protocol, HUD pagination, touchpad routing |
+| `NativeHelix/Sources/HelixPersistence` | Native stores and SwiftData schema |
 
 ## Current Features
 
@@ -53,7 +49,7 @@ State: GetX + plain Streams
 - Bitmap HUD default, text fallback
 - 5 LLM providers with streaming
 - 4 transcription backends
-- 97 unit tests, validation gate script
+- Native Swift package tests and validation gate script
 
 ## Known Bugs
 

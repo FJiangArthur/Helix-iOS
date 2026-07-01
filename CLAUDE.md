@@ -1,6 +1,6 @@
 # Helix-iOS
 
-Flutter companion app for Even Realities G1 smart glasses. Real-time conversation intelligence with AI.
+Native headless framework for Even Realities G1 smart glasses conversation intelligence.
 
 **Version**: 1.1.0+2
 
@@ -16,9 +16,9 @@ See `VALIDATION.md` for full details on each gate and how to run individual test
 
 ### Minimum validation before any commit or PR:
 
-1. **Run `flutter analyze`** — must have 0 errors
-2. **Run `flutter test test/`** — all tests must pass
-3. **Run `flutter build ios --simulator --no-codesign`** — must build successfully
+1. **Run `bash scripts/run_native_swift_gate.sh`** — native package must build and test successfully
+2. **Run `bash scripts/run_gate.sh`** — headless boundary, security, and native package gates must pass
+3. Do not add new Flutter, Dart UI, SwiftUI screen, or platform-channel work. Product behavior belongs in native framework modules.
 
 ### After modifying these files, run the FULL gate (`bash scripts/run_gate.sh`):
 
@@ -39,10 +39,11 @@ See `VALIDATION.md` for full details on each gate and how to run individual test
 
 ## Build
 
-- Xcode 26.3, Flutter 3.35+, iOS 15+
-- Debug builds: `flutter run -d <sim-id>` (simulator)
-- Release builds: device only (`flutter run --release -d <device-id>`)
-- Always boot a **dedicated simulator instance** — the simulator is shared by multiple apps on this machine
+- Xcode 26.3, Swift Package Manager, iOS 17+ / macOS 14+ package baseline
+- Default validation is headless Swift package validation, not Flutter
+- Use `swift build --package-path NativeHelix --target HelixRuntime`
+- Use `swift test --package-path NativeHelix`
+- Always boot a **dedicated simulator instance** for simulator work — the simulator is shared by multiple apps on this machine
 - Simulators in use: iPhone 17 Pro (`0D7C3AB2`) = Album Clean, iPhone 17 (`6D249AFF`) = Pet App. Boot a separate instance for Helix.
 
 ## Product Overview
@@ -79,33 +80,28 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 
 ## Architecture
 
-- **Native (iOS)**: BluetoothManager.swift, SpeechStreamRecognizer.swift (4 backends), PcmConverter
-- **Platform channels**: `method.bluetooth`, `eventSpeechRecognize`, `eventRealtimeAudio`
-- **Dart services**: ConversationEngine (singleton, 3 modes), LlmService, EvenAI, HudController
-- **State**: GetX + plain Streams
-- **Database**: Drift (SQLite) with DAOs for conversations, facts, memories, todos
-- **Settings**: SharedPreferences + FlutterSecureStorage via `SettingsManager`
+- **NativeHelix/Package.swift** is the source of truth for new work
+- **HelixRuntime** owns the headless dependency container, runtime states, and eval report harness
+- **HelixConversation** owns conversation modes, question detection, passive corrections, active answers, RAG orchestration, and HUD event output
+- **HelixAI** owns provider protocols and answer validation
+- **HelixSpeech** owns audio/file transcription contracts and transcript normalization
+- **HelixG1** owns BLE protocol, HUD pagination, and touchpad routing
+- **HelixPersistence** owns fresh native persistence contracts and SwiftData/SQLite-backed stores
+- No Flutter method/event channels in new code
+- No SwiftUI screens or UI assets in the headless framework package
 
 ### Key Files
 
 | File | Purpose |
 |------|---------|
-| `lib/main.dart` | App init: SettingsManager -> BleManager -> LlmService -> ConversationEngine |
-| `lib/app.dart` | 4-tab IndexedStack: Home, Glasses, History, Settings |
-| `lib/services/conversation_engine.dart` | Core pipeline: transcription -> question detection -> AI -> HUD |
-| `lib/services/conversation_listening_session.dart` | Platform channel bridge, `.test()` factory |
-| `lib/services/llm/llm_service.dart` | Multi-provider LLM manager |
-| `lib/services/llm/openai_provider.dart` | OpenAI provider (gpt-4.1 family + realtime) |
-| `lib/services/settings_manager.dart` | All app settings persistence |
-| `lib/services/evenai.dart` | Glasses touchpad routing, session coordination |
-| `lib/services/bitmap_hud/bitmap_hud_service.dart` | HUD widget registration and bitmap rendering |
-| `lib/services/button_gesture_detector.dart` | BLE button gesture state machine |
-| `lib/services/session_context_manager.dart` | Three-tier context window for proactive mode |
-| `lib/services/recording_coordinator.dart` | Unified recording toggle |
-| `ios/Runner/AppDelegate.swift` | BLE setup, platform channel handlers |
-| `ios/Runner/BluetoothManager.swift` | BLE dual connection (L/R glasses) |
-| `ios/Runner/SpeechStreamRecognizer.swift` | 4-backend speech recognition |
-| `ios/Runner/OpenAIRealtimeTranscriber.swift` | OpenAI WebSocket transcription |
+| `NativeHelix/Package.swift` | Headless native package products and target graph |
+| `NativeHelix/Sources/HelixRuntime` | Runtime dependency container and non-UI session/device/knowledge states |
+| `NativeHelix/Sources/HelixConversation` | Conversation pipeline, eval runner, passive/active behavior |
+| `NativeHelix/Sources/HelixAI` | Provider protocols, deterministic test provider, answer validation |
+| `NativeHelix/Sources/HelixSpeech` | Transcription contracts and question detection |
+| `NativeHelix/Sources/HelixG1` | G1 protocol, touchpad routing, HUD pagination |
+| `NativeHelix/Sources/HelixPersistence` | Native stores, SwiftData schema, document chunking |
+| `NativeHelix/Tests/HelixConversationTests` | Native framework parity and eval tests |
 
 ### BLE & HUD Protocol
 
