@@ -12,6 +12,7 @@
 		313CFE1CB707644059D86DAF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C897E096773DD7055D211F /* HealthKitManager.swift */; };
+		5495AEEBCAB7702B8ECD0ED2 /* NativeSessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B3FA90706F09A28DD774E66 /* NativeSessionsView.swift */; };
 		55E2472528ACFCDAFE65BBDE /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
 		5676150C5CE83938AA140AFC /* HelixCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3A2AF8B3AAF16FF204D21805 /* HelixCore */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
@@ -32,6 +33,9 @@
 		AA0200001000000000000005 /* NativeHelixSecondaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000005 /* NativeHelixSecondaryViews.swift */; };
 		AA0200001000000000000007 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000007 /* SceneDelegate.swift */; };
 		AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CED14744F5132BCC469A6862 /* EventKit.framework */; };
+		AE1F083478412C93BEFC0841 /* NativeDeviceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2077802767EC8566837208F /* NativeDeviceView.swift */; };
+		BF1826FD6DD742A9C1D6C89C /* NativeKnowledgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C003B8992B120E751878E7 /* NativeKnowledgeView.swift */; };
+		C984BA5772C33E2896FEE49F /* NativeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C84DD8BA09E639F4C06B36 /* NativeSettingsView.swift */; };
 		DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */; };
 		DA91AD582E52F4A900220CE1 /* BluetoothManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */; };
 		DA91AD5A2E52F4A900220CE1 /* SpeechStreamRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */; };
@@ -109,6 +113,8 @@
 		39C897E096773DD7055D211F /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
 		4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityLiveActivity.swift; sourceTree = "<group>"; };
+		59C003B8992B120E751878E7 /* NativeKnowledgeView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeKnowledgeView.swift; sourceTree = "<group>"; };
+		6B3FA90706F09A28DD774E66 /* NativeSessionsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeSessionsView.swift; sourceTree = "<group>"; };
 		74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityBundle.swift; sourceTree = "<group>"; };
 		74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Runner-Bridging-Header.h"; sourceTree = "<group>"; };
 		74858FAE1ED2DC5600515810 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -126,7 +132,9 @@
 		AA0200000000000000000004 /* NativeHelixAssistantView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NativeHelixAssistantView.swift; sourceTree = "<group>"; };
 		AA0200000000000000000005 /* NativeHelixSecondaryViews.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NativeHelixSecondaryViews.swift; sourceTree = "<group>"; };
 		AA0200000000000000000007 /* SceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		C2077802767EC8566837208F /* NativeDeviceView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeDeviceView.swift; sourceTree = "<group>"; };
 		C4E7D70DB0EDFCDE1F4CC2AB /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		C6C84DD8BA09E639F4C06B36 /* NativeSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NativeSettingsView.swift; sourceTree = "<group>"; };
 		CED14744F5132BCC469A6862 /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		DA91AD122E67000200220CE1 /* GlassesMicSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesMicSessionManager.swift; sourceTree = "<group>"; };
 		DA91AD4E2E52F4A900220CE1 /* BluetoothManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothManager.swift; sourceTree = "<group>"; };
@@ -308,6 +316,10 @@
 				49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
 				7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
 				39C897E096773DD7055D211F /* HealthKitManager.swift */,
+				C2077802767EC8566837208F /* NativeDeviceView.swift */,
+				6B3FA90706F09A28DD774E66 /* NativeSessionsView.swift */,
+				59C003B8992B120E751878E7 /* NativeKnowledgeView.swift */,
+				C6C84DD8BA09E639F4C06B36 /* NativeSettingsView.swift */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -551,6 +563,10 @@
 				45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */,
 				AA01000002000000000000A1 /* HelixLiveActivityIntentBridge.swift in Sources */,
 				AA01000004000000000000A2 /* HelixLiveActivityIntents.swift in Sources */,
+				AE1F083478412C93BEFC0841 /* NativeDeviceView.swift in Sources */,
+				5495AEEBCAB7702B8ECD0ED2 /* NativeSessionsView.swift in Sources */,
+				BF1826FD6DD742A9C1D6C89C /* NativeKnowledgeView.swift in Sources */,
+				C984BA5772C33E2896FEE49F /* NativeSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -635,7 +651,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -648,7 +664,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -714,7 +730,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -724,7 +740,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -855,7 +871,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -868,7 +884,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -887,7 +903,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -900,7 +916,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -919,7 +935,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -929,7 +945,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -947,7 +963,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011317;
+				CURRENT_PROJECT_VERSION = 202607011325;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -957,7 +973,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.76;
+				MARKETING_VERSION = 2.2.77;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
