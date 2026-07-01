@@ -5,7 +5,7 @@
 #   HELIX_RUN_CONVERSATION_EVAL=1 bash scripts/run_gate.sh
 #
 # Useful direct modes:
-#   scripts/run_conversation_eval_gate.sh --schema-only
+#   HELIX_EVAL_ALLOW_SCHEMA_ONLY=1 scripts/run_conversation_eval_gate.sh --schema-only
 #   HELIX_EVAL_KEEP_SIMULATOR=1 scripts/run_conversation_eval_gate.sh
 
 set -euo pipefail
@@ -16,15 +16,24 @@ cd "$PROJECT_ROOT"
 
 REPORT_DIR="${HELIX_EVAL_REPORT_DIR:-/tmp/Helix-QA}"
 BUNDLE_ID="${HELIX_EVAL_BUNDLE_ID:-com.artjiang.helix}"
-DETERMINISTIC_ONLY=0
-
-if [[ "${1:-}" == "--deterministic-only" || "${1:-}" == "--schema-only" ]]; then
-  DETERMINISTIC_ONLY=1
-fi
+SCHEMA_ONLY=0
 
 log() { printf "\033[1;36mINFO\033[0m %s\n" "$1"; }
 pass() { printf "  \033[0;32mPASS\033[0m %s\n" "$1"; }
 fail() { printf "  \033[0;31mFAIL\033[0m %s\n" "$1" >&2; }
+
+if [[ "${1:-}" == "--deterministic-only" ]]; then
+  fail "--deterministic-only is banned in the strict conversation eval gate"
+  exit 1
+fi
+
+if [[ "${1:-}" == "--schema-only" ]]; then
+  if [[ "${HELIX_EVAL_ALLOW_SCHEMA_ONLY:-0}" != "1" ]]; then
+    fail "--schema-only requires HELIX_EVAL_ALLOW_SCHEMA_ONLY=1 and is not a strict gate"
+    exit 1
+  fi
+  SCHEMA_ONLY=1
+fi
 
 mkdir -p "$REPORT_DIR"
 rm -f "$REPORT_DIR/helix_eval_report.json" "$REPORT_DIR/helix_eval_report.md"
@@ -33,17 +42,36 @@ if [[ -z "${HELIX_TEST_OPENAI_KEY:-}" && -n "${OPENAI_API_KEY:-}" ]]; then
   export HELIX_TEST_OPENAI_KEY="$OPENAI_API_KEY"
 fi
 
+log "Checking strict eval guardrails"
+if grep -R "class _EvalProvider\\|id => 'helix_eval'\\|ToolExecutor.overrideForTesting" \
+  lib/services/conversation_eval_gate.dart test/services/conversation_eval_gate_test.dart >/dev/null 2>&1; then
+  fail "Strict conversation eval must not use deterministic eval providers or fake tool overrides"
+  exit 1
+fi
+pass "No deterministic eval provider or fake tool override found in strict eval harness"
+
 log "Running conversation eval schema/key-failure tests"
 flutter test test/services/conversation_eval_gate_test.dart --reporter compact
 pass "Conversation eval schema/key-failure tests passed"
 
-if [[ "$DETERMINISTIC_ONLY" == "1" || "${HELIX_EVAL_SKIP_SIMULATOR:-0}" == "1" ]]; then
+if [[ "$SCHEMA_ONLY" == "1" ]]; then
   log "Skipping simulator eval by request"
   exit 0
 fi
 
+if [[ "${HELIX_EVAL_SKIP_SIMULATOR:-0}" == "1" ]]; then
+  fail "HELIX_EVAL_SKIP_SIMULATOR is banned in the strict conversation eval gate"
+  exit 1
+fi
+
 if [[ -z "${HELIX_TEST_OPENAI_KEY:-}" ]]; then
   fail "HELIX_TEST_OPENAI_KEY or OPENAI_API_KEY is required for simulator audio transcription eval"
+  exit 1
+fi
+
+if [[ ! -f test/fixtures/latency_corpus/youtube_manifest.local.json && \
+      ! -f test/fixtures/latency_corpus/youtube_manifest.json ]]; then
+  fail "Strict eval requires a YouTube audio manifest under test/fixtures/latency_corpus"
   exit 1
 fi
 
@@ -69,26 +97,12 @@ find_audio_fixture() {
     printf "%s\n" "$candidate"
     return 0
   fi
-  for candidate in \
-    test/fixtures/audio/synth_technical_explanation.wav \
-    test/fixtures/audio/osr_american_01.wav
-  do
-    if [[ -f "$candidate" ]]; then
-      printf "%s\n" "$candidate"
-      return 0
-    fi
-  done
-  candidate="$(first_sorted_match test/fixtures/audio -iname "*question*.wav" || true)"
-  if [[ -n "$candidate" ]]; then
-    printf "%s\n" "$candidate"
-    return 0
-  fi
-  first_sorted_match test/fixtures/audio -name "*.wav"
+  return 1
 }
 
 AUDIO_FILE="$(find_audio_fixture || true)"
 if [[ -z "$AUDIO_FILE" || ! -f "$AUDIO_FILE" ]]; then
-  fail "No eval WAV found. Run scripts/setup_youtube_eval_audio.sh or scripts/setup_audio_fixtures.sh"
+  fail "No YouTube eval WAV found. Run scripts/setup_youtube_eval_audio.sh with an authorized/Creative Commons manifest"
   exit 1
 fi
 log "Using eval audio fixture: $AUDIO_FILE"

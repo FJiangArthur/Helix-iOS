@@ -55,6 +55,18 @@ jobs:
               )
           PY
 
+      - name: Enforce strict-gate guardrails
+        run: |
+          if [ "${HELIX_EVAL_SKIP_SIMULATOR:-0}" = "1" ]; then
+            echo "HELIX_EVAL_SKIP_SIMULATOR is banned in CI strict eval"
+            exit 1
+          fi
+          if grep -R "class _EvalProvider\|id => 'helix_eval'\|ToolExecutor.overrideForTesting" \
+            lib/services/conversation_eval_gate.dart test/services/conversation_eval_gate_test.dart; then
+            echo "Strict eval must not use deterministic eval providers or fake tool overrides"
+            exit 1
+          fi
+
       - name: Write YouTube eval manifest
         run: |
           mkdir -p test/fixtures/latency_corpus
