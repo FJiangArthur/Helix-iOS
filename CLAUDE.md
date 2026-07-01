@@ -2,7 +2,7 @@
 
 Native headless framework for Even Realities G1 smart glasses conversation intelligence.
 
-**Version**: 2.2.92+202607011450
+**Version**: 2.2.93+202607011603
 
 ## Validation (MANDATORY)
 
@@ -18,12 +18,12 @@ See `VALIDATION.md` for full details on each gate and how to run individual test
 
 1. **Run `bash scripts/run_native_swift_gate.sh`** — native package must build and test successfully
 2. **Run `bash scripts/run_gate.sh`** — headless boundary, security, and native package gates must pass
-3. Do not add Flutter, Dart UI, or platform-channel work. Product behavior belongs in native framework modules. SwiftUI belongs only in the iOS app shell.
+3. Do not add legacy cross-platform UI/tooling or platform-channel work. Product behavior belongs in native framework modules. SwiftUI belongs only in the iOS app shell.
 
 ## Build
 
 - Xcode 27.0, Swift Package Manager, iOS 17+ / macOS 14+ package baseline
-- Default validation is headless Swift package validation, not Flutter
+- Default validation is headless Swift package validation
 - Use `swift build --package-path NativeHelix --target HelixRuntime`
 - Use `swift test --package-path NativeHelix`
 - Always boot a **dedicated simulator instance** for simulator work — the simulator is shared by multiple apps on this machine
@@ -70,7 +70,7 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 - **HelixSpeech** owns audio/file transcription contracts and transcript normalization
 - **HelixG1** owns BLE protocol, HUD pagination, and touchpad routing
 - **HelixPersistence** owns fresh native persistence contracts and SwiftData/SQLite-backed stores
-- No Flutter method/event channels in new code
+- No legacy method/event channels in new code
 - No SwiftUI screens or UI assets in the headless framework package; app-shell SwiftUI stays under `ios/Runner`
 
 ### Key Files
@@ -138,7 +138,6 @@ See `docs/TEST_BUG_REPORT.md` for full details:
 | Bug | Severity | Summary |
 |-----|----------|---------|
 | BUG-006 | Info | RNNoiseProcessor is header-only / not implemented |
-| LEGACY-DART-001 | Archived | Pre-native Dart conversation compaction bugs are retired with the Flutter source tree |
 
 ## Documentation
 

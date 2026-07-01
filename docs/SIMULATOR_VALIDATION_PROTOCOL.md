@@ -1,7 +1,7 @@
 # Simulator Validation Protocol
 
 Swift-native validation pipeline for Helix-iOS. Runs on a dedicated iOS
-simulator and keeps the retired Flutter harness out of the release path.
+simulator and keeps retired legacy harnesses out of the release path.
 
 - **When:** After code changes to `NativeHelix/` or `ios/`
 - **Duration:** ~30-40 min
@@ -18,7 +18,7 @@ simulator and keeps the retired Flutter harness out of the release path.
 
 ## Conversation eval gate
 
-The old Flutter conversation-quality eval gate is retired. The default
+The old conversation-quality eval gate is retired. The default
 pre-release gate is the native gate:
 
 ```bash

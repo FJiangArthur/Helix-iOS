@@ -9,13 +9,11 @@ debugging notes.
 ## Sources reviewed
 
 - `emingenc/even_glasses` — Python SDK v0.1.11
-- `emingenc/g1_flutter_blue_plus` — Flutter BLE wrapper
 - `even-realities/EvenDemoApp` — official Android reference
 - `JohnRThomas/EvenDemoApp` wiki — community RE (~990 lines)
 - `binarythinktank/eveng1_python_sdk`
 - `lohmuller/even-g1-java-sdk`
 - `rodrigofalvarez/g1-basis-android`
-- `meyskens/fahrplan` — full-featured Flutter assistant app
 - `AugmentOS-Community/AugmentOS` — smart glasses OS platform
 - `galfaroth/awesome-even-realities-g1` — ecosystem catalog
 
@@ -117,13 +115,10 @@ Arrive on the device-event stream with `notifyIndex`:
 | `23` | evenaiStart |
 | `24` | evenaiRecordOver |
 
-**Wiring gotcha:** head-up/head-down are NOT wired to the hide path in
-`ble_manager.dart` — both events fall through to a log-only branch.
-The hide is triggered via `dashboard_service._deviceEventSub`, which
-subscribes to `BleManager.deviceEventStream` and calls
-`handleDeviceEvent`. If you grep for `headDown` in `ble_manager.dart`
-and see it's log-only, don't assume hide is broken — the wiring is in
-`dashboard_service`.
+**Wiring gotcha:** head-up/head-down should be treated as device events
+and routed through the app shell into runtime device state. Do not infer
+dashboard or answer visibility behavior from a single low-level BLE
+callback; the active runtime route is authoritative.
 
 ## BLE transport policy
 

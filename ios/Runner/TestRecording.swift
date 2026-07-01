@@ -9,7 +9,7 @@ class TestRecording {
         let session = AVAudioSession.sharedInstance()
         
         do {
-            // Simple recording test without flutter_sound
+            // Simple recording test using only native AVFoundation APIs.
             try session.setCategory(.playAndRecord, mode: .default)
             try session.setActive(true)
             

@@ -654,8 +654,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         // bytes reaching the glasses in Xcode Console.  Filter with "[G1DBG]".
         // Gated behind #if DEBUG — this fires on every BLE write (10+ /sec
         // during streaming) and was a thermal/perf contributor in release.
-        // See .planning/todos/pending/2026-04-08-tier2-reduce-debug-logging-
-        // release-and-ble.md.
+        // Keep this debug-only; the dump fires on every BLE write during
+        // streaming and is too expensive for release builds.
         #if DEBUG
         let hex = writeData.prefix(32).map { String(format: "%02x", $0) }.joined(separator: " ")
         let cmd = writeData.first.map { String(format: "0x%02x", $0) } ?? "??"

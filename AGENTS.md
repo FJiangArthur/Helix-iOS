@@ -2,7 +2,7 @@
 
 ## Identity
 
-- **Project**: Helix-iOS (v2.2.92+202607011450)
+- **Project**: Helix-iOS (v2.2.93+202607011603)
 - **Type**: Native iOS Swift app with headless Swift framework
 - **Purpose**: Companion app for Even Realities G1 smart glasses — real-time conversation intelligence with AI
 
@@ -12,7 +12,7 @@
 2. Run `bash scripts/run_gate.sh` before completing any task
 3. Boot a **dedicated simulator** — `0D7C3AB2` is Album Clean, `6D249AFF` is Pet App
 4. Commit to `main`, always increment `VERSION` and the Xcode marketing/build settings
-5. Do not add new Flutter, Dart UI, or platform-channel work. SwiftUI belongs only in the iOS app shell.
+5. Do not add legacy cross-platform UI/tooling or platform-channel work. SwiftUI belongs only in the iOS app shell.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ NativeHelix/Package.swift
   → HelixG1 (protocol, HUD pagination, touchpad routing)
   → HelixPersistence (fresh native stores)
 
-No Flutter method/event channels. Product logic belongs in `NativeHelix`; SwiftUI app shell code belongs in `ios/Runner`.
+No legacy method/event channels. Product logic belongs in `NativeHelix`; SwiftUI app shell code belongs in `ios/Runner`.
 ```
 
 ## Key Files
@@ -53,7 +53,7 @@ No Flutter method/event channels. Product logic belongs in `NativeHelix`; SwiftU
 
 ## Known Bugs
 
-BUG-006: RNNoise header-only. Legacy Dart conversation compaction bugs are archived with the removed Flutter tree.
+BUG-006: RNNoise header-only.
 
 Full details: `docs/TEST_BUG_REPORT.md`
 

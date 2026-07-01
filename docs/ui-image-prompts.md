@@ -1,6 +1,6 @@
 # Helix UI Image Prompts
 
-Use these prompts for final bitmap assets. Keep all text native in Flutter; generated images should contain no words, letters, watermarks, or UI labels.
+Use these prompts for final bitmap assets. Keep all text native in SwiftUI; generated images should contain no words, letters, watermarks, or UI labels.
 
 ## App Icon
 

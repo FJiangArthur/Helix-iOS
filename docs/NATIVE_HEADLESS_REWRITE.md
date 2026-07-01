@@ -1,13 +1,13 @@
 # Native Headless Framework Rewrite
 
-This document tracks the native rewrite foundation. New work must target headless Swift framework modules, not Flutter or SwiftUI screens.
+This document tracks the native rewrite foundation. New work must target headless Swift framework modules. SwiftUI belongs only in the iOS app shell.
 
 ## Target
 
 - iOS 17+ native headless framework modules.
 - Internal Swift Package modules under `NativeHelix/`.
 - Fresh native storage; no Drift data migration.
-- No Flutter method/event channels in the final native framework.
+- No legacy method/event channels in the final native framework.
 - No UI target in the Swift package; product behavior is validated through runtime state, services, and eval reports.
 
 ## Modules
@@ -52,7 +52,7 @@ Run it as part of the main gate:
 HELIX_RUN_NATIVE_SWIFT_GATE=1 bash scripts/run_gate.sh
 ```
 
-The legacy Flutter conversation-quality gate is intentionally disabled for headless native work:
+The legacy conversation-quality gate is intentionally disabled for headless native work:
 
 ```bash
 HELIX_RUN_CONVERSATION_EVAL=1 bash scripts/run_gate.sh

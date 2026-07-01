@@ -74,13 +74,13 @@ fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""
 
-printf "${BOLD}[4/4] Legacy Flutter Boundary${NC}\n"
+printf "${BOLD}[4/4] Retired Eval Boundary${NC}\n"
 t=$(gate_start_time)
 if [[ "${HELIX_RUN_CONVERSATION_EVAL:-0}" = "1" ]]; then
-  fail "HELIX_RUN_CONVERSATION_EVAL uses the legacy Flutter harness and is disabled for headless native work"
+  fail "HELIX_RUN_CONVERSATION_EVAL uses the retired conversation harness and is disabled for headless native work"
   FAILURES=$((FAILURES + 1))
 else
-  pass "Legacy Flutter conversation eval is disabled by default"
+  pass "Retired conversation eval is disabled by default"
 fi
 info "Elapsed: $(gate_elapsed "$t")"
 echo ""

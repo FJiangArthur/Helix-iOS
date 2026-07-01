@@ -88,5 +88,5 @@ mediaCommand:<command>          # play | pause | togglePlayPause | nextTrack | p
 volumeChange:<direction>        # up | down
 ```
 
-The debounce strategy applied by `InputDispatcher` is documented in
-`.planning/orchestration/reports/WS-F-investigation.md` §5.
+The debounce strategy applied by `InputDispatcher` is documented in the native
+input-routing implementation and associated package tests.

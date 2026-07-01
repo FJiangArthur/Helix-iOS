@@ -1,7 +1,7 @@
 # Technical Findings
 
-Durable notes on BLE, transcription, audio, and LLM providers. Short-
-term findings live in `.planning/todos/` and in commit messages.
+Durable notes on BLE, transcription, audio, and LLM providers. Short-term
+findings live in commit messages and focused documentation.
 
 ## G1 BLE
 
