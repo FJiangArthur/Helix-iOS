@@ -651,7 +651,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -664,7 +664,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -730,7 +730,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -740,7 +740,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -871,7 +871,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -884,7 +884,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -903,7 +903,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -916,7 +916,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -935,7 +935,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -945,7 +945,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -963,7 +963,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011415;
+				CURRENT_PROJECT_VERSION = 202607011427;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -973,7 +973,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.85;
+				MARKETING_VERSION = 2.2.86;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

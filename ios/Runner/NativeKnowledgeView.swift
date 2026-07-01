@@ -20,7 +20,7 @@ struct NativeKnowledgeView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        KnowledgeStatsStrip(buckets: knowledgeBuckets)
+                        CompactTagGrid(values: knowledgeTags)
 
                         HStack(spacing: 10) {
                             TextField(selectedBucket.placeholder, text: $draftItem, axis: .vertical)
@@ -47,7 +47,7 @@ struct NativeKnowledgeView: View {
                     }
                 }
 
-                NativeSection(selectedBucket.title) {
+                NativeSection(selectedBucket.title, subtitle: selectedBucketSummary) {
                     KnowledgeBucketList(bucket: selectedBucket, snapshot: runtime.knowledgeLibrary.snapshot)
                 }
             }
@@ -63,38 +63,29 @@ struct NativeKnowledgeView: View {
         draftItem.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var knowledgeBuckets: [NativeKnowledgeBucket] {
+    private var knowledgeTags: [String] {
         let snapshot = runtime.knowledgeLibrary.snapshot
         return [
-            NativeKnowledgeBucket(
-                id: "projects",
-                title: "Projects",
-                count: "\(snapshot.projects.count)",
-                detail: runtime.knowledgeLibrary.activeProjectName,
-                symbolName: "folder"
-            ),
-            NativeKnowledgeBucket(
-                id: "facts",
-                title: "Facts",
-                count: "\(snapshot.facts.count)",
-                detail: "Reviewed memory",
-                symbolName: "checkmark.seal"
-            ),
-            NativeKnowledgeBucket(
-                id: "todos",
-                title: "Todos",
-                count: "\(snapshot.openTodoCount)",
-                detail: runtime.knowledgeLibrary.reviewSummary,
-                symbolName: "checklist"
-            ),
-            NativeKnowledgeBucket(
-                id: "documents",
-                title: "Docs",
-                count: "\(snapshot.documents.count)",
-                detail: runtime.knowledgeLibrary.documentSummary,
-                symbolName: "doc.text.magnifyingglass"
-            )
+            "\(snapshot.projects.count) projects",
+            "\(snapshot.facts.count) facts",
+            "\(snapshot.memories.count) memories",
+            "\(snapshot.openTodoCount) open todos",
+            "\(snapshot.documents.count) docs indexed"
         ]
+    }
+
+    private var selectedBucketSummary: String {
+        let snapshot = runtime.knowledgeLibrary.snapshot
+        switch selectedBucket {
+        case .projects:
+            return runtime.knowledgeLibrary.activeProjectName
+        case .facts:
+            return "\(snapshot.facts.count) facts available for RAG"
+        case .memories:
+            return "\(snapshot.memories.count) conversation memories"
+        case .todos:
+            return runtime.knowledgeLibrary.reviewSummary
+        }
     }
 
     private func addKnowledgeItem() {
@@ -112,52 +103,6 @@ struct NativeKnowledgeView: View {
                 await runtime.knowledgeLibrary.addTodo(text)
             }
             draftItem = ""
-        }
-    }
-}
-
-private struct KnowledgeStatsStrip: View {
-    let buckets: [NativeKnowledgeBucket]
-
-    var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
-            ForEach(buckets) { bucket in
-                KnowledgeStatPill(bucket: bucket)
-            }
-        }
-    }
-}
-
-private struct KnowledgeStatPill: View {
-    let bucket: NativeKnowledgeBucket
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: bucket.symbolName)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(NativeHelixTheme.indigo)
-                .frame(width: 16, height: 16)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("\(bucket.count) \(bucket.title)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NativeHelixTheme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                Text(bucket.detail)
-                    .font(.caption2)
-                    .foregroundStyle(NativeHelixTheme.secondaryInk)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 42)
-        .background(NativeHelixTheme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(NativeHelixTheme.hairline)
         }
     }
 }

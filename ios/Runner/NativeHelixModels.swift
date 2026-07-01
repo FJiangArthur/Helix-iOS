@@ -48,14 +48,6 @@ struct NativeProviderRow: Identifiable {
     let tint: Color
 }
 
-struct NativeKnowledgeBucket: Identifiable {
-    let id: String
-    let title: String
-    let count: String
-    let detail: String
-    let symbolName: String
-}
-
 extension ConversationMode {
     var nativeTitle: String {
         switch self {
