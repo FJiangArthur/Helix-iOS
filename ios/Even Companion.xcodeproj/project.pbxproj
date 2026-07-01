@@ -13,8 +13,10 @@
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39C897E096773DD7055D211F /* HealthKitManager.swift */; };
 		55E2472528ACFCDAFE65BBDE /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
+		5676150C5CE83938AA140AFC /* HelixCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3A2AF8B3AAF16FF204D21805 /* HelixCore */; };
 		74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74858FAE1ED2DC5600515810 /* AppDelegate.swift */; };
 		76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */; };
+		9106E35EABD6D562C344FC8E /* HelixG1 in Frameworks */ = {isa = PBXBuildFile; productRef = 852C754C4834B29E04533036 /* HelixG1 */; };
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		983EBCE66AB45EC0B9ADD250 /* HelixLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -60,6 +62,7 @@
 		DA91ADA42E67000100220CE1 /* RNNoiseProcessor.m in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADA52E67000100220CE1 /* RNNoiseProcessor.m */; };
 		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
 		E3D9E13DABF71B221D7C889F /* HelixLiveActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */; };
+		F18CCC2857793B8C82CD880D /* HelixRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = 8CDC9CCACC01B9ED5F49DB94 /* HelixRuntime */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -185,6 +188,9 @@
 			files = (
 				AB72F30CE8D2F29E064C33C8 /* EventKit.framework in Frameworks */,
 				76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */,
+				5676150C5CE83938AA140AFC /* HelixCore in Frameworks */,
+				9106E35EABD6D562C344FC8E /* HelixG1 in Frameworks */,
+				F18CCC2857793B8C82CD880D /* HelixRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,6 +406,11 @@
 			dependencies = (
 			);
 			name = "Even Companion";
+			packageProductDependencies = (
+				3A2AF8B3AAF16FF204D21805 /* HelixCore */,
+				852C754C4834B29E04533036 /* HelixG1 */,
+				8CDC9CCACC01B9ED5F49DB94 /* HelixRuntime */,
+			);
 			productName = Runner;
 			productReference = 97C146EE1CF9000F007C117D /* Even Companion.app */;
 			productType = "com.apple.product-type.application";
@@ -433,6 +444,9 @@
 				Base,
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
+			packageReferences = (
+				1B91CF65835965278691C35A /* XCLocalSwiftPackageReference "NativeHelix" */,
+			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -621,7 +635,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -634,7 +648,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -700,7 +714,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -710,7 +724,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -841,7 +855,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -854,7 +868,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -873,7 +887,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				ENABLE_BITCODE = NO;
 				HEADER_SEARCH_PATHS = (
@@ -886,7 +900,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lc++",
@@ -905,7 +919,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -915,7 +929,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -933,7 +947,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CLANG_ENABLE_OBJC_WEAK = NO;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 202607011303;
+				CURRENT_PROJECT_VERSION = 202607011317;
 				DEVELOPMENT_TEAM = 4SA9UFLZMT;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HelixLiveActivity/Info.plist;
@@ -943,7 +957,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 2.2.75;
+				MARKETING_VERSION = 2.2.76;
 				PRODUCT_BUNDLE_IDENTIFIER = com.artjiang.helix.liveactivity;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -999,6 +1013,31 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		1B91CF65835965278691C35A /* XCLocalSwiftPackageReference "NativeHelix" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../NativeHelix;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3A2AF8B3AAF16FF204D21805 /* HelixCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1B91CF65835965278691C35A /* XCLocalSwiftPackageReference "NativeHelix" */;
+			productName = HelixCore;
+		};
+		852C754C4834B29E04533036 /* HelixG1 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1B91CF65835965278691C35A /* XCLocalSwiftPackageReference "NativeHelix" */;
+			productName = HelixG1;
+		};
+		8CDC9CCACC01B9ED5F49DB94 /* HelixRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1B91CF65835965278691C35A /* XCLocalSwiftPackageReference "NativeHelix" */;
+			productName = HelixRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 97C146E61CF9000F007C117D /* Project object */;
 }

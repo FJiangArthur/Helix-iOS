@@ -129,3 +129,32 @@ struct NativeStatusPill: View {
         .clipShape(Capsule())
     }
 }
+
+struct NativeEmptyState: View {
+    let title: String
+    let detail: String
+    let symbolName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: symbolName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(NativeHelixTheme.teal)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.ink)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(NativeHelixTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NativeHelixTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(NativeHelixTheme.hairline)
+        }
+    }
+}
