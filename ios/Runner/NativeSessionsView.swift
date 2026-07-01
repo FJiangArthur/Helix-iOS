@@ -10,26 +10,11 @@ struct NativeSessionsView: View {
         ScrollView {
             VStack(spacing: 14) {
                 NativeSection("Session archive", subtitle: runtime.sessionArchive.archiveSummary) {
-                    if runtime.sessionArchive.sessions.isEmpty {
-                        NativeEmptyState(
-                            title: "No saved sessions",
-                            detail: "Ask a question in Assistant, then save the session to build native history.",
-                            symbolName: "clock.arrow.circlepath"
-                        )
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(runtime.sessionArchive.sessions) { session in
-                                SessionSummaryRow(session: session)
-                                if session.id != runtime.sessionArchive.sessions.last?.id {
-                                    Divider()
-                                }
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 12) {
+                        CompactTagGrid(values: insightTags)
+                        Divider()
+                        SessionArchiveContent(sessions: runtime.sessionArchive.sessions)
                     }
-                }
-
-                NativeSection("Insights") {
-                    CompactTagGrid(values: insightTags)
                 }
             }
             .padding(16)
@@ -47,6 +32,29 @@ struct NativeSessionsView: View {
             runtime.sessionArchive.totalCostSummary,
             runtime.sessionArchive.activeProjectSummary
         ]
+    }
+}
+
+private struct SessionArchiveContent: View {
+    let sessions: [NativeSessionSummary]
+
+    var body: some View {
+        if sessions.isEmpty {
+            NativeEmptyState(
+                title: "No saved sessions",
+                detail: "Ask a question in Assistant, then save the session to build native history.",
+                symbolName: "clock.arrow.circlepath"
+            )
+        } else {
+            VStack(spacing: 0) {
+                ForEach(sessions) { session in
+                    SessionSummaryRow(session: session)
+                    if session.id != sessions.last?.id {
+                        Divider()
+                    }
+                }
+            }
+        }
     }
 }
 

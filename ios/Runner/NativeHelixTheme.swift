@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum NativeHelixTheme {
-    static let background = Color(red: 0.973, green: 0.976, blue: 0.984)
+    static let background = Color.white
     static let surface = Color.white
     static let ink = Color(red: 0.071, green: 0.082, blue: 0.110)
     static let secondaryInk = Color(red: 0.360, green: 0.384, blue: 0.431)

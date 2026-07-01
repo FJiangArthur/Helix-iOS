@@ -13,6 +13,12 @@ struct CompactTagGrid: View {
                     .frame(height: 30)
                     .background(NativeHelixTheme.background)
                     .clipShape(Capsule())
+                    .overlay {
+                        Capsule()
+                            .stroke(NativeHelixTheme.hairline)
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
         }
     }
