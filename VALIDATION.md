@@ -68,7 +68,7 @@ must not be committed.
 Local hooks are stored in `.githooks` and this checkout uses:
 
 ```bash
-git config core.hooksPath .githooks
+bash scripts/install_git_hooks.sh
 ```
 
 On branches other than `main`, the pre-commit hook runs the staged security

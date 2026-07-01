@@ -1,12 +1,12 @@
 # Development Progress
 
-Current version: **2.2.93+202607011603**
+Current version: **2.2.94+202607011615**
 
 ## Current Architecture
 
 - **NativeHelix**: headless Swift package for conversation, AI, speech, G1 HUD, runtime state, and persistence.
 - **iOS app shell**: SwiftUI surfaces under `ios/Runner`.
-- **Validation**: `bash scripts/run_gate.sh` runs security, boundary, package build, and package tests.
+- **Validation**: `bash scripts/run_gate.sh` runs security, boundary, package build, and package tests. `bash scripts/install_git_hooks.sh` installs the pre-commit and pre-push gates.
 - **Simulator policy**: use a dedicated `Helix-QA-*` simulator; do not reuse shared project simulators.
 
 
