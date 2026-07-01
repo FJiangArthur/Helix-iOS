@@ -548,14 +548,14 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             writeData(writeData: Data([0x4d, 0x01]), lr: "R")
         }
 
-        // Notify Dart that this side is ready (characteristics discovered).
+        // Mark this side as ready after characteristics are discovered.
         notifyGlassesConnectedIfReady(side: side)
     }
 
-    /// Sends glassesConnected to Dart once a side's write characteristic is ready.
+    /// Marks a glasses side connected once its write characteristic is ready.
     ///
-    /// Called from didDiscoverCharacteristics so the Dart layer only marks a
-    /// side as connected after it can actually receive BLE writes.
+    /// Called from didDiscoverCharacteristics so native device state only treats
+    /// a side as connected after it can actually receive BLE writes.
     private func notifyGlassesConnectedIfReady(side: String?) {
         guard let side = side,
               let deviceName = (side == "L"
@@ -918,10 +918,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 + "leftConnected=\(pair.0 != nil) rightConnected=\(pair.1 != nil)"
         )
         #endif
-        // glassesConnected is deferred to didDiscoverCharacteristics so the
-        // Dart side only marks a side as ready once its write characteristic
-        // has been discovered. Sending the event here would race with
-        // characteristic discovery, causing writes to fail with nil wChar.
+        // Connection readiness is deferred to didDiscoverCharacteristics so
+        // native state only marks a side ready once its write characteristic has
+        // been discovered. Marking it here would race characteristic discovery,
+        // causing writes to fail with nil wChar.
     }
 
     private func markPeripheralDisconnected(_ peripheral: CBPeripheral) {

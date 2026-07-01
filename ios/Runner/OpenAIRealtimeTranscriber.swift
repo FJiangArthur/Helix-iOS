@@ -5,11 +5,9 @@ enum RealtimeMode {
     case conversation
     /// Text-only conversation session with `audio.input.transcription` enabled
     /// AND custom instructions that force the model to emit a delimited
-    /// 3-layer output: §Q§ … §A§ … §END§. Parsed on the Dart side by
-    /// `DelimitedQaParser`. Uses the new nested-audio session schema and
-    /// the modern realtime models (gpt-realtime, gpt-realtime-mini,
-    /// gpt-realtime-1.5). See `lib/services/realtime/delimited_qa_parser.dart`
-    /// for the format contract.
+    /// 3-layer output: §Q§ … §A§ … §END§. Parsed by the native realtime
+    /// response stream. Uses the new nested-audio session schema and the modern
+    /// realtime models (gpt-realtime, gpt-realtime-mini, gpt-realtime-1.5).
     case structuredConversation
 }
 
@@ -165,7 +163,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
             //
             // Structured output (json_schema) is NOT supported by
             // gpt-realtime-mini or gpt-realtime-1.5, so we use the delimited
-            // prompt format parsed by DelimitedQaParser on the Dart side.
+            // prompt format parsed by the native response stream.
             var audioInputTranscription: [String: Any] = [
                 "model": "gpt-4o-mini-transcribe",
                 "language": resolvedLang,
@@ -433,9 +431,8 @@ RULES:
         case .conversation:
             urlString = "wss://api.openai.com/v1/realtime?model=\(sessionModel)"
         case .structuredConversation:
-            // Use the Dart-provided conversation model (gpt-realtime,
-            // gpt-realtime-mini, gpt-realtime-1.5) directly — no legacy
-            // preview mapping.
+            // Use the configured realtime conversation model directly, without
+            // legacy preview mapping.
             urlString = "wss://api.openai.com/v1/realtime?model=\(conversationModel)"
         }
         guard let url = URL(string: urlString) else {
@@ -775,8 +772,8 @@ RULES:
             if let delta = json["delta"] as? String, !delta.isEmpty {
                 // Latency telemetry: stamp the first delta of each response.
                 // Measured against `speechStoppedAt` (set when the server
-                // detects end-of-turn). This is the narrowest measurement
-                // we can take without Dart-side event-loop jitter.
+                // detects end-of-turn). This is the narrowest native
+                // measurement we can take.
                 if firstResponseDeltaAt == nil,
                    let stoppedAt = speechStoppedAt {
                     firstResponseDeltaAt = Date()
@@ -895,8 +892,8 @@ RULES:
         }
 
         // Flush partial response buffer on disconnect in any conversational
-        // mode so the Dart-side stream reader / delimited parser can
-        // finalize whatever tokens arrived before the socket died.
+        // mode so the native stream reader can finalize whatever tokens arrived
+        // before the socket died.
         if mode == .conversation || mode == .structuredConversation {
             DispatchQueue.main.async {
                 self.onResponse?("", true)

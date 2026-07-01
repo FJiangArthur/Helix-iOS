@@ -150,7 +150,8 @@ class WhisperBatchTranscriber {
 
     private func startChunkTimer() {
         chunkTimer?.invalidate()
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
             self.chunkTimer = Timer.scheduledTimer(
                 withTimeInterval: self.chunkDurationSec,
                 repeats: true

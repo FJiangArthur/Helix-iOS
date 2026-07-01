@@ -323,7 +323,7 @@ class SpeechStreamRecognizer {
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: sessionMode,
-                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
             )
             try audioSession.setPreferredSampleRate(16000)
             try audioSession.setPreferredIOBufferDuration(0.02)
@@ -608,12 +608,10 @@ class SpeechStreamRecognizer {
         let lang = langMap[identifier] ?? "en"
         openaiTranscriber.inputAlready24kHz = (activeInputSource == .microphone)
 
-        // When the Dart layer asks for realtime conversation, route into
-        // the new `.structuredConversation` mode which uses the modern
-        // session.audio.* schema and the §Q§/§A§/§END§ delimited prompt.
-        // The legacy `.conversation` mode (voice S2S with audio output)
-        // stays in the enum for backward compat but is no longer reachable
-        // from Dart.
+        // Native realtime conversation routes through `.structuredConversation`,
+        // which uses the modern session.audio.* schema and the §Q§/§A§/§END§
+        // delimited prompt. The legacy `.conversation` voice S2S mode remains
+        // in the enum for compatibility but is no longer selected by the app.
         let mode: RealtimeMode = realtimeConversation ? .structuredConversation : .transcriptionOnly
         openaiTranscriber.start(
             apiKey: apiKey,
@@ -633,7 +631,7 @@ class SpeechStreamRecognizer {
                         try audioSession.setCategory(
                             .playAndRecord,
                             mode: .voiceChat,
-                            options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+                            options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
                         )
                         try audioSession.setPreferredSampleRate(16000)
                         try audioSession.setPreferredIOBufferDuration(0.02)
@@ -750,7 +748,7 @@ class SpeechStreamRecognizer {
                 try audioSession.setCategory(
                     .playAndRecord,
                     mode: .voiceChat,
-                    options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth, .allowBluetoothA2DP]
+                    options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
                 )
                 try audioSession.setPreferredSampleRate(16000)
                 try audioSession.setPreferredIOBufferDuration(0.02)
@@ -1349,11 +1347,10 @@ class SpeechStreamRecognizer {
     }
 
     private func emitTranscript(_ text: String, isFinal: Bool) {
-        // While paused, suppress all emissions from the recognizer's
-        // internal buffer.  Buffered results would trigger competing
-        // analysis cycles in the Dart engine and cancel the in-flight
-        // answer.  The segment will be finalized when recognition
-        // restarts after resume.
+        // While paused, suppress all emissions from the recognizer's internal
+        // buffer. Buffered results would trigger competing native analysis
+        // cycles and cancel the in-flight answer. The segment will be finalized
+        // when recognition restarts after resume.
         if isPaused { return }
 
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1457,10 +1454,9 @@ class SpeechStreamRecognizer {
         ])
     }
 
-    /// Emit a zero-cost usage event for an Apple Cloud / Apple On-Device
-    /// final result so the Dart cost tracker records a "Free" transcription
-    /// entry. No native pricing is computed — Dart's PricingRegistry
-    /// resolves the Apple entry to 0.0 USD.
+    /// Emit a zero-cost usage event for an Apple Cloud / Apple On-Device final
+    /// result so the native cost ledger records a "Free" transcription entry.
+    /// No provider pricing is computed for Apple Speech.
     private func emitAppleTranscriptionUsage() {
         let modelId: String
         switch activeBackend {

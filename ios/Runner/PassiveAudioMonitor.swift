@@ -46,7 +46,7 @@ class PassiveAudioMonitor: NSObject, SFSpeechRecognizerDelegate {
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .measurement,
-                options: [.mixWithOthers, .allowBluetooth, .duckOthers])
+                options: [.mixWithOthers, .allowBluetoothHFP, .duckOthers])
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             emitError("Failed to configure audio session: \(error)")
