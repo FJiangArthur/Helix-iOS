@@ -20,23 +20,11 @@ struct NativeDeviceView: View {
                             pushAction: pushAnswer,
                             nextAction: showNextPage
                         )
-                    }
-                }
-
-                NativeSection("Touchpad", subtitle: runtime.g1DeviceState.lastTouchpadSummary) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        if let firstPage = runtime.g1DeviceState.hudPages.first {
-                            Text(firstPage.text)
-                                .font(.footnote)
-                                .foregroundStyle(NativeHelixTheme.secondaryInk)
-                                .lineLimit(3)
-                        } else {
-                            NativeEmptyState(
-                                title: "No HUD page loaded",
-                                detail: "Send an answer from Assistant to preview G1 pagination here.",
-                                symbolName: "eyeglasses"
-                            )
-                        }
+                        Divider()
+                        TouchpadPreviewRow(
+                            statusSummary: runtime.g1DeviceState.lastTouchpadSummary,
+                            previewText: runtime.g1DeviceState.hudPages.first?.text
+                        )
                     }
                 }
             }
@@ -78,6 +66,45 @@ struct NativeDeviceView: View {
 
     private func showNextPage() {
         runtime.g1DeviceState.handleTouchpad(notifyIndex: 1, side: .right)
+    }
+}
+
+private struct TouchpadPreviewRow: View {
+    let statusSummary: String
+    let previewText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "hand.tap")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(NativeHelixTheme.teal)
+                    .frame(width: 22, height: 22)
+                Text("Touchpad")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.ink)
+                Spacer(minLength: 0)
+                Text(statusSummary)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+
+            if let previewText, !previewText.isEmpty {
+                Text(previewText)
+                    .font(.footnote)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Send an answer from Assistant to preview G1 pagination here.")
+                    .font(.footnote)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
