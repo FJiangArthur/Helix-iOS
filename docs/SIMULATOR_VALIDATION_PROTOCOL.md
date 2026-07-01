@@ -1,15 +1,15 @@
 # Simulator Validation Protocol
 
-6-gate validation pipeline for Helix-iOS. Runs on a dedicated iOS
-simulator with the agent team in `docs/AGENT_TEAM_CONFIG.md`.
+Swift-native validation pipeline for Helix-iOS. Runs on a dedicated iOS
+simulator and keeps the retired Flutter harness out of the release path.
 
-- **When:** After code change to `lib/` or `ios/`
+- **When:** After code changes to `NativeHelix/` or `ios/`
 - **Duration:** ~30-40 min
 - **Invoke:** `/ios-sim-validation` skill
 
 ## Prerequisites
 
-- Xcode 26.3+, Flutter 3.35+, iOS Simulator runtime 26.4
+- Xcode 27.0+, iOS Simulator runtime 27.0
 - OpenAI API key with `gpt-4o-mini` and `gpt-4o-mini-transcribe`
   access. The eval scripts prefer `HELIX_TEST_OPENAI_KEY`; if it is unset
   they use Codex's `OPENAI_API_KEY`.
@@ -19,22 +19,22 @@ simulator with the agent team in `docs/AGENT_TEAM_CONFIG.md`.
 
 ## Conversation eval gate
 
-The conversation-quality eval gate is optional in the default pre-release
-gate and is enabled explicitly:
+The old Flutter conversation-quality eval gate is retired. The default
+pre-release gate is the native gate:
 
 ```bash
-HELIX_RUN_CONVERSATION_EVAL=1 bash scripts/run_gate.sh
+bash scripts/run_gate.sh
 ```
 
 It runs:
 
-- deterministic Flutter tests for passive corrections, question detection,
-  active answers, RAG prompt injection, and web-search tool routing
-- a dedicated simulator launch with `HELIX_EVAL_GATE=true`
-- OpenAI audio-file transcription against a local WAV fixture
-- JSON/Markdown pass-fail reports
+- the security gate
+- the `NativeHelix` headless boundary check
+- `swift build --package-path NativeHelix --target HelixRuntime`
+- `swift test --package-path NativeHelix`
 
-Reports are copied to:
+The native eval runner still writes schema-compatible reports when invoked
+from native test or harness code:
 
 - `/tmp/Helix-QA/helix_eval_report.json`
 - `/tmp/Helix-QA/helix_eval_report.md`
@@ -96,11 +96,13 @@ to other projects. Always create a fresh `Helix-QA-*` instance.
 
 ```bash
 SIM_UDID=$(xcrun simctl create "Helix-QA-$(date +%H%M%S)" \
-  "iPhone 17 Pro" "com.apple.CoreSimulator.SimRuntime.iOS-26-4")
+  "iPhone 17 Pro" "com.apple.CoreSimulator.SimRuntime.iOS-27-0")
 xcrun simctl boot "$SIM_UDID"
 xcrun simctl privacy "$SIM_UDID" grant microphone com.artjiang.helix
 xcrun simctl privacy "$SIM_UDID" grant speech-recognition com.artjiang.helix
-flutter build ios --simulator --no-codesign
+xcodebuild -workspace "ios/Even Companion.xcworkspace" -scheme Runner \
+  -configuration Debug -destination "platform=iOS Simulator,id=$SIM_UDID" \
+  CODE_SIGNING_ALLOWED=NO build
 mkdir -p /tmp/Helix-QA
 ```
 
@@ -110,10 +112,9 @@ Pass `$SIM_UDID` to every MCP tool call.
 
 ### Gate 0 — Pre-flight (Test Engineer, ~3 min, blocking)
 
-8 checks, all must pass: `flutter analyze --no-fatal-infos` (0 errors),
-`flutter test test/` (all pass), `flutter build ios --simulator`
-(exit 0), create + boot simulator, install + launch app, 10 audio
-fixtures present.
+Checks, all must pass: `bash scripts/run_gate.sh`, clean Xcode simulator
+build, create + boot dedicated simulator, install + launch app, screenshot
+proof that Helix is foregrounded.
 
 ### Gate 1 — UI Smoke (QA + PM parallel, ~5 min, blocking)
 
@@ -122,7 +123,7 @@ Listening, Your Choice of AI, Glasses + Phone), "Skip" on pages 1-3,
 "Get Started" on page 4 transitions to MainScreen with 5 nav dests.
 
 **1B Tab nav (S1.6-S1.11):** All 5 tabs render
-(Home/Memories/Facts/Buzz/Settings), dark theme confirmed.
+(Assistant/Device/Sessions/Knowledge/Settings), white theme confirmed.
 
 Method: `ui_describe_all` + `screenshot`. All 11 must pass.
 

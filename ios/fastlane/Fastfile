@@ -4,9 +4,9 @@ PROJECT_DIR = File.expand_path("../..", __dir__)
 BUNDLE_ID = "com.artjiang.helix"
 PROJECT_NAME = "Helix"
 IPA_NAME = "Even Companion"
+WORKSPACE_PATH = "#{PROJECT_DIR}/ios/Even Companion.xcworkspace"
 XCARCHIVE_PATH = "#{PROJECT_DIR}/build/ios/archive/#{IPA_NAME}.xcarchive"
 IPA_DIR = "#{PROJECT_DIR}/build/ios/ipa"
-API_KEY_PATH = "#{__dir__}/api_key.json"
 
 platform :ios do
   # ─── Helpers ─────────────────────────────────────────────────────────
@@ -36,20 +36,17 @@ platform :ios do
     { name: version_name, build: build_number }
   end
 
-  def flutter_archive(build_number)
+  def native_archive(version_name, build_number)
     Dir.chdir(PROJECT_DIR) do
       run_security_gate
-      # Archive only — skip the export step that fails without profiles.
-      # Fastlane handles export + signing via the API key below.
-      sh("flutter", "build", "ios", "--release",
-         "--dart-define=HELIX_FORCE_SANITIZED_LOGS=true",
-         "--build-number=#{build_number}",
-         "--no-codesign")
-      sh("xcodebuild", "-workspace", "ios/Runner.xcworkspace",
+      sh("xcodebuild", "-workspace", WORKSPACE_PATH,
          "-scheme", "Runner",
          "-configuration", "Release",
          "-archivePath", XCARCHIVE_PATH,
          "DEVELOPMENT_TEAM=4SA9UFLZMT",
+         "MARKETING_VERSION=#{version_name}",
+         "CURRENT_PROJECT_VERSION=#{build_number}",
+         "HELIX_FORCE_SANITIZED_LOGS=true",
          "-allowProvisioningUpdates",
          "-authenticationKeyPath", File.expand_path("~/.appstoreconnect/admin-AuthKey_334J623VNU.p8"),
          "-authenticationKeyID", "334J623VNU",
@@ -62,7 +59,7 @@ platform :ios do
     # Use build_app's export_xcargs to pass provisioning updates auth
     # so the liveactivity extension profile gets auto-created.
     build_app(
-      workspace: "#{PROJECT_DIR}/ios/Runner.xcworkspace",
+      workspace: WORKSPACE_PATH,
       scheme: "Runner",
       skip_build_archive: true,
       archive_path: XCARCHIVE_PATH,
@@ -103,22 +100,24 @@ platform :ios do
 
   # ─── TestFlight ────────────────────────────────────────────────────
 
-  desc "Build Flutter app and upload to TestFlight"
+  desc "Build native Swift app and upload to TestFlight"
   lane :testflight_release do
+    version = pubspec_version
     build_number = Time.now.strftime("%Y%m%d%H%M")
     api_key = asc_api_key
-    flutter_archive(build_number)
+    native_archive(version[:name], build_number)
     export_and_upload(api_key)
     UI.success("Uploaded #{PROJECT_NAME} (#{build_number}) to TestFlight")
   end
 
   # ─── App Store Release ─────────────────────────────────────────────
 
-  desc "Build Flutter app and submit to App Store Connect"
+  desc "Build native Swift app and submit to App Store Connect"
   lane :release do
+    version = pubspec_version
     build_number = Time.now.strftime("%Y%m%d%H%M")
     api_key = asc_api_key
-    flutter_archive(build_number)
+    native_archive(version[:name], build_number)
     export_and_upload(api_key)
     UI.success("Uploaded #{PROJECT_NAME} (#{build_number}) to App Store Connect")
   end
@@ -128,7 +127,7 @@ platform :ios do
     version = pubspec_version
     api_key = asc_api_key
 
-    flutter_archive(version[:build])
+    native_archive(version[:name], version[:build])
     export_and_upload(api_key, wait_for_processing: true)
 
     deliver(
@@ -161,8 +160,9 @@ platform :ios do
   desc "Build once, upload to TestFlight"
   lane :ship do
     build_number = Time.now.strftime("%Y%m%d%H%M")
+    version = pubspec_version
     api_key = asc_api_key
-    flutter_archive(build_number)
+    native_archive(version[:name], build_number)
     export_and_upload(api_key)
     UI.success("Shipped #{PROJECT_NAME} (#{build_number}) to TestFlight")
   end
