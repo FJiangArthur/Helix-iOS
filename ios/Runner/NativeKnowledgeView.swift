@@ -11,7 +11,7 @@ struct NativeKnowledgeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                NativeSection("Knowledge", subtitle: runtime.knowledgeLibrary.activeProjectName) {
+                NativeSection("Knowledge", subtitle: knowledgeSummary) {
                     VStack(alignment: .leading, spacing: 12) {
                         Picker("Knowledge bucket", selection: $selectedBucket) {
                             ForEach(KnowledgeBucket.allCases, id: \.self) { bucket in
@@ -44,11 +44,16 @@ struct NativeKnowledgeView: View {
                                 action: addKnowledgeItem
                             )
                         }
-                    }
-                }
 
-                NativeSection(selectedBucket.title, subtitle: selectedBucketSummary) {
-                    KnowledgeBucketList(bucket: selectedBucket, snapshot: runtime.knowledgeLibrary.snapshot)
+                        Divider()
+
+                        KnowledgeBucketHeader(
+                            bucket: selectedBucket,
+                            summary: selectedBucketSummary
+                        )
+
+                        KnowledgeBucketList(bucket: selectedBucket, snapshot: runtime.knowledgeLibrary.snapshot)
+                    }
                 }
             }
             .padding(16)
@@ -72,6 +77,14 @@ struct NativeKnowledgeView: View {
             "\(snapshot.openTodoCount) open todos",
             "\(snapshot.documents.count) docs indexed"
         ]
+    }
+
+    private var knowledgeSummary: String {
+        let activeProject = runtime.knowledgeLibrary.activeProjectName
+        if selectedBucket == .projects {
+            return activeProject
+        }
+        return "\(activeProject) - \(selectedBucketSummary)"
     }
 
     private var selectedBucketSummary: String {
@@ -104,6 +117,31 @@ struct NativeKnowledgeView: View {
             }
             draftItem = ""
         }
+    }
+}
+
+private struct KnowledgeBucketHeader: View {
+    let bucket: KnowledgeBucket
+    let summary: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: bucket.symbolName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(NativeHelixTheme.teal)
+                .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(bucket.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.ink)
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
