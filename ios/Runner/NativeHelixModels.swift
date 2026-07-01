@@ -32,15 +32,6 @@ enum NativeHelixTab: String, CaseIterable, Identifiable {
     }
 }
 
-struct NativeMetric: Identifiable {
-    let id: String
-    let title: String
-    let value: String
-    let detail: String
-    let symbolName: String
-    let tint: Color
-}
-
 struct NativeTimelineItem: Identifiable {
     let id: String
     let title: String

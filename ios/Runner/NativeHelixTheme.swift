@@ -80,36 +80,6 @@ struct NativeSection<Content: View>: View {
     }
 }
 
-struct NativeMetricTile: View {
-    let metric: NativeMetric
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: metric.symbolName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(metric.tint)
-                Text(metric.title)
-                    .font(.caption)
-                    .foregroundStyle(NativeHelixTheme.secondaryInk)
-            }
-            Text(metric.value)
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .foregroundStyle(NativeHelixTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(metric.detail)
-                .font(.caption)
-                .foregroundStyle(NativeHelixTheme.secondaryInk)
-                .lineLimit(2)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .background(metric.tint.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
 struct NativeStatusPill: View {
     let text: String
     let tint: Color

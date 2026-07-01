@@ -15,19 +15,17 @@ struct NativeAssistantView: View {
                     draftQuestion: $draftQuestion
                 )
 
-                MetricsGrid(metrics: metrics)
-
                 NativeSection(
                     "Live workspace",
-                    subtitle: "Transcript, question, answer, and HUD state from the native runtime."
+                    subtitle: "Question, answer, and transcript from the native runtime."
                 ) {
                     VStack(spacing: 12) {
                         LiveWorkspaceRow(
-                            title: "Transcript",
-                            value: runtime.assistantSession.transcriptText,
-                            emptyValue: "No finalized transcript yet.",
-                            symbolName: "waveform",
-                            tint: NativeHelixTheme.teal
+                            title: "Answer",
+                            value: answerText,
+                            emptyValue: "Answers will appear here before being sent to the G1 HUD.",
+                            symbolName: "sparkles",
+                            tint: NativeHelixTheme.green
                         )
                         LiveWorkspaceRow(
                             title: "Detected question",
@@ -37,31 +35,18 @@ struct NativeAssistantView: View {
                             tint: NativeHelixTheme.indigo
                         )
                         LiveWorkspaceRow(
-                            title: "Answer",
-                            value: answerText,
-                            emptyValue: "Answers will appear here before being sent to the G1 HUD.",
-                            symbolName: "sparkles",
-                            tint: NativeHelixTheme.green
+                            title: "Transcript",
+                            value: runtime.assistantSession.transcriptText,
+                            emptyValue: "No finalized transcript yet.",
+                            symbolName: "waveform",
+                            tint: NativeHelixTheme.teal
                         )
                     }
                 }
 
-                NativeSection("Runtime activity") {
-                    if timelineItems.isEmpty {
-                        NativeEmptyState(
-                            title: "No runtime events yet",
-                            detail: "Ask a question or run audio input to populate the native session log.",
-                            symbolName: "clock"
-                        )
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(timelineItems) { item in
-                                TimelineRow(item: item)
-                                if item.id != timelineItems.last?.id {
-                                    Divider().padding(.leading, 34)
-                                }
-                            }
-                        }
+                if !timelineItems.isEmpty {
+                    NativeSection("Recent activity") {
+                        RecentActivityList(items: timelineItems)
                     }
                 }
             }
@@ -76,35 +61,6 @@ struct NativeAssistantView: View {
             return runtime.assistantSession.currentAnswer
         }
         return runtime.assistantSession.passiveReminder
-    }
-
-    private var metrics: [NativeMetric] {
-        [
-            NativeMetric(
-                id: "mode",
-                title: "Mode",
-                value: runtime.assistantSession.mode.nativeTitle,
-                detail: "\(runtime.settings.maxResponseSentences) sentence limit",
-                symbolName: "text.bubble",
-                tint: NativeHelixTheme.teal
-            ),
-            NativeMetric(
-                id: "provider",
-                title: "Provider",
-                value: runtime.activeProviderName,
-                detail: runtime.settings.llmModel,
-                symbolName: "bolt.horizontal",
-                tint: NativeHelixTheme.indigo
-            ),
-            NativeMetric(
-                id: "hud",
-                title: "HUD",
-                value: runtime.settings.hudRenderPath.nativeTitle,
-                detail: runtime.g1DeviceState.currentPageSummary,
-                symbolName: "rectangle.on.rectangle",
-                tint: NativeHelixTheme.green
-            )
-        ]
     }
 
     private var timelineItems: [NativeTimelineItem] {
@@ -158,9 +114,15 @@ private struct AssistantCommandBand: View {
                         text: runtime.assistantSession.statusText,
                         tint: runtime.assistantSession.isRunning ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
                     )
-                    NativeStatusPill(text: runtime.g1DeviceState.currentPageSummary, tint: NativeHelixTheme.teal)
                     Spacer(minLength: 0)
                 }
+
+                AssistantContextStrip(
+                    providerName: runtime.activeProviderName,
+                    modelName: runtime.settings.llmModel,
+                    hudTitle: runtime.settings.hudRenderPath.nativeTitle,
+                    hudDetail: runtime.g1DeviceState.currentPageSummary
+                )
 
                 HStack(spacing: 10) {
                     TextField("Ask or paste a question", text: $draftQuestion, axis: .vertical)
@@ -260,14 +222,77 @@ private struct AssistantCommandBand: View {
     }
 }
 
-private struct MetricsGrid: View {
-    let metrics: [NativeMetric]
+private struct AssistantContextStrip: View {
+    let providerName: String
+    let modelName: String
+    let hudTitle: String
+    let hudDetail: String
 
     var body: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                ForEach(metrics) { metric in
-                    NativeMetricTile(metric: metric)
+        HStack(spacing: 0) {
+            AssistantContextItem(
+                title: providerName,
+                detail: modelName,
+                symbolName: "bolt.horizontal",
+                tint: NativeHelixTheme.indigo
+            )
+            Divider().padding(.vertical, 2)
+            AssistantContextItem(
+                title: hudTitle,
+                detail: hudDetail,
+                symbolName: "rectangle.on.rectangle",
+                tint: NativeHelixTheme.green
+            )
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity)
+        .background(NativeHelixTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(NativeHelixTheme.hairline)
+        }
+    }
+}
+
+private struct AssistantContextItem: View {
+    let title: String
+    let detail: String
+    let symbolName: String
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbolName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 18, height: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.ink)
+                    .lineLimit(1)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct RecentActivityList: View {
+    let items: [NativeTimelineItem]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(items) { item in
+                TimelineRow(item: item)
+                if item.id != items.last?.id {
+                    Divider().padding(.leading, 34)
                 }
             }
         }
