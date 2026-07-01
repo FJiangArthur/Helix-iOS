@@ -12,14 +12,9 @@ struct NativeAssistantView: View {
             VStack(spacing: 14) {
                 AssistantWorkspacePanel(
                     runtime: runtime,
-                    draftQuestion: $draftQuestion
+                    draftQuestion: $draftQuestion,
+                    timelineItems: timelineItems
                 )
-
-                if !timelineItems.isEmpty {
-                    NativeSection("Recent activity") {
-                        RecentActivityList(items: timelineItems)
-                    }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -62,6 +57,7 @@ struct NativeAssistantView: View {
 private struct AssistantWorkspacePanel: View {
     let runtime: HelixRuntimeDependencies
     @Binding var draftQuestion: String
+    let timelineItems: [NativeTimelineItem]
 
     var body: some View {
         NativeSection("Assistant", subtitle: runtime.assistantSession.mode.nativeSummary) {
@@ -144,6 +140,12 @@ private struct AssistantWorkspacePanel: View {
                     symbolName: "waveform",
                     tint: NativeHelixTheme.teal
                 )
+
+                if !timelineItems.isEmpty {
+                    Divider()
+                    AssistantActivityHeader(count: timelineItems.count)
+                    RecentActivityList(items: timelineItems)
+                }
             }
         }
     }
@@ -211,6 +213,27 @@ private struct AssistantWorkspacePanel: View {
                 )
             )
         }
+    }
+}
+
+private struct AssistantActivityHeader: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(NativeHelixTheme.teal)
+                .frame(width: 22, height: 22)
+            Text("Recent activity")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.ink)
+            Spacer(minLength: 0)
+            Text("\(count)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.secondaryInk)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
