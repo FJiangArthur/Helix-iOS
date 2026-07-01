@@ -1,88 +1,96 @@
+import HelixCore
+import HelixRuntime
 import SwiftUI
 
+@MainActor
 struct NativeAssistantView: View {
-    @Binding var selectedMode: NativeConversationMode
-    @Binding var isListening: Bool
+    let runtime: HelixRuntimeDependencies
     @Binding var draftQuestion: String
 
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                AssistantCommandBand(
-                    selectedMode: $selectedMode,
-                    isListening: $isListening,
-                    draftQuestion: $draftQuestion
+                AssistantWorkspacePanel(
+                    runtime: runtime,
+                    draftQuestion: $draftQuestion,
+                    timelineItems: timelineItems
                 )
-
-                MetricsGrid(metrics: NativeHelixPreviewData.metrics)
-
-                NativeSection(
-                    "Live workspace",
-                    subtitle: "Transcript, detected question, answer, and HUD status in one scan."
-                ) {
-                    VStack(spacing: 12) {
-                        LiveWorkspaceRow(
-                            title: "Transcript",
-                            value: "The rollout is green except for physical-device connectivity proof.",
-                            symbolName: "waveform",
-                            tint: NativeHelixTheme.teal
-                        )
-                        LiveWorkspaceRow(
-                            title: "Detected question",
-                            value: "What should I say about the remaining risk?",
-                            symbolName: "questionmark.bubble",
-                            tint: NativeHelixTheme.indigo
-                        )
-                        LiveWorkspaceRow(
-                            title: "Answer",
-                            value: "Say the build and simulator launch are verified; the phone needs a trusted CoreDevice tunnel before install.",
-                            symbolName: "sparkles",
-                            tint: NativeHelixTheme.green
-                        )
-                    }
-                }
-
-                NativeSection("Recent activity") {
-                    VStack(spacing: 0) {
-                        ForEach(NativeHelixPreviewData.timeline) { item in
-                            TimelineRow(item: item)
-                            if item.id != NativeHelixPreviewData.timeline.last?.id {
-                                Divider().padding(.leading, 34)
-                            }
-                        }
-                    }
-                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
         }
         .scrollContentBackground(.hidden)
     }
+
+    private var timelineItems: [NativeTimelineItem] {
+        runtime.assistantSession.eventLog.suffix(5).enumerated().map { index, event in
+            NativeTimelineItem(
+                id: "\(index)-\(event)",
+                title: eventTitle(for: event),
+                detail: event,
+                time: "Now",
+                symbolName: eventSymbol(for: event)
+            )
+        }
+    }
+
+    private func eventTitle(for event: String) -> String {
+        if event.contains("answerCompleted") { return "Answer completed" }
+        if event.contains("hudPagesUpdated") { return "HUD pages updated" }
+        if event.contains("questionDetected") || event.contains("manualQuestion") { return "Question routed" }
+        if event.contains("transcriptFinal") { return "Transcript finalized" }
+        if event.contains("failure") { return "Runtime failure" }
+        return "Runtime event"
+    }
+
+    private func eventSymbol(for event: String) -> String {
+        if event.contains("answer") { return "sparkles" }
+        if event.contains("hud") { return "eyeglasses" }
+        if event.contains("question") { return "questionmark.bubble" }
+        if event.contains("transcript") { return "waveform" }
+        if event.contains("failure") { return "exclamationmark.triangle" }
+        return "circle.dashed"
+    }
 }
 
-private struct AssistantCommandBand: View {
-    @Binding var selectedMode: NativeConversationMode
-    @Binding var isListening: Bool
+@MainActor
+private struct AssistantWorkspacePanel: View {
+    let runtime: HelixRuntimeDependencies
     @Binding var draftQuestion: String
+    let timelineItems: [NativeTimelineItem]
 
     var body: some View {
-        NativeSection("Assistant", subtitle: selectedMode.summary) {
+        NativeSection("Assistant", subtitle: runtime.assistantSession.mode.nativeSummary) {
             VStack(alignment: .leading, spacing: 14) {
-                Picker("Conversation mode", selection: $selectedMode) {
-                    ForEach(NativeConversationMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
+                Picker("Conversation mode", selection: modeBinding) {
+                    ForEach(ConversationMode.allCases, id: \.self) { mode in
+                        Text(mode.nativeTitle).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
 
                 HStack(spacing: 10) {
                     NativeStatusPill(
-                        text: isListening ? "Listening" : "Ready",
-                        tint: isListening ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
+                        text: runtime.assistantSession.statusText,
+                        tint: runtime.assistantSession.isRunning ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
                     )
-                    NativeStatusPill(text: "G1 HUD ready", tint: NativeHelixTheme.teal)
                     Spacer(minLength: 0)
+                    NativeIconButton(
+                        symbolName: "eyeglasses",
+                        isPrimary: true,
+                        isDisabled: currentAnswerText.isEmpty,
+                        accessibilityLabel: "Send current answer to G1",
+                        action: sendCurrentAnswerToHud
+                    )
+                    NativeIconButton(
+                        symbolName: "tray.and.arrow.down",
+                        isDisabled: !canSaveSession,
+                        accessibilityLabel: "Save current session",
+                        action: saveSession
+                    )
                 }
+
+                CompactTagGrid(values: contextTags)
 
                 HStack(spacing: 10) {
                     TextField("Ask or paste a question", text: $draftQuestion, axis: .vertical)
@@ -98,38 +106,146 @@ private struct AssistantCommandBand: View {
                                 .stroke(NativeHelixTheme.hairline)
                         }
 
-                    Button {
-                        isListening.toggle()
-                    } label: {
-                        Label(isListening ? "Pause" : "Listen", systemImage: isListening ? "pause.fill" : "mic.fill")
-                            .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(NativeHelixSecondaryButtonStyle())
-                    .accessibilityLabel(isListening ? "Pause listening" : "Start listening")
+                    NativeIconButton(
+                        symbolName: runtime.assistantSession.isRunning ? "hourglass" : "arrow.up",
+                        isPrimary: true,
+                        isDisabled: trimmedQuestion.isEmpty || runtime.assistantSession.isRunning,
+                        accessibilityLabel: "Ask Helix",
+                        action: askQuestion
+                    )
                 }
 
-                HStack(spacing: 10) {
-                    Button("Send to G1") {
-                        draftQuestion = ""
-                    }
-                    .buttonStyle(NativeHelixPrimaryButtonStyle())
+                Divider()
 
-                    Button("Save session") {}
-                        .buttonStyle(NativeHelixSecondaryButtonStyle())
+                LiveWorkspaceRow(
+                    title: "Answer",
+                    value: currentAnswerText,
+                    emptyValue: "Answers will appear here before being sent to the G1 HUD.",
+                    symbolName: "sparkles",
+                    tint: NativeHelixTheme.green
+                )
+                Divider()
+                LiveWorkspaceRow(
+                    title: "Detected question",
+                    value: runtime.assistantSession.detectedQuestion,
+                    emptyValue: "Ask manually or start a listening run.",
+                    symbolName: "questionmark.bubble",
+                    tint: NativeHelixTheme.indigo
+                )
+                Divider()
+                LiveWorkspaceRow(
+                    title: "Transcript",
+                    value: runtime.assistantSession.transcriptText,
+                    emptyValue: "No finalized transcript yet.",
+                    symbolName: "waveform",
+                    tint: NativeHelixTheme.teal
+                )
+
+                if !timelineItems.isEmpty {
+                    Divider()
+                    AssistantActivityHeader(count: timelineItems.count)
+                    RecentActivityList(items: timelineItems)
                 }
             }
         }
     }
+
+    private var modeBinding: Binding<ConversationMode> {
+        Binding(
+            get: { runtime.assistantSession.mode },
+            set: { runtime.assistantSession.setMode($0) }
+        )
+    }
+
+    private var trimmedQuestion: String {
+        draftQuestion.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var currentAnswerText: String {
+        if !runtime.assistantSession.currentAnswer.isEmpty {
+            return runtime.assistantSession.currentAnswer
+        }
+        return runtime.assistantSession.passiveReminder
+    }
+
+    private var contextTags: [String] {
+        [
+            "\(runtime.activeProviderName) - \(runtime.settings.llmModel)",
+            "\(runtime.settings.hudRenderPath.nativeTitle) - \(runtime.g1DeviceState.currentPageSummary)"
+        ]
+    }
+
+    private var canSaveSession: Bool {
+        !runtime.assistantSession.detectedQuestion.isEmpty || !currentAnswerText.isEmpty
+    }
+
+    private func askQuestion() {
+        let question = trimmedQuestion
+        Task {
+            await runtime.assistantSession.ask(question, mode: runtime.assistantSession.mode)
+            draftQuestion = ""
+        }
+    }
+
+    private func sendCurrentAnswerToHud() {
+        runtime.g1DeviceState.presentText(currentAnswerText)
+    }
+
+    private func saveSession() {
+        let question = runtime.assistantSession.detectedQuestion
+        let answer = currentAnswerText
+        let title = question.isEmpty ? "Native Helix Session" : question
+        Task {
+            await runtime.sessionArchive.archiveSession(
+                NativeSessionSummary(
+                    title: title,
+                    mode: runtime.assistantSession.mode,
+                    transcriptPreview: runtime.assistantSession.transcriptText,
+                    answerPreview: answer,
+                    projectName: runtime.knowledgeLibrary.snapshot.activeProject?.name,
+                    segmentCount: runtime.assistantSession.transcriptText.isEmpty ? 0 : 1,
+                    answerCount: answer.isEmpty ? 0 : 1,
+                    skillValue: runtime.assistantSession.activeSkill.value,
+                    transcriptTurns: [runtime.assistantSession.transcriptText].filter { !$0.isEmpty },
+                    answers: [answer].filter { !$0.isEmpty },
+                    passiveReminders: [runtime.assistantSession.passiveReminder].filter { !$0.isEmpty },
+                    latencyMetrics: runtime.assistantSession.latencyMetrics
+                )
+            )
+        }
+    }
 }
 
-private struct MetricsGrid: View {
-    let metrics: [NativeMetric]
+private struct AssistantActivityHeader: View {
+    let count: Int
 
     var body: some View {
-        Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                ForEach(metrics) { metric in
-                    NativeMetricTile(metric: metric)
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(NativeHelixTheme.teal)
+                .frame(width: 22, height: 22)
+            Text("Recent activity")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.ink)
+            Spacer(minLength: 0)
+            Text("\(count)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.secondaryInk)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct RecentActivityList: View {
+    let items: [NativeTimelineItem]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(items) { item in
+                TimelineRow(item: item)
+                if item.id != items.last?.id {
+                    Divider().padding(.leading, 34)
                 }
             }
         }
@@ -139,6 +255,7 @@ private struct MetricsGrid: View {
 private struct LiveWorkspaceRow: View {
     let title: String
     let value: String
+    let emptyValue: String
     let symbolName: String
     let tint: Color
 
@@ -153,9 +270,9 @@ private struct LiveWorkspaceRow: View {
                 Text(title)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(NativeHelixTheme.secondaryInk)
-                Text(value)
+                Text(value.isEmpty ? emptyValue : value)
                     .font(.subheadline)
-                    .foregroundStyle(NativeHelixTheme.ink)
+                    .foregroundStyle(value.isEmpty ? NativeHelixTheme.secondaryInk : NativeHelixTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

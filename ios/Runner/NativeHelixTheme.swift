@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum NativeHelixTheme {
-    static let background = Color(red: 0.973, green: 0.976, blue: 0.984)
+    static let background = Color.white
     static let surface = Color.white
     static let ink = Color(red: 0.071, green: 0.082, blue: 0.110)
     static let secondaryInk = Color(red: 0.360, green: 0.384, blue: 0.431)
@@ -80,36 +80,6 @@ struct NativeSection<Content: View>: View {
     }
 }
 
-struct NativeMetricTile: View {
-    let metric: NativeMetric
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: metric.symbolName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(metric.tint)
-                Text(metric.title)
-                    .font(.caption)
-                    .foregroundStyle(NativeHelixTheme.secondaryInk)
-            }
-            Text(metric.value)
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .foregroundStyle(NativeHelixTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-            Text(metric.detail)
-                .font(.caption)
-                .foregroundStyle(NativeHelixTheme.secondaryInk)
-                .lineLimit(2)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 112, alignment: .leading)
-        .background(metric.tint.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
 struct NativeStatusPill: View {
     let text: String
     let tint: Color
@@ -127,5 +97,61 @@ struct NativeStatusPill: View {
         .frame(height: 28)
         .background(tint.opacity(0.10))
         .clipShape(Capsule())
+    }
+}
+
+struct NativeIconButton: View {
+    let symbolName: String
+    var isPrimary = false
+    var isDisabled = false
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbolName)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isPrimary ? .white : NativeHelixTheme.ink)
+                .frame(width: 48, height: 44)
+                .background(isPrimary ? NativeHelixTheme.ink : NativeHelixTheme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isPrimary ? Color.clear : NativeHelixTheme.hairline)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
+struct NativeEmptyState: View {
+    let title: String
+    let detail: String
+    let symbolName: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: symbolName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(NativeHelixTheme.teal)
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(NativeHelixTheme.ink)
+            Text(detail)
+                .font(.footnote)
+                .foregroundStyle(NativeHelixTheme.secondaryInk)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NativeHelixTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(NativeHelixTheme.hairline)
+        }
     }
 }

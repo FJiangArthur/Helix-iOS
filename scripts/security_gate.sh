@@ -26,7 +26,7 @@ info() { printf "  ${CYAN}INFO${NC} %s\n" "$1"; }
 
 FAILURES=0
 
-TEXT_FILE_PATTERN='\.(dart|swift|m|mm|h|json|ya?ml|md|sh|rb|py|txt|plist)$'
+TEXT_FILE_PATTERN='\.(swift|m|mm|h|json|ya?ml|md|sh|rb|py|txt|plist)$'
 DISALLOWED_PATH_PATTERN='(^|/)(\.env(\.[^/]+)?|.*\.pem$|.*\.p8$|.*\.key$|.*\.mobileprovision$|GoogleService-Info\.plist$|firebase.*\.json$|ios/fastlane/api_key\.json$|llm_config\.local\.json$)'
 SECRET_PATTERN='(sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|EC|OPENSSH|PRIVATE KEY)-----)'
 
@@ -100,19 +100,7 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# 3. Dart release logging policy.
-dart_policy_file="lib/utils/app_logger.dart"
-dart_policy_content="$(read_mode_file "$dart_policy_file")"
-if grep -q 'HELIX_FORCE_SANITIZED_LOGS' <<<"$dart_policy_content" \
-  && grep -q 'kReleaseMode' <<<"$dart_policy_content" \
-  && grep -q 'Level.warning' <<<"$dart_policy_content"; then
-  pass "Dart logger enforces sanitized release/TestFlight logging"
-else
-  fail "Dart logger policy is missing sanitized release/TestFlight enforcement"
-  FAILURES=$((FAILURES + 1))
-fi
-
-# 4. Fastlane release gating.
+# 3. Fastlane release gating.
 fastlane_file="ios/fastlane/Fastfile"
 fastlane_content="$(read_mode_file "$fastlane_file")"
 if grep -q 'scripts/security_gate.sh' <<<"$fastlane_content" \
@@ -123,56 +111,7 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
-# 5. Sensitive log regressions.
-declare -a RULES=(
-  'lib/services/buzz/buzz_service.dart|Question:'
-  'lib/services/buzz/buzz_search_service.dart|results for "\$query"'
-  'lib/services/cloud_pipeline_service.dart|Raw response \(first 500 chars\):'
-  'lib/services/cloud_pipeline_service.dart|Skipping duplicate fact: \$content'
-  'lib/services/cloud_pipeline_service.dart|Failed to insert topic "\$label"'
-  'lib/services/conversation_engine.dart|Progressive finalize:'
-  'lib/services/conversation_engine.dart|STAR coaching triggered for:'
-  'lib/services/conversation_engine.dart|\[FactCheck\] Correction:'
-  'lib/services/facts/fact_service.dart|Search failed for "\$query"'
-)
-
-rule_hits=0
-for rule in "${RULES[@]}"; do
-  file="${rule%%|*}"
-  pattern="${rule#*|}"
-
-  in_scope=false
-  if [[ "$MODE" == "--repo" ]]; then
-    in_scope=true
-  else
-    for candidate in "${FILES[@]}"; do
-      if [[ "$candidate" == "$file" ]]; then
-        in_scope=true
-        break
-      fi
-    done
-  fi
-
-  if [[ "$in_scope" == false ]]; then
-    continue
-  fi
-
-  matches="$(content_matches "$file" "$pattern")"
-  if [[ -n "$matches" ]]; then
-    if [[ $rule_hits -eq 0 ]]; then
-      fail "Sensitive Dart log regressions detected"
-      FAILURES=$((FAILURES + 1))
-    fi
-    rule_hits=$((rule_hits + 1))
-    printf '%s\n' "$matches" | sed "s|^|    $file:|"
-  fi
-done
-
-if [[ $rule_hits -eq 0 ]]; then
-  pass "Sensitive Dart log regressions not detected"
-fi
-
-# 6. Sensitive native log regressions.
+# 4. Sensitive native log regressions.
 declare -a NATIVE_RULES=(
   'ios/Runner/OpenAIRealtimeTranscriber.swift|\bprint\('
   'ios/Runner/OpenAIRealtimeTranscriber.swift|API error: \(errorMsg\)'

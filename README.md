@@ -1,6 +1,8 @@
-# Helix - AI Conversation Companion for Smart Glasses
+# Helix - Native AI Companion for Smart Glasses
 
-Flutter companion app for [Even Realities G1](https://evenrealities.com) smart glasses. Real-time conversation intelligence with AI.
+Native Swift companion app for [Even Realities G1](https://evenrealities.com) smart glasses. Real-time conversation intelligence with AI.
+
+Current version: `2.2.75+202607011303` in [VERSION](VERSION).
 
 ## Features
 
@@ -14,45 +16,46 @@ Flutter companion app for [Even Realities G1](https://evenrealities.com) smart g
 
 ## Requirements
 
-- Flutter 3.35+, Dart 3.9+
-- Xcode 26.3+, iOS 15+
-- CocoaPods
+- Xcode 27.0+, iOS 17+
+- Swift Package Manager
+- iOS 27 simulator runtime for current validation
 
 ## Quick Start
 
 ```bash
 git clone https://github.com/FJiangArthur/Helix-iOS.git
 cd Helix-iOS
-flutter pub get
-cd ios && pod install && cd ..
-flutter run -d <simulator-id>
+bash scripts/run_gate.sh
+xcodebuild -workspace "ios/Even Companion.xcworkspace" -scheme Runner \
+  -configuration Debug -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
 ```
 
-Release builds (device only):
+Release archive:
 ```bash
-flutter build ios --release
+cd ios
+bundle exec fastlane ios ship
 ```
 
 ## Project Structure
 
 ```
-lib/
-  main.dart                          App init
-  app.dart                           Tab navigation (Home, Glasses, History, Settings)
-  screens/                           UI screens
-  services/
-    conversation_engine.dart         Core pipeline: transcription -> AI -> HUD
-    conversation_listening_session.dart  Platform channel bridge
-    llm/                             LLM providers (OpenAI, Anthropic, DeepSeek, Qwen, Zhipu)
-    settings_manager.dart            SharedPreferences + secure storage
-    bitmap_hud/                      Bitmap HUD rendering
-    database/                        Drift SQLite DAOs
-  models/                            Data models (Freezed)
+NativeHelix/
+  Package.swift                      Headless native package graph
+  Sources/HelixRuntime               Dependency container and runtime state
+  Sources/HelixConversation          Conversation pipeline and eval runner
+  Sources/HelixAI                    Provider protocols and OpenAI adapters
+  Sources/HelixSpeech                Transcription and question detection
+  Sources/HelixG1                    BLE protocol, HUD pagination, touchpad routing
+  Sources/HelixPersistence           Native stores and SwiftData schema
 
 ios/Runner/
-  AppDelegate.swift                  BLE setup, platform channels
+  AppDelegate.swift                  Native app bootstrap
+  NativeHelixAppView.swift           SwiftUI app shell
+  NativeHelixAssistantView.swift     Assistant workspace
+  NativeHelixSecondaryViews.swift    Device, sessions, knowledge, settings
   BluetoothManager.swift             BLE connection management
-  SpeechStreamRecognizer.swift       4-backend speech recognition
+  SpeechStreamRecognizer.swift       Speech recognition and realtime routing
 ```
 
 ## Validation

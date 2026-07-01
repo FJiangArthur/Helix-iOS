@@ -5,8 +5,8 @@ term findings live in `.planning/todos/` and in commit messages.
 
 ## G1 BLE
 
-- Dual BLE connections (L/R) via `MethodChannel('method.bluetooth')`.
-  Pure native CoreBluetooth + platform channels; no 3rd-party BLE pkg.
+- Dual BLE connections (L/R) via native CoreBluetooth services in the
+  iOS app shell; no 3rd-party BLE package.
 - Touchpad events via `notifyIndex`:
   `0=exit, 1=pageBack/Forward, 2=headUp, 3=headDown, 17=connected,
   23=evenaiStart, 24=evenaiRecordOver`
@@ -58,6 +58,6 @@ term findings live in `.planning/todos/` and in commit messages.
 
 - Mic permission deferred to first recording (was triggering at
   launch).
-- `flutter_sound` capture + native `PcmConverter` format conversion.
+- Native audio capture plus `PcmConverter` format conversion.
 - `RNNoiseProcessor` is header-only (BUG-006) — noise reduction
   toggle is a no-op.

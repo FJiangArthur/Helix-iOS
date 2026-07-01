@@ -5,7 +5,7 @@ import os.log
 private let liveActivityLog = OSLog(subsystem: "com.helix.liveactivity", category: "errors")
 
 /// Manages the Helix Live Activity lifecycle: start, update, end.
-/// Called from AppDelegate via method channel from Dart.
+/// Called by the native app shell and Live Activity intent bridge.
 class LiveActivityManager {
     static let shared = LiveActivityManager()
 

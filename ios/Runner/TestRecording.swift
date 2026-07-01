@@ -1,4 +1,4 @@
-// ABOUTME: Swift helper to quickly test native AVAudioRecorder functionality from Flutter environment.
+// ABOUTME: Swift helper to quickly test native AVAudioRecorder functionality from the iOS host.
 // ABOUTME: Provides iOS implementation; no-op on non-UIKit platforms to avoid build issues.
 
 #if canImport(UIKit)

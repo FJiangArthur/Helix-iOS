@@ -29,18 +29,37 @@ import AVFoundation
         print("🎤 Sample Rate: \(session.sampleRate)")
         print("🎤 Input Available: \(session.isInputAvailable)")
         print("🎤 Input Channels: \(session.inputNumberOfChannels)")
-        print("🎤 Recording Permission: \(AVAudioSession.sharedInstance().recordPermission.rawValue)")
-        
+        let recordPermission: Any
+        if #available(iOS 17.0, *) {
+            recordPermission = AVAudioApplication.shared.recordPermission
+        } else {
+            recordPermission = AVAudioSession.sharedInstance().recordPermission
+        }
+        print("🎤 Recording Permission: \(recordPermission)")
+
         // Check microphone permission
-        switch AVAudioSession.sharedInstance().recordPermission {
-        case .granted:
-            print("✅ Microphone permission granted")
-        case .denied:
-            print("❌ Microphone permission denied")
-        case .undetermined:
-            print("⚠️ Microphone permission undetermined")
-        @unknown default:
-            print("❓ Unknown microphone permission state")
+        if #available(iOS 17.0, *) {
+            switch AVAudioApplication.shared.recordPermission {
+            case .granted:
+                print("✅ Microphone permission granted")
+            case .denied:
+                print("❌ Microphone permission denied")
+            case .undetermined:
+                print("⚠️ Microphone permission undetermined")
+            @unknown default:
+                print("❓ Unknown microphone permission state")
+            }
+        } else {
+            switch AVAudioSession.sharedInstance().recordPermission {
+            case .granted:
+                print("✅ Microphone permission granted")
+            case .denied:
+                print("❌ Microphone permission denied")
+            case .undetermined:
+                print("⚠️ Microphone permission undetermined")
+            @unknown default:
+                print("❓ Unknown microphone permission state")
+            }
         }
     }
     
