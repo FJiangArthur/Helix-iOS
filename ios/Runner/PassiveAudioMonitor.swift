@@ -1,6 +1,5 @@
 import AVFoundation
 import Speech
-import Flutter
 
 class PassiveAudioMonitor: NSObject, SFSpeechRecognizerDelegate {
     static let shared = PassiveAudioMonitor()
@@ -13,7 +12,7 @@ class PassiveAudioMonitor: NSObject, SFSpeechRecognizerDelegate {
     private(set) var state: MonitorState = .idle
     private(set) var isActive = false
     private(set) var segmentCount = 0
-    var eventSink: FlutterEventSink?
+    var onEvent: (([String: Any]) -> Void)?
 
     // Audio
     private var audioEngine = AVAudioEngine()
@@ -226,13 +225,16 @@ class PassiveAudioMonitor: NSObject, SFSpeechRecognizerDelegate {
             "language": speechRecognizer?.locale.identifier ?? "",
         ]
         DispatchQueue.main.async {
-            self.eventSink?(event)
+            self.onEvent?(event)
         }
     }
 
     private func emitError(_ message: String) {
         DispatchQueue.main.async {
-            self.eventSink?(FlutterError(code: "PASSIVE_AUDIO", message: message, details: nil))
+            self.onEvent?([
+                "error": message,
+                "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
+            ])
         }
     }
 
@@ -256,18 +258,5 @@ class PassiveAudioMonitor: NSObject, SFSpeechRecognizerDelegate {
         if !available && isActive {
             emitError("On-device speech recognition became unavailable")
         }
-    }
-}
-
-// MARK: - Flutter Event Stream Handler
-
-class PassiveAudioEventHandler: NSObject, FlutterStreamHandler {
-    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        PassiveAudioMonitor.shared.eventSink = events
-        return nil
-    }
-    func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        PassiveAudioMonitor.shared.eventSink = nil
-        return nil
     }
 }

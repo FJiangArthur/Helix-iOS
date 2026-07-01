@@ -27,8 +27,7 @@
 			AA0200001000000000000005 /* NativeHelixSecondaryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000005 /* NativeHelixSecondaryViews.swift */; };
 			AA0200001000000000000007 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0200000000000000000007 /* SceneDelegate.swift */; };
 		76C534841F97386A7DD43D5A /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7DC1DA6ABFD39F7F4845FD76 /* HealthKit.framework */; };
-		97C146FC1CF9000F007C117D /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FA1CF9000F007C117D /* Main.storyboard */; };
-		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
+			97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		983EBCE66AB45EC0B9ADD250 /* HelixLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */; };
@@ -65,7 +64,6 @@
 		DA91ADB02E67000100220CE1 /* PassiveAudioMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA91ADB12E67000100220CE1 /* PassiveAudioMonitor.swift */; };
 		E3D9E13DABF71B221D7C889F /* HelixLiveActivityLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */; };
 		FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49670335EC8B13F0738E63BB /* LiveActivityManager.swift */; };
-		AA01000010000000000000F0 /* InputInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01000010000000000000F1 /* InputInspector.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -105,8 +103,6 @@
 /* Begin PBXFileReference section */
 		03D0ADB91675A65182022D03 /* Pods-Even CompanionTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.release.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.release.xcconfig"; sourceTree = "<group>"; };
 		11CC0A63C39BD8373B703EAE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
-		1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GeneratedPluginRegistrant.h; sourceTree = "<group>"; };
-		1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GeneratedPluginRegistrant.m; sourceTree = "<group>"; };
 		15012E1F347998F4B3849BF9 /* HelixLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HelixLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		17629B3695D154A2389F1285 /* Pods-Even Companion.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even Companion.release.xcconfig"; path = "Target Support Files/Pods-Even Companion/Pods-Even Companion.release.xcconfig"; sourceTree = "<group>"; };
 		19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -115,7 +111,6 @@
 		39C897E096773DD7055D211F /* HealthKitManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthKitManager.swift; sourceTree = "<group>"; };
 		3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = AppFrameworkInfo.plist; path = Flutter/AppFrameworkInfo.plist; sourceTree = "<group>"; };
 		49670335EC8B13F0738E63BB /* LiveActivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LiveActivityManager.swift; sourceTree = "<group>"; };
-		AA01000010000000000000F1 /* InputInspector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputInspector.swift; sourceTree = "<group>"; };
 		4D2083BD51C492C7AC04C2EB /* HelixLiveActivityLiveActivity.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityLiveActivity.swift; sourceTree = "<group>"; };
 		5950FC57965EA55AA63216AB /* Pods-Even CompanionTests.profile.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Even CompanionTests.profile.xcconfig"; path = "Target Support Files/Pods-Even CompanionTests/Pods-Even CompanionTests.profile.xcconfig"; sourceTree = "<group>"; };
 		74403D69AB764CD15C399879 /* HelixLiveActivityBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HelixLiveActivityBundle.swift; sourceTree = "<group>"; };
@@ -137,7 +132,6 @@
 		9740EEB21CF90195004384FC /* Debug.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Debug.xcconfig; path = Flutter/Debug.xcconfig; sourceTree = "<group>"; };
 		9740EEB31CF90195004384FC /* Generated.xcconfig */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xcconfig; name = Generated.xcconfig; path = Flutter/Generated.xcconfig; sourceTree = "<group>"; };
 		97C146EE1CF9000F007C117D /* Even Companion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Even Companion.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		97C146FB1CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		97C146FD1CF9000F007C117D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -326,13 +320,10 @@
 				DA91AD542E52F4A900220CE1 /* ServiceIdentifiers.swift */,
 				DA91AD562E52F4A900220CE1 /* SpeechStreamRecognizer.swift */,
 				DA91AD572E52F4A900220CE1 /* TestRecording.swift */,
-				97C146FA1CF9000F007C117D /* Main.storyboard */,
-				97C146FD1CF9000F007C117D /* Assets.xcassets */,
-				97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
-				97C147021CF9000F007C117D /* Info.plist */,
-				1498D2321E8E86230040F4C2 /* GeneratedPluginRegistrant.h */,
-				1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */,
-				74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
+					97C146FD1CF9000F007C117D /* Assets.xcassets */,
+					97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */,
+					97C147021CF9000F007C117D /* Info.plist */,
+					74858FAE1ED2DC5600515810 /* AppDelegate.swift */,
 				AA0200000000000000000001 /* NativeHelixModels.swift */,
 				AA0200000000000000000002 /* NativeHelixTheme.swift */,
 					AA0200000000000000000003 /* NativeHelixAppView.swift */,
@@ -340,11 +331,10 @@
 					AA0200000000000000000005 /* NativeHelixSecondaryViews.swift */,
 					AA0200000000000000000007 /* SceneDelegate.swift */,
 					74858FAD1ED2DC5600515810 /* Runner-Bridging-Header.h */,
-				F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */,
-				19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */,
-				49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
-				AA01000010000000000000F1 /* InputInspector.swift */,
-				7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
+					F531D5DA7A4BA236B18C358D /* EventKitChannel.swift */,
+					19AADC9F0EA94CCF089106F6 /* PrivacyInfo.xcprivacy */,
+					49670335EC8B13F0738E63BB /* LiveActivityManager.swift */,
+					7F29E4420CD126694D690C86 /* HelixLiveActivityAttributes.swift */,
 				39C897E096773DD7055D211F /* HealthKitManager.swift */,
 			);
 			path = Runner;
@@ -529,8 +519,7 @@
 				97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */,
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
-				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
-				DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */,
+					DA91AD832E52F4C500220CE1 /* makefile.mk in Resources */,
 				DA91AD842E52F4C500220CE1 /* meson.build in Resources */,
 				313CFE1CB707644059D86DAF /* PrivacyInfo.xcprivacy in Resources */,
 			);
@@ -710,8 +699,7 @@
 				DA91AD5F2E52F4A900220CE1 /* TestRecording.swift in Sources */,
 				DA2D77084EA16A7D8CF43CDB /* EventKitChannel.swift in Sources */,
 				FE0752F8DBDBFCF13EE4D4D5 /* LiveActivityManager.swift in Sources */,
-				AA01000010000000000000F0 /* InputInspector.swift in Sources */,
-				A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */,
+					A2095635C7FDAC096232347A /* HelixLiveActivityAttributes.swift in Sources */,
 				45C4E430F649885C9C2CFC7E /* HealthKitManager.swift in Sources */,
 				AA01000002000000000000A1 /* HelixLiveActivityIntentBridge.swift in Sources */,
 				AA01000004000000000000A2 /* HelixLiveActivityIntents.swift in Sources */,
@@ -729,15 +717,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
-		97C146FA1CF9000F007C117D /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				97C146FB1CF9000F007C117D /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-		97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */ = {
+			97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
 				97C147001CF9000F007C117D /* Base */,

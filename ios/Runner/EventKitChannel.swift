@@ -1,126 +1,116 @@
-import Foundation
 import EventKit
-import Flutter
+import Foundation
 
-class EventKitChannel {
-    static let shared = EventKitChannel()
+struct NativeCalendarEvent {
+    let title: String
+    let startDate: Date
+    let endDate: Date
+    let location: String?
+    let isAllDay: Bool
+}
+
+struct NativeReminder {
+    let title: String
+    let dueDate: Date?
+}
+
+final class NativeEventKitService {
+    static let shared = NativeEventKitService()
+
     private let store = EKEventStore()
 
-    func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        switch call.method {
-        case "requestCalendarAccess":
-            requestCalendarAccess(result: result)
-        case "getNextCalendarEvent":
-            getNextCalendarEvent(result: result)
-        case "requestRemindersAccess":
-            requestRemindersAccess(result: result)
-        case "getUpcomingReminders":
-            getUpcomingReminders(result: result)
-        default:
-            result(FlutterMethodNotImplemented)
-        }
-    }
+    private init() {}
 
-    // MARK: - Calendar
-
-    private func requestCalendarAccess(result: @escaping FlutterResult) {
+    func requestCalendarAccess(completion: @escaping (Bool) -> Void) {
         if #available(iOS 17.0, *) {
-            store.requestFullAccessToEvents { granted, error in
-                DispatchQueue.main.async { result(granted) }
+            store.requestFullAccessToEvents { granted, _ in
+                DispatchQueue.main.async { completion(granted) }
             }
         } else {
-            store.requestAccess(to: .event) { granted, error in
-                DispatchQueue.main.async { result(granted) }
+            store.requestAccess(to: .event) { granted, _ in
+                DispatchQueue.main.async { completion(granted) }
             }
         }
     }
 
-    private func getNextCalendarEvent(result: @escaping FlutterResult) {
+    func nextCalendarEvent() -> NativeCalendarEvent? {
         let status = EKEventStore.authorizationStatus(for: .event)
         let isAuthorized: Bool
         if #available(iOS 17.0, *) {
-            isAuthorized = (status == .fullAccess)
+            isAuthorized = status == .fullAccess
         } else {
-            isAuthorized = (status == .authorized)
+            isAuthorized = status == .authorized
         }
         guard isAuthorized else {
-            result(nil)
-            return
+            return nil
         }
 
         let now = Date()
-        let endDate = Calendar.current.date(byAdding: .day, value: 7, to: now)!
-        let predicate = store.predicateForEvents(withStart: now, end: endDate, calendars: nil)
-        let events = store.events(matching: predicate)
-            .sorted { $0.startDate < $1.startDate }
-
-        guard let event = events.first else {
-            result(nil)
-            return
+        guard let endDate = Calendar.current.date(byAdding: .day, value: 7, to: now) else {
+            return nil
         }
 
-        let formatter = ISO8601DateFormatter()
-        let dict: [String: Any?] = [
-            "title": event.title,
-            "startDate": formatter.string(from: event.startDate),
-            "endDate": formatter.string(from: event.endDate),
-            "location": event.location,
-            "isAllDay": event.isAllDay
-        ]
-        result(dict as [String: Any?])
+        let predicate = store.predicateForEvents(withStart: now, end: endDate, calendars: nil)
+        return store.events(matching: predicate)
+            .sorted { $0.startDate < $1.startDate }
+            .first
+            .map {
+                NativeCalendarEvent(
+                    title: $0.title,
+                    startDate: $0.startDate,
+                    endDate: $0.endDate,
+                    location: $0.location,
+                    isAllDay: $0.isAllDay
+                )
+            }
     }
 
-    // MARK: - Reminders
-
-    private func requestRemindersAccess(result: @escaping FlutterResult) {
+    func requestRemindersAccess(completion: @escaping (Bool) -> Void) {
         if #available(iOS 17.0, *) {
-            store.requestFullAccessToReminders { granted, error in
-                DispatchQueue.main.async { result(granted) }
+            store.requestFullAccessToReminders { granted, _ in
+                DispatchQueue.main.async { completion(granted) }
             }
         } else {
-            store.requestAccess(to: .reminder) { granted, error in
-                DispatchQueue.main.async { result(granted) }
+            store.requestAccess(to: .reminder) { granted, _ in
+                DispatchQueue.main.async { completion(granted) }
             }
         }
     }
 
-    private func getUpcomingReminders(result: @escaping FlutterResult) {
+    func upcomingReminders(completion: @escaping ([NativeReminder]) -> Void) {
         let status = EKEventStore.authorizationStatus(for: .reminder)
         let isAuthorized: Bool
         if #available(iOS 17.0, *) {
-            isAuthorized = (status == .fullAccess)
+            isAuthorized = status == .fullAccess
         } else {
-            isAuthorized = (status == .authorized)
+            isAuthorized = status == .authorized
         }
         guard isAuthorized else {
-            result([])
+            completion([])
             return
         }
 
         let now = Date()
-        let endDate = Calendar.current.date(byAdding: .hour, value: 24, to: now)!
+        guard let endDate = Calendar.current.date(byAdding: .hour, value: 24, to: now) else {
+            completion([])
+            return
+        }
         let predicate = store.predicateForIncompleteReminders(
-            withDueDateStarting: nil,
+            withDueDateStarting: now,
             ending: endDate,
             calendars: nil
         )
 
         store.fetchReminders(matching: predicate) { reminders in
-            let formatter = ISO8601DateFormatter()
-            let items: [[String: Any?]] = (reminders ?? [])
+            let items = (reminders ?? [])
                 .prefix(3)
                 .map { reminder in
-                    var dueDate: String? = nil
-                    if let components = reminder.dueDateComponents,
-                       let date = Calendar.current.date(from: components) {
-                        dueDate = formatter.string(from: date)
-                    }
-                    return [
-                        "title": reminder.title,
-                        "dueDate": dueDate
-                    ]
+                    NativeReminder(
+                        title: reminder.title,
+                        dueDate: reminder.dueDateComponents.flatMap { Calendar.current.date(from: $0) }
+                    )
                 }
-            DispatchQueue.main.async { result(items) }
+            DispatchQueue.main.async { completion(items) }
         }
     }
 }

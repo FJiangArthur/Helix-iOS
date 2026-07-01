@@ -1,8 +1,7 @@
 // ABOUTME: Singleton that auto-restarts the glasses mic every 28 seconds
-// ABOUTME: for continuous active sessions. Emits health events to Dart via Flutter event channel.
+// ABOUTME: for continuous active sessions.
 
 import Foundation
-import Flutter
 
 class GlassesMicSessionManager {
     static let shared = GlassesMicSessionManager()
@@ -11,7 +10,7 @@ class GlassesMicSessionManager {
     private(set) var restartCount = 0
     private(set) var sessionStartTime: Date?
     private(set) var isActive = false
-    var eventSink: FlutterEventSink?
+    var onHealthEvent: (([String: Any]) -> Void)?
 
     private let restartInterval: TimeInterval = 28.0
 
@@ -62,18 +61,7 @@ class GlassesMicSessionManager {
             "isActive": isActive,
         ]
         DispatchQueue.main.async {
-            self.eventSink?(event)
+            self.onHealthEvent?(event)
         }
-    }
-}
-
-class GlassesMicHealthEventHandler: NSObject, FlutterStreamHandler {
-    func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink) -> FlutterError? {
-        GlassesMicSessionManager.shared.eventSink = events
-        return nil
-    }
-    func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        GlassesMicSessionManager.shared.eventSink = nil
-        return nil
     }
 }
