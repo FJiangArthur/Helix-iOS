@@ -12,17 +12,15 @@ struct NativeKnowledgeView: View {
         ScrollView {
             VStack(spacing: 14) {
                 NativeSection("Knowledge", subtitle: runtime.knowledgeLibrary.activeProjectName) {
-                    Picker("Knowledge bucket", selection: $selectedBucket) {
-                        ForEach(KnowledgeBucket.allCases, id: \.self) { bucket in
-                            Text(bucket.title).tag(bucket)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Picker("Knowledge bucket", selection: $selectedBucket) {
+                            ForEach(KnowledgeBucket.allCases, id: \.self) { bucket in
+                                Text(bucket.title).tag(bucket)
+                            }
                         }
-                    }
-                    .pickerStyle(.segmented)
-                }
+                        .pickerStyle(.segmented)
 
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
-                    ForEach(knowledgeBuckets) { bucket in
-                        KnowledgeBucketTile(bucket: bucket)
+                        KnowledgeStatsStrip(buckets: knowledgeBuckets)
                     }
                 }
 
@@ -117,29 +115,44 @@ struct NativeKnowledgeView: View {
     }
 }
 
-private struct KnowledgeBucketTile: View {
+private struct KnowledgeStatsStrip: View {
+    let buckets: [NativeKnowledgeBucket]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
+            ForEach(buckets) { bucket in
+                KnowledgeStatPill(bucket: bucket)
+            }
+        }
+    }
+}
+
+private struct KnowledgeStatPill: View {
     let bucket: NativeKnowledgeBucket
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: bucket.symbolName)
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(NativeHelixTheme.indigo)
-            Text(bucket.count)
-                .font(.system(.title2, design: .rounded, weight: .bold))
-                .foregroundStyle(NativeHelixTheme.ink)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(bucket.title)
-                    .font(.subheadline.weight(.semibold))
+                .frame(width: 16, height: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(bucket.count) \(bucket.title)")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(NativeHelixTheme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(bucket.detail)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundStyle(NativeHelixTheme.secondaryInk)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
+            Spacer(minLength: 0)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 132, alignment: .leading)
-        .background(NativeHelixTheme.surface)
+        .padding(.horizontal, 10)
+        .frame(minHeight: 42)
+        .background(NativeHelixTheme.background)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
