@@ -44,8 +44,8 @@ public struct OpenAIAudioFileTranscriber: AudioFileTranscriber {
         let request = try makeURLRequest(fileURL: url, model: model)
         let (data, response) = try await transport.data(for: request)
         guard (200..<300).contains(response.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "HTTP \(response.statusCode)"
-            throw HelixError.providerFailure("OpenAI transcription failed: \(message)")
+            _ = data
+            throw HelixError.providerFailure("OpenAI transcription failed with HTTP \(response.statusCode).")
         }
 
         let payload = try JSONDecoder().decode(OpenAITranscriptionPayload.self, from: data)

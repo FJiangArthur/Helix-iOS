@@ -13,6 +13,9 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+.env
+.env.*
+!.env.example
 
 # IntelliJ related
 *.iml
@@ -51,3 +54,4 @@ coverage/
 
 # Superpowers brainstorm ephemeral state
 .superpowers/
+.env

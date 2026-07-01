@@ -1,8 +1,8 @@
 # Helix-iOS Validation Gate
 
-This repo now validates the Swift-native app and the `NativeHelix` headless
-package. The old Flutter analyzer, test, coverage, and simulator-build gates
-are retired.
+This repo validates the Swift-native app and the `NativeHelix` headless
+package. The old cross-platform analyzer, test, coverage, and simulator-build
+gates are retired.
 
 ## Mandatory Gate
 
@@ -20,7 +20,7 @@ The gate runs:
 - `swift build --package-path NativeHelix --target HelixRuntime`
 - `swift test --package-path NativeHelix`
 - a guard that fails if `HELIX_RUN_CONVERSATION_EVAL=1` tries to re-enable
-  the retired Flutter harness
+  the retired conversation harness
 
 ## iOS 27 Simulator Validation
 
@@ -54,12 +54,34 @@ swift test --package-path NativeHelix --filter NativeConversationTests/testG1Hud
 Live OpenAI smoke testing is opt-in:
 
 ```bash
-HELIX_RUN_LIVE_OPENAI_EVAL=1 OPENAI_API_KEY=... \
+HELIX_RUN_LIVE_OPENAI_EVAL=1 \
   swift test --package-path NativeHelix \
   --filter NativeConversationTests/testLiveOpenAIAnswerProviderWithEnvironmentKeyWhenRequested
 ```
 
 The live test skips by default and fails if explicitly enabled without a key.
+Store the key in local `.env` as `OPENAI_API_KEY=...`; `.env` is ignored and
+must not be committed.
+
+## Main Commit Gate
+
+Local hooks are stored in `.githooks` and this checkout uses:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+On branches other than `main`, the pre-commit hook runs the staged security
+gate. On `main`, `scripts/run_commit_gate.sh` blocks the commit unless all of
+these pass:
+
+- `bash scripts/security_gate.sh --staged`
+- `swift test --package-path NativeHelix --filter NativeConversationTests`
+- `bash scripts/run_native_swift_gate.sh`
+- `bash scripts/run_gate.sh`
+- the live OpenAI smoke test with `OPENAI_API_KEY` loaded from `.env`
+
+The pre-push hook runs the same extensive gate for pushes to `main`.
 
 ## Release Validation
 

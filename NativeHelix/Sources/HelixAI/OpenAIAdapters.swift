@@ -147,8 +147,8 @@ public struct OpenAIAnswerProvider: HelixAnswerProvider {
         let urlRequest = try makeURLRequest(for: request)
         let (data, response) = try await transport.data(for: urlRequest)
         guard (200..<300).contains(response.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "HTTP \(response.statusCode)"
-            throw HelixError.providerFailure("OpenAI answer failed: \(message)")
+            _ = data
+            throw HelixError.providerFailure("OpenAI answer failed with HTTP \(response.statusCode).")
         }
 
         let payload = try JSONDecoder().decode(OpenAIChatCompletionPayload.self, from: data)

@@ -1270,8 +1270,9 @@ final class NativeConversationTests: XCTestCase {
         guard environment["HELIX_RUN_LIVE_OPENAI_EVAL"] == "1" else {
             throw XCTSkip("Set HELIX_RUN_LIVE_OPENAI_EVAL=1 to run the live OpenAI smoke test.")
         }
-        guard let apiKey = environment["OPENAI_API_KEY"], !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            XCTFail("OPENAI_API_KEY is required when HELIX_RUN_LIVE_OPENAI_EVAL=1.")
+        let apiKey = environment["OPENAI_API_KEY"] ?? dotEnvValue(named: "OPENAI_API_KEY")
+        guard let apiKey, !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            XCTFail("OPENAI_API_KEY is required in the environment or local .env when HELIX_RUN_LIVE_OPENAI_EVAL=1.")
             return
         }
 
@@ -1351,6 +1352,36 @@ final class NativeConversationTests: XCTestCase {
             events.append(event)
         }
         return events
+    }
+
+    private func dotEnvValue(named name: String) -> String? {
+        let envURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(".env")
+        guard let contents = try? String(contentsOf: envURL, encoding: .utf8) else {
+            return nil
+        }
+
+        for rawLine in contents.split(whereSeparator: \.isNewline) {
+            var line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !line.isEmpty, !line.hasPrefix("#") else { continue }
+            if line.hasPrefix("export ") {
+                line.removeFirst("export ".count)
+            }
+            guard let separator = line.firstIndex(of: "=") else { continue }
+            let key = line[..<separator].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard key == name else { continue }
+            var value = line[line.index(after: separator)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            } else if value.hasPrefix("'"), value.hasSuffix("'"), value.count >= 2 {
+                value.removeFirst()
+                value.removeLast()
+            }
+            return value
+        }
+
+        return nil
     }
 }
 
