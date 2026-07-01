@@ -10,39 +10,10 @@ struct NativeAssistantView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                AssistantCommandBand(
+                AssistantWorkspacePanel(
                     runtime: runtime,
                     draftQuestion: $draftQuestion
                 )
-
-                NativeSection(
-                    "Live workspace",
-                    subtitle: "Question, answer, and transcript from the native runtime."
-                ) {
-                    VStack(spacing: 12) {
-                        LiveWorkspaceRow(
-                            title: "Answer",
-                            value: answerText,
-                            emptyValue: "Answers will appear here before being sent to the G1 HUD.",
-                            symbolName: "sparkles",
-                            tint: NativeHelixTheme.green
-                        )
-                        LiveWorkspaceRow(
-                            title: "Detected question",
-                            value: runtime.assistantSession.detectedQuestion,
-                            emptyValue: "Ask manually or start a listening run.",
-                            symbolName: "questionmark.bubble",
-                            tint: NativeHelixTheme.indigo
-                        )
-                        LiveWorkspaceRow(
-                            title: "Transcript",
-                            value: runtime.assistantSession.transcriptText,
-                            emptyValue: "No finalized transcript yet.",
-                            symbolName: "waveform",
-                            tint: NativeHelixTheme.teal
-                        )
-                    }
-                }
 
                 if !timelineItems.isEmpty {
                     NativeSection("Recent activity") {
@@ -54,13 +25,6 @@ struct NativeAssistantView: View {
             .padding(.vertical, 14)
         }
         .scrollContentBackground(.hidden)
-    }
-
-    private var answerText: String {
-        if !runtime.assistantSession.currentAnswer.isEmpty {
-            return runtime.assistantSession.currentAnswer
-        }
-        return runtime.assistantSession.passiveReminder
     }
 
     private var timelineItems: [NativeTimelineItem] {
@@ -95,7 +59,7 @@ struct NativeAssistantView: View {
 }
 
 @MainActor
-private struct AssistantCommandBand: View {
+private struct AssistantWorkspacePanel: View {
     let runtime: HelixRuntimeDependencies
     @Binding var draftQuestion: String
 
@@ -130,12 +94,7 @@ private struct AssistantCommandBand: View {
                     )
                 }
 
-                AssistantContextStrip(
-                    providerName: runtime.activeProviderName,
-                    modelName: runtime.settings.llmModel,
-                    hudTitle: runtime.settings.hudRenderPath.nativeTitle,
-                    hudDetail: runtime.g1DeviceState.currentPageSummary
-                )
+                CompactTagGrid(values: contextTags)
 
                 HStack(spacing: 10) {
                     TextField("Ask or paste a question", text: $draftQuestion, axis: .vertical)
@@ -153,11 +112,38 @@ private struct AssistantCommandBand: View {
 
                     NativeIconButton(
                         symbolName: runtime.assistantSession.isRunning ? "hourglass" : "arrow.up",
+                        isPrimary: true,
                         isDisabled: trimmedQuestion.isEmpty || runtime.assistantSession.isRunning,
                         accessibilityLabel: "Ask Helix",
                         action: askQuestion
                     )
                 }
+
+                Divider()
+
+                LiveWorkspaceRow(
+                    title: "Answer",
+                    value: currentAnswerText,
+                    emptyValue: "Answers will appear here before being sent to the G1 HUD.",
+                    symbolName: "sparkles",
+                    tint: NativeHelixTheme.green
+                )
+                Divider()
+                LiveWorkspaceRow(
+                    title: "Detected question",
+                    value: runtime.assistantSession.detectedQuestion,
+                    emptyValue: "Ask manually or start a listening run.",
+                    symbolName: "questionmark.bubble",
+                    tint: NativeHelixTheme.indigo
+                )
+                Divider()
+                LiveWorkspaceRow(
+                    title: "Transcript",
+                    value: runtime.assistantSession.transcriptText,
+                    emptyValue: "No finalized transcript yet.",
+                    symbolName: "waveform",
+                    tint: NativeHelixTheme.teal
+                )
             }
         }
     }
@@ -178,6 +164,13 @@ private struct AssistantCommandBand: View {
             return runtime.assistantSession.currentAnswer
         }
         return runtime.assistantSession.passiveReminder
+    }
+
+    private var contextTags: [String] {
+        [
+            "\(runtime.activeProviderName) - \(runtime.settings.llmModel)",
+            "\(runtime.settings.hudRenderPath.nativeTitle) - \(runtime.g1DeviceState.currentPageSummary)"
+        ]
     }
 
     private var canSaveSession: Bool {
@@ -218,68 +211,6 @@ private struct AssistantCommandBand: View {
                 )
             )
         }
-    }
-}
-
-private struct AssistantContextStrip: View {
-    let providerName: String
-    let modelName: String
-    let hudTitle: String
-    let hudDetail: String
-
-    var body: some View {
-        HStack(spacing: 0) {
-            AssistantContextItem(
-                title: providerName,
-                detail: modelName,
-                symbolName: "bolt.horizontal",
-                tint: NativeHelixTheme.indigo
-            )
-            Divider().padding(.vertical, 2)
-            AssistantContextItem(
-                title: hudTitle,
-                detail: hudDetail,
-                symbolName: "rectangle.on.rectangle",
-                tint: NativeHelixTheme.green
-            )
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity)
-        .background(NativeHelixTheme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(NativeHelixTheme.hairline)
-        }
-    }
-}
-
-private struct AssistantContextItem: View {
-    let title: String
-    let detail: String
-    let symbolName: String
-    let tint: Color
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: symbolName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 18, height: 18)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(NativeHelixTheme.ink)
-                    .lineLimit(1)
-                Text(detail)
-                    .font(.caption2)
-                    .foregroundStyle(NativeHelixTheme.secondaryInk)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

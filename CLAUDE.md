@@ -2,7 +2,7 @@
 
 Native headless framework for Even Realities G1 smart glasses conversation intelligence.
 
-**Version**: 2.2.84+202607011406
+**Version**: 2.2.85+202607011415
 
 ## Validation (MANDATORY)
 
