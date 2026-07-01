@@ -2,7 +2,7 @@ import Foundation
 
 /// Darwin notification names + post helper shared by the widget extension
 /// and the host app. Button taps in the Live Activity post via this bridge;
-/// the host app's AppDelegate listens and forwards to Flutter.
+/// the host app's AppDelegate listens and forwards to the native runtime.
 enum HelixLiveActivityIntentBridge {
     enum Button: String {
         case askQuestion         = "com.helix.liveactivity.askQuestion"

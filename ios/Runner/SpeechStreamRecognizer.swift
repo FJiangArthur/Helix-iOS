@@ -5,7 +5,6 @@
 //  Created by edy on 2024/4/16.
 //
 import AVFoundation
-import Flutter
 import Speech
 
 enum TranscriptionBackend: String {
@@ -55,7 +54,7 @@ class SpeechStreamRecognizer {
     private var diarizationPcmBuffer = Data()
     /// Max size of the diarization PCM buffer (~30 seconds).
     private static let maxDiarizationPcmBytes = 30 * 16000 * 2
-    private var speechEventSink: FlutterEventSink?
+    private var speechEventHandler: (([String: Any]) -> Void)?
     private var pendingSpeechEvents: [[String: Any]] = []
     private var shouldBufferSpeechEvents = false
     private var didLogFirstPartialEmission = false
@@ -188,19 +187,19 @@ class SpeechStreamRecognizer {
         }
     }
 
-    func attachEventSink(_ sink: @escaping FlutterEventSink) {
+    func attachEventHandler(_ handler: @escaping ([String: Any]) -> Void) {
         DispatchQueue.main.async {
-            self.speechEventSink = sink
+            self.speechEventHandler = handler
             self.shouldBufferSpeechEvents = true
-            self.log("Speech event sink attached")
+            self.log("Speech event handler attached")
             self.flushBufferedSpeechEvents()
         }
     }
 
-    func detachEventSink() {
+    func detachEventHandler() {
         DispatchQueue.main.async {
-            self.log("Speech event sink detached")
-            self.speechEventSink = nil
+            self.log("Speech event handler detached")
+            self.speechEventHandler = nil
             self.shouldBufferSpeechEvents = false
             self.pendingSpeechEvents.removeAll()
         }
@@ -1505,13 +1504,13 @@ class SpeechStreamRecognizer {
 
     private func emitSpeechEvent(_ payload: [String: Any]) {
         DispatchQueue.main.async {
-            if let sink = self.speechEventSink {
-                sink(payload)
+            if let handler = self.speechEventHandler {
+                handler(payload)
                 return
             }
 
             guard self.shouldBufferSpeechEvents else {
-                self.log("Dropping speech event without active sink: \(payload)")
+                self.log("Dropping speech event without active handler: \(payload)")
                 return
             }
 
@@ -1520,14 +1519,14 @@ class SpeechStreamRecognizer {
     }
 
     private func flushBufferedSpeechEvents() {
-        guard let sink = speechEventSink else { return }
+        guard let handler = speechEventHandler else { return }
         guard !pendingSpeechEvents.isEmpty else { return }
 
         let bufferedEvents = pendingSpeechEvents
         pendingSpeechEvents.removeAll()
         log("Flushing buffered speech events count=\(bufferedEvents.count)")
         for event in bufferedEvents {
-            sink(event)
+            handler(event)
         }
     }
 

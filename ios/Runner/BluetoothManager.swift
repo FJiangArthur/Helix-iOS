@@ -1,5 +1,4 @@
 import CoreBluetooth
-import Flutter
 import Security
 import os.log
 
@@ -143,15 +142,33 @@ final class BluetoothConnectionPersistence {
     }
 }
 
+struct BluetoothManagerFailure: Error, LocalizedError, Equatable {
+    let code: String
+    let message: String
+
+    var errorDescription: String? { message }
+}
+
+typealias BluetoothOperationCompletion = (Result<Any?, BluetoothManagerFailure>) -> Void
+typealias BluetoothManagerEventHandler = (_ eventName: String, _ arguments: Any?) -> Void
+typealias BluetoothInfoEventHandler = (_ payload: [String: Any]) -> Void
+
 class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
-    private static var _shared: BluetoothManager?
-    static var shared: BluetoothManager { _shared! }
+    static let shared = BluetoothManager()
 
     private static let restorationIdentifier = "com.evencompanion.bluetooth.central"
 
-    static func configure(channel: FlutterMethodChannel) -> BluetoothManager {
-        let instance = BluetoothManager(channel: channel)
-        _shared = instance
+    @discardableResult
+    static func configure(
+        eventHandler: BluetoothManagerEventHandler? = nil,
+        infoEventHandler: BluetoothInfoEventHandler? = nil
+    ) -> BluetoothManager {
+        let instance = BluetoothManager.shared
+        instance.onEvent = eventHandler
+        instance.onInfoEvent = infoEventHandler
+        if eventHandler != nil {
+            instance.markEventHandlerReady()
+        }
         return instance
     }
 
@@ -159,10 +176,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     var pairedDevices: [String: (CBPeripheral?, CBPeripheral?)] = [:]
     var connectedDevices: [String: (CBPeripheral?, CBPeripheral?)] = [:]
 
-    var channel: FlutterMethodChannel!
-
-    var blueInfoSink: FlutterEventSink?
-    var blueSpeechSink: FlutterEventSink?
+    var onEvent: BluetoothManagerEventHandler?
+    var onInfoEvent: BluetoothInfoEventHandler?
 
     var userInitiatedDisconnect = false
     private var reconnectAttemptsByPeripheral: [UUID: Int] = [:]
@@ -183,10 +198,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     /// Whether noise reduction is applied to incoming glasses audio.
     var noiseReductionEnabled = false
 
-    /// Queued glassesConnected events that fired before Dart was ready.
+    /// Queued glassesConnected events that fired before a native event handler was ready.
     private var pendingConnectionEvents: [[String: String]] = []
-    /// Whether the Dart method handler has signaled readiness.
-    private var dartHandlerReady = false
+    /// Whether the native event handler has signaled readiness.
+    private var eventHandlerReady = false
 
     var leftPeripheral: CBPeripheral?
     var leftUUIDStr: String?
@@ -202,13 +217,12 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     var leftRChar: CBCharacteristic?
     var rightRChar: CBCharacteristic?
 
-    private init(channel: FlutterMethodChannel) {
+    private override init() {
         UARTServiceUUID = CBUUID(string: ServiceIdentifiers.uartServiceUUIDString)
         UARTTXCharacteristicUUID = CBUUID(string: ServiceIdentifiers.uartTXCharacteristicUUIDString)
         UARTRXCharacteristicUUID = CBUUID(string: ServiceIdentifiers.uartRXCharacteristicUUIDString)
 
         super.init()
-        self.channel = channel
         self.centralManager = CBCentralManager(
             delegate: self,
             queue: nil,
@@ -219,9 +233,15 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         )
     }
 
-    func startScan(result: @escaping FlutterResult) {
+    private func emitEvent(_ eventName: String, arguments: Any? = nil) {
+        DispatchQueue.main.async {
+            self.onEvent?(eventName, arguments)
+        }
+    }
+
+    func startScan(result: @escaping BluetoothOperationCompletion) {
         guard centralManager.state == .poweredOn else {
-            result(FlutterError(code: "BluetoothOff", message: "Bluetooth is not powered on.", details: nil))
+            result(.failure(BluetoothManagerFailure(code: "BluetoothOff", message: "Bluetooth is not powered on.")))
             return
         }
 
@@ -234,38 +254,38 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             withServices: nil,
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
-        result("Scanning for devices...")
+        result(.success("Scanning for devices..."))
     }
 
-    func stopScan(result: @escaping FlutterResult) {
+    func stopScan(result: @escaping BluetoothOperationCompletion) {
         if centralManager.state == .poweredOn {
             centralManager.stopScan()
         }
-        result("Scan stopped")
+        result(.success("Scan stopped"))
     }
 
-    func connectToDevice(deviceName: String, result: @escaping FlutterResult) {
+    func connectToDevice(deviceName: String, result: @escaping BluetoothOperationCompletion) {
         guard centralManager.state == .poweredOn else {
-            result(FlutterError(code: "BluetoothOff", message: "Bluetooth is not powered on.", details: nil))
+            result(.failure(BluetoothManagerFailure(code: "BluetoothOff", message: "Bluetooth is not powered on.")))
             return
         }
 
         centralManager.stopScan()
 
         guard let peripheralPair = pairedDevices[deviceName] else {
-            result(FlutterError(code: "DeviceNotFound", message: "Device not found", details: nil))
+            result(.failure(BluetoothManagerFailure(code: "DeviceNotFound", message: "Device not found")))
             return
         }
 
         guard let leftPeripheral = peripheralPair.0, let rightPeripheral = peripheralPair.1 else {
-            result(FlutterError(code: "PeripheralNotFound", message: "One or both peripherals are not found", details: nil))
+            result(.failure(BluetoothManagerFailure(code: "PeripheralNotFound", message: "One or both peripherals are not found")))
             return
         }
 
         userInitiatedDisconnect = false
         registerPeripheral(leftPeripheral, deviceName: deviceName, side: "L")
         registerPeripheral(rightPeripheral, deviceName: deviceName, side: "R")
-        channel.invokeMethod("glassesConnecting", arguments: ["deviceName": deviceName])
+        emitEvent("glassesConnecting", arguments: ["deviceName": deviceName])
 
         connectPeripheralWithTimeout(leftPeripheral, deviceName: deviceName, side: "L")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak rightPeripheral] in
@@ -276,10 +296,10 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             self.connectPeripheralWithTimeout(rightPeripheral, deviceName: deviceName, side: "R")
         }
 
-        result("Connecting to \(deviceName)...")
+        result(.success("Connecting to \(deviceName)..."))
     }
 
-    func disconnectFromGlasses(result: @escaping FlutterResult) {
+    func disconnectFromGlasses(result: @escaping BluetoothOperationCompletion) {
         userInitiatedDisconnect = true
         clearStoredConnection()
 
@@ -298,8 +318,8 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         pendingConnectionPeripherals.removeAll()
         cancelAllConnectionTimeouts()
         resetActivePeripherals()
-        channel.invokeMethod("glassesDisconnected", arguments: ["status": "disconnected"])
-        result("Disconnected all devices.")
+        emitEvent("glassesDisconnected", arguments: ["status": "disconnected"])
+        result(.success("Disconnected all devices."))
     }
 
     // MARK: - CBCentralManagerDelegate Methods
@@ -350,7 +370,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 "leftConnectable": "\(discoveredConnectableByPeripheralId[leftPeripheral.identifier] ?? true)",
                 "rightConnectable": "\(discoveredConnectableByPeripheralId[rightPeripheral.identifier] ?? true)"
             ]
-            channel.invokeMethod("foundPairedGlasses", arguments: deviceInfo)
+            emitEvent("foundPairedGlasses", arguments: deviceInfo)
         }
     }
 
@@ -387,7 +407,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         )
 
         markPeripheralDisconnected(peripheral)
-        channel.invokeMethod("glassesDisconnected", arguments: [
+        emitEvent("glassesDisconnected", arguments: [
             "deviceName": deviceName,
             "disconnectedSide": side,
             "status": "connectFailed",
@@ -418,7 +438,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         }
 
         markPeripheralDisconnected(peripheral)
-        channel.invokeMethod("glassesDisconnected", arguments: [
+        emitEvent("glassesDisconnected", arguments: [
             "deviceName": deviceNameByPeripheralId[peripheral.identifier] ?? "",
             "disconnectedSide": sideByPeripheralId[peripheral.identifier] ?? "",
             "status": "disconnected",
@@ -453,7 +473,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             cancelAllConnectionTimeouts()
             pendingConnectionPeripherals.removeAll()
             reconnectAttemptsByPeripheral.removeAll()
-            channel.invokeMethod("glassesDisconnected", arguments: ["status": "poweredOff"])
+            emitEvent("glassesDisconnected", arguments: ["status": "poweredOff"])
         default:
             #if DEBUG
             print("Bluetooth state is unknown or unsupported.")
@@ -577,25 +597,25 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
             ]
         }
 
-        if dartHandlerReady {
-            channel.invokeMethod("glassesConnected", arguments: args)
+        if eventHandlerReady {
+            emitEvent("glassesConnected", arguments: args)
         } else {
             #if DEBUG
-            print("glassesConnected queued (Dart not ready yet)")
+            print("glassesConnected queued (native event handler not ready yet)")
             #endif
             pendingConnectionEvents.append(args)
         }
     }
 
-    /// Called by Dart after its method handler is registered.
-    /// Replays any connection events that fired before Dart was ready.
-    func onDartReady() {
-        dartHandlerReady = true
+    /// Called after the native event handler is registered.
+    /// Replays any connection events that fired before the handler was ready.
+    func markEventHandlerReady() {
+        eventHandlerReady = true
         for args in pendingConnectionEvents {
             #if DEBUG
             print("glassesConnected replayed: \(args)")
             #endif
-            channel.invokeMethod("glassesConnected", arguments: args)
+            emitEvent("glassesConnected", arguments: args)
         }
         pendingConnectionEvents.removeAll()
     }
@@ -614,8 +634,19 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
     }
 
     func sendData(params: [String: Any]) {
-        guard let flutterData = params["data"] as? FlutterStandardTypedData else { return }
-        writeData(writeData: flutterData.data, lr: params["lr"] as? String)
+        let payload: Data?
+        if let data = params["data"] as? Data {
+            payload = data
+        } else if let data = params["data"] as? NSData {
+            payload = data as Data
+        } else if let bytes = params["data"] as? [UInt8] {
+            payload = Data(bytes)
+        } else {
+            payload = nil
+        }
+
+        guard let payload else { return }
+        writeData(writeData: payload, lr: params["lr"] as? String)
     }
 
     func writeData(writeData: Data, cbPeripheral: CBPeripheral? = nil, lr: String? = nil) {
@@ -712,7 +743,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
     private func reportWriteFailed(reason: String, cmd: UInt8) {
         os_log("writeData: %{public}s nil; cmd=0x%{public}02x", log: bleLog, type: .error, reason, cmd)
-        channel.invokeMethod("bleWriteFailed", arguments: [
+        emitEvent("bleWriteFailed", arguments: [
             "reason": reason,
             "cmd": Int(cmd)
         ])
@@ -806,13 +837,13 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 "hexString": hexString
             ]
 
-            if let sink = blueInfoSink {
+            if let onInfoEvent {
                 DispatchQueue.main.async {
-                    sink(dictionary)
+                    onInfoEvent(dictionary)
                 }
             } else {
                 #if DEBUG
-                print("blueInfoSink not ready, dropping data")
+                print("Bluetooth info event handler not ready, dropping data")
                 #endif
             }
         }
@@ -948,7 +979,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
         let peripherals = centralManager.retrievePeripherals(withIdentifiers: [leftUUID, rightUUID])
         guard !peripherals.isEmpty else { return }
 
-        channel.invokeMethod("glassesConnecting", arguments: ["deviceName": deviceName])
+        emitEvent("glassesConnecting", arguments: ["deviceName": deviceName])
 
         for peripheral in peripherals {
             if peripheral.identifier == leftUUID {
@@ -984,7 +1015,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
 
         guard centralManager.state == .poweredOn else {
             pendingConnectionPeripherals.removeValue(forKey: peripheral.identifier)
-            channel.invokeMethod("glassesDisconnected", arguments: [
+            emitEvent("glassesDisconnected", arguments: [
                 "deviceName": deviceName,
                 "disconnectedSide": side,
                 "status": "connectFailed",
@@ -1039,7 +1070,7 @@ class BluetoothManager: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate
                 self.centralManager.cancelPeripheralConnection(peripheral)
             }
             self.markPeripheralDisconnected(peripheral)
-            self.channel.invokeMethod("glassesDisconnected", arguments: [
+            self.emitEvent("glassesDisconnected", arguments: [
                 "deviceName": deviceName,
                 "disconnectedSide": side,
                 "status": "connectTimeout",
