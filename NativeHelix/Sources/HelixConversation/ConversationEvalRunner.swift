@@ -14,9 +14,12 @@ public struct NativeConversationEvalRunner: Sendable {
         checks.append(statementSuppressionCheck())
         checks.append(duplicateQuestionCheck())
         checks.append(passiveCorrectionCheck())
+        checks.append(passiveTriggerCheck())
         checks.append(await activeAnswerCheck())
+        checks.append(await skillMemoryCheck())
         checks.append(await ragCheck())
         checks.append(await webSearchCheck())
+        checks.append(await modelDiscoveryFallbackCheck())
         return EvalReport(gitSha: gitSha, simulatorUdid: simulatorUdid, checks: checks)
     }
 
@@ -112,6 +115,19 @@ public struct NativeConversationEvalRunner: Sendable {
         )
     }
 
+    private func passiveTriggerCheck() -> EvalCheck {
+        let start = ContinuousClock.now
+        let result = PassiveTriggerClassifier().heuristicDecision(for: "How should I explain RAG to the interviewer?")
+        return check(
+            id: "P02",
+            area: "passive-trigger",
+            passed: result.action == .answer && result.kind == .directQuestion,
+            start: start,
+            expected: "passive direct question routes to answer",
+            actual: "\(result.action.rawValue)/\(result.kind.rawValue)"
+        )
+    }
+
     private func activeAnswerCheck() async -> EvalCheck {
         let start = ContinuousClock.now
         let engine = NativeConversationEngine(
@@ -133,6 +149,33 @@ public struct NativeConversationEvalRunner: Sendable {
             )
         } catch {
             return check(id: "A01", area: "active-answer", passed: false, start: start, expected: "answer", actual: error.localizedDescription)
+        }
+    }
+
+    private func skillMemoryCheck() async -> EvalCheck {
+        let start = ContinuousClock.now
+        let engine = NativeConversationEngine(
+            settings: HelixSettings(activeSkillID: "dsa"),
+            answerProvider: DeterministicAnswerProvider(),
+            conversationStore: InMemoryConversationStore()
+        )
+
+        do {
+            let answer = try await engine.answerActiveQuestion("How should I solve two sum?")
+            let memory = await engine.currentSessionMemory()
+            let passed = answer.text.contains("time complexity")
+                && memory.contextLines().contains { $0.contains("two sum") }
+            return check(
+                id: "S01",
+                area: "skill-memory",
+                passed: passed,
+                start: start,
+                expected: "DSA skill answer with session memory",
+                actual: "\(answer.text) | memory=\(memory.entries.count)",
+                latencyReportOnly: true
+            )
+        } catch {
+            return check(id: "S01", area: "skill-memory", passed: false, start: start, expected: "skill answer", actual: error.localizedDescription)
         }
     }
 
@@ -190,6 +233,20 @@ public struct NativeConversationEvalRunner: Sendable {
             start: start,
             expected: "engine-routed synthesized answer from web result",
             actual: answer.text
+        )
+    }
+
+    private func modelDiscoveryFallbackCheck() async -> EvalCheck {
+        let start = ContinuousClock.now
+        let models = await OpenAIModelDiscoveryService(apiKey: nil).availableModels()
+        return check(
+            id: "M01",
+            area: "model-discovery",
+            passed: models.contains("gpt-4.1-mini") && models.contains("gpt-4o-mini-transcribe"),
+            start: start,
+            expected: "fallback OpenAI models",
+            actual: models.joined(separator: ", "),
+            latencyReportOnly: true
         )
     }
 

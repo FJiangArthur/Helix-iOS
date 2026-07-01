@@ -457,8 +457,41 @@ public actor NativeSettingsManager {
                 webSearchMode: settings.webSearchMode,
                 liveFactCheckEnabled: liveFactCheckEnabled ?? settings.liveFactCheckEnabled,
                 evalGateEnabled: settings.evalGateEnabled,
-                providers: settings.providers
+                providers: settings.providers,
+                activeSkillID: settings.activeSkillID,
+                customSkills: settings.customSkills
             )
+        }
+    }
+
+    public func updateActiveSkill(_ value: String) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            var updated = settings
+            updated.activeSkillID = ActiveSkill.sanitize(value, customSkills: settings.customSkills)
+            return updated
+        }
+    }
+
+    public func upsertCustomSkill(_ skill: ActiveSkill) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            let sanitized = ActiveSkill(
+                value: skill.value,
+                label: skill.label,
+                prompt: skill.prompt,
+                isBuiltIn: false
+            )
+            guard !sanitized.value.isEmpty, !sanitized.label.isEmpty, !sanitized.prompt.isEmpty else {
+                return settings
+            }
+
+            var updated = settings
+            if let index = updated.customSkills.firstIndex(where: { $0.value == sanitized.value }) {
+                updated.customSkills[index] = sanitized
+            } else {
+                updated.customSkills.append(sanitized)
+            }
+            updated.activeSkillID = ActiveSkill.sanitize(updated.activeSkillID, customSkills: updated.customSkills)
+            return updated
         }
     }
 

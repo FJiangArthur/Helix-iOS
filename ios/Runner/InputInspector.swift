@@ -28,6 +28,7 @@
 // is dev-scaffolding only; the visible inspector is debug-gated in Flutter.
 
 import UIKit
+import Flutter
 import MediaPlayer
 import AVFoundation
 

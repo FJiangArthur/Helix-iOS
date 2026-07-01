@@ -44,27 +44,35 @@ public struct DeterministicAnswerProvider: HelixAnswerProvider {
     }
 
     private static func makeAnswer(for request: AnswerRequest) -> String {
+        let memoryPrefix = request.sessionMemoryContext.isEmpty
+            ? ""
+            : "Remembering \(request.sessionMemoryContext.last ?? request.sessionMemoryContext[0]). "
+
+        if request.activeSkill.value == "dsa" {
+            return "\(memoryPrefix)Use an algorithmic answer with time complexity, space complexity, and edge cases."
+        }
+
         if !request.webSearchResults.isEmpty {
             let evidence = request.webSearchResults.map(\.snippet).joined(separator: " ")
             if !request.projectContext.isEmpty {
                 let facts = request.requiredFacts.isEmpty ? request.projectContext : request.requiredFacts
-                return "Use the project context: \(facts.joined(separator: ", ")). Web evidence: \(evidence)"
+                return "\(memoryPrefix)Use the project context: \(facts.joined(separator: ", ")). Web evidence: \(evidence)"
             }
-            return "Based on web search evidence: \(evidence)"
+            return "\(memoryPrefix)Based on web search evidence: \(evidence)"
         }
 
         if !request.projectContext.isEmpty {
             let facts = request.requiredFacts.isEmpty ? request.projectContext : request.requiredFacts
-            return "Use the project context: \(facts.joined(separator: ", "))."
+            return "\(memoryPrefix)Use the project context: \(facts.joined(separator: ", "))."
         }
 
         switch request.mode {
         case .interview:
-            return "Answer directly with situation, action, result, and one measurable impact."
+            return "\(memoryPrefix)Answer directly with situation, action, result, and one measurable impact."
         case .passive:
-            return "Noted. No active answer is needed unless a correction is required."
+            return "\(memoryPrefix)Answer passively and briefly with the useful point only."
         case .general:
-            return "An LLM uses transformer attention to predict useful next tokens from context."
+            return "\(memoryPrefix)An LLM uses transformer attention to predict useful next tokens from context."
         }
     }
 }

@@ -1,33 +1,24 @@
-import Flutter
+import SwiftUI
 import UIKit
 
-class SceneDelegate: FlutterSceneDelegate {
-    override func scene(
+final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(
         _ scene: UIScene,
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
-        super.scene(scene, willConnectTo: session, options: connectionOptions)
-        DispatchQueue.main.async { [weak self] in
-            self?.configureInputInspectorHost(in: scene)
+        guard let windowScene = scene as? UIWindowScene else {
+            return
         }
-    }
 
-    override func sceneDidBecomeActive(_ scene: UIScene) {
-        super.sceneDidBecomeActive(scene)
-        configureInputInspectorHost(in: scene)
-    }
-
-    private func configureInputInspectorHost(in scene: UIScene) {
-        guard let windowScene = scene as? UIWindowScene else { return }
-
-        let controller = windowScene.windows
-            .first(where: { $0.isKeyWindow })?
-            .rootViewController as? FlutterViewController
-            ?? windowScene.windows.first?.rootViewController as? FlutterViewController
-
-        if let controller {
-            InputInspectorController.shared.configure(host: controller)
-        }
+        let window = UIWindow(windowScene: windowScene)
+        window.rootViewController = UIHostingController(
+            rootView: NativeHelixAppView()
+                .preferredColorScheme(.light)
+        )
+        window.makeKeyAndVisible()
+        self.window = window
     }
 }

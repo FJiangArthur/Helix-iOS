@@ -32,6 +32,223 @@ public enum WebSearchMode: String, Codable, CaseIterable, Sendable {
     case live
 }
 
+public struct ActiveSkill: Codable, Equatable, Identifiable, Sendable {
+    public var id: String { value }
+    public var value: String
+    public var label: String
+    public var prompt: String
+    public var isBuiltIn: Bool
+
+    public init(
+        value: String,
+        label: String,
+        prompt: String,
+        isBuiltIn: Bool = false
+    ) {
+        self.value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.isBuiltIn = isBuiltIn
+    }
+
+    public static let defaultValue = "general-chat"
+
+    public static let builtIns: [ActiveSkill] = [
+        ActiveSkill(
+            value: "dsa",
+            label: "Data Structures & Algorithms",
+            prompt: "Answer as a concise algorithms coach. Prefer complexity, invariants, and edge cases.",
+            isBuiltIn: true
+        ),
+        ActiveSkill(
+            value: "programming",
+            label: "Programming",
+            prompt: "Answer as a pragmatic programming assistant. Prefer concrete implementation steps and tradeoffs.",
+            isBuiltIn: true
+        ),
+        ActiveSkill(
+            value: "system-design",
+            label: "System Design",
+            prompt: "Answer as a system design interviewer. Prefer architecture, scale limits, bottlenecks, and failure modes.",
+            isBuiltIn: true
+        ),
+        ActiveSkill(
+            value: "behavioral",
+            label: "Behavioral Interview",
+            prompt: "Answer in a direct STAR-style structure with one measurable impact.",
+            isBuiltIn: true
+        ),
+        ActiveSkill(
+            value: "discussion-strategy",
+            label: "Discussion Strategy",
+            prompt: "Answer with a calm discussion strategy: acknowledge, clarify, and give one useful next move.",
+            isBuiltIn: true
+        ),
+        ActiveSkill(
+            value: "general-chat",
+            label: "General Chat",
+            prompt: "Answer naturally and directly. Avoid meta phrasing and keep the response speakable.",
+            isBuiltIn: true
+        )
+    ]
+
+    public static func selectable(customSkills: [ActiveSkill]) -> [ActiveSkill] {
+        var seen = Set(builtIns.map(\.value))
+        let custom = customSkills.filter { skill in
+            !skill.value.isEmpty && !skill.label.isEmpty && seen.insert(skill.value).inserted
+        }
+        return builtIns + custom
+    }
+
+    public static func sanitize(
+        _ value: String?,
+        customSkills: [ActiveSkill] = [],
+        fallback: String = defaultValue
+    ) -> String {
+        let normalized = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return fallback }
+
+        let mockMap = [
+            "mock-dsa": "dsa",
+            "mock-programming": "programming",
+            "mock-system-design": "system-design",
+            "mock-behavioral": "behavioral"
+        ]
+        let mapped = mockMap[normalized] ?? normalized
+        let allowed = Set(selectable(customSkills: customSkills).map(\.value))
+        return allowed.contains(mapped) ? mapped : fallback
+    }
+
+    public static func skill(
+        for value: String,
+        customSkills: [ActiveSkill] = []
+    ) -> ActiveSkill {
+        let sanitized = sanitize(value, customSkills: customSkills)
+        return selectable(customSkills: customSkills).first { $0.value == sanitized }
+            ?? builtIns.first { $0.value == defaultValue }!
+    }
+}
+
+public struct SessionMemoryEntry: Codable, Equatable, Identifiable, Sendable {
+    public enum Kind: String, Codable, Sendable {
+        case transcript
+        case question
+        case answer
+        case passiveReminder
+        case suppression
+    }
+
+    public let id: UUID
+    public var kind: Kind
+    public var text: String
+    public var skillValue: String?
+    public var citations: [String]
+    public var createdAt: Date
+
+    public init(
+        id: UUID = UUID(),
+        kind: Kind,
+        text: String,
+        skillValue: String? = nil,
+        citations: [String] = [],
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.kind = kind
+        self.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.skillValue = skillValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.citations = citations
+        self.createdAt = createdAt
+    }
+}
+
+public struct SessionMemory: Codable, Equatable, Sendable {
+    public var entries: [SessionMemoryEntry]
+    public var maxEntries: Int
+
+    public init(entries: [SessionMemoryEntry] = [], maxEntries: Int = 12) {
+        self.entries = entries
+        self.maxEntries = max(1, maxEntries)
+        trimToLimit()
+    }
+
+    public mutating func append(_ entry: SessionMemoryEntry) {
+        guard !entry.text.isEmpty else { return }
+        entries.append(entry)
+        trimToLimit()
+    }
+
+    public mutating func appendTranscript(_ text: String) {
+        append(SessionMemoryEntry(kind: .transcript, text: text))
+    }
+
+    public mutating func appendQuestion(_ text: String, skillValue: String?) {
+        append(SessionMemoryEntry(kind: .question, text: text, skillValue: skillValue))
+    }
+
+    public mutating func appendAnswer(_ answer: AnswerResponse, skillValue: String?) {
+        append(
+            SessionMemoryEntry(
+                kind: .answer,
+                text: answer.text,
+                skillValue: skillValue,
+                citations: answer.citations
+            )
+        )
+    }
+
+    public mutating func appendPassiveReminder(_ reminder: PassiveReminder) {
+        append(SessionMemoryEntry(kind: .passiveReminder, text: reminder.reminder))
+    }
+
+    public mutating func appendSuppression(_ reason: String) {
+        append(SessionMemoryEntry(kind: .suppression, text: reason))
+    }
+
+    public func contextLines(limit: Int = 8) -> [String] {
+        entries.suffix(max(0, limit)).map { entry in
+            let citationSuffix = entry.citations.isEmpty ? "" : " [\(entry.citations.joined(separator: ", "))]"
+            return "\(entry.kind.rawValue): \(entry.text)\(citationSuffix)"
+        }
+    }
+
+    public func transcriptWindow(limit: Int = 6) -> String {
+        entries
+            .filter { $0.kind == .transcript || $0.kind == .question }
+            .suffix(max(0, limit))
+            .map(\.text)
+            .joined(separator: "\n")
+    }
+
+    private mutating func trimToLimit() {
+        if entries.count > maxEntries {
+            entries = Array(entries.suffix(maxEntries))
+        }
+    }
+}
+
+public struct RealtimeTurnMetrics: Codable, Equatable, Identifiable, Sendable {
+    public let id: UUID
+    public var area: String
+    public var latencyMs: Int
+    public var startedAt: Date
+    public var reportOnly: Bool
+
+    public init(
+        id: UUID = UUID(),
+        area: String,
+        latencyMs: Int,
+        startedAt: Date = Date(),
+        reportOnly: Bool = false
+    ) {
+        self.id = id
+        self.area = area
+        self.latencyMs = max(0, latencyMs)
+        self.startedAt = startedAt
+        self.reportOnly = reportOnly
+    }
+}
+
 public struct ProviderModelSelection: Codable, Equatable, Sendable {
     public var smartModel: String
     public var lightModel: String
@@ -87,6 +304,8 @@ public struct HelixSettings: Codable, Equatable, Sendable {
     public var liveFactCheckEnabled: Bool
     public var evalGateEnabled: Bool
     public var providers: [ProviderConfiguration]
+    public var activeSkillID: String
+    public var customSkills: [ActiveSkill]
 
     public init(
         maxResponseSentences: Int = 3,
@@ -100,7 +319,9 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         webSearchMode: WebSearchMode = .disabled,
         liveFactCheckEnabled: Bool = true,
         evalGateEnabled: Bool = false,
-        providers: [ProviderConfiguration] = Self.defaultProviderConfigurations
+        providers: [ProviderConfiguration] = Self.defaultProviderConfigurations,
+        activeSkillID: String = ActiveSkill.defaultValue,
+        customSkills: [ActiveSkill] = []
     ) {
         self.maxResponseSentences = max(1, min(10, maxResponseSentences))
         self.transcriptionBackend = transcriptionBackend
@@ -114,10 +335,75 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         self.liveFactCheckEnabled = liveFactCheckEnabled
         self.evalGateEnabled = evalGateEnabled
         self.providers = providers
+        self.customSkills = customSkills
+        self.activeSkillID = ActiveSkill.sanitize(activeSkillID, customSkills: customSkills)
     }
 
     public var activeProviderConfiguration: ProviderConfiguration? {
         providers.first { $0.kind == llmProvider }
+    }
+
+    public var activeSkill: ActiveSkill {
+        ActiveSkill.skill(for: activeSkillID, customSkills: customSkills)
+    }
+
+    public var selectableActiveSkills: [ActiveSkill] {
+        ActiveSkill.selectable(customSkills: customSkills)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case maxResponseSentences
+        case transcriptionBackend
+        case transcriptionModel
+        case llmProvider
+        case llmModel
+        case hudRenderPath
+        case autoDetectQuestions
+        case autoAnswer
+        case webSearchMode
+        case liveFactCheckEnabled
+        case evalGateEnabled
+        case providers
+        case activeSkillID
+        case customSkills
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            maxResponseSentences: try container.decodeIfPresent(Int.self, forKey: .maxResponseSentences) ?? 3,
+            transcriptionBackend: try container.decodeIfPresent(TranscriptionBackend.self, forKey: .transcriptionBackend) ?? .openAITranscription,
+            transcriptionModel: try container.decodeIfPresent(String.self, forKey: .transcriptionModel) ?? "gpt-4o-mini-transcribe",
+            llmProvider: try container.decodeIfPresent(LlmProviderKind.self, forKey: .llmProvider) ?? .openAI,
+            llmModel: try container.decodeIfPresent(String.self, forKey: .llmModel) ?? "gpt-4.1-mini",
+            hudRenderPath: try container.decodeIfPresent(HudRenderPath.self, forKey: .hudRenderPath) ?? .bitmap,
+            autoDetectQuestions: try container.decodeIfPresent(Bool.self, forKey: .autoDetectQuestions) ?? true,
+            autoAnswer: try container.decodeIfPresent(Bool.self, forKey: .autoAnswer) ?? true,
+            webSearchMode: try container.decodeIfPresent(WebSearchMode.self, forKey: .webSearchMode) ?? .disabled,
+            liveFactCheckEnabled: try container.decodeIfPresent(Bool.self, forKey: .liveFactCheckEnabled) ?? true,
+            evalGateEnabled: try container.decodeIfPresent(Bool.self, forKey: .evalGateEnabled) ?? false,
+            providers: try container.decodeIfPresent([ProviderConfiguration].self, forKey: .providers) ?? Self.defaultProviderConfigurations,
+            activeSkillID: try container.decodeIfPresent(String.self, forKey: .activeSkillID) ?? ActiveSkill.defaultValue,
+            customSkills: try container.decodeIfPresent([ActiveSkill].self, forKey: .customSkills) ?? []
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(maxResponseSentences, forKey: .maxResponseSentences)
+        try container.encode(transcriptionBackend, forKey: .transcriptionBackend)
+        try container.encode(transcriptionModel, forKey: .transcriptionModel)
+        try container.encode(llmProvider, forKey: .llmProvider)
+        try container.encode(llmModel, forKey: .llmModel)
+        try container.encode(hudRenderPath, forKey: .hudRenderPath)
+        try container.encode(autoDetectQuestions, forKey: .autoDetectQuestions)
+        try container.encode(autoAnswer, forKey: .autoAnswer)
+        try container.encode(webSearchMode, forKey: .webSearchMode)
+        try container.encode(liveFactCheckEnabled, forKey: .liveFactCheckEnabled)
+        try container.encode(evalGateEnabled, forKey: .evalGateEnabled)
+        try container.encode(providers, forKey: .providers)
+        try container.encode(activeSkillID, forKey: .activeSkillID)
+        try container.encode(customSkills, forKey: .customSkills)
     }
 
     public static let defaultProviderConfigurations: [ProviderConfiguration] = [
@@ -196,6 +482,9 @@ public struct QuestionCandidate: Codable, Equatable, Identifiable, Sendable {
 public struct AnswerRequest: Codable, Equatable, Sendable {
     public var question: String
     public var mode: ConversationMode
+    public var activeSkill: ActiveSkill
+    public var sessionMemoryContext: [String]
+    public var maxResponseSentences: Int
     public var requiredFacts: [String]
     public var projectContext: [String]
     public var webSearchResults: [WebSearchResult]
@@ -203,12 +492,18 @@ public struct AnswerRequest: Codable, Equatable, Sendable {
     public init(
         question: String,
         mode: ConversationMode = .general,
+        activeSkill: ActiveSkill = ActiveSkill.skill(for: ActiveSkill.defaultValue),
+        sessionMemoryContext: [String] = [],
+        maxResponseSentences: Int = 3,
         requiredFacts: [String] = [],
         projectContext: [String] = [],
         webSearchResults: [WebSearchResult] = []
     ) {
         self.question = question
         self.mode = mode
+        self.activeSkill = activeSkill
+        self.sessionMemoryContext = sessionMemoryContext
+        self.maxResponseSentences = max(1, min(10, maxResponseSentences))
         self.requiredFacts = requiredFacts
         self.projectContext = projectContext
         self.webSearchResults = webSearchResults
@@ -280,6 +575,12 @@ public struct NativeSessionSummary: Codable, Equatable, Identifiable, Sendable {
     public var totalCostMicros: Int
     public var segmentCount: Int
     public var answerCount: Int
+    public var skillValue: String
+    public var transcriptTurns: [String]
+    public var answers: [String]
+    public var passiveReminders: [String]
+    public var citations: [String]
+    public var latencyMetrics: [RealtimeTurnMetrics]
 
     public init(
         id: UUID = UUID(),
@@ -292,7 +593,13 @@ public struct NativeSessionSummary: Codable, Equatable, Identifiable, Sendable {
         projectName: String? = nil,
         totalCostMicros: Int = 0,
         segmentCount: Int = 0,
-        answerCount: Int = 0
+        answerCount: Int = 0,
+        skillValue: String = ActiveSkill.defaultValue,
+        transcriptTurns: [String] = [],
+        answers: [String] = [],
+        passiveReminders: [String] = [],
+        citations: [String] = [],
+        latencyMetrics: [RealtimeTurnMetrics] = []
     ) {
         self.id = id
         self.title = title
@@ -305,6 +612,12 @@ public struct NativeSessionSummary: Codable, Equatable, Identifiable, Sendable {
         self.totalCostMicros = totalCostMicros
         self.segmentCount = segmentCount
         self.answerCount = answerCount
+        self.skillValue = skillValue
+        self.transcriptTurns = transcriptTurns
+        self.answers = answers
+        self.passiveReminders = passiveReminders
+        self.citations = citations
+        self.latencyMetrics = latencyMetrics
     }
 }
 

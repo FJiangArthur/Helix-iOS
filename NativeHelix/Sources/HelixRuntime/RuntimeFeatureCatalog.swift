@@ -9,8 +9,13 @@ public enum HelixRuntimeFeature: String, CaseIterable, Sendable {
     case liveMode = "mode-live"
     case passiveMode = "mode-passive"
     case activeAnswer = "active-answer"
+    case skillPresets = "skill-presets"
+    case sessionMemory = "session-memory"
+    case passiveTrigger = "passive-trigger"
     case ragProject = "rag-project"
     case webSearch = "web-search"
+    case modelDiscovery = "model-discovery"
+    case latencyReporting = "latency-reporting"
     case g1Hud = "g1-hud"
     case transcription = "transcription"
 

@@ -6,13 +6,13 @@ import Speech
 import NaturalLanguage
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+@objc class AppDelegate: UIResponder, UIApplicationDelegate {
     private var speechEventSink: FlutterEventSink?
     private var realtimeAudioEventSink: FlutterEventSink?
     private var bluetoothChannel: FlutterMethodChannel?
     private var didRegisterLiveActivityButtonObservers = false
 
-    override func application(
+    func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
@@ -25,12 +25,20 @@ import NaturalLanguage
 
         registerLiveActivityButtonObservers()
 
-        return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+        return true
     }
 
-    func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
-        GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-        configureFlutterChannels(binaryMessenger: engineBridge.applicationRegistrar.messenger())
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(
+            name: "Default Configuration",
+            sessionRole: connectingSceneSession.role
+        )
+        configuration.delegateClass = SceneDelegate.self
+        return configuration
     }
 
     private func configureFlutterChannels(binaryMessenger: FlutterBinaryMessenger) {
@@ -445,12 +453,11 @@ import NaturalLanguage
         )
     }
 
-    override func applicationWillTerminate(_ application: UIApplication) {
+    func applicationWillTerminate(_ application: UIApplication) {
         CFNotificationCenterRemoveEveryObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             Unmanaged.passUnretained(self).toOpaque()
         )
-        super.applicationWillTerminate(application)
     }
 }
 

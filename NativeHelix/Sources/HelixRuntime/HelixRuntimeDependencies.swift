@@ -117,6 +117,14 @@ public final class HelixRuntimeDependencies {
         settings = await settingsManager.setEvalGateEnabled(isEnabled)
     }
 
+    public func updateActiveSkill(_ value: String) async {
+        settings = await settingsManager.updateActiveSkill(value)
+    }
+
+    public func upsertCustomSkill(_ skill: ActiveSkill) async {
+        settings = await settingsManager.upsertCustomSkill(skill)
+    }
+
     public func setApiKey(_ apiKey: String?, for provider: LlmProviderKind) async {
         await settingsManager.setProviderApiKey(apiKey, for: provider)
         providerReadiness = await settingsManager.providerReadiness()

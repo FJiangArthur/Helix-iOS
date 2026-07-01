@@ -138,6 +138,183 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertEqual(answer.citations, ["project-context", "web-search"])
     }
 
+    func testActiveSkillPresetsSanitizeAndExposeCustomSkill() {
+        let custom = ActiveSkill(
+            value: "custom-negotiation",
+            label: "Custom Negotiation",
+            prompt: "Answer with one concession and one boundary."
+        )
+        let settings = HelixSettings(activeSkillID: "mock-dsa", customSkills: [custom])
+
+        XCTAssertEqual(settings.activeSkillID, "dsa")
+        XCTAssertEqual(settings.activeSkill.label, "Data Structures & Algorithms")
+        XCTAssertTrue(settings.selectableActiveSkills.contains { $0.value == "custom-negotiation" })
+        XCTAssertEqual(
+            ActiveSkill.sanitize("custom-negotiation", customSkills: [custom]),
+            "custom-negotiation"
+        )
+        XCTAssertEqual(ActiveSkill.sanitize("unknown", customSkills: [custom]), "general-chat")
+    }
+
+    func testSessionMemoryCapsAndFormatsContext() {
+        var memory = SessionMemory(maxEntries: 3)
+        memory.appendTranscript("First transcript")
+        memory.appendQuestion("What is RAG?", skillValue: "general-chat")
+        memory.appendAnswer(
+            AnswerResponse(text: "RAG grounds answers.", provider: .openAI, model: "test", citations: ["web-search"]),
+            skillValue: "general-chat"
+        )
+        memory.appendSuppression("No help request.")
+
+        XCTAssertEqual(memory.entries.count, 3)
+        XCTAssertFalse(memory.contextLines().contains { $0.contains("First transcript") })
+        XCTAssertTrue(memory.contextLines().contains { $0.contains("web-search") })
+        XCTAssertEqual(memory.transcriptWindow(), "What is RAG?")
+    }
+
+    func testPassiveTriggerClassifierAnswersWaitsAndIgnores() {
+        let classifier = PassiveTriggerClassifier()
+
+        let direct = classifier.heuristicDecision(for: "How should I explain RAG?")
+        let implicitAsk = classifier.heuristicDecision(for: "I am stuck on dynamic programming transitions")
+        let filler = classifier.heuristicDecision(for: "okay")
+        let short = classifier.heuristicDecision(for: "maybe later")
+
+        XCTAssertEqual(direct.action, .answer)
+        XCTAssertEqual(direct.kind, .directQuestion)
+        XCTAssertEqual(implicitAsk.action, .answer)
+        XCTAssertEqual(implicitAsk.kind, .implicitAsk)
+        XCTAssertEqual(filler.action, .ignore)
+        XCTAssertEqual(short.action, .wait)
+    }
+
+    func testPassiveTriggerJSONParserAcceptsDirectAndCompletionPayloads() throws {
+        let parser = PassiveTriggerJSONParser()
+        let direct = try parser.parse(
+            Data(#"{"action":"answer","kind":"implicitAsk","confidence":0.82,"reason":"needs help"}"#.utf8)
+        )
+        let completion = try parser.parse(
+            Data(#"{"choices":[{"message":{"content":"{\"action\":\"wait\",\"kind\":\"ambiguous\",\"confidence\":0.55,\"reason\":\"needs more context\"}"}}]}"#.utf8)
+        )
+
+        XCTAssertEqual(direct.action, .answer)
+        XCTAssertEqual(direct.kind, .implicitAsk)
+        XCTAssertEqual(completion.action, .wait)
+        XCTAssertEqual(completion.reason, "needs more context")
+    }
+
+    func testPassiveModeAnswersDirectQuestionAndRecordsMemory() async throws {
+        let engine = NativeConversationEngine(
+            answerProvider: DeterministicAnswerProvider(),
+            conversationStore: InMemoryConversationStore()
+        )
+
+        let result = try await engine.processFinalSegment(
+            TranscriptSegment(text: "How should I define RAG?", isFinal: true, finalizedAt: Date()),
+            mode: .passive
+        )
+        let memory = await engine.currentSessionMemory()
+        let metrics = await engine.currentLatencyMetrics()
+
+        XCTAssertEqual(result.passiveTrigger?.action, .answer)
+        XCTAssertNotNil(result.answer)
+        XCTAssertFalse(result.hudPages.isEmpty)
+        XCTAssertTrue(memory.contextLines().contains { $0.contains("How should I define RAG") })
+        XCTAssertTrue(metrics.contains { $0.area == "passive-answer" })
+    }
+
+    func testPassiveModeIgnoresMonologueWithoutCorrection() async throws {
+        let engine = NativeConversationEngine(
+            answerProvider: DeterministicAnswerProvider(),
+            conversationStore: InMemoryConversationStore()
+        )
+
+        let result = try await engine.processFinalSegment(
+            TranscriptSegment(text: "RAG combines retrieval with generation.", isFinal: true, finalizedAt: Date()),
+            mode: .passive
+        )
+
+        XCTAssertEqual(result.passiveTrigger?.action, .ignore)
+        XCTAssertNil(result.answer)
+        XCTAssertNil(result.passiveReminder)
+    }
+
+    func testOpenAIModelDiscoveryFiltersModelsAndFallsBackWithoutKey() async {
+        let payload = Data(#"{"data":[{"id":"gpt-4.1-mini"},{"id":"tts-1"},{"id":"gpt-4o-mini-transcribe"},{"id":"legacy"}]}"#.utf8)
+        let transport = FakeOpenAITransport(data: payload)
+        let service = OpenAIModelDiscoveryService(
+            apiKey: "sk-test",
+            endpoint: URL(string: "https://unit.test/v1")!,
+            transport: transport
+        )
+
+        let models = await service.availableModels()
+        let fallback = await OpenAIModelDiscoveryService(apiKey: nil, transport: transport).availableModels()
+        let lastURL = await transport.lastRequest?.url?.absoluteString
+
+        XCTAssertEqual(models, ["gpt-4.1-mini", "gpt-4o-mini-transcribe"])
+        XCTAssertTrue(fallback.contains("gpt-4.1-mini"))
+        XCTAssertEqual(lastURL, "https://unit.test/v1/models")
+    }
+
+    func testOpenAIAnswerProviderBuildsRequestAndParsesAnswer() async throws {
+        let payload = Data(#"{"model":"gpt-4.1-mini","choices":[{"message":{"content":"Use retrieval before generation."}}]}"#.utf8)
+        let transport = FakeOpenAITransport(data: payload)
+        let provider = OpenAIAnswerProvider(
+            apiKey: " sk-test ",
+            model: "gpt-4.1-mini",
+            endpoint: URL(string: "https://unit.test/v1")!,
+            transport: transport
+        )
+        let request = AnswerRequest(
+            question: "What is RAG?",
+            activeSkill: ActiveSkill.skill(for: "programming"),
+            sessionMemoryContext: ["answer: Prior answer"],
+            projectContext: ["Helix cites project context"],
+            webSearchResults: [
+                WebSearchResult(title: "RAG", snippet: "Retrieval augments generation.")
+            ]
+        )
+
+        let answer = try await provider.completeAnswer(for: request)
+        let body = await transport.lastBodyString ?? ""
+
+        XCTAssertEqual(answer.text, "Use retrieval before generation.")
+        XCTAssertEqual(answer.citations, ["project-context", "web-search"])
+        XCTAssertTrue(body.contains("Programming"))
+        XCTAssertTrue(body.contains("Prior answer"))
+        XCTAssertTrue(body.contains("Helix cites project context"))
+        XCTAssertTrue(body.contains("Retrieval augments generation"))
+    }
+
+    func testOpenAIAudioFileTranscriberBuildsMultipartRequestAndParsesTranscript() async throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("helix-audio-\(UUID().uuidString).wav")
+        try Data("fake audio".utf8).write(to: fileURL)
+        defer {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        let transport = FakeOpenAIAudioTransport(data: Data(#"{"text":"What is RAG?"}"#.utf8))
+        let transcriber = OpenAIAudioFileTranscriber(
+            apiKey: "sk-test",
+            endpoint: URL(string: "https://unit.test/v1")!,
+            transport: transport
+        )
+
+        let segment = try await transcriber.transcribeAudioFile(
+            at: fileURL,
+            backend: .openAITranscription,
+            model: "gpt-4o-mini-transcribe"
+        )
+        let body = await transport.lastBodyString ?? ""
+        let lastURL = await transport.lastRequest?.url?.absoluteString
+
+        XCTAssertEqual(segment.text, "What is RAG?")
+        XCTAssertEqual(lastURL, "https://unit.test/v1/audio/transcriptions")
+        XCTAssertTrue(body.contains("gpt-4o-mini-transcribe"))
+        XCTAssertTrue(body.contains("fake audio"))
+    }
+
     func testActiveQuestionUsesNativeKnowledgeStoreAndProducesHudPages() async throws {
         let knowledgeStore = InMemoryProjectKnowledgeStore()
         await knowledgeStore.seed(
@@ -457,10 +634,13 @@ final class NativeConversationTests: XCTestCase {
     func testRuntimeFeatureCatalogIsHeadlessAndCoversProductAreas() {
         let catalog = HelixRuntimeFeatureCatalog()
 
-        XCTAssertEqual(HelixRuntimeFeature.allCases.count, 12)
+        XCTAssertEqual(HelixRuntimeFeature.allCases.count, 17)
         XCTAssertTrue(catalog.identifiers.contains("assistant-session"))
         XCTAssertTrue(catalog.identifiers.contains("g1-device"))
         XCTAssertTrue(catalog.identifiers.contains("knowledge-library"))
+        XCTAssertTrue(catalog.identifiers.contains("skill-presets"))
+        XCTAssertTrue(catalog.identifiers.contains("session-memory"))
+        XCTAssertTrue(catalog.identifiers.contains("model-discovery"))
         XCTAssertFalse(catalog.identifiers.contains { $0.contains("nav-") })
     }
 
@@ -589,6 +769,10 @@ final class NativeConversationTests: XCTestCase {
             backend: .appleOnDevice,
             model: "custom-local-speech"
         )
+        updated = await manager.upsertCustomSkill(
+            ActiveSkill(value: "custom-system", label: "Custom System", prompt: "Answer with tradeoffs.")
+        )
+        updated = await manager.updateActiveSkill("custom-system")
 
         XCTAssertEqual(updated.maxResponseSentences, 7)
         XCTAssertFalse(updated.autoDetectQuestions)
@@ -596,6 +780,8 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertFalse(updated.liveFactCheckEnabled)
         XCTAssertEqual(updated.transcriptionBackend, .appleOnDevice)
         XCTAssertEqual(updated.transcriptionModel, "custom-local-speech")
+        XCTAssertEqual(updated.activeSkillID, "custom-system")
+        XCTAssertEqual(updated.activeSkill.prompt, "Answer with tradeoffs.")
     }
 
     func testUserDefaultsSettingsStorePersistsNativeSettingsAcrossInstances() async {
@@ -625,6 +811,10 @@ final class NativeConversationTests: XCTestCase {
         _ = await manager.updateHudRenderPath(.text)
         _ = await manager.updateWebSearchMode(.fakeDeterministic)
         _ = await manager.setEvalGateEnabled(true)
+        _ = await manager.upsertCustomSkill(
+            ActiveSkill(value: "custom-light", label: "Custom Light", prompt: "Keep answers sparse.")
+        )
+        _ = await manager.updateActiveSkill("custom-light")
 
         let secondStore = UserDefaultsSettingsStore(userDefaults: defaults, settingsKey: key)
         let reloaded = await secondStore.loadSettings()
@@ -640,6 +830,8 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertEqual(reloaded.hudRenderPath, .text)
         XCTAssertEqual(reloaded.webSearchMode, .fakeDeterministic)
         XCTAssertTrue(reloaded.evalGateEnabled)
+        XCTAssertEqual(reloaded.activeSkillID, "custom-light")
+        XCTAssertEqual(reloaded.activeSkill.label, "Custom Light")
     }
 
     func testKeychainSecretStoreRoundTripsProviderSecretWhenAvailable() async throws {
@@ -982,6 +1174,10 @@ final class NativeConversationTests: XCTestCase {
         await dependencies.updateHudRenderPath(.text)
         await dependencies.updateWebSearchMode(.fakeDeterministic)
         await dependencies.setEvalGateEnabled(true)
+        await dependencies.upsertCustomSkill(
+            ActiveSkill(value: "custom-behavior", label: "Custom Behavior", prompt: "Answer with one impact metric.")
+        )
+        await dependencies.updateActiveSkill("custom-behavior")
         await dependencies.setApiKey("sk-qwen-native", for: .qwen)
 
         XCTAssertEqual(dependencies.settings.llmProvider, .qwen)
@@ -995,6 +1191,7 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertEqual(dependencies.settings.hudRenderPath, .text)
         XCTAssertEqual(dependencies.settings.webSearchMode, .fakeDeterministic)
         XCTAssertTrue(dependencies.settings.evalGateEnabled)
+        XCTAssertEqual(dependencies.settings.activeSkillID, "custom-behavior")
         XCTAssertTrue(dependencies.providerReadiness.first { $0.provider == .qwen }?.hasApiKey == true)
     }
 
@@ -1068,6 +1265,33 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertTrue(session.eventLog.contains("hudPagesUpdated"))
     }
 
+    func testLiveOpenAIAnswerProviderWithEnvironmentKeyWhenRequested() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["HELIX_RUN_LIVE_OPENAI_EVAL"] == "1" else {
+            throw XCTSkip("Set HELIX_RUN_LIVE_OPENAI_EVAL=1 to run the live OpenAI smoke test.")
+        }
+        guard let apiKey = environment["OPENAI_API_KEY"], !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            XCTFail("OPENAI_API_KEY is required when HELIX_RUN_LIVE_OPENAI_EVAL=1.")
+            return
+        }
+
+        let discoveredModels = await OpenAIModelDiscoveryService(apiKey: apiKey).availableModels()
+        let model = environment["HELIX_OPENAI_EVAL_MODEL"]
+            ?? discoveredModels.first { $0 == "gpt-4.1-mini" }
+            ?? "gpt-4.1-mini"
+        let provider = OpenAIAnswerProvider(apiKey: apiKey, model: model)
+        let answer = try await provider.completeAnswer(
+            for: AnswerRequest(
+                question: "Reply with a short confirmation that Native Helix live Q&A works.",
+                activeSkill: ActiveSkill.skill(for: "general-chat"),
+                maxResponseSentences: 1
+            )
+        )
+
+        XCTAssertFalse(answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        XCTAssertTrue(AnswerStyleValidator().isDirectSpeakable(answer.text))
+    }
+
     @MainActor
     func testSwiftDataSchemaPersistsConversationAndKnowledgeRecords() throws {
         let container = try HelixSwiftDataSchema.makeModelContainer(isStoredInMemoryOnly: true)
@@ -1127,5 +1351,53 @@ final class NativeConversationTests: XCTestCase {
             events.append(event)
         }
         return events
+    }
+}
+
+private actor FakeOpenAITransport: OpenAIDataTransport {
+    private let data: Data
+    private let statusCode: Int
+    private(set) var lastRequest: URLRequest?
+    private(set) var lastBodyString: String?
+
+    init(data: Data, statusCode: Int = 200) {
+        self.data = data
+        self.statusCode = statusCode
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lastRequest = request
+        lastBodyString = request.httpBody.flatMap { String(data: $0, encoding: .utf8) }
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://unit.test")!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
+    }
+}
+
+private actor FakeOpenAIAudioTransport: OpenAIAudioDataTransport {
+    private let data: Data
+    private let statusCode: Int
+    private(set) var lastRequest: URLRequest?
+    private(set) var lastBodyString: String?
+
+    init(data: Data, statusCode: Int = 200) {
+        self.data = data
+        self.statusCode = statusCode
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lastRequest = request
+        lastBodyString = request.httpBody.flatMap { String(data: $0, encoding: .utf8) }
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://unit.test")!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
     }
 }

@@ -13,6 +13,10 @@ public final class NativeAssistantSessionState {
     public private(set) var detectedQuestion = ""
     public private(set) var currentAnswer = ""
     public private(set) var passiveReminder = ""
+    public private(set) var passiveTriggerSummary = ""
+    public private(set) var activeSkill = ActiveSkill.skill(for: ActiveSkill.defaultValue)
+    public private(set) var sessionMemory = SessionMemory()
+    public private(set) var latencyMetrics: [RealtimeTurnMetrics] = []
     public private(set) var hudPages: [G1HudPage] = []
     public private(set) var lastSuppression = ""
     public private(set) var failureReason = ""
@@ -40,6 +44,15 @@ public final class NativeAssistantSessionState {
         hudPages.isEmpty ? "No pages" : "\(hudPages.count) page\(hudPages.count == 1 ? "" : "s")"
     }
 
+    public var memorySummary: String {
+        "\(sessionMemory.entries.count) recent item\(sessionMemory.entries.count == 1 ? "" : "s")"
+    }
+
+    public var latencySummary: String {
+        guard let latest = latencyMetrics.last else { return "No latency data" }
+        return "\(latest.area): \(latest.latencyMs) ms"
+    }
+
     public func setMode(_ mode: ConversationMode) {
         self.mode = mode
     }
@@ -65,6 +78,7 @@ public final class NativeAssistantSessionState {
             for try await event in stream {
                 apply(event)
             }
+            await refreshRuntimeState()
         } catch {
             failureReason = error.localizedDescription
             eventLog.append("failure")
@@ -102,6 +116,7 @@ public final class NativeAssistantSessionState {
             hudPages = turn.hudPages
             eventLog.append("answerCompleted")
             eventLog.append("hudPagesUpdated")
+            await refreshRuntimeState()
         } catch {
             failureReason = error.localizedDescription
             eventLog.append("failure")
@@ -130,13 +145,25 @@ public final class NativeAssistantSessionState {
         case .passiveReminder(let reminder):
             passiveReminder = reminder.reminder
             eventLog.append("passiveReminder")
+        case .passiveTrigger(let trigger):
+            passiveTriggerSummary = "\(trigger.action.rawValue): \(trigger.reason)"
+            eventLog.append("passiveTrigger")
         case .hudPagesUpdated(let pages):
             hudPages = pages
             eventLog.append("hudPagesUpdated")
+        case .latencyMetric(let metric):
+            latencyMetrics.append(metric)
+            eventLog.append("latencyMetric")
         case .suppressed(let reason):
             lastSuppression = reason
             eventLog.append("suppressed")
         }
+    }
+
+    private func refreshRuntimeState() async {
+        activeSkill = await engine.currentActiveSkill()
+        sessionMemory = await engine.currentSessionMemory()
+        latencyMetrics = await engine.currentLatencyMetrics()
     }
 
     private func resetForRun(mode: ConversationMode) {
@@ -145,6 +172,7 @@ public final class NativeAssistantSessionState {
         detectedQuestion = ""
         currentAnswer = ""
         passiveReminder = ""
+        passiveTriggerSummary = ""
         hudPages = []
         lastSuppression = ""
         failureReason = ""

@@ -29,8 +29,22 @@ public actor SwiftDataSessionArchiveStore: SessionArchiveStore {
             record.totalCostMicros = session.totalCostMicros
             record.projectID = try projectID(for: session.projectName, context: context)
 
-            replaceSegments(on: record, preview: session.transcriptPreview, count: session.segmentCount, context: context)
-            replaceAnswers(on: record, preview: session.answerPreview, count: session.answerCount, context: context)
+            replaceSegments(
+                on: record,
+                texts: session.transcriptTurns,
+                preview: session.transcriptPreview,
+                count: session.segmentCount,
+                context: context
+            )
+            replaceAnswers(
+                on: record,
+                texts: session.answers,
+                preview: session.answerPreview,
+                count: session.answerCount,
+                citations: session.citations,
+                latencyMetrics: session.latencyMetrics,
+                context: context
+            )
 
             try context.save()
         } catch {
@@ -63,7 +77,18 @@ public actor SwiftDataSessionArchiveStore: SessionArchiveStore {
                     projectName: record.projectID.flatMap { projectNamesByID[$0] },
                     totalCostMicros: record.totalCostMicros,
                     segmentCount: segments.count,
-                    answerCount: answers.count
+                    answerCount: answers.count,
+                    transcriptTurns: segments.map(\.text),
+                    answers: answers.map(\.answer),
+                    citations: Array(Set(answers.flatMap(\.citations))).sorted(),
+                    latencyMetrics: answers.map { answer in
+                        RealtimeTurnMetrics(
+                            area: "answer",
+                            latencyMs: answer.latencyMs,
+                            startedAt: answer.createdAt,
+                            reportOnly: true
+                        )
+                    }
                 )
             }
         } catch {
@@ -96,6 +121,7 @@ public actor SwiftDataSessionArchiveStore: SessionArchiveStore {
 
     private func replaceSegments(
         on record: ConversationRecord,
+        texts: [String],
         preview: String,
         count: Int,
         context: ModelContext
@@ -103,12 +129,8 @@ public actor SwiftDataSessionArchiveStore: SessionArchiveStore {
         record.segments.forEach { context.delete($0) }
         record.segments.removeAll()
 
-        let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        let storedCount = max(1, count)
-        for index in 0..<storedCount {
-            let text = index == 0 ? trimmed : "Additional transcript segment \(index + 1)"
+        let storedTexts = normalizedStoredTexts(texts: texts, preview: preview, count: count, placeholder: "Additional transcript segment")
+        for (index, text) in storedTexts.enumerated() {
             let segment = TranscriptSegmentRecord(
                 text: text,
                 isFinal: true,
@@ -123,28 +145,52 @@ public actor SwiftDataSessionArchiveStore: SessionArchiveStore {
 
     private func replaceAnswers(
         on record: ConversationRecord,
+        texts: [String],
         preview: String,
         count: Int,
+        citations: [String],
+        latencyMetrics: [RealtimeTurnMetrics],
         context: ModelContext
     ) {
         record.answers.forEach { context.delete($0) }
         record.answers.removeAll()
 
-        let trimmed = preview.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        let storedCount = max(1, count)
-        for index in 0..<storedCount {
+        let storedTexts = normalizedStoredTexts(texts: texts, preview: preview, count: count, placeholder: "Additional answer")
+        for (index, text) in storedTexts.enumerated() {
             let answer = AnswerRecord(
                 question: index == 0 ? record.title : "Follow-up \(index + 1)",
-                answer: index == 0 ? trimmed : "Additional answer \(index + 1)",
+                answer: text,
                 provider: .openAI,
                 model: "native-archive",
+                citations: citations,
                 createdAt: record.startedAt.addingTimeInterval(Double(index + 1)),
+                latencyMs: latencyMetrics.dropFirst(index).first?.latencyMs ?? 0,
                 conversation: record
             )
             context.insert(answer)
             record.answers.append(answer)
+        }
+    }
+
+    private func normalizedStoredTexts(
+        texts: [String],
+        preview: String,
+        count: Int,
+        placeholder: String
+    ) -> [String] {
+        let trimmedTexts = texts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !trimmedTexts.isEmpty {
+            return trimmedTexts
+        }
+
+        let trimmedPreview = preview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPreview.isEmpty else { return [] }
+
+        let storedCount = max(1, count)
+        return (0..<storedCount).map { index in
+            index == 0 ? trimmedPreview : "\(placeholder) \(index + 1)"
         }
     }
 }

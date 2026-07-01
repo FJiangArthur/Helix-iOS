@@ -10,20 +10,26 @@ public struct ConversationTurnResult: Equatable, Sendable {
     public var question: QuestionCandidate?
     public var answer: AnswerResponse?
     public var passiveReminder: PassiveReminder?
+    public var passiveTrigger: PassiveTriggerResult?
     public var hudPages: [G1HudPage]
+    public var metrics: [RealtimeTurnMetrics]
 
     public init(
         segment: TranscriptSegment,
         question: QuestionCandidate?,
         answer: AnswerResponse?,
         passiveReminder: PassiveReminder?,
-        hudPages: [G1HudPage] = []
+        passiveTrigger: PassiveTriggerResult? = nil,
+        hudPages: [G1HudPage] = [],
+        metrics: [RealtimeTurnMetrics] = []
     ) {
         self.segment = segment
         self.question = question
         self.answer = answer
         self.passiveReminder = passiveReminder
+        self.passiveTrigger = passiveTrigger
         self.hudPages = hudPages
+        self.metrics = metrics
     }
 }
 
@@ -35,7 +41,9 @@ public enum NativeConversationEvent: Equatable, Sendable {
     case answerChunk(String)
     case answerCompleted(AnswerResponse)
     case passiveReminder(PassiveReminder)
+    case passiveTrigger(PassiveTriggerResult)
     case hudPagesUpdated([G1HudPage])
+    case latencyMetric(RealtimeTurnMetrics)
     case suppressed(String)
 }
 
@@ -69,8 +77,11 @@ public actor NativeConversationEngine {
     private let questionDetector: QuestionDetector
     private let duplicateSuppressor: DuplicateQuestionSuppressor
     private let passiveCorrectionDetector: PassiveCorrectionDetector
+    private let passiveTriggerClassifier: any PassiveTriggerClassifying
     private let hudPresenter: G1HudPresenter
     private var answeredQuestionKeys: Set<String> = []
+    private var sessionMemory: SessionMemory
+    private var latencyMetrics: [RealtimeTurnMetrics] = []
 
     public init(
         settings: HelixSettings = HelixSettings(),
@@ -82,7 +93,9 @@ public actor NativeConversationEngine {
         questionDetector: QuestionDetector = QuestionDetector(),
         duplicateSuppressor: DuplicateQuestionSuppressor = DuplicateQuestionSuppressor(),
         passiveCorrectionDetector: PassiveCorrectionDetector = PassiveCorrectionDetector(),
-        hudPresenter: G1HudPresenter = G1HudPresenter()
+        passiveTriggerClassifier: any PassiveTriggerClassifying = PassiveTriggerClassifier(),
+        hudPresenter: G1HudPresenter = G1HudPresenter(),
+        sessionMemory: SessionMemory = SessionMemory()
     ) {
         self.settings = settings
         self.audioFileTranscriber = audioFileTranscriber
@@ -93,7 +106,9 @@ public actor NativeConversationEngine {
         self.questionDetector = questionDetector
         self.duplicateSuppressor = duplicateSuppressor
         self.passiveCorrectionDetector = passiveCorrectionDetector
+        self.passiveTriggerClassifier = passiveTriggerClassifier
         self.hudPresenter = hudPresenter
+        self.sessionMemory = sessionMemory
     }
 
     public func processAudioFile(
@@ -122,15 +137,75 @@ public actor NativeConversationEngine {
 
     public func processFinalSegment(_ segment: TranscriptSegment, mode: ConversationMode) async throws -> ConversationTurnResult {
         await conversationStore.save(segment: segment)
+        sessionMemory.appendTranscript(segment.text)
 
         if mode == .passive {
             let reminder = passiveCorrectionDetector.reminder(for: segment)
+            if let reminder {
+                sessionMemory.appendPassiveReminder(reminder)
+            }
+            let correctionMetric = recordMetric(
+                area: "passive-correction",
+                start: segment.finalizedAt ?? Date(),
+                reportOnly: true
+            )
+            guard reminder == nil else {
+                return ConversationTurnResult(
+                    segment: segment,
+                    question: nil,
+                    answer: nil,
+                    passiveReminder: reminder,
+                    hudPages: reminder.map { hudPresenter.textPages(for: $0.reminder) } ?? [],
+                    metrics: [correctionMetric]
+                )
+            }
+
+            let triggerStart = Date()
+            let trigger = try await passiveTriggerClassifier.decision(
+                for: segment,
+                transcriptWindow: sessionMemory.transcriptWindow(),
+                settings: settings
+            )
+            let triggerMetric = recordMetric(area: "passive-trigger", start: triggerStart, reportOnly: true)
+            guard trigger.action == .answer else {
+                sessionMemory.appendSuppression("Passive \(trigger.action.rawValue): \(trigger.reason)")
+                return ConversationTurnResult(
+                    segment: segment,
+                    question: nil,
+                    answer: nil,
+                    passiveReminder: nil,
+                    passiveTrigger: trigger,
+                    metrics: [triggerMetric]
+                )
+            }
+
+            let question = passiveQuestionCandidate(from: segment, trigger: trigger)
+            guard markQuestionIfNew(question.text), settings.autoAnswer else {
+                sessionMemory.appendSuppression("Passive answer suppressed.")
+                return ConversationTurnResult(
+                    segment: segment,
+                    question: question,
+                    answer: nil,
+                    passiveReminder: nil,
+                    passiveTrigger: trigger,
+                    metrics: [triggerMetric]
+                )
+            }
+
+            let answerStart = Date()
+            let request = try await makeAnswerRequest(question: question.text, mode: .passive)
+            let answer = try await answerProvider.answer(for: request)
+            let answerMetric = recordMetric(area: "passive-answer", start: answerStart, reportOnly: true)
+            await conversationStore.save(answer: answer, for: question)
+            remember(question: question.text, answer: answer)
             return ConversationTurnResult(
                 segment: segment,
-                question: nil,
-                answer: nil,
-                passiveReminder: reminder,
-                hudPages: reminder.map { hudPresenter.textPages(for: $0.reminder) } ?? []
+                question: question,
+                answer: answer,
+                passiveReminder: nil,
+                passiveTrigger: trigger,
+                hudPages: hudPresenter.textPages(for: answer.text),
+                metrics: [triggerMetric, answerMetric]
             )
         }
 
@@ -146,6 +221,7 @@ public actor NativeConversationEngine {
         let request = try await makeAnswerRequest(question: question.text, mode: mode)
         let answer = try await answerProvider.answer(for: request)
         await conversationStore.save(answer: answer, for: question)
+        remember(question: question.text, answer: answer)
         return ConversationTurnResult(
             segment: segment,
             question: question,
@@ -171,7 +247,9 @@ public actor NativeConversationEngine {
             mode: mode,
             projectFacts: facts
         )
-        return try await answerProvider.answer(for: request)
+        let answer = try await answerProvider.answer(for: request)
+        remember(question: question, answer: answer)
+        return answer
     }
 
     public func answerActiveQuestionTurn(
@@ -187,6 +265,18 @@ public actor NativeConversationEngine {
             projectFacts: projectFacts
         )
         return (answer, hudPresenter.textPages(for: answer.text))
+    }
+
+    public func currentSessionMemory() -> SessionMemory {
+        sessionMemory
+    }
+
+    public func currentLatencyMetrics() -> [RealtimeTurnMetrics] {
+        latencyMetrics
+    }
+
+    public func currentActiveSkill() -> ActiveSkill {
+        settings.activeSkill
     }
 
     private func markQuestionIfNew(_ question: String) -> Bool {
@@ -206,10 +296,39 @@ public actor NativeConversationEngine {
         return AnswerRequest(
             question: question,
             mode: mode,
+            activeSkill: settings.activeSkill,
+            sessionMemoryContext: sessionMemory.contextLines(),
+            maxResponseSentences: settings.maxResponseSentences,
             requiredFacts: projectFacts,
             projectContext: projectFacts,
             webSearchResults: webResults
         )
+    }
+
+    private func passiveQuestionCandidate(
+        from segment: TranscriptSegment,
+        trigger: PassiveTriggerResult
+    ) -> QuestionCandidate {
+        questionDetector.detectQuestions(in: segment.text).first
+            ?? QuestionCandidate(text: segment.text, confidence: trigger.confidence)
+    }
+
+    private func remember(question: String, answer: AnswerResponse) {
+        sessionMemory.appendQuestion(question, skillValue: settings.activeSkillID)
+        sessionMemory.appendAnswer(answer, skillValue: settings.activeSkillID)
+    }
+
+    private func recordMetric(area: String, start: Date, reportOnly: Bool = false) -> RealtimeTurnMetrics {
+        let metric = RealtimeTurnMetrics(
+            area: area,
+            latencyMs: Int(max(0, Date().timeIntervalSince(start) * 1000)),
+            reportOnly: reportOnly
+        )
+        latencyMetrics.append(metric)
+        if latencyMetrics.count > 20 {
+            latencyMetrics = Array(latencyMetrics.suffix(20))
+        }
+        return metric
     }
 
     private func webSearchResults(for question: String) async throws -> [WebSearchResult] {
@@ -235,14 +354,53 @@ public actor NativeConversationEngine {
             model: settings.transcriptionModel
         )
         await conversationStore.save(segment: segment)
+        sessionMemory.appendTranscript(segment.text)
         continuation.yield(.transcriptFinal(segment))
 
         if mode == .passive {
             if let reminder = passiveCorrectionDetector.reminder(for: segment) {
+                sessionMemory.appendPassiveReminder(reminder)
+                continuation.yield(.latencyMetric(recordMetric(area: "passive-correction", start: segment.finalizedAt ?? Date(), reportOnly: true)))
                 continuation.yield(.passiveReminder(reminder))
                 continuation.yield(.hudPagesUpdated(hudPresenter.textPages(for: reminder.reminder)))
             } else {
-                continuation.yield(.suppressed("No passive correction required."))
+                let triggerStart = Date()
+                let trigger = try await passiveTriggerClassifier.decision(
+                    for: segment,
+                    transcriptWindow: sessionMemory.transcriptWindow(),
+                    settings: settings
+                )
+                continuation.yield(.latencyMetric(recordMetric(area: "passive-trigger", start: triggerStart, reportOnly: true)))
+                continuation.yield(.passiveTrigger(trigger))
+                guard trigger.action == .answer else {
+                    let reason = "Passive \(trigger.action.rawValue): \(trigger.reason)"
+                    sessionMemory.appendSuppression(reason)
+                    continuation.yield(.suppressed(reason))
+                    return
+                }
+
+                let question = passiveQuestionCandidate(from: segment, trigger: trigger)
+                continuation.yield(.questionDetected(question))
+                guard markQuestionIfNew(question.text) else {
+                    let reason = "Duplicate passive question suppressed."
+                    sessionMemory.appendSuppression(reason)
+                    continuation.yield(.suppressed(reason))
+                    return
+                }
+
+                guard settings.autoAnswer else {
+                    let reason = "Passive auto-answer disabled."
+                    sessionMemory.appendSuppression(reason)
+                    continuation.yield(.suppressed(reason))
+                    return
+                }
+
+                try await streamAnswer(
+                    for: question,
+                    mode: .passive,
+                    projectFacts: projectFacts,
+                    continuation: continuation
+                )
             }
             return
         }
@@ -269,21 +427,37 @@ public actor NativeConversationEngine {
             return
         }
 
-        continuation.yield(.answerStarted(question))
         var facts = projectFacts
         if let projectID, let knowledgeStore {
             facts.append(contentsOf: await knowledgeStore.facts(for: projectID, question: question.text))
         }
+        try await streamAnswer(
+            for: question,
+            mode: mode,
+            projectFacts: facts,
+            continuation: continuation
+        )
+    }
+
+    private func streamAnswer(
+        for question: QuestionCandidate,
+        mode: ConversationMode,
+        projectFacts: [String],
+        continuation: AsyncThrowingStream<NativeConversationEvent, Error>.Continuation
+    ) async throws {
+        continuation.yield(.answerStarted(question))
         let request = try await makeAnswerRequest(
             question: question.text,
             mode: mode,
-            projectFacts: facts
+            projectFacts: projectFacts
         )
+        let answerStart = Date()
         var chunks: [String] = []
         for try await chunk in answerProvider.streamAnswer(for: request) {
             chunks.append(chunk)
             continuation.yield(.answerChunk(chunk))
         }
+        continuation.yield(.latencyMetric(recordMetric(area: "\(mode.rawValue)-answer", start: answerStart, reportOnly: true)))
         let answer = AnswerResponse(
             text: chunks.joined(),
             provider: answerProvider.kind,
@@ -291,6 +465,7 @@ public actor NativeConversationEngine {
             citations: request.citationSources
         )
         await conversationStore.save(answer: answer, for: question)
+        remember(question: question.text, answer: answer)
         continuation.yield(.answerCompleted(answer))
         continuation.yield(.hudPagesUpdated(hudPresenter.textPages(for: answer.text)))
     }
