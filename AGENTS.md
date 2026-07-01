@@ -2,8 +2,8 @@
 
 ## Identity
 
-- **Project**: Helix-iOS (v1.1.0+2)
-- **Type**: Native iOS headless Swift framework
+- **Project**: Helix-iOS (v2.2.75+202607011303)
+- **Type**: Native iOS Swift app with headless Swift framework
 - **Purpose**: Companion app for Even Realities G1 smart glasses — real-time conversation intelligence with AI
 
 ## Rules
@@ -11,8 +11,8 @@
 1. Read `CLAUDE.md` before making changes
 2. Run `bash scripts/run_gate.sh` before completing any task
 3. Boot a **dedicated simulator** — `0D7C3AB2` is Album Clean, `6D249AFF` is Pet App
-4. Commit to `main`, always increment version in `pubspec.yaml` while it remains in the repo
-5. Do not add new Flutter, Dart UI, SwiftUI screen, or platform-channel work
+4. Commit to `main`, always increment `VERSION` and the Xcode marketing/build settings
+5. Do not add new Flutter, Dart UI, or platform-channel work. SwiftUI belongs only in the iOS app shell.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ NativeHelix/Package.swift
   → HelixG1 (protocol, HUD pagination, touchpad routing)
   → HelixPersistence (fresh native stores)
 
-No Flutter method/event channels, no SwiftUI screens, no UI assets in new work.
+No Flutter method/event channels. Product logic belongs in `NativeHelix`; SwiftUI app shell code belongs in `ios/Runner`.
 ```
 
 ## Key Files
@@ -53,7 +53,7 @@ No Flutter method/event channels, no SwiftUI screens, no UI assets in new work.
 
 ## Known Bugs
 
-BUG-001: Segment compaction only from progressive splitting | BUG-002: Analytics skipped during rapid finalization | BUG-003: Long-press unreachable with production timers | BUG-005: Compaction silently loses data | BUG-006: RNNoise header-only
+BUG-006: RNNoise header-only. Legacy Dart conversation compaction bugs are archived with the removed Flutter tree.
 
 Full details: `docs/TEST_BUG_REPORT.md`
 

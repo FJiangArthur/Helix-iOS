@@ -13,7 +13,6 @@ simulator and keeps the retired Flutter harness out of the release path.
 - OpenAI API key with `gpt-4o-mini` and `gpt-4o-mini-transcribe`
   access. The eval scripts prefer `HELIX_TEST_OPENAI_KEY`; if it is unset
   they use Codex's `OPENAI_API_KEY`.
-- 10 WAV audio fixtures at `test/fixtures/`
 - `bash scripts/run_gate.sh` passes
 - `mcp__ios-simulator__*` tools available
 
@@ -66,19 +65,15 @@ The JSON schema is:
 
 ### Audio fixture setup
 
-Downloaded YouTube audio is local-only and not committed. Create
-`test/fixtures/latency_corpus/youtube_manifest.local.json` from
-`youtube_manifest.example.json`, using only Creative Commons or
-user-authorized sources, then run:
+Downloaded YouTube audio is local-only and not committed. Keep any temporary
+audio corpus outside the repo, using only Creative Commons or user-authorized
+sources, then run native package tests against explicit local fixture paths.
 
 ```bash
-bash scripts/setup_youtube_eval_audio.sh
+swift test --package-path NativeHelix --filter NativeConversationTests
 ```
 
-The script uses `yt-dlp` and `ffmpeg`, converts clips to 16 kHz mono WAV,
-and writes `test/fixtures/latency_corpus/manifest.json` with source license
-notes and expected markers. If no YouTube corpus is present, the eval gate
-falls back to existing local WAV fixtures under `test/fixtures/audio/`.
+Do not commit downloaded audio.
 
 ### Latency policy
 

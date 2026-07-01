@@ -1,152 +1,74 @@
 # Helix-iOS Validation Gate
 
-This document defines the mandatory validation steps that must pass before any code is considered complete. The gating script at `scripts/run_gate.sh` automates all checks.
+This repo now validates the Swift-native app and the `NativeHelix` headless
+package. The old Flutter analyzer, test, coverage, and simulator-build gates
+are retired.
 
-## Quick Start
+## Mandatory Gate
 
 ```bash
 bash scripts/run_gate.sh
 ```
 
-Exit code 0 = all gates pass. Exit code 1 = at least one failure. Do not merge or ship if any gate fails.
+Exit code 0 means the gate passed. Do not merge or ship if any gate fails.
 
-## Gates
+The gate runs:
 
-### Gate 1: Static Analysis
+- `bash scripts/security_gate.sh --repo`
+- a headless package boundary check: no SwiftUI app code under
+  `NativeHelix/Sources`
+- `swift build --package-path NativeHelix --target HelixRuntime`
+- `swift test --package-path NativeHelix`
+- a guard that fails if `HELIX_RUN_CONVERSATION_EVAL=1` tries to re-enable
+  the retired Flutter harness
 
-```bash
-flutter analyze --no-fatal-infos
-```
+## iOS 27 Simulator Validation
 
-- **Pass criteria**: 0 errors. Warnings and infos are acceptable.
-- **What it catches**: Type errors, unused imports, dead code, API misuse.
-
-### Gate 2: Unit Tests
-
-```bash
-flutter test test/ --reporter expanded
-```
-
-- **Pass criteria**: 100% of tests pass.
-- **Test categories**:
-  - **Transcription pipeline** (9 tests): Progressive splitting, diarization, partial dedup, error handling
-  - **Conversation engine** (45 tests): Modes, analytics, proactive, features, errors, long session
-  - **Gesture detector** (8 tests): Single/double/long/five press, cooldown, disconnect
-  - **Supporting services** (37 tests): Entity memory, session context, gesture router, silence timeout
-  - **E2E flows** (3 tests): Full conversation, multi-turn, mode switching
-  - **Pre-existing tests** (25 tests): Models, screens, widgets
-
-### Gate 3: Test Coverage
+For app-target validation after code changes:
 
 ```bash
-flutter test --coverage test/
-lcov --summary coverage/lcov.info
+xcodebuild -workspace "ios/Even Companion.xcworkspace" -scheme Runner \
+  -configuration Debug -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO build
 ```
 
-- **Pass criteria**: Line coverage >= 60% (target: raise to 80% over time).
-- **Requires**: `lcov` installed (`brew install lcov`). Skipped if not available.
+For foreground proof, install and launch the built app on a dedicated
+`Helix-QA-*` simulator. Do not reuse `0D7C3AB2` or `6D249AFF`.
 
-### Gate 4: iOS Simulator Build
+## Native Package Tests
+
+Fast package-only check:
 
 ```bash
-flutter build ios --simulator --no-codesign
+bash scripts/run_native_swift_gate.sh
 ```
 
-- **Pass criteria**: Build succeeds without errors.
-- **What it catches**: Compilation errors, missing dependencies, native integration issues.
-
-### Gate 5: Critical TODOs
-
-- **Pass criteria**: <= 5 TODOs in critical files:
-  - `lib/services/conversation_engine.dart`
-  - `lib/services/conversation_listening_session.dart`
-  - `lib/services/recording_coordinator.dart`
-
-### Gate 6: Analyzer Warnings
-
-- **Pass criteria**: <= 10 warnings from `flutter analyze` (reuses Gate 1 output). Infos are always acceptable.
-
-## Running Individual Test Suites
-
-### New tests only (fast validation during development)
+Focused test examples:
 
 ```bash
-flutter test \
-  test/services/button_gesture_detector_test.dart \
-  test/services/transcription_pipeline_test.dart \
-  test/services/e2e_conversation_flow_test.dart \
-  test/services/conversation_engine_error_test.dart \
-  test/services/conversation_engine_modes_test.dart \
-  test/services/silence_timeout_service_test.dart \
-  test/services/conversation_engine_analytics_test.dart \
-  test/services/conversation_engine_proactive_test.dart \
-  test/services/conversation_engine_features_test.dart \
-  test/services/entity_memory_test.dart \
-  test/services/session_context_manager_test.dart \
-  test/services/gesture_action_router_test.dart \
-  test/services/conversation_engine_long_session_test.dart
+swift test --package-path NativeHelix --filter NativeConversationTests/testQuestionDetectionAndDuplicateSuppression
+swift test --package-path NativeHelix --filter NativeConversationTests/testAudioFilePipelineEmitsTranscriptQuestionStreamingAnswerAndHudEvents
+swift test --package-path NativeHelix --filter NativeConversationTests/testG1HudPresenterPaginatesAndPacketizesAnswerText
 ```
 
-### By category
+Live OpenAI smoke testing is opt-in:
 
 ```bash
-# Transcription pipeline
-flutter test test/services/transcription_pipeline_test.dart
-
-# Conversation engine (all modes, features, analytics, errors)
-flutter test test/services/conversation_engine_modes_test.dart \
-  test/services/conversation_engine_analytics_test.dart \
-  test/services/conversation_engine_proactive_test.dart \
-  test/services/conversation_engine_features_test.dart \
-  test/services/conversation_engine_error_test.dart \
-  test/services/conversation_engine_long_session_test.dart
-
-# Gesture and interaction
-flutter test test/services/button_gesture_detector_test.dart \
-  test/services/gesture_action_router_test.dart \
-  test/services/silence_timeout_service_test.dart
-
-# Supporting services
-flutter test test/services/entity_memory_test.dart \
-  test/services/session_context_manager_test.dart
-
-# End-to-end
-flutter test test/services/e2e_conversation_flow_test.dart
+HELIX_RUN_LIVE_OPENAI_EVAL=1 OPENAI_API_KEY=... \
+  swift test --package-path NativeHelix \
+  --filter NativeConversationTests/testLiveOpenAIAnswerProviderWithEnvironmentKeyWhenRequested
 ```
 
-## Test Infrastructure
+The live test skips by default and fails if explicitly enabled without a key.
 
-### Shared helpers (`test/helpers/`)
+## Release Validation
 
-| File | Purpose |
-|------|---------|
-| `test_helpers.dart` | `FakeJsonProvider`, platform mocks, `setupTestEngine()`, `configureFakeLlm()` |
-| `speech_event_emitter.dart` | Simulates transcription events for `ConversationListeningSession.test()` |
-| `stream_recorder.dart` | Subscribes to all 16 ConversationEngine streams, records events with timestamps |
+Release lanes archive the native Xcode workspace:
 
-### Writing new tests
+```bash
+cd ios
+bundle exec fastlane ios ship
+```
 
-1. Import `../helpers/test_helpers.dart`
-2. Call `installPlatformMocks()` in `setUpAll`, `removePlatformMocks()` in `tearDownAll`
-3. Use `setupTestEngine()` in `setUp` to get a fresh `(engine, provider)` tuple
-4. Call `teardownTestEngine(engine)` in `tearDown`
-5. Use `provider.enqueueResponse()` / `provider.enqueueStreamResponse()` to control LLM behavior
-6. Set `engine.autoDetectQuestions = false` unless testing question detection
-7. For analytics tests, add 500ms delays between `onTranscriptionFinalized` calls (see BUG-002)
-
-## Known Bugs
-
-See `docs/TEST_BUG_REPORT.md` for the full list. Key issues that affect testing:
-
-- **BUG-002**: Analytics counter skipped during rapid finalization — tests need delays between segments
-- **BUG-003**: Long-press unreachable with production timers — tests use custom short timers
-- **Pre-existing screen test failures**: Several screen/widget tests fail due to UI changes not reflected in tests. These are NOT caused by the new test infrastructure.
-
-## When to Run
-
-| Scenario | Command |
-|----------|---------|
-| During development (quick check) | `flutter test test/services/<file>_test.dart` |
-| Before committing | `flutter test test/` |
-| Before creating PR | `bash scripts/run_gate.sh` |
-| Before release | `bash scripts/run_gate.sh` (all gates must pass) |
+Versioning is sourced from the top-level `VERSION` file and mirrored into the
+Xcode project build settings.

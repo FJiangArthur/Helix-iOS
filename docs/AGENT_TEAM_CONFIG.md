@@ -35,7 +35,7 @@ only documents the team composition.
   down, PM triages P0/P1/P2.
 - **Invocation:** `/ios-sim-validation` or manual per protocol doc.
   Post-run hook `scripts/helix_sim_validation_hook.sh` reminds after
-  `lib/` or `ios/` changes.
+  `NativeHelix/` or `ios/` changes.
 
 ## Escalation
 

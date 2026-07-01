@@ -2,7 +2,7 @@
 
 Native headless framework for Even Realities G1 smart glasses conversation intelligence.
 
-**Version**: 1.1.0+2
+**Version**: 2.2.75+202607011303
 
 ## Validation (MANDATORY)
 
@@ -18,28 +18,11 @@ See `VALIDATION.md` for full details on each gate and how to run individual test
 
 1. **Run `bash scripts/run_native_swift_gate.sh`** — native package must build and test successfully
 2. **Run `bash scripts/run_gate.sh`** — headless boundary, security, and native package gates must pass
-3. Do not add new Flutter, Dart UI, SwiftUI screen, or platform-channel work. Product behavior belongs in native framework modules.
-
-### After modifying these files, run the FULL gate (`bash scripts/run_gate.sh`):
-
-- `lib/services/conversation_engine.dart`
-- `lib/services/conversation_listening_session.dart`
-- `lib/services/recording_coordinator.dart`
-- `lib/services/button_gesture_detector.dart`
-- `lib/services/entity_memory.dart`
-- `lib/services/session_context_manager.dart`
-- `lib/services/silence_timeout_service.dart`
-- Any file in `test/helpers/`
-
-### When writing new tests:
-
-- Use shared helpers from `test/helpers/test_helpers.dart`
-- Follow patterns in `VALIDATION.md` > "Writing new tests"
-- For analytics tests, add 500ms delays between segment finalizations (known BUG-002)
+3. Do not add Flutter, Dart UI, or platform-channel work. Product behavior belongs in native framework modules. SwiftUI belongs only in the iOS app shell.
 
 ## Build
 
-- Xcode 26.3, Swift Package Manager, iOS 17+ / macOS 14+ package baseline
+- Xcode 27.0, Swift Package Manager, iOS 17+ / macOS 14+ package baseline
 - Default validation is headless Swift package validation, not Flutter
 - Use `swift build --package-path NativeHelix --target HelixRuntime`
 - Use `swift test --package-path NativeHelix`
@@ -88,7 +71,7 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 - **HelixG1** owns BLE protocol, HUD pagination, and touchpad routing
 - **HelixPersistence** owns fresh native persistence contracts and SwiftData/SQLite-backed stores
 - No Flutter method/event channels in new code
-- No SwiftUI screens or UI assets in the headless framework package
+- No SwiftUI screens or UI assets in the headless framework package; app-shell SwiftUI stays under `ios/Runner`
 
 ### Key Files
 
@@ -105,7 +88,7 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 
 ### BLE & HUD Protocol
 
-- G1 uses dual BLE connections (L/R glasses) via `MethodChannel('method.bluetooth')`
+- G1 uses dual BLE connections (L/R glasses) through native CoreBluetooth services in the iOS app shell
 - Touchpad events: `notifyIndex` 0=exit, 1=pageBack/Forward (L/R), 2=headUp, 3=headDown, 23=evenaiStart, 24=evenaiRecordOver
 - EvenAI protocol: multi-packet chunking (191 bytes/packet) with sequence numbers
 - **BLE command byte for the AI/text family is `0x4E`** (`SEND_RESULT`). The values below are NOT separate commands — they are values of the 5th header byte (`screen_status` = `ScreenAction | AIStatus`).
@@ -154,11 +137,8 @@ See `docs/TEST_BUG_REPORT.md` for full details:
 
 | Bug | Severity | Summary |
 |-----|----------|---------|
-| BUG-001 | Medium | Segment compaction only fires from progressive splitting path |
-| BUG-002 | Medium | Analytics counter skipped during rapid finalization |
-| BUG-003 | Low | Long-press gesture unreachable with production timer defaults |
-| BUG-005 | Medium | _compactAndCapSegments silently loses data on failure |
 | BUG-006 | Info | RNNoiseProcessor is header-only / not implemented |
+| LEGACY-DART-001 | Archived | Pre-native Dart conversation compaction bugs are retired with the Flutter source tree |
 
 ## Documentation
 

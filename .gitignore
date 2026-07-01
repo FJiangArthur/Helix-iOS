@@ -25,14 +25,7 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
+# Swift/Xcode build output
 /build/
 
 # Symbolication related
@@ -41,10 +34,6 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
 /ios/build/*
 
 # Fastlane
@@ -59,15 +48,6 @@ ios/*.mobileprovision
 .mcp.json
 coverage/
 .worktrees/
-
-# Phase 0 latency corpus — audio clips stay local; manifest.json
-# and baseline.json ARE committed.
-test/fixtures/latency_corpus/*.wav
-test/fixtures/latency_corpus/*.m4a
-test/fixtures/latency_corpus/*.mp3
-test/fixtures/latency_corpus/baseline*.json
-test/fixtures/latency_corpus/youtube_manifest.local.json
-test/fixtures/latency_corpus/eval_report*.json
 
 # Superpowers brainstorm ephemeral state
 .superpowers/

@@ -2,6 +2,8 @@
 
 Native Swift companion app for [Even Realities G1](https://evenrealities.com) smart glasses. Real-time conversation intelligence with AI.
 
+Current version: `2.2.75+202607011303` in [VERSION](VERSION).
+
 ## Features
 
 - **Real-time transcription** via Apple Speech or OpenAI

@@ -26,12 +26,12 @@ platform :ios do
     )
   end
 
-  def pubspec_version
-    version_line = File.read("#{PROJECT_DIR}/pubspec.yaml").match(/^version:\s*([^\s]+)/)
-    UI.user_error!("pubspec.yaml version not found") unless version_line
+  def native_version
+    version_line = File.read("#{PROJECT_DIR}/VERSION").strip
+    UI.user_error!("VERSION must not be empty") if version_line.empty?
 
-    version_name, build_number = version_line[1].split("+", 2)
-    UI.user_error!("pubspec.yaml version must include a build number") if build_number.to_s.empty?
+    version_name, build_number = version_line.split("+", 2)
+    UI.user_error!("VERSION must include a build number") if build_number.to_s.empty?
 
     { name: version_name, build: build_number }
   end
@@ -102,7 +102,7 @@ platform :ios do
 
   desc "Build native Swift app and upload to TestFlight"
   lane :testflight_release do
-    version = pubspec_version
+    version = native_version
     build_number = Time.now.strftime("%Y%m%d%H%M")
     api_key = asc_api_key
     native_archive(version[:name], build_number)
@@ -114,7 +114,7 @@ platform :ios do
 
   desc "Build native Swift app and submit to App Store Connect"
   lane :release do
-    version = pubspec_version
+    version = native_version
     build_number = Time.now.strftime("%Y%m%d%H%M")
     api_key = asc_api_key
     native_archive(version[:name], build_number)
@@ -124,7 +124,7 @@ platform :ios do
 
   desc "Build, upload App Store metadata/screenshots, and submit for review"
   lane :submit_app_review do
-    version = pubspec_version
+    version = native_version
     api_key = asc_api_key
 
     native_archive(version[:name], version[:build])
@@ -160,7 +160,7 @@ platform :ios do
   desc "Build once, upload to TestFlight"
   lane :ship do
     build_number = Time.now.strftime("%Y%m%d%H%M")
-    version = pubspec_version
+    version = native_version
     api_key = asc_api_key
     native_archive(version[:name], build_number)
     export_and_upload(api_key)
