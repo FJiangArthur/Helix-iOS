@@ -9,7 +9,7 @@ struct NativeSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                NativeSection("Conversation") {
+                NativeSection("Conversation", subtitle: conversationSummary) {
                     VStack(spacing: 12) {
                         Picker("Default mode", selection: modeBinding) {
                             ForEach(ConversationMode.allCases, id: \.self) { mode in
@@ -18,9 +18,7 @@ struct NativeSettingsView: View {
                         }
                         .pickerStyle(.segmented)
 
-                        CompactTagGrid(values: runtimeTags)
-
-                        SettingsToggleGrid(items: settingToggles)
+                        SettingsToggleList(items: settingToggles)
 
                         SentenceLimitControl(
                             value: runtime.settings.maxResponseSentences,
@@ -91,13 +89,8 @@ struct NativeSettingsView: View {
         )
     }
 
-    private var runtimeTags: [String] {
-        [
-            runtime.settings.transcriptionBackend.nativeTitle,
-            runtime.settings.webSearchMode.nativeTitle,
-            runtime.assistantSession.memorySummary,
-            runtime.assistantSession.latencySummary
-        ]
+    private var conversationSummary: String {
+        "\(runtime.settings.transcriptionBackend.nativeTitle) - \(runtime.settings.webSearchMode.nativeTitle) search - \(runtime.assistantSession.latencySummary)"
     }
 
     private var settingToggles: [SettingsToggleItem] {
@@ -105,6 +98,7 @@ struct NativeSettingsView: View {
             SettingsToggleItem(
                 id: "auto-detect",
                 title: "Auto-detect",
+                detail: "Identify questions in live transcripts.",
                 symbolName: "questionmark.bubble",
                 tint: NativeHelixTheme.indigo,
                 binding: autoDetectBinding
@@ -112,6 +106,7 @@ struct NativeSettingsView: View {
             SettingsToggleItem(
                 id: "auto-answer",
                 title: "Auto-answer",
+                detail: "Generate a response when Helix detects intent.",
                 symbolName: "arrow.turn.down.left",
                 tint: NativeHelixTheme.green,
                 binding: autoAnswerBinding
@@ -119,6 +114,7 @@ struct NativeSettingsView: View {
             SettingsToggleItem(
                 id: "fact-check",
                 title: "Fact-check",
+                detail: "Verify answers in the background.",
                 symbolName: "checkmark.seal",
                 tint: NativeHelixTheme.teal,
                 binding: factCheckBinding
@@ -126,6 +122,7 @@ struct NativeSettingsView: View {
             SettingsToggleItem(
                 id: "bitmap-hud",
                 title: "Bitmap HUD",
+                detail: "Render G1 pages as bitmap frames.",
                 symbolName: "rectangle.on.rectangle",
                 tint: NativeHelixTheme.amber,
                 binding: bitmapHudBinding
@@ -150,49 +147,51 @@ struct NativeSettingsView: View {
 private struct SettingsToggleItem: Identifiable {
     let id: String
     let title: String
+    let detail: String
     let symbolName: String
     let tint: Color
     let binding: Binding<Bool>
 }
 
-private struct SettingsToggleGrid: View {
+private struct SettingsToggleList: View {
     let items: [SettingsToggleItem]
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 148), spacing: 8)], spacing: 8) {
+        VStack(spacing: 0) {
             ForEach(items) { item in
-                SettingsToggleTile(item: item)
+                SettingsToggleRow(item: item)
+                if item.id != items.last?.id {
+                    Divider().padding(.leading, 32)
+                }
             }
         }
     }
 }
 
-private struct SettingsToggleTile: View {
+private struct SettingsToggleRow: View {
     let item: SettingsToggleItem
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: item.symbolName)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(item.tint)
-                .frame(width: 18, height: 18)
-            Text(item.title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(NativeHelixTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
+                .frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.ink)
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
             Spacer(minLength: 0)
             Toggle(item.title, isOn: item.binding)
                 .labelsHidden()
         }
-        .padding(.horizontal, 10)
-        .frame(minHeight: 48)
-        .background(NativeHelixTheme.background)
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(NativeHelixTheme.hairline)
-        }
+        .padding(.vertical, 10)
     }
 }
 
