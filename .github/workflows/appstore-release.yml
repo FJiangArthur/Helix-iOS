@@ -1,0 +1,81 @@
+# Archive on GitHub's release-macOS runner and submit to App Review.
+#
+# Why this exists: App Store Connect rejects binaries whose BuildMachineOSBuild
+# is a beta macOS (ITMS-90111), so local archives from a beta-macOS Mac can
+# never pass review. GitHub's macos-26 image is release macOS 26.6 + Xcode 26.6.
+#
+# Signing: the Fastfile archives with -allowProvisioningUpdates and the App
+# Store Connect API key, which uses Apple's cloud-managed distribution
+# certificate — no private key needs to live in CI. The only secret is the
+# ASC API key (ASC_API_KEY_P8, the .p8 contents).
+#
+# Manual trigger only; nothing runs on push.
+name: App Store Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "fastlane lane"
+        required: true
+        default: submit_app_review
+        type: choice
+        options:
+          - submit_app_review
+          - testflight_release
+          - release
+
+concurrency:
+  group: appstore-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Archive on release macOS and ${{ inputs.lane }}
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+      FASTLANE_HIDE_CHANGELOG: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select release Xcode 26.6
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app/Contents/Developer
+          xcodebuild -version
+          sw_vers
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          test -n "$ASC_API_KEY_P8" || { echo "ASC_API_KEY_P8 secret is not set"; exit 1; }
+          mkdir -p ~/.appstoreconnect
+          printf '%s' "$ASC_API_KEY_P8" > ~/.appstoreconnect/admin-AuthKey_334J623VNU.p8
+          chmod 600 ~/.appstoreconnect/admin-AuthKey_334J623VNU.p8
+
+      - name: Set up Ruby + fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: ios
+
+      - name: Run fastlane ${{ inputs.lane }}
+        working-directory: ios
+        run: bundle exec fastlane ${{ inputs.lane }}
+
+      - name: Upload IPA + dSYM artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helix-ipa-${{ github.run_number }}
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/ipa/*.dSYM.zip
+          if-no-files-found: ignore

@@ -2,7 +2,7 @@
 
 ## Identity
 
-- **Project**: Helix-iOS (v2.2.96+202608160004)
+- **Project**: Helix-iOS (v2.2.96+202608161904)
 - **Type**: Native iOS Swift app with headless Swift framework
 - **Purpose**: Companion app for Even Realities G1 smart glasses — real-time conversation intelligence with AI
 
