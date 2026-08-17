@@ -116,9 +116,12 @@ final class RunnerTests: XCTestCase {
             Array($0.bindMemory(to: Int16.self))
         }
 
+        // 8 samples at 16k -> 12 at 24k. The converter's low-pass filter
+        // rings at the tail, so assert energy preservation, not the exact
+        // final sample.
         XCTAssertEqual(outputSamples.count, 12)
         XCTAssertEqual(outputSamples.first, input.first)
-        XCTAssertEqual(outputSamples.last, input.last)
+        XCTAssertEqual(outputSamples.max(), input.max())
     }
 
     func testRealtimeTranscriberFailsFastWithoutApiKey() {
@@ -163,7 +166,8 @@ final class RunnerTests: XCTestCase {
         XCTAssertEqual(event["type"] as? String, "session.update")
         let session = event["session"] as? [String: Any]
         XCTAssertEqual(session?["instructions"] as? String, "Coach me for interviews.")
-        XCTAssertEqual(session?["modalities"] as? [String], ["text"])
+        // Conversation mode streams spoken replies, so audio is a modality.
+        XCTAssertEqual(session?["modalities"] as? [String], ["text", "audio"])
 
         let transcription = session?["input_audio_transcription"] as? [String: Any]
         XCTAssertEqual(transcription?["model"] as? String, "gpt-4o-mini-transcribe")

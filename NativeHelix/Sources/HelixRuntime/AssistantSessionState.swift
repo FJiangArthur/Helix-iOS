@@ -1,4 +1,5 @@
 import Foundation
+import HelixAI
 import HelixConversation
 import HelixCore
 import HelixG1
@@ -9,6 +10,7 @@ import Observation
 public final class NativeAssistantSessionState {
     public private(set) var mode: ConversationMode
     public private(set) var isRunning = false
+    public private(set) var isListening = false
     public private(set) var transcriptText = ""
     public private(set) var detectedQuestion = ""
     public private(set) var currentAnswer = ""
@@ -55,6 +57,68 @@ public final class NativeAssistantSessionState {
 
     public func setMode(_ mode: ConversationMode) {
         self.mode = mode
+    }
+
+    public func setListening(_ isListening: Bool) {
+        self.isListening = isListening
+        eventLog.append(isListening ? "listeningStarted" : "listeningStopped")
+    }
+
+    public func updateEngineSettings(_ settings: HelixSettings) async {
+        await engine.updateSettings(settings)
+    }
+
+    public func setAnswerProvider(_ provider: any HelixAnswerProvider) async {
+        await engine.setAnswerProvider(provider)
+    }
+
+    /// Feeds one finalized live-transcription segment through the conversation
+    /// pipeline. Unlike `ask`/`runAudioFixture`, state is merged (not reset) so
+    /// an ongoing listening session accumulates transcript, questions, and
+    /// answers turn by turn.
+    public func processLiveTranscript(_ text: String) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let segment = TranscriptSegment(
+            text: trimmed,
+            isFinal: true,
+            startedAt: Date(),
+            finalizedAt: Date()
+        )
+        transcriptText = trimmed
+        eventLog.append("transcriptFinal")
+        isRunning = true
+        defer { isRunning = false }
+
+        do {
+            let turn = try await engine.processFinalSegment(segment, mode: mode)
+            if let question = turn.question {
+                detectedQuestion = question.text
+                eventLog.append("questionDetected")
+            }
+            if let answer = turn.answer {
+                currentAnswer = answer.text
+                eventLog.append("answerCompleted")
+            }
+            if let reminder = turn.passiveReminder {
+                passiveReminder = reminder.reminder
+                eventLog.append("passiveReminder")
+            }
+            if let trigger = turn.passiveTrigger {
+                passiveTriggerSummary = "\(trigger.action.rawValue): \(trigger.reason)"
+                eventLog.append("passiveTrigger")
+            }
+            if !turn.hudPages.isEmpty {
+                hudPages = turn.hudPages
+                eventLog.append("hudPagesUpdated")
+            }
+            failureReason = ""
+            await refreshRuntimeState()
+        } catch {
+            failureReason = error.localizedDescription
+            eventLog.append("failure")
+        }
     }
 
     public func runAudioFixture(

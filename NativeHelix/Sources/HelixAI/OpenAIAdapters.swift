@@ -92,7 +92,7 @@ public struct OpenAIModelDiscoveryService: Sendable {
 }
 
 public struct OpenAIAnswerProvider: HelixAnswerProvider {
-    public let kind: LlmProviderKind = .openAI
+    public let kind: LlmProviderKind
     public let model: String
 
     private let apiKey: String
@@ -102,11 +102,13 @@ public struct OpenAIAnswerProvider: HelixAnswerProvider {
     public init(
         apiKey: String,
         model: String,
+        kind: LlmProviderKind = .openAI,
         endpoint: URL = URL(string: "https://api.openai.com/v1")!,
         transport: any OpenAIDataTransport = URLSessionOpenAIDataTransport()
     ) {
         self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.model = model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "gpt-4.1-mini" : model.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.kind = kind
         self.endpoint = endpoint
         self.transport = transport
     }

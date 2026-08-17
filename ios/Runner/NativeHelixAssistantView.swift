@@ -5,6 +5,7 @@ import SwiftUI
 @MainActor
 struct NativeAssistantView: View {
     let runtime: HelixRuntimeDependencies
+    let bridge: HelixNativeBridge
     @Binding var draftQuestion: String
 
     var body: some View {
@@ -12,6 +13,7 @@ struct NativeAssistantView: View {
             VStack(spacing: 14) {
                 AssistantWorkspacePanel(
                     runtime: runtime,
+                    bridge: bridge,
                     draftQuestion: $draftQuestion,
                     timelineItems: timelineItems
                 )
@@ -56,6 +58,7 @@ struct NativeAssistantView: View {
 @MainActor
 private struct AssistantWorkspacePanel: View {
     let runtime: HelixRuntimeDependencies
+    let bridge: HelixNativeBridge
     @Binding var draftQuestion: String
     let timelineItems: [NativeTimelineItem]
 
@@ -71,10 +74,16 @@ private struct AssistantWorkspacePanel: View {
 
                 HStack(spacing: 10) {
                     NativeStatusPill(
-                        text: runtime.assistantSession.statusText,
-                        tint: runtime.assistantSession.isRunning ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
+                        text: listeningStatusText,
+                        tint: statusTint
                     )
                     Spacer(minLength: 0)
+                    NativeIconButton(
+                        symbolName: runtime.assistantSession.isListening ? "stop.fill" : "mic.fill",
+                        isPrimary: true,
+                        accessibilityLabel: runtime.assistantSession.isListening ? "Stop listening" : "Start listening",
+                        action: bridge.toggleListening
+                    )
                     NativeIconButton(
                         symbolName: "eyeglasses",
                         isPrimary: true,
@@ -88,6 +97,26 @@ private struct AssistantWorkspacePanel: View {
                         accessibilityLabel: "Save current session",
                         action: saveSession
                     )
+                }
+
+                if !bridge.speechError.isEmpty {
+                    Text(bridge.speechError)
+                        .font(.footnote)
+                        .foregroundStyle(NativeHelixTheme.amber)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if runtime.assistantSession.isListening && !bridge.livePartialTranscript.isEmpty {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(NativeHelixTheme.teal)
+                            .symbolEffect(.variableColor.iterative, isActive: true)
+                        Text(bridge.livePartialTranscript)
+                            .font(.footnote)
+                            .foregroundStyle(NativeHelixTheme.secondaryInk)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
 
                 CompactTagGrid(values: contextTags)
@@ -141,6 +170,17 @@ private struct AssistantWorkspacePanel: View {
                     tint: NativeHelixTheme.teal
                 )
 
+                if runtime.settings.insightsEnabled {
+                    Divider()
+                    LiveWorkspaceRow(
+                        title: "Insight",
+                        value: runtime.insightCoordinator.activeInsight?.text ?? "",
+                        emptyValue: "Proactive insights appear here while listening.",
+                        symbolName: "lightbulb.max",
+                        tint: NativeHelixTheme.indigo
+                    )
+                }
+
                 if !timelineItems.isEmpty {
                     Divider()
                     AssistantActivityHeader(count: timelineItems.count)
@@ -155,6 +195,18 @@ private struct AssistantWorkspacePanel: View {
             get: { runtime.assistantSession.mode },
             set: { runtime.assistantSession.setMode($0) }
         )
+    }
+
+    private var listeningStatusText: String {
+        if runtime.assistantSession.isListening {
+            return runtime.assistantSession.isRunning ? "Answering…" : "Listening"
+        }
+        return runtime.assistantSession.statusText
+    }
+
+    private var statusTint: Color {
+        if runtime.assistantSession.isListening { return NativeHelixTheme.teal }
+        return runtime.assistantSession.isRunning ? NativeHelixTheme.green : NativeHelixTheme.secondaryInk
     }
 
     private var trimmedQuestion: String {
@@ -188,7 +240,7 @@ private struct AssistantWorkspacePanel: View {
     }
 
     private func sendCurrentAnswerToHud() {
-        runtime.g1DeviceState.presentText(currentAnswerText)
+        bridge.presentToGlasses(currentAnswerText)
     }
 
     private func saveSession() {

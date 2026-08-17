@@ -68,9 +68,9 @@ public struct PassiveCorrectionDetector: Sendable {
 }
 
 public actor NativeConversationEngine {
-    private let settings: HelixSettings
+    private var settings: HelixSettings
     private let audioFileTranscriber: AudioFileTranscriber
-    private let answerProvider: HelixAnswerProvider
+    private var answerProvider: HelixAnswerProvider
     private let webSearchService: WebSearchService
     private let conversationStore: ConversationStore
     private let knowledgeStore: ProjectKnowledgeStore?
@@ -265,6 +265,18 @@ public actor NativeConversationEngine {
             projectFacts: projectFacts
         )
         return (answer, hudPresenter.textPages(for: answer.text))
+    }
+
+    public func updateSettings(_ settings: HelixSettings) {
+        self.settings = settings
+    }
+
+    public func setAnswerProvider(_ provider: HelixAnswerProvider) {
+        answerProvider = provider
+    }
+
+    public func currentAnswerProviderDescription() -> String {
+        "\(answerProvider.kind.rawValue):\(answerProvider.model)"
     }
 
     public func currentSessionMemory() -> SessionMemory {

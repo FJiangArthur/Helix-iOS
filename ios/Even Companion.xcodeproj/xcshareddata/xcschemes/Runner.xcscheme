@@ -48,6 +48,17 @@
                ReferencedContainer = "container:Even Companion.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "UA10000000000000000000A8"
+               BuildableName = "Even CompanionUITests.xctest"
+               BlueprintName = "Even CompanionUITests"
+               ReferencedContainer = "container:Even Companion.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

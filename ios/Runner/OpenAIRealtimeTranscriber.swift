@@ -750,8 +750,11 @@ RULES:
                     stalePartialCount = 0
                 }
 
+                // Capture the buffer now: a `completed` event can reset it
+                // before the async block runs, which emitted empty partials.
+                let partialText = currentTranscriptBuffer
                 DispatchQueue.main.async {
-                    self.onTranscript?(self.currentTranscriptBuffer, false)
+                    self.onTranscript?(partialText, false)
                 }
             }
 

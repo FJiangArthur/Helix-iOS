@@ -422,11 +422,14 @@ public actor NativeSettingsManager {
             guard let index = updated.providers.firstIndex(where: { $0.kind == provider }) else {
                 return settings
             }
+            // Preserve existing realtime/transcription selections when the
+            // caller only updates the chat (smart/light) models.
+            let existing = updated.providers[index].modelSelection
             updated.providers[index].modelSelection = ProviderModelSelection(
                 smartModel: smartModel,
                 lightModel: lightModel,
-                realtimeModel: realtimeModel,
-                transcriptionModel: transcriptionModel
+                realtimeModel: realtimeModel ?? existing.realtimeModel,
+                transcriptionModel: transcriptionModel ?? existing.transcriptionModel
             )
             if updated.llmProvider == provider {
                 updated.llmModel = smartModel
@@ -445,22 +448,66 @@ public actor NativeSettingsManager {
         liveFactCheckEnabled: Bool? = nil
     ) async -> HelixSettings {
         await settingsStore.updateSettings { settings in
-            HelixSettings(
-                maxResponseSentences: maxResponseSentences ?? settings.maxResponseSentences,
-                transcriptionBackend: settings.transcriptionBackend,
-                transcriptionModel: settings.transcriptionModel,
-                llmProvider: settings.llmProvider,
-                llmModel: settings.llmModel,
-                hudRenderPath: settings.hudRenderPath,
-                autoDetectQuestions: autoDetectQuestions ?? settings.autoDetectQuestions,
-                autoAnswer: autoAnswer ?? settings.autoAnswer,
-                webSearchMode: settings.webSearchMode,
-                liveFactCheckEnabled: liveFactCheckEnabled ?? settings.liveFactCheckEnabled,
-                evalGateEnabled: settings.evalGateEnabled,
-                providers: settings.providers,
-                activeSkillID: settings.activeSkillID,
-                customSkills: settings.customSkills
-            )
+            var updated = settings
+            if let maxResponseSentences {
+                updated.maxResponseSentences = max(1, min(10, maxResponseSentences))
+            }
+            if let autoDetectQuestions {
+                updated.autoDetectQuestions = autoDetectQuestions
+            }
+            if let autoAnswer {
+                updated.autoAnswer = autoAnswer
+            }
+            if let liveFactCheckEnabled {
+                updated.liveFactCheckEnabled = liveFactCheckEnabled
+            }
+            return updated
+        }
+    }
+
+    public func setInsightsEnabled(_ isEnabled: Bool) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            var updated = settings
+            updated.insightsEnabled = isEnabled
+            return updated
+        }
+    }
+
+    /// Glasses hardware configuration. Values are clamped to firmware ranges
+    /// (angle 0–60, height 0–8, depth 0–9, brightness 0–63).
+    public func updateGlassesDisplay(
+        headUpAngle: Int? = nil,
+        displayHeight: Int? = nil,
+        displayDepth: Int? = nil,
+        brightness: Int? = nil,
+        autoBrightness: Bool? = nil,
+        glassesNotificationsEnabled: Bool? = nil,
+        dashboardEnabled: Bool? = nil
+    ) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            var updated = settings
+            if let headUpAngle {
+                updated.headUpAngle = max(0, min(60, headUpAngle))
+            }
+            if let displayHeight {
+                updated.displayHeight = max(0, min(8, displayHeight))
+            }
+            if let displayDepth {
+                updated.displayDepth = max(0, min(9, displayDepth))
+            }
+            if let brightness {
+                updated.brightness = max(0, min(63, brightness))
+            }
+            if let autoBrightness {
+                updated.autoBrightness = autoBrightness
+            }
+            if let glassesNotificationsEnabled {
+                updated.glassesNotificationsEnabled = glassesNotificationsEnabled
+            }
+            if let dashboardEnabled {
+                updated.dashboardEnabled = dashboardEnabled
+            }
+            return updated
         }
     }
 

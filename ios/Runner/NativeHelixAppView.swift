@@ -6,12 +6,14 @@ struct NativeHelixAppView: View {
     @State private var selectedTab = NativeHelixTab.assistant
     @State private var draftQuestion = ""
     @State private var runtime: HelixRuntimeDependencies
+    @State private var bridge: HelixNativeBridge
 
     init(runtime: HelixRuntimeDependencies? = nil) {
         let resolvedRuntime = runtime
             ?? (try? HelixRuntimeDependencies.nativePersistent(isStoredInMemoryOnly: false))
             ?? HelixRuntimeDependencies()
         _runtime = State(initialValue: resolvedRuntime)
+        _bridge = State(initialValue: HelixNativeBridge(runtime: resolvedRuntime))
     }
 
     var body: some View {
@@ -24,6 +26,7 @@ struct NativeHelixAppView: View {
                         NativeHelixTabContent(
                             tab: tab,
                             runtime: runtime,
+                            bridge: bridge,
                             draftQuestion: $draftQuestion
                         )
                         .navigationTitle(tab.title)
@@ -40,6 +43,7 @@ struct NativeHelixAppView: View {
             .tint(NativeHelixTheme.teal)
         }
         .task {
+            bridge.activate()
             await runtime.refreshSettings()
         }
     }
@@ -49,6 +53,7 @@ struct NativeHelixAppView: View {
 private struct NativeHelixTabContent: View {
     let tab: NativeHelixTab
     let runtime: HelixRuntimeDependencies
+    let bridge: HelixNativeBridge
     @Binding var draftQuestion: String
 
     var body: some View {
@@ -57,10 +62,11 @@ private struct NativeHelixTabContent: View {
             case .assistant:
                 NativeAssistantView(
                     runtime: runtime,
+                    bridge: bridge,
                     draftQuestion: $draftQuestion
                 )
             case .device:
-                NativeDeviceView(runtime: runtime)
+                NativeDeviceView(runtime: runtime, bridge: bridge)
             case .sessions:
                 NativeSessionsView(runtime: runtime)
             case .knowledge:

@@ -8,8 +8,37 @@ WORKSPACE_PATH = "#{PROJECT_DIR}/ios/Even Companion.xcworkspace"
 XCARCHIVE_PATH = "#{PROJECT_DIR}/build/ios/archive/#{IPA_NAME}.xcarchive"
 IPA_DIR = "#{PROJECT_DIR}/build/ios/ipa"
 
+# altool aborts with "invalid byte sequence in US-ASCII" when the shell has no
+# UTF-8 locale (fastlane/fastlane#21535). Force one before any upload step.
+ENV["LANG"] ||= "en_US.UTF-8"
+ENV["LC_ALL"] ||= "en_US.UTF-8"
+
+# App Store Connect rejects binaries built with beta Xcode (ITMS-90534/90111).
+# Prefer the release Xcode.app when the machine's default is Xcode-beta.
+RELEASE_XCODE = "/Applications/Xcode.app"
+if ENV["DEVELOPER_DIR"].to_s.empty? && File.directory?(RELEASE_XCODE) &&
+   `xcode-select -p`.strip.include?("Xcode-beta")
+  ENV["DEVELOPER_DIR"] = "#{RELEASE_XCODE}/Contents/Developer"
+end
+
 platform :ios do
   # ─── Helpers ─────────────────────────────────────────────────────────
+
+  # ASC also rejects binaries whose BuildMachineOSBuild is a *beta macOS*
+  # (reported as ITMS-90111 even with release Xcode). Fail fast instead of
+  # burning a build number on an upload that will be marked Invalid Binary.
+  def assert_release_build_machine!
+    build = `sw_vers -buildVersion`.strip
+    # Release macOS builds look like 25A362; betas carry a 4-digit tail (26A5368g).
+    return unless build =~ /\d{2}[A-Z]\d{4}[a-z]$/
+    return if ENV["HELIX_ALLOW_BETA_BUILD_MACHINE"] == "1"
+    UI.user_error!(
+      "This Mac is on a beta macOS (#{build}). App Store Connect rejects such " \
+      "binaries with ITMS-90111 regardless of Xcode version. Archive on a " \
+      "release-macOS machine (Xcode Cloud / CI) or set " \
+      "HELIX_ALLOW_BETA_BUILD_MACHINE=1 for TestFlight-only uploads."
+    )
+  end
 
   def run_security_gate
     Dir.chdir(PROJECT_DIR) do
@@ -39,6 +68,7 @@ platform :ios do
   def native_archive(version_name, build_number)
     Dir.chdir(PROJECT_DIR) do
       run_security_gate
+      assert_release_build_machine!
       sh("xcodebuild", "-workspace", WORKSPACE_PATH,
          "-scheme", "Runner",
          "-configuration", "Release",

@@ -4,6 +4,8 @@ public enum G1ScreenStatus: UInt8, Sendable {
     case displaying = 0x30
     case complete = 0x40
     case textPage = 0x70
+    /// 0x70 SIMPLE_TEXT | 0x01 NEW_CONTENT — replaces the whole screen at once.
+    case newContent = 0x71
 }
 
 public enum G1TouchpadSide: String, Sendable {
@@ -75,6 +77,35 @@ public struct G1PacketEncoder: Sendable {
                 0,
                 currentPage,
                 maxPage
+            ] + chunk
+        }
+    }
+
+    /// MentraOS-style whole-screen write: screen_status 0x71 (SIMPLE_TEXT |
+    /// NEW_CONTENT) replaces the display in one shot. Uses the 176-byte chunk
+    /// size from the reference implementation; `encodeTextPage` keeps its
+    /// hardware-proven 182-byte chunks until 176 is validated on device.
+    public static let wholeScreenChunkSize = 176
+
+    public func encodeWholeScreenText(_ text: String, seq: UInt8 = 0) -> [[UInt8]] {
+        let payload = Array(text.utf8)
+        let chunks = stride(from: 0, to: max(payload.count, 1), by: Self.wholeScreenChunkSize).map { start -> [UInt8] in
+            let end = min(start + Self.wholeScreenChunkSize, payload.count)
+            return start < end ? Array(payload[start..<end]) : []
+        }
+
+        let total = UInt8(clamping: chunks.count)
+        return chunks.enumerated().map { index, chunk in
+            [
+                Self.commandByte,
+                seq,
+                total,
+                UInt8(index),
+                G1ScreenStatus.newContent.rawValue,
+                0,
+                0,
+                0,
+                1
             ] + chunk
         }
     }
