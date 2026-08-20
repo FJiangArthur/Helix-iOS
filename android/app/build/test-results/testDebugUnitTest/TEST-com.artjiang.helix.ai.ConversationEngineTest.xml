@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.artjiang.helix.ai.ConversationEngineTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2026-08-20T07:39:12" hostname="artjiangs-M4-MaxPro.local" time="0.058">
+  <properties/>
+  <testcase name="reset clears memory dedup and active answer" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.014"/>
+  <testcase name="session memory is fed into the answer request and capped" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="event log records the pipeline in order with timestamps" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.005"/>
+  <testcase name="detected question is answered end to end" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="distinct chinese questions are both answered" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="blank transcript is a no-op" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="setProvider swaps the answer source" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="auto answer off surfaces the question without answering" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.003"/>
+  <testcase name="duplicate question is suppressed on the second pass" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="statement produces no question and no answer" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="answer is written back into session memory" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.003"/>
+  <testcase name="auto detect off skips detection entirely" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="knowledge context is attached to the request" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="settings mode and sentence budget reach the request" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.004"/>
+  <testcase name="text question bypasses detection for a statement shaped prompt" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="a new transcript clears the previous active answer" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="text question is answered even with both gates off" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.002"/>
+  <testcase name="duplicate suppression is logged" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.001"/>
+  <testcase name="provider failure is captured as a suppressed turn" classname="com.artjiang.helix.ai.ConversationEngineTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

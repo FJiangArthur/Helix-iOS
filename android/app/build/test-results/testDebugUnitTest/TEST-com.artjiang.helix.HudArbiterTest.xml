@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.artjiang.helix.HudArbiterTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-08-20T07:39:12" hostname="artjiangs-M4-MaxPro.local" time="0.074">
+  <properties/>
+  <testcase name="equal priority always re-grants" classname="com.artjiang.helix.HudArbiterTest" time="0.068"/>
+  <testcase name="default durations match the documented windows" classname="com.artjiang.helix.HudArbiterTest" time="0.0"/>
+  <testcase name="lower priority wins once the holder's window expires" classname="com.artjiang.helix.HudArbiterTest" time="0.001"/>
+  <testcase name="higher priority preempts an unexpired holder" classname="com.artjiang.helix.HudArbiterTest" time="0.001"/>
+  <testcase name="release frees the display immediately" classname="com.artjiang.helix.HudArbiterTest" time="0.001"/>
+  <testcase name="lower priority is refused while a holder is live" classname="com.artjiang.helix.HudArbiterTest" time="0.001"/>
+  <testcase name="explicit duration overrides the per-priority default" classname="com.artjiang.helix.HudArbiterTest" time="0.0"/>
+  <testcase name="an answer cannot hold the HUD forever" classname="com.artjiang.helix.HudArbiterTest" time="0.001"/>
+  <testcase name="first request always wins" classname="com.artjiang.helix.HudArbiterTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

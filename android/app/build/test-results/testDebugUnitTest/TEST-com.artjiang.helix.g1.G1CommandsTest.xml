@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.artjiang.helix.g1.G1CommandsTest" tests="45" skipped="0" failures="0" errors="0" timestamp="2026-08-20T07:39:13" hostname="artjiangs-M4-MaxPro.local" time="0.03">
+  <properties/>
+  <testcase name="whitelistChunksReassembleToValidJson" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.002"/>
+  <testcase name="transportSendScreenWritesLeftThenRightWithInterSideDelay" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.005"/>
+  <testcase name="transportSequentialSendsStayOrdered" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.002"/>
+  <testcase name="paginatorGreedilyWrapsOnWordBoundaries" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="paginatorReturnsSingleEmptyPageForEmptyText" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="decodesFirmwareInfoUpToNulTerminator" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="existingTextPageEncodingUnchanged" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="decodesNothingForEmptyOrUnknownFrames" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="textPageFullHeaderGoldenVector" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="paginatorDefaultBudgetKeepsShortAnswersOnOnePage" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="routesTouchpadWithActiveAnswerAsPageNavigation" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="whitelistChunkHeaderCarriesTotalAndIndex" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="notificationChunksCarryHeaderAndReassemble" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportPreservesFifoOrderAcrossConcurrentSends" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.003"/>
+  <testcase name="dateTimeSyncLayout" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="wholeScreenTextUsesNewContentStatusAnd176ByteChunks" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="displayPositionLayoutAndClamping" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="transportPropagatesAckFailureStatus" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="transportAckTimeoutRetriesThenFails" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.003"/>
+  <testcase name="coreCommandByteLayouts" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportAckRequiredSucceedsWhenAckArrives" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="transportResetResolvesOutstandingWaitersWithoutWaitingForTimeout" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="wholeScreenNewCharPosAndPageBytesAreSwiftCompatible" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="textPageUsesExpectedHeaderAndPacketSize" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="decodesBatteryResponse" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="headUpAngleClampsRange" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="textPageEncodesMultiByteUtf8ByByteLength" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="brightnessClampsRange" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="batteryPercentClampsToHundred" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="hudPresenterStampsOneBasedCurrentPageAndPageCount" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="decodesTouchpadFrames" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="paginatorEmitsOverlongWordOnItsOwnPage" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="decodesHeadAndCaseEvents" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="decodesAcks" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="screenStatusRawValues" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportIgnoresAckForADifferentCommand" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.002"/>
+  <testcase name="textPageMaxSeqIsChunkCountMinusOneAndSeqIncrements" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="textPageEmptyTextStillProducesOneHeaderOnlyPacket" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportStaleAckDoesNotResolveALaterWaiter" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.002"/>
+  <testcase name="routesTouchpadWithoutActiveAnswer" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="hudPresenterPaginatesAndPacketizesAnswerText" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="decodesAckContinueAsSuccess" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportFireAndForgetWritesBothSidesInOrder" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.0"/>
+  <testcase name="transportAckSucceedsOnRetryAfterFirstAttemptTimesOut" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <testcase name="interSideDelayConstantIs400ms" classname="com.artjiang.helix.g1.G1CommandsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
