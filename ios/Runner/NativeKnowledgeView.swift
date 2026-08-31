@@ -52,7 +52,11 @@ struct NativeKnowledgeView: View {
                             summary: selectedBucketSummary
                         )
 
-                        KnowledgeBucketList(bucket: selectedBucket, snapshot: runtime.knowledgeLibrary.snapshot)
+                        if selectedBucket == .facts, !runtime.knowledgeLibrary.snapshot.facts.isEmpty {
+                            FactCardCarousel(facts: runtime.knowledgeLibrary.snapshot.facts)
+                        } else {
+                            KnowledgeBucketList(bucket: selectedBucket, snapshot: runtime.knowledgeLibrary.snapshot)
+                        }
                     }
                 }
             }
@@ -142,6 +146,82 @@ private struct KnowledgeBucketHeader: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Horizontally swipeable card deck for facts. Swipe left/right to move
+/// between facts; the page indicator mirrors the G1 HUD pagination model.
+private struct FactCardCarousel: View {
+    let facts: [NativeKnowledgeItem]
+    @State private var currentIndex = 0
+
+    var body: some View {
+        VStack(spacing: 8) {
+            TabView(selection: $currentIndex) {
+                ForEach(Array(facts.enumerated()), id: \.element.id) { index, fact in
+                    FactCard(fact: fact, position: index + 1, total: facts.count)
+                        .tag(index)
+                        .padding(.horizontal, 2)
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 168)
+            .animation(.easeInOut(duration: 0.2), value: currentIndex)
+
+            HStack(spacing: 6) {
+                ForEach(facts.indices, id: \.self) { index in
+                    Circle()
+                        .fill(index == currentIndex ? NativeHelixTheme.teal : NativeHelixTheme.hairline)
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .accessibilityHidden(true)
+        }
+        .onChange(of: facts.count) { _, newCount in
+            currentIndex = min(currentIndex, max(0, newCount - 1))
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Fact cards, swipe left or right to browse")
+    }
+}
+
+private struct FactCard: View {
+    let fact: NativeKnowledgeItem
+    let position: Int
+    let total: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Fact", systemImage: "checkmark.seal")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(NativeHelixTheme.teal)
+                Spacer()
+                Text("\(position) of \(total)")
+                    .font(.caption)
+                    .foregroundStyle(NativeHelixTheme.secondaryInk)
+            }
+
+            Text(fact.text)
+                .font(.subheadline)
+                .foregroundStyle(NativeHelixTheme.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 0)
+
+            Text(fact.source.isEmpty ? "Manual" : fact.source)
+                .font(.caption2)
+                .foregroundStyle(NativeHelixTheme.secondaryInk)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NativeHelixTheme.background)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(NativeHelixTheme.hairline)
+        }
     }
 }
 

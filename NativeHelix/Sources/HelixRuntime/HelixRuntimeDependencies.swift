@@ -13,6 +13,8 @@ public final class HelixRuntimeDependencies {
     public let g1DeviceState: NativeG1DeviceState
     public let sessionArchive: NativeSessionArchiveState
     public let knowledgeLibrary: NativeKnowledgeLibraryState
+    public let automaticKnowledgeCapture: NativeAutomaticKnowledgeCaptureState
+    public let insightCoordinator = InsightCoordinator()
     public private(set) var settings: HelixSettings
     public private(set) var providerReadiness: [ProviderReadiness]
 
@@ -26,34 +28,49 @@ public final class HelixRuntimeDependencies {
         sessionArchive: NativeSessionArchiveState? = nil,
         knowledgeLibrary: NativeKnowledgeLibraryState? = nil,
         settings: HelixSettings = HelixSettings(),
-        providerReadiness: [ProviderReadiness] = []
+        providerReadiness: [ProviderReadiness] = [],
+        automaticKnowledgeCaptureGraceNanoseconds: UInt64 = 4_000_000_000
     ) {
-        self.settingsManager = settingsManager
-        self.assistantSession = assistantSession ?? NativeAssistantSessionState(
+        let resolvedAssistantSession = assistantSession ?? NativeAssistantSessionState(
             engine: NativeConversationEngine(
                 answerProvider: DeterministicAnswerProvider(),
                 conversationStore: InMemoryConversationStore(),
                 knowledgeStore: InMemoryProjectKnowledgeStore()
             )
         )
+        let resolvedKnowledgeLibrary = knowledgeLibrary ?? NativeKnowledgeLibraryState()
+        let resolvedAutomaticKnowledgeCapture = NativeAutomaticKnowledgeCaptureState(
+            knowledgeLibrary: resolvedKnowledgeLibrary,
+            graceNanoseconds: automaticKnowledgeCaptureGraceNanoseconds
+        )
+        self.settingsManager = settingsManager
+        self.assistantSession = resolvedAssistantSession
         self.g1DeviceState = g1DeviceState ?? NativeG1DeviceState()
         self.sessionArchive = sessionArchive ?? NativeSessionArchiveState()
-        self.knowledgeLibrary = knowledgeLibrary ?? NativeKnowledgeLibraryState()
+        self.knowledgeLibrary = resolvedKnowledgeLibrary
+        self.automaticKnowledgeCapture = resolvedAutomaticKnowledgeCapture
         self.settings = settings
         self.providerReadiness = providerReadiness
+        resolvedAssistantSession.addLiveTranscriptCommitHandler { [weak resolvedAutomaticKnowledgeCapture] outcome in
+            resolvedAutomaticKnowledgeCapture?.schedule(outcome)
+        }
     }
 
     public static func nativePersistent(
         isStoredInMemoryOnly: Bool = false,
         userDefaults: UserDefaults = .standard,
         settingsKey: String = "helix.native.settings",
-        keychainService: String = Bundle.main.bundleIdentifier ?? "com.artjiang.helix.native"
+        keychainService: String = Bundle.main.bundleIdentifier ?? "com.artjiang.helix.native",
+        useInMemorySecretStore: Bool = false
     ) throws -> HelixRuntimeDependencies {
         let container = try HelixSwiftDataSchema.makeModelContainer(isStoredInMemoryOnly: isStoredInMemoryOnly)
         let knowledgeStore = SwiftDataKnowledgeLibraryStore(container: container)
+        let secretStore: any SecretStore = useInMemorySecretStore
+            ? InMemorySecretStore()
+            : KeychainSecretStore(service: keychainService)
         let settingsManager = NativeSettingsManager(
             settingsStore: UserDefaultsSettingsStore(userDefaults: userDefaults, settingsKey: settingsKey),
-            secretStore: KeychainSecretStore(service: keychainService)
+            secretStore: secretStore
         )
         return HelixRuntimeDependencies(
             settingsManager: settingsManager,
@@ -78,39 +95,57 @@ public final class HelixRuntimeDependencies {
         providerReadiness = await settingsManager.providerReadiness()
         await sessionArchive.refresh()
         await knowledgeLibrary.refresh()
+        await syncEngine()
     }
 
     public func selectProvider(_ provider: LlmProviderKind) async {
         settings = await settingsManager.selectProvider(provider)
         providerReadiness = await settingsManager.providerReadiness()
+        await syncEngine()
     }
 
     public func updateMaxResponseSentences(_ value: Int) async {
         settings = await settingsManager.updateConversationControls(maxResponseSentences: value)
+        await syncEngine()
     }
 
     public func setAutoDetectQuestions(_ isEnabled: Bool) async {
         settings = await settingsManager.updateConversationControls(autoDetectQuestions: isEnabled)
+        await syncEngine()
+    }
+
+    public func setQuestionDetectionSensitivity(
+        _ sensitivity: QuestionDetectionSensitivity
+    ) async {
+        settings = await settingsManager.updateConversationControls(
+            questionDetectionSensitivity: sensitivity
+        )
+        await syncEngine()
     }
 
     public func setAutoAnswer(_ isEnabled: Bool) async {
         settings = await settingsManager.updateConversationControls(autoAnswer: isEnabled)
+        await syncEngine()
     }
 
     public func setLiveFactCheckEnabled(_ isEnabled: Bool) async {
         settings = await settingsManager.updateConversationControls(liveFactCheckEnabled: isEnabled)
+        await syncEngine()
     }
 
     public func updateTranscription(backend: TranscriptionBackend, model: String) async {
         settings = await settingsManager.updateTranscription(backend: backend, model: model)
+        await syncEngine()
     }
 
     public func updateHudRenderPath(_ renderPath: HudRenderPath) async {
         settings = await settingsManager.updateHudRenderPath(renderPath)
+        await syncEngine()
     }
 
     public func updateWebSearchMode(_ mode: WebSearchMode) async {
         settings = await settingsManager.updateWebSearchMode(mode)
+        await syncEngine()
     }
 
     public func setEvalGateEnabled(_ isEnabled: Bool) async {
@@ -119,15 +154,89 @@ public final class HelixRuntimeDependencies {
 
     public func updateActiveSkill(_ value: String) async {
         settings = await settingsManager.updateActiveSkill(value)
+        await syncEngine()
     }
 
     public func upsertCustomSkill(_ skill: ActiveSkill) async {
         settings = await settingsManager.upsertCustomSkill(skill)
+        await syncEngine()
     }
 
     public func setApiKey(_ apiKey: String?, for provider: LlmProviderKind) async {
         await settingsManager.setProviderApiKey(apiKey, for: provider)
         providerReadiness = await settingsManager.providerReadiness()
+        await syncEngine()
+    }
+
+    public func apiKey(for provider: LlmProviderKind) async -> String? {
+        await settingsManager.apiKey(for: provider)
+    }
+
+    public func updateGlassesDisplay(
+        headUpAngle: Int? = nil,
+        displayHeight: Int? = nil,
+        displayDepth: Int? = nil,
+        brightness: Int? = nil,
+        autoBrightness: Bool? = nil,
+        glassesNotificationsEnabled: Bool? = nil,
+        dashboardEnabled: Bool? = nil
+    ) async {
+        settings = await settingsManager.updateGlassesDisplay(
+            headUpAngle: headUpAngle,
+            displayHeight: displayHeight,
+            displayDepth: displayDepth,
+            brightness: brightness,
+            autoBrightness: autoBrightness,
+            glassesNotificationsEnabled: glassesNotificationsEnabled,
+            dashboardEnabled: dashboardEnabled
+        )
+    }
+
+    public func setInsightsEnabled(_ isEnabled: Bool) async {
+        settings = await settingsManager.setInsightsEnabled(isEnabled)
+        await syncEngine()
+    }
+
+    /// Pushes the persisted settings and a freshly built answer provider into
+    /// the conversation engine so UI-visible configuration actually drives
+    /// pipeline behavior. Without a stored API key the deterministic provider
+    /// is used, keeping the pipeline usable offline and in tests.
+    public func syncEngine() async {
+        await assistantSession.updateEngineSettings(settings)
+        let apiKey = await settingsManager.apiKey(for: settings.llmProvider)
+        let factory = HelixAnswerProviderFactory()
+        var lightSettings = settings
+        if let lightModel = settings.activeProviderConfiguration?.modelSelection.lightModel {
+            lightSettings.llmModel = lightModel
+        }
+        let lightProvider = factory.makeProvider(settings: lightSettings, apiKey: apiKey)
+        await assistantSession.setAnswerProvider(lightProvider)
+
+        var smartSettings = settings
+        if let smartModel = settings.activeProviderConfiguration?.modelSelection.smartModel {
+            smartSettings.llmModel = smartModel
+        }
+        await assistantSession.setDeepAnswerProvider(
+            factory.makeProvider(settings: smartSettings, apiKey: apiKey)
+        )
+
+        await assistantSession.setQuestionClassifier(
+            HybridQuestionClassifier(
+                liveClassifier: AnswerProviderQuestionLiveClassifier(provider: lightProvider)
+            )
+        )
+
+        // Insights get their own lightweight provider instance so proactive
+        // analysis never contends with in-flight answer streaming.
+        insightCoordinator.setEnabled(settings.insightsEnabled)
+        if settings.insightsEnabled {
+            insightCoordinator.setProvider(
+                lightProvider,
+                maxResponseSentences: 1
+            )
+        } else {
+            insightCoordinator.setProvider(nil)
+        }
     }
 
     public func updateActiveProviderModels(
@@ -136,14 +245,43 @@ public final class HelixRuntimeDependencies {
         realtimeModel: String? = nil,
         transcriptionModel: String? = nil
     ) async {
-        settings = await settingsManager.updateProviderModels(
+        await updateProviderModels(
             provider: settings.llmProvider,
             smartModel: smartModel,
             lightModel: lightModel,
             realtimeModel: realtimeModel,
             transcriptionModel: transcriptionModel
         )
+    }
+
+    /// Updates the model selection for any provider (not just the active one),
+    /// then re-syncs the engine so a change to the live provider takes effect
+    /// immediately.
+    public func updateProviderModels(
+        provider: LlmProviderKind,
+        smartModel: String,
+        lightModel: String,
+        realtimeModel: String? = nil,
+        transcriptionModel: String? = nil
+    ) async {
+        settings = await settingsManager.updateProviderModels(
+            provider: provider,
+            smartModel: smartModel,
+            lightModel: lightModel,
+            realtimeModel: realtimeModel,
+            transcriptionModel: transcriptionModel
+        )
         providerReadiness = await settingsManager.providerReadiness()
+        await syncEngine()
+    }
+
+    /// Fetches the selectable chat model IDs for `provider`. Uses `overrideKey`
+    /// when provided (e.g. a key the user just typed but hasn't saved), else
+    /// the stored key; falls back to a curated list when neither works.
+    public func availableModels(for provider: LlmProviderKind, overrideKey: String? = nil) async -> [String] {
+        let trimmedOverride = overrideKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let apiKey = trimmedOverride.isEmpty ? await settingsManager.apiKey(for: provider) : trimmedOverride
+        return await ProviderModelCatalog().models(for: provider, apiKey: apiKey)
     }
 
     public var activeProviderName: String {

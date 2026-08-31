@@ -384,6 +384,111 @@ public actor SwiftDataKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowl
         }
     }
 
+    public func addMemoryIfAbsent(
+        _ text: String,
+        source: String,
+        deduplication: KnowledgeMemoryDeduplication = .exact
+    ) async -> KnowledgeMemoryUpsertResult? {
+        guard let trimmed = Self.trimmedNonEmpty(text) else { return nil }
+        do {
+            let context = ModelContext(container)
+            let activeProjectID = try activeProjectID(context: context)
+            let key = KnowledgeMemoryText.duplicateKey(
+                trimmed,
+                deduplication: deduplication
+            )
+            let memories = try context.fetch(FetchDescriptor<MemoryRecord>())
+            let existing = memories.first {
+                guard $0.projectID == activeProjectID else { return false }
+                if case .automaticAnswer = deduplication,
+                   !$0.tags.contains(where: KnowledgeMemorySource.isAutomaticAnswer) {
+                    return false
+                }
+                return KnowledgeMemoryText.duplicateKey(
+                    $0.text,
+                    deduplication: deduplication
+                ) == key
+            }
+            if let existing {
+                let existingItem = Self.nativeItem(existing)
+                guard case .automaticAnswer(let incomingQuality) = deduplication else {
+                    return KnowledgeMemoryUpsertResult(item: existingItem, wasInserted: false)
+                }
+                let existingSource = existing.tags.first(
+                    where: KnowledgeMemorySource.isAutomaticAnswer
+                ) ?? ""
+                let existingQuality = KnowledgeMemorySource.automaticAnswerQuality(
+                    in: existingSource
+                ) ?? .fast
+                let exactRepeat = KnowledgeMemoryText.duplicateKey(existing.text)
+                    == KnowledgeMemoryText.duplicateKey(trimmed)
+                let shouldUpgradeQuality = incomingQuality.rawValue > existingQuality.rawValue
+                let shouldRefreshSameQuality = incomingQuality == existingQuality && !exactRepeat
+                guard shouldUpgradeQuality || shouldRefreshSameQuality else {
+                    return KnowledgeMemoryUpsertResult(item: existingItem, wasInserted: false)
+                }
+
+                let sourceTag = source.trimmingCharacters(in: .whitespacesAndNewlines)
+                existing.text = trimmed
+                existing.tags = sourceTag.isEmpty ? [] : [sourceTag]
+                existing.createdAt = Date()
+                try context.save()
+                return KnowledgeMemoryUpsertResult(
+                    item: Self.nativeItem(existing),
+                    wasInserted: false,
+                    previousItem: existingItem
+                )
+            }
+
+            let sourceTag = source.trimmingCharacters(in: .whitespacesAndNewlines)
+            let record = MemoryRecord(
+                text: trimmed,
+                tags: sourceTag.isEmpty ? [] : [sourceTag],
+                projectID: activeProjectID
+            )
+            context.insert(record)
+            try context.save()
+            return KnowledgeMemoryUpsertResult(
+                item: Self.nativeItem(record),
+                wasInserted: true
+            )
+        } catch {
+            assertionFailure("SwiftDataKnowledgeLibraryStore failed to upsert memory: \(error)")
+            return nil
+        }
+    }
+
+    public func undoMemoryUpsert(_ result: KnowledgeMemoryUpsertResult) async {
+        guard result.didMutate else { return }
+        do {
+            let context = ModelContext(container)
+            let memories = try context.fetch(FetchDescriptor<MemoryRecord>())
+            guard let record = memories.first(where: { $0.id == result.item.id }) else { return }
+            if let previousItem = result.previousItem {
+                record.text = previousItem.text
+                record.tags = previousItem.source.isEmpty ? [] : [previousItem.source]
+                record.createdAt = previousItem.createdAt
+            } else if result.wasInserted {
+                context.delete(record)
+            }
+            try context.save()
+        } catch {
+            assertionFailure("SwiftDataKnowledgeLibraryStore failed to undo memory upsert: \(error)")
+        }
+    }
+
+    public func removeMemory(id: UUID) async {
+        do {
+            let context = ModelContext(container)
+            let memories = try context.fetch(FetchDescriptor<MemoryRecord>())
+            guard let record = memories.first(where: { $0.id == id }) else { return }
+            context.delete(record)
+            try context.save()
+        } catch {
+            assertionFailure("SwiftDataKnowledgeLibraryStore failed to remove memory: \(error)")
+        }
+    }
+
     public func addTodo(_ title: String) async {
         guard let trimmed = Self.trimmedNonEmpty(title) else { return }
         do {

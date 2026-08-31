@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warm Linen bg (#F7F4F0); overridden in values-night. -->
+    <color name="helix_window_bg">#F7F4F0</color>
+    <color name="ic_launcher_background">#F7F4F0</color>
+</resources>

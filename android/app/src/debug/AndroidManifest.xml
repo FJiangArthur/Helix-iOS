@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only: allow cleartext HTTP so a locally hosted Omi relay
+     (http://10.0.2.2 from the emulator) can be used for E2E testing.
+     Release builds keep the platform default (cleartext blocked). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" tools:ignore="MissingApplicationIcon"
+        xmlns:tools="http://schemas.android.com/tools" />
+</manifest>

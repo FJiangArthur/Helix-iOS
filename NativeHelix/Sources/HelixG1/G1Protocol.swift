@@ -4,6 +4,8 @@ public enum G1ScreenStatus: UInt8, Sendable {
     case displaying = 0x30
     case complete = 0x40
     case textPage = 0x70
+    /// 0x70 SIMPLE_TEXT | 0x01 NEW_CONTENT — replaces the whole screen at once.
+    case newContent = 0x71
 }
 
 public enum G1TouchpadSide: String, Sendable {
@@ -50,33 +52,49 @@ public struct G1TouchpadRouter: Sendable {
 
 public struct G1PacketEncoder: Sendable {
     public static let commandByte: UInt8 = 0x4E
-    public static let maxPacketLength = 191
-    private static let headerLength = 9
+    /// The vendor protocol's `len` is the payload budget, not the complete BLE
+    /// frame length. The nine-byte 0x4E header is prefixed after chunking.
+    public static let maxPayloadLength = 191
+    public static let headerLength = 9
+    public static let maxPacketLength = headerLength + maxPayloadLength
 
     public init() {}
 
-    public func encodeTextPage(_ text: String, currentPage: UInt8 = 1, maxPage: UInt8 = 1) -> [[UInt8]] {
+    public func encodeTextPage(
+        _ text: String,
+        syncSequence: UInt8 = 0,
+        currentPage: UInt8 = 1,
+        maxPage: UInt8 = 1
+    ) -> [[UInt8]] {
         let payload = Array(text.utf8)
-        let chunkSize = Self.maxPacketLength - Self.headerLength
+        let chunkSize = Self.maxPayloadLength
         let chunks = stride(from: 0, to: max(payload.count, 1), by: chunkSize).map { start -> [UInt8] in
             let end = min(start + chunkSize, payload.count)
             return start < end ? Array(payload[start..<end]) : []
         }
 
-        let maxSeq = UInt8(max(0, chunks.count - 1))
+        // Despite its name in the vendor implementation, maxSeq is the packet
+        // count. Sequence indices remain zero-based.
+        let maxSeq = UInt8(clamping: chunks.count)
         return chunks.enumerated().map { index, chunk in
             [
                 Self.commandByte,
-                0,
+                syncSequence,
                 maxSeq,
                 UInt8(index),
-                G1ScreenStatus.textPage.rawValue,
+                G1ScreenStatus.newContent.rawValue,
                 0,
                 0,
-                currentPage,
-                maxPage
+                max(1, currentPage),
+                max(1, maxPage)
             ] + chunk
         }
+    }
+
+    /// A single-page convenience using the same hardware-verified direct-text
+    /// framing as every other page.
+    public func encodeWholeScreenText(_ text: String, seq: UInt8 = 0) -> [[UInt8]] {
+        encodeTextPage(text, syncSequence: seq, currentPage: 1, maxPage: 1)
     }
 }
 

@@ -22,6 +22,11 @@ class WhisperBatchTranscriber {
     /// Called with word-level timestamps for diarization.
     var onWordTimestamps: (([WhisperWord]) -> Void)?
 
+    /// Atomic verbose response callback. A diarizing consumer must receive the
+    /// aggregate and its timestamps together so it emits subturns or the
+    /// aggregate, never both.
+    var onVerboseTranscript: ((String, [WhisperWord], Bool) -> Void)?
+
     /// Called with diarized speaker segments (speaker, text, start, end).
     var onDiarizedSegment: ((String, String, Double, Double) -> Void)?
 
@@ -79,11 +84,21 @@ class WhisperBatchTranscriber {
     /// Timer that fires every `chunkDurationSec` to trigger a send.
     private var chunkTimer: Timer?
 
-    /// Tracks whether a chunk HTTP request is in flight.
-    private var requestInFlight = false
-
     /// Monotonic chunk index for logging.
     private var chunkIndex = 0
+
+    /// HTTP responses can complete out of order. Parsing is serialized by
+    /// chunk index so overlap dedupe and native turn order follow speech order.
+    private let responseQueue = DispatchQueue(label: "com.helix.whisper.responses")
+    private var sessionEpoch: UInt64 = 0
+    private var nextResponseChunkIndex = 1
+    private var pendingResponses: [Int: BufferedResponse] = [:]
+
+    private struct BufferedResponse {
+        let data: Data?
+        let errorMessage: String?
+        let isFinal: Bool
+    }
 
     /// Sample rate of the incoming PCM audio.
     private static let sampleRate: Int = 16000
@@ -111,9 +126,13 @@ class WhisperBatchTranscriber {
         bufferQueue.sync {
             self.ringBuffer = Data()
             self.overlapBuffer = Data()
-            self.lastChunkEndTimestamp = 0.0
             self.chunkIndex = 0
-            self.requestInFlight = false
+        }
+        responseQueue.sync {
+            self.sessionEpoch &+= 1
+            self.lastChunkEndTimestamp = 0.0
+            self.nextResponseChunkIndex = 1
+            self.pendingResponses.removeAll()
         }
 
         _isActive = true
@@ -149,15 +168,25 @@ class WhisperBatchTranscriber {
     // MARK: - Timer
 
     private func startChunkTimer() {
-        chunkTimer?.invalidate()
-        DispatchQueue.main.async { [weak self] in
+        let epoch = responseQueue.sync { sessionEpoch }
+        let installTimer = { [weak self] in
             guard let self else { return }
+            guard self._isActive,
+                  self.responseQueue.sync(execute: { self.sessionEpoch == epoch }) else {
+                return
+            }
+            self.chunkTimer?.invalidate()
             self.chunkTimer = Timer.scheduledTimer(
                 withTimeInterval: self.chunkDurationSec,
                 repeats: true
             ) { [weak self] _ in
                 self?.sendCurrentChunk(isFinal: false)
             }
+        }
+        if Thread.isMainThread {
+            installTimer()
+        } else {
+            DispatchQueue.main.async(execute: installTimer)
         }
     }
 
@@ -241,10 +270,15 @@ class WhisperBatchTranscriber {
     // MARK: - HTTP POST
 
     private func postToWhisper(wavData: Data, chunkIndex: Int, isFinal: Bool) {
+        let requestEpoch = responseQueue.sync { sessionEpoch }
         guard !apiKey.isEmpty else {
-            DispatchQueue.main.async {
-                self.onError?("Whisper API key is missing")
-            }
+            enqueueResponse(
+                chunkIndex: chunkIndex,
+                isFinal: isFinal,
+                epoch: requestEpoch,
+                data: nil,
+                errorMessage: "Whisper API key is missing"
+            )
             return
         }
 
@@ -285,24 +319,29 @@ class WhisperBatchTranscriber {
 
         request.httpBody = body
 
-        requestInFlight = true
-
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             guard let self = self else { return }
-            self.requestInFlight = false
 
             if let error = error {
                 self.warningLog("[WhisperBatch] HTTP error chunk \(chunkIndex): \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.onError?("Whisper request failed: \(error.localizedDescription)")
-                }
+                self.enqueueResponse(
+                    chunkIndex: chunkIndex,
+                    isFinal: isFinal,
+                    epoch: requestEpoch,
+                    data: nil,
+                    errorMessage: "Whisper request failed: \(error.localizedDescription)"
+                )
                 return
             }
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                DispatchQueue.main.async {
-                    self.onError?("Whisper: invalid response")
-                }
+                self.enqueueResponse(
+                    chunkIndex: chunkIndex,
+                    isFinal: isFinal,
+                    epoch: requestEpoch,
+                    data: nil,
+                    errorMessage: "Whisper: invalid response"
+                )
                 return
             }
 
@@ -313,42 +352,121 @@ class WhisperBatchTranscriber {
                     "[WhisperBatch] HTTP \(statusCode) chunk \(chunkIndex) "
                     + "(bodyChars=\(body.count))"
                 )
-                DispatchQueue.main.async {
-                    self.onError?("Whisper API error (\(statusCode)): \(body)")
-                }
+                self.enqueueResponse(
+                    chunkIndex: chunkIndex,
+                    isFinal: isFinal,
+                    epoch: requestEpoch,
+                    data: nil,
+                    errorMessage: "Whisper API error (\(statusCode)): \(body)"
+                )
                 return
             }
 
-            self.parseWhisperResponse(data: data, chunkIndex: chunkIndex, isFinal: isFinal)
+            self.enqueueResponse(
+                chunkIndex: chunkIndex,
+                isFinal: isFinal,
+                epoch: requestEpoch,
+                data: data,
+                errorMessage: nil
+            )
         }.resume()
+    }
+
+    private func enqueueResponse(
+        chunkIndex: Int,
+        isFinal: Bool,
+        epoch: UInt64,
+        data: Data?,
+        errorMessage: String?
+    ) {
+        responseQueue.async { [weak self] in
+            guard let self, epoch == self.sessionEpoch else { return }
+            self.pendingResponses[chunkIndex] = BufferedResponse(
+                data: data,
+                errorMessage: errorMessage,
+                isFinal: isFinal
+            )
+            self.drainResponsesInOrder()
+        }
+    }
+
+    private func drainResponsesInOrder() {
+        while let response = pendingResponses.removeValue(forKey: nextResponseChunkIndex) {
+            let chunkIndex = nextResponseChunkIndex
+            nextResponseChunkIndex += 1
+            if let errorMessage = response.errorMessage {
+                dispatchToMainIfCurrent(epoch: sessionEpoch) { transcriber in
+                    transcriber.onError?(errorMessage)
+                }
+            } else if let data = response.data {
+                parseWhisperResponse(
+                    data: data,
+                    chunkIndex: chunkIndex,
+                    isFinal: response.isFinal,
+                    epoch: sessionEpoch
+                )
+            }
+        }
+    }
+
+    /// Test seam for exercising the real parse/callback path without network.
+    func enqueueResponseForTesting(data: Data, chunkIndex: Int, isFinal: Bool = false) {
+        let epoch = responseQueue.sync { sessionEpoch }
+        enqueueResponse(
+            chunkIndex: chunkIndex,
+            isFinal: isFinal,
+            epoch: epoch,
+            data: data,
+            errorMessage: nil
+        )
     }
 
     // MARK: - Response parsing
 
-    private func parseWhisperResponse(data: Data, chunkIndex: Int, isFinal: Bool) {
+    private func parseWhisperResponse(
+        data: Data,
+        chunkIndex: Int,
+        isFinal: Bool,
+        epoch: UInt64
+    ) {
         do {
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                DispatchQueue.main.async {
-                    self.onError?("Whisper: invalid JSON response")
+                dispatchToMainIfCurrent(epoch: epoch) { transcriber in
+                    transcriber.onError?("Whisper: invalid JSON response")
                 }
                 return
             }
 
             if isDiarizeModel {
-                parseDiarizedResponse(json: json, chunkIndex: chunkIndex, isFinal: isFinal)
+                parseDiarizedResponse(
+                    json: json,
+                    chunkIndex: chunkIndex,
+                    isFinal: isFinal,
+                    epoch: epoch
+                )
             } else {
-                parseVerboseResponse(json: json, chunkIndex: chunkIndex, isFinal: isFinal)
+                parseVerboseResponse(
+                    json: json,
+                    chunkIndex: chunkIndex,
+                    isFinal: isFinal,
+                    epoch: epoch
+                )
             }
 
         } catch {
             warningLog("[WhisperBatch] JSON parse error: \(error.localizedDescription)")
-            DispatchQueue.main.async {
-                self.onError?("Whisper JSON parse error: \(error.localizedDescription)")
+            dispatchToMainIfCurrent(epoch: epoch) { transcriber in
+                transcriber.onError?("Whisper JSON parse error: \(error.localizedDescription)")
             }
         }
     }
 
-    private func parseVerboseResponse(json: [String: Any], chunkIndex: Int, isFinal: Bool) {
+    private func parseVerboseResponse(
+        json: [String: Any],
+        chunkIndex: Int,
+        isFinal: Bool,
+        epoch: UInt64
+    ) {
         let text = json["text"] as? String ?? ""
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -385,23 +503,32 @@ class WhisperBatchTranscriber {
             + "(chars=\(outputText.count), words=\(dedupedWords.count))"
         )
 
-        DispatchQueue.main.async {
-            if !outputText.isEmpty {
-                self.onTranscript?(outputText, isFinal)
-            }
-            if !dedupedWords.isEmpty {
-                self.onWordTimestamps?(dedupedWords)
+        dispatchToMainIfCurrent(epoch: epoch) { transcriber in
+            if let onVerboseTranscript = transcriber.onVerboseTranscript {
+                onVerboseTranscript(outputText, dedupedWords, isFinal)
+            } else {
+                if !outputText.isEmpty {
+                    transcriber.onTranscript?(outputText, isFinal)
+                }
+                if !dedupedWords.isEmpty {
+                    transcriber.onWordTimestamps?(dedupedWords)
+                }
             }
         }
     }
 
-    private func parseDiarizedResponse(json: [String: Any], chunkIndex: Int, isFinal: Bool) {
+    private func parseDiarizedResponse(
+        json: [String: Any],
+        chunkIndex: Int,
+        isFinal: Bool,
+        epoch: UInt64
+    ) {
         guard let segments = json["segments"] as? [[String: Any]] else {
             // Fall back to plain text if segments aren't present
             let text = (json["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty {
-                DispatchQueue.main.async {
-                    self.onTranscript?(text, isFinal)
+                dispatchToMainIfCurrent(epoch: epoch) { transcriber in
+                    transcriber.onTranscript?(text, isFinal)
                 }
             }
             return
@@ -419,8 +546,8 @@ class WhisperBatchTranscriber {
             if !fullText.isEmpty { fullText += " " }
             fullText += text
 
-            DispatchQueue.main.async {
-                self.onDiarizedSegment?(speaker, text, start, end)
+            dispatchToMainIfCurrent(epoch: epoch) { transcriber in
+                transcriber.onDiarizedSegment?(speaker, text, start, end)
             }
         }
 
@@ -429,10 +556,21 @@ class WhisperBatchTranscriber {
             + "(segments=\(segments.count), chars=\(fullText.count))"
         )
 
-        if !fullText.isEmpty {
-            DispatchQueue.main.async {
-                self.onTranscript?(fullText, isFinal)
+        // Each source-provided diarized segment was already emitted above.
+        // Emitting the aggregate text again would create a second native turn
+        // and potentially answer the same question twice.
+    }
+
+    private func dispatchToMainIfCurrent(
+        epoch: UInt64,
+        _ action: @escaping (WhisperBatchTranscriber) -> Void
+    ) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self,
+                  self.responseQueue.sync(execute: { self.sessionEpoch == epoch }) else {
+                return
             }
+            action(self)
         }
     }
 

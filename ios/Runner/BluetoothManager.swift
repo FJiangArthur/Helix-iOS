@@ -10,8 +10,10 @@ struct StoredBluetoothConnection: Codable, Equatable {
     let rightPeripheralID: UUID
 
     func encoded() -> Data {
-        // This payload is tiny and schema-stable, so encoding should be deterministic.
-        try! JSONEncoder().encode(self)
+        // sortedKeys keeps the bytes deterministic so stored payloads compare equal.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try! encoder.encode(self)
     }
 }
 

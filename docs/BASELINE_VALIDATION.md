@@ -1,6 +1,6 @@
 # Baseline Validation
 
-Baseline version: **2.2.95+202607012117**
+Baseline version: **2.2.98+202608312013**
 
 This baseline is the Swift-native Helix app shell plus `NativeHelix` headless
 package. Legacy cross-platform tooling, method/event channels, and Flutter/Dart

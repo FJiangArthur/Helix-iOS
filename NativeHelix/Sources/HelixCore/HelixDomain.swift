@@ -6,6 +6,18 @@ public enum ConversationMode: String, Codable, CaseIterable, Sendable {
     case passive
 }
 
+public enum AnswerDepth: String, Codable, CaseIterable, Sendable {
+    case automatic
+    case deeper
+}
+
+public enum TranscriptSpeakerSource: String, Codable, CaseIterable, Sendable {
+    /// A speaker label returned by the transcription/diarization provider.
+    case sourceProvided
+    /// A local acoustic-energy grouping. This is an estimate, not identity.
+    case localEnergyEstimate
+}
+
 public enum TranscriptionBackend: String, Codable, CaseIterable, Sendable {
     case appleOnDevice
     case appleCloud
@@ -30,6 +42,20 @@ public enum WebSearchMode: String, Codable, CaseIterable, Sendable {
     case disabled
     case fakeDeterministic
     case live
+}
+
+public enum QuestionDetectionSensitivity: String, Codable, CaseIterable, Sendable {
+    case conservative
+    case balanced
+    case sensitive
+
+    public var minimumConfidence: Double {
+        switch self {
+        case .conservative: return 0.80
+        case .balanced: return 0.60
+        case .sensitive: return 0.45
+        }
+    }
 }
 
 public struct ActiveSkill: Codable, Equatable, Identifiable, Sendable {
@@ -299,6 +325,7 @@ public struct HelixSettings: Codable, Equatable, Sendable {
     public var llmModel: String
     public var hudRenderPath: HudRenderPath
     public var autoDetectQuestions: Bool
+    public var questionDetectionSensitivity: QuestionDetectionSensitivity
     public var autoAnswer: Bool
     public var webSearchMode: WebSearchMode
     public var liveFactCheckEnabled: Bool
@@ -306,6 +333,14 @@ public struct HelixSettings: Codable, Equatable, Sendable {
     public var providers: [ProviderConfiguration]
     public var activeSkillID: String
     public var customSkills: [ActiveSkill]
+    public var headUpAngle: Int
+    public var displayHeight: Int
+    public var displayDepth: Int
+    public var brightness: Int
+    public var autoBrightness: Bool
+    public var glassesNotificationsEnabled: Bool
+    public var dashboardEnabled: Bool
+    public var insightsEnabled: Bool
 
     public init(
         maxResponseSentences: Int = 3,
@@ -315,13 +350,22 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         llmModel: String = "gpt-4.1-mini",
         hudRenderPath: HudRenderPath = .bitmap,
         autoDetectQuestions: Bool = true,
+        questionDetectionSensitivity: QuestionDetectionSensitivity = .balanced,
         autoAnswer: Bool = true,
         webSearchMode: WebSearchMode = .disabled,
         liveFactCheckEnabled: Bool = true,
         evalGateEnabled: Bool = false,
         providers: [ProviderConfiguration] = Self.defaultProviderConfigurations,
         activeSkillID: String = ActiveSkill.defaultValue,
-        customSkills: [ActiveSkill] = []
+        customSkills: [ActiveSkill] = [],
+        headUpAngle: Int = 30,
+        displayHeight: Int = 4,
+        displayDepth: Int = 4,
+        brightness: Int = 30,
+        autoBrightness: Bool = true,
+        glassesNotificationsEnabled: Bool = true,
+        dashboardEnabled: Bool = true,
+        insightsEnabled: Bool = false
     ) {
         self.maxResponseSentences = max(1, min(10, maxResponseSentences))
         self.transcriptionBackend = transcriptionBackend
@@ -330,6 +374,7 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         self.llmModel = llmModel
         self.hudRenderPath = hudRenderPath
         self.autoDetectQuestions = autoDetectQuestions
+        self.questionDetectionSensitivity = questionDetectionSensitivity
         self.autoAnswer = autoAnswer
         self.webSearchMode = webSearchMode
         self.liveFactCheckEnabled = liveFactCheckEnabled
@@ -337,6 +382,14 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         self.providers = providers
         self.customSkills = customSkills
         self.activeSkillID = ActiveSkill.sanitize(activeSkillID, customSkills: customSkills)
+        self.headUpAngle = max(0, min(60, headUpAngle))
+        self.displayHeight = max(0, min(8, displayHeight))
+        self.displayDepth = max(0, min(9, displayDepth))
+        self.brightness = max(0, min(63, brightness))
+        self.autoBrightness = autoBrightness
+        self.glassesNotificationsEnabled = glassesNotificationsEnabled
+        self.dashboardEnabled = dashboardEnabled
+        self.insightsEnabled = insightsEnabled
     }
 
     public var activeProviderConfiguration: ProviderConfiguration? {
@@ -359,6 +412,7 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         case llmModel
         case hudRenderPath
         case autoDetectQuestions
+        case questionDetectionSensitivity
         case autoAnswer
         case webSearchMode
         case liveFactCheckEnabled
@@ -366,6 +420,14 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         case providers
         case activeSkillID
         case customSkills
+        case headUpAngle
+        case displayHeight
+        case displayDepth
+        case brightness
+        case autoBrightness
+        case glassesNotificationsEnabled
+        case dashboardEnabled
+        case insightsEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -378,13 +440,22 @@ public struct HelixSettings: Codable, Equatable, Sendable {
             llmModel: try container.decodeIfPresent(String.self, forKey: .llmModel) ?? "gpt-4.1-mini",
             hudRenderPath: try container.decodeIfPresent(HudRenderPath.self, forKey: .hudRenderPath) ?? .bitmap,
             autoDetectQuestions: try container.decodeIfPresent(Bool.self, forKey: .autoDetectQuestions) ?? true,
+            questionDetectionSensitivity: try container.decodeIfPresent(QuestionDetectionSensitivity.self, forKey: .questionDetectionSensitivity) ?? .balanced,
             autoAnswer: try container.decodeIfPresent(Bool.self, forKey: .autoAnswer) ?? true,
             webSearchMode: try container.decodeIfPresent(WebSearchMode.self, forKey: .webSearchMode) ?? .disabled,
             liveFactCheckEnabled: try container.decodeIfPresent(Bool.self, forKey: .liveFactCheckEnabled) ?? true,
             evalGateEnabled: try container.decodeIfPresent(Bool.self, forKey: .evalGateEnabled) ?? false,
             providers: try container.decodeIfPresent([ProviderConfiguration].self, forKey: .providers) ?? Self.defaultProviderConfigurations,
             activeSkillID: try container.decodeIfPresent(String.self, forKey: .activeSkillID) ?? ActiveSkill.defaultValue,
-            customSkills: try container.decodeIfPresent([ActiveSkill].self, forKey: .customSkills) ?? []
+            customSkills: try container.decodeIfPresent([ActiveSkill].self, forKey: .customSkills) ?? [],
+            headUpAngle: try container.decodeIfPresent(Int.self, forKey: .headUpAngle) ?? 30,
+            displayHeight: try container.decodeIfPresent(Int.self, forKey: .displayHeight) ?? 4,
+            displayDepth: try container.decodeIfPresent(Int.self, forKey: .displayDepth) ?? 4,
+            brightness: try container.decodeIfPresent(Int.self, forKey: .brightness) ?? 30,
+            autoBrightness: try container.decodeIfPresent(Bool.self, forKey: .autoBrightness) ?? true,
+            glassesNotificationsEnabled: try container.decodeIfPresent(Bool.self, forKey: .glassesNotificationsEnabled) ?? true,
+            dashboardEnabled: try container.decodeIfPresent(Bool.self, forKey: .dashboardEnabled) ?? true,
+            insightsEnabled: try container.decodeIfPresent(Bool.self, forKey: .insightsEnabled) ?? false
         )
     }
 
@@ -397,6 +468,7 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         try container.encode(llmModel, forKey: .llmModel)
         try container.encode(hudRenderPath, forKey: .hudRenderPath)
         try container.encode(autoDetectQuestions, forKey: .autoDetectQuestions)
+        try container.encode(questionDetectionSensitivity, forKey: .questionDetectionSensitivity)
         try container.encode(autoAnswer, forKey: .autoAnswer)
         try container.encode(webSearchMode, forKey: .webSearchMode)
         try container.encode(liveFactCheckEnabled, forKey: .liveFactCheckEnabled)
@@ -404,6 +476,14 @@ public struct HelixSettings: Codable, Equatable, Sendable {
         try container.encode(providers, forKey: .providers)
         try container.encode(activeSkillID, forKey: .activeSkillID)
         try container.encode(customSkills, forKey: .customSkills)
+        try container.encode(headUpAngle, forKey: .headUpAngle)
+        try container.encode(displayHeight, forKey: .displayHeight)
+        try container.encode(displayDepth, forKey: .displayDepth)
+        try container.encode(brightness, forKey: .brightness)
+        try container.encode(autoBrightness, forKey: .autoBrightness)
+        try container.encode(glassesNotificationsEnabled, forKey: .glassesNotificationsEnabled)
+        try container.encode(dashboardEnabled, forKey: .dashboardEnabled)
+        try container.encode(insightsEnabled, forKey: .insightsEnabled)
     }
 
     public static let defaultProviderConfigurations: [ProviderConfiguration] = [
@@ -451,19 +531,31 @@ public struct TranscriptSegment: Codable, Equatable, Identifiable, Sendable {
     public var isFinal: Bool
     public var startedAt: Date
     public var finalizedAt: Date?
+    public var sourceSegmentID: String?
+    public var speaker: String?
+    public var speakerSource: TranscriptSpeakerSource?
+    public var speakerConfidence: Double?
 
     public init(
         id: UUID = UUID(),
         text: String,
         isFinal: Bool,
         startedAt: Date = Date(),
-        finalizedAt: Date? = nil
+        finalizedAt: Date? = nil,
+        sourceSegmentID: String? = nil,
+        speaker: String? = nil,
+        speakerSource: TranscriptSpeakerSource? = nil,
+        speakerConfidence: Double? = nil
     ) {
         self.id = id
         self.text = text
         self.isFinal = isFinal
         self.startedAt = startedAt
         self.finalizedAt = finalizedAt
+        self.sourceSegmentID = sourceSegmentID?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.speaker = speaker?.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.speakerSource = speakerSource
+        self.speakerConfidence = speakerConfidence.map { min(1, max(0, $0)) }
     }
 }
 

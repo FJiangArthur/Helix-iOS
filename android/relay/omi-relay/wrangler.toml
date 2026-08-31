@@ -1,0 +1,11 @@
+name = "omi-helix-relay"
+main = "src/index.js"
+compatibility_date = "2025-08-01"
+
+[[durable_objects.bindings]]
+name = "STREAM"
+class_name = "OmiStream"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["OmiStream"]

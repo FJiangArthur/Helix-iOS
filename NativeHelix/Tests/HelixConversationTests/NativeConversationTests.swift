@@ -58,7 +58,7 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertEqual(result.passiveReminder?.reminder, "RAG means retrieval augmented generation.")
         XCTAssertEqual(result.hudPages.first?.text, "RAG means retrieval augmented generation.")
         XCTAssertEqual(result.hudPages.first?.packets.first?[0], G1PacketEncoder.commandByte)
-        XCTAssertEqual(result.hudPages.first?.packets.first?[4], G1ScreenStatus.textPage.rawValue)
+        XCTAssertEqual(result.hudPages.first?.packets.first?[4], G1ScreenStatus.newContent.rawValue)
     }
 
     func testConversationEngineAnswersOnlyOneDuplicateQuestion() async throws {
@@ -75,6 +75,10 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertNil(second.answer)
         XCTAssertFalse(first.hudPages.isEmpty)
         XCTAssertTrue(second.hudPages.isEmpty)
+        XCTAssertEqual(
+            second.questionResults.map(\.suppressionReason),
+            ["Duplicate question suppressed."]
+        )
     }
 
     func testActiveAnswerIsDirectAndPrecise() async throws {
@@ -364,7 +368,7 @@ final class NativeConversationTests: XCTestCase {
         })
         XCTAssertTrue(events.contains { event in
             if case .questionDetected(let question) = event {
-                return question.text == "What is an LLM"
+                return question.text == "What is an LLM?"
             }
             return false
         })
@@ -524,7 +528,8 @@ final class NativeConversationTests: XCTestCase {
 
         XCTAssertGreaterThan(packets.count, 1)
         XCTAssertEqual(packets[0][0], G1PacketEncoder.commandByte)
-        XCTAssertEqual(packets[0][4], G1ScreenStatus.textPage.rawValue)
+        XCTAssertEqual(packets[0][4], G1ScreenStatus.newContent.rawValue)
+        XCTAssertTrue(packets.allSatisfy { $0.count - G1PacketEncoder.headerLength <= G1PacketEncoder.maxPayloadLength })
         XCTAssertTrue(packets.allSatisfy { $0.count <= G1PacketEncoder.maxPacketLength })
     }
 
@@ -538,7 +543,7 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertEqual(pages.first?.pageNumber, 1)
         XCTAssertEqual(pages.last?.pageCount, pages.count)
         XCTAssertTrue(pages.allSatisfy { $0.packets.allSatisfy { $0.count <= G1PacketEncoder.maxPacketLength } })
-        XCTAssertEqual(pages.first?.packets.first?[4], G1ScreenStatus.textPage.rawValue)
+        XCTAssertEqual(pages.first?.packets.first?[4], G1ScreenStatus.newContent.rawValue)
     }
 
     @MainActor
@@ -561,7 +566,7 @@ final class NativeConversationTests: XCTestCase {
         XCTAssertGreaterThan(device.hudPages.count, 1)
         XCTAssertEqual(device.currentPageSummary, "1 of \(device.hudPages.count)")
         XCTAssertEqual(device.lastPacketHeader.first, G1PacketEncoder.commandByte)
-        XCTAssertEqual(device.lastPacketHeader[4], G1ScreenStatus.textPage.rawValue)
+        XCTAssertEqual(device.lastPacketHeader[4], G1ScreenStatus.newContent.rawValue)
         XCTAssertEqual(device.sentPacketCount, device.hudPages.flatMap(\.packets).count)
     }
 
@@ -1213,7 +1218,7 @@ final class NativeConversationTests: XCTestCase {
 
         XCTAssertEqual(session.statusText, "Answered")
         XCTAssertEqual(session.transcriptText, "What is an LLM?")
-        XCTAssertEqual(session.detectedQuestion, "What is an LLM")
+        XCTAssertEqual(session.detectedQuestion, "What is an LLM?")
         XCTAssertTrue(session.currentAnswer.lowercased().contains("transformer"))
         XCTAssertFalse(session.hudPages.isEmpty)
         XCTAssertTrue(session.eventLog.contains("answerCompleted"))

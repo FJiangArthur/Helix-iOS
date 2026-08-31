@@ -8,6 +8,10 @@ public final class NativeG1DeviceState {
     public private(set) var leftLensConnected = false
     public private(set) var rightLensConnected = false
     public private(set) var hasActiveAnswer = false
+    public private(set) var batteryPercent: Int?
+    public private(set) var isCharging = false
+    public private(set) var caseState: G1CaseState?
+    public private(set) var isHeadUp = false
     public private(set) var currentPageIndex = 0
     public private(set) var hudPages: [G1HudPage] = []
     public private(set) var lastTouchpadAction: G1TouchpadAction?
@@ -49,6 +53,37 @@ public final class NativeG1DeviceState {
         leftLensConnected = left
         rightLensConnected = right
         eventLog.append("connection:\(connectionSummary)")
+    }
+
+    public var batterySummary: String {
+        guard let batteryPercent else { return "—" }
+        return "\(batteryPercent)%\(isCharging ? " ⚡" : "")"
+    }
+
+    /// Applies a decoded glasses status frame (battery, head position, case).
+    public func applyStatus(_ event: G1StatusEvent) {
+        switch event {
+        case .headUp:
+            isHeadUp = true
+            eventLog.append("status:headUp")
+        case .headDown:
+            isHeadUp = false
+            eventLog.append("status:headDown")
+        case .battery(let percent, let charging):
+            batteryPercent = percent
+            isCharging = charging
+            eventLog.append("status:battery:\(percent)")
+        case .caseState(let state):
+            caseState = state
+            eventLog.append("status:case:\(state.rawValue)")
+        case .caseCharging(let charging):
+            isCharging = charging
+            eventLog.append("status:caseCharging:\(charging)")
+        case .caseBatteryPercent(let percent):
+            eventLog.append("status:caseBattery:\(percent)")
+        case .ack, .firmwareInfo:
+            break
+        }
     }
 
     public func presentText(_ text: String) {

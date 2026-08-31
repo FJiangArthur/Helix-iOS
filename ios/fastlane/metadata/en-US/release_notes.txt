@@ -1,1 +1,1 @@
-Improved live conversation restarts, clearer session reset behavior, and updated HUD and AI assistant presentation for a smoother smart-glasses workflow.
+Real-time insights (experimental) that surface proactive context while you talk, Anthropic Claude support with live model discovery for every provider, glasses display controls (head-up angle, height, depth, brightness, dashboard), swipeable fact cards in Knowledge, and a more reliable G1 command pipeline.

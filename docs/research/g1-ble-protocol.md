@@ -54,12 +54,12 @@ writes to TX, subscribes to notifications on RX. Write type is
 
 | Value | Meaning | Helix uses? |
 |---|---|---|
-| `0x01` | NEW_CONTENT | yes — page index 0 |
-| `0x30` | DISPLAYING (auto-advance) | yes — pages ≥1 |
-| `0x40` | DISPLAY_COMPLETE | yes — final frame |
+| `0x01` | NEW_CONTENT action bit | composed with text mode; not sent bare by the plain-text path |
+| `0x30` | DISPLAYING (auto-advance) | AI streaming lifecycle only |
+| `0x40` | DISPLAY_COMPLETE | AI streaming lifecycle only |
 | `0x50` | MANUAL_MODE (suppress firmware auto-advance) | no |
 | `0x60` | NETWORK_ERROR | no |
-| `0x70` | text mode | yes — text HUD path |
+| `0x70` | SIMPLE_TEXT status bits | base value only; plain-text pages are sent on wire as `0x71` |
 
 ### Critical findings (verified on hardware)
 
@@ -71,10 +71,12 @@ writes to TX, subscribes to notifications on RX. Write type is
   to get stuck on the EvenAI listening screen.
 - **There is no scroll command.** All page-flip behavior is phone-side
   re-rendering of the full canvas.
-- **Per-page screen codes:** `0x01` only on page index 0. Pages ≥1 use
-  `0x00` (or the appropriate `aiFrameForPage`/`textPageForIndex`
-  helper). Sending `0x01` on every page causes the firmware to reset
-  the canvas between pages → visible flicker.
+- **Per-page screen codes:** on-wire statuses always combine an AIStatus base
+  with NEW_CONTENT (`0x01`). The legacy streaming-AI lifecycle therefore sends
+  DISPLAYING as `0x31` and COMPLETE as `0x41`. The current Helix plain-text HUD
+  path is a separate whole-screen lifecycle: every page combines SIMPLE_TEXT
+  (`0x70`) with NEW_CONTENT and therefore carries `screen_status = 0x71` in its
+  `0x4E` packet. The two lifecycles must not share page-status helpers.
 - **L/R coordination:** insert `Proto.evenAIInterSideDelay` (400 ms)
   between the L write and the R write to eliminate the
   R-eye-first-then-both visual glitch. Gate the delay on

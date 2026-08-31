@@ -2,7 +2,7 @@
 
 Native headless framework for Even Realities G1 smart glasses conversation intelligence.
 
-**Version**: 2.2.95+202607012117
+**Version**: 2.2.98+202608312013
 
 ## Validation (MANDATORY)
 
@@ -93,7 +93,15 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 - EvenAI protocol: multi-packet chunking (191 bytes/packet) with sequence numbers
 - **BLE command byte for the AI/text family is `0x4E`** (`SEND_RESULT`). The values below are NOT separate commands — they are values of the 5th header byte (`screen_status` = `ScreenAction | AIStatus`).
 - Packet header: `[0x4E, syncSeq, maxSeq, seq, screen_status, new_char_pos_hi, new_char_pos_lo, currentPage, maxPage, ...data]`
-- `screen_status` values: `0x01` NEW_CONTENT, `0x30` DISPLAYING (auto-advance), `0x40` DISPLAY_COMPLETE, `0x50` MANUAL_MODE (suppress firmware auto-advance — Helix unused), `0x60` NETWORK_ERROR (Helix unused), `0x70` text mode
+- `screen_status` = `AIStatus | ScreenAction`; `ScreenAction` is always `0x01` (NEW_CONTENT), so the on-wire byte is `0x31`/`0x41`/`0x51`/`0x61`/`0x71`. `AIStatus`: `0x30` DISPLAYING (auto-advance), `0x40` DISPLAY_COMPLETE, `0x50` MANUAL_MODE, `0x60` NETWORK_ERROR, `0x70` direct text.
+- **NORMATIVE SOURCE: `docs/G1_PROTOCOL_SLA.md`** (derived from the official EvenDemoApp @`3899aac` **source**, with `file:line` citations). Read it before touching any BLE/HUD byte. The vendor README contradicts the vendor's own code — it says the exit command is `[0xF5,0x00]`; `proto.dart:121-135` uses `[0x18]`. Trust the Dart.
+- **`0x71` and `0x31`/`0x41` are two DIFFERENT display paths.** Plain text (what Helix uses) sends `0x71` for every page with **no** completion byte. The AI-session path sends `0x31`, waits 3 s, then `0x41` — its vendor comment reads "The glasses need to have 0x30 before they can process 0x40". Do not mix one path's header conventions into the other: encoding `0x71` with the PAGED header is what made text never render on hardware (fixed 2026-08-28, confirmed on device).
+- **Chunk size is 191 PAYLOAD bytes on both text paths** (`evenai_proto.dart:8`); the 9-byte header is prefixed after, so frames are 200 bytes against MTU 251. Deriving `191-9=182` misreads `len` as a whole-frame budget. `maxSeq` (byte 2) is the packet **COUNT**, not count−1. `current_page_num` is **1-based**, never 0.
+- **Every `0x4E` packet is individually ACK-gated** (`0xC9` and `0xCB` are success, `0xCA` is failure), and the left lens must fully ACK before the right is written. `0x4E` must be in `G1StatusDecoder`'s ACK command list or every screen times out.
+- **Blanking is not free.** iOS never blanks the HUD — content sits on the lens until something overwrites it. A timed "answer disappears after N seconds" is therefore NEW behaviour on both platforms and cannot be obtained by copying iOS. Android implements it as an explicit `0x18` EXIT_ALL_FUNCTIONS after a user-configurable dwell (Device tab, 1–30 s, default 3), which clears the lens and returns it to the firmware dashboard. Safe here because Helix never sends `0x0E` (glasses mic) — it uses the phone mic. Manual touchpad paging latches MANUAL and suppresses the auto-clear, so hand-paged content is never blanked out from under the wearer.
+- **Single-lens links are a supported state.** `isGlassesConnected` is `left READY || right READY`. `sendScreen` distinguishes an **ABSENT** lens (write rejected before any bytes left — the other lens still carries the screen) from a **FAILED** one (accepted, then no ACK — a real failure). ANDing both lenses made every screen fail whenever one was down, aborting the HUD lifecycle before teardown was scheduled.
+- **The official `com.even.g1` app steals the lenses.** A connected BLE peripheral stops advertising, so while it holds them Helix can never discover the glasses and sits on "Scanning…" forever. `adb shell am force-stop com.even.g1` before any hardware test.
+- Notifications use command `0x4B`: header `[0x4B, msgId, maxSeq, seq]` + ≤176 B of `{"ncs_notification":{msg_id,app_identifier,title,subtitle,message,time_s,display_name}}`, **left lens only**, up to 6 retries. The app whitelist is `0x04`: header `[0x04, maxSeq, seq]` + ≤177 B JSON, left lens only. `syncSeq` (byte 1 of `0x4E`) is per-**screen**, not per-packet; `new_char_pos` is always 0 in every reference implementation.
 - `new_char_pos` is hard-coded `0` in every reference implementation (official Even Realities demo + community Python SDK). It is **not an append offset** — likely a highlight position. Pagination is 100% phone-driven by re-pushing whole pages with updated `current_page_num`.
 - Text HUD: 488px max width, 21pt font, 5 lines per page
 - Bitmap HUD: Full widget-based rendering via `BitmapHudService`

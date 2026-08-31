@@ -14,6 +14,34 @@ enum TranscriptionBackend: String {
     case whisper
 }
 
+struct WhisperDiarizedSubturn: Equatable {
+    let segmentID: String
+    let text: String
+    let speaker: String
+    let startTime: Double
+    let endTime: Double
+}
+
+enum WhisperDiarizationEmissionPolicy {
+    static func subturns(
+        segments: [SpeakerTurnDetector.SpeakerSegment],
+        recognitionGeneration: Int,
+        batch: Int
+    ) -> [WhisperDiarizedSubturn] {
+        segments.enumerated().compactMap { index, segment in
+            let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return WhisperDiarizedSubturn(
+                segmentID: "whisper-\(recognitionGeneration)-\(batch)-\(index)",
+                text: text,
+                speaker: segment.speaker,
+                startTime: segment.startTime,
+                endTime: segment.endTime
+            )
+        }
+    }
+}
+
 class SpeechStreamRecognizer {
     static let shared = SpeechStreamRecognizer()
 
@@ -60,6 +88,8 @@ class SpeechStreamRecognizer {
     private var didLogFirstPartialEmission = false
     private var didLogFinalEmission = false
     private var segmentCounter: Int = 0
+    private var whisperDiarizationBatchCounter: Int = 0
+    private var whisperSourceSegmentCounter: Int = 0
     /// Monotonically increasing ID so callbacks from cancelled recognition tasks
     /// can detect they are stale and skip cleanup that would destroy the new task.
     private var recognitionGeneration: Int = 0
@@ -104,22 +134,137 @@ class SpeechStreamRecognizer {
     private var openAIMicrophoneConverter24kHz: AVAudioConverter?
     private var openAIMicrophoneInputFormat24kHz: AVAudioFormat?
 
-    let languageDic = [
-        "CN": "zh-CN",
-        "EN": "en-US",
-        "RU": "ru-RU",
-        "KR": "ko-KR",
-        "JP": "ja-JP",
-        "ES": "es-ES",
-        "FR": "fr-FR",
-        "DE": "de-DE",
-        "NL": "nl-NL",
-        "NB": "nb-NO",
-        "DA": "da-DK",
-        "SV": "sv-SE",
-        "FI": "fi-FI",
-        "IT": "it-IT"
+    private static let legacyLanguageCodes = [
+        "CN": "zh", "EN": "en", "RU": "ru", "KR": "ko", "JP": "ja",
+        "ES": "es", "FR": "fr", "DE": "de", "NL": "nl", "NB": "nb",
+        "DA": "da", "SV": "sv", "FI": "fi", "IT": "it"
     ]
+
+    private static let defaultSpeechLocales = [
+        "zh": "zh-CN", "en": "en-US", "ru": "ru-RU", "ko": "ko-KR",
+        "ja": "ja-JP", "es": "es-ES", "fr": "fr-FR", "de": "de-DE",
+        "nl": "nl-NL", "nb": "nb-NO", "da": "da-DK", "sv": "sv-SE",
+        "fi": "fi-FI", "it": "it-IT"
+    ]
+
+    /// Maps both Helix's legacy two-letter selectors (`CN`, `EN`, …) and full
+    /// preferred-language identifiers (`zh-Hans-US`, `es-US`, …) to the ISO
+    /// language code expected by OpenAI and Whisper.
+    static func transcriptionLanguageCode(for identifier: String) -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let legacy = legacyLanguageCodes[trimmed.uppercased()] {
+            return legacy
+        }
+        guard let tag = parsedLanguageTag(trimmed),
+              defaultSpeechLocales[tag.language] != nil else {
+            return "en"
+        }
+        return tag.language
+    }
+
+    /// Resolves a preferred-language identifier to a locale that Apple Speech
+    /// actually advertises. Exact region matches win (`es-US`); otherwise the
+    /// requested script is retained when possible (`zh-Hans-US` resolves to a
+    /// supported Simplified Chinese locale instead of silently using English).
+    static func speechLocaleIdentifier(
+        for identifier: String,
+        supportedLocaleIdentifiers: Set<String>? = nil
+    ) -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let legacyLanguage = legacyLanguageCodes[trimmed.uppercased()]
+        let language = legacyLanguage ?? parsedLanguageTag(trimmed)?.language ?? "en"
+        let fallback = defaultSpeechLocales[language] ?? "en-US"
+        let requested = legacyLanguage == nil
+            ? parsedLanguageTag(trimmed)
+            : parsedLanguageTag(fallback)
+        guard let requested else { return fallback }
+
+        let supported = supportedLocaleIdentifiers
+            ?? Set(SFSpeechRecognizer.supportedLocales().map(\.identifier))
+        let matches = supported.compactMap { locale -> (String, ParsedLanguageTag)? in
+            guard let tag = parsedLanguageTag(locale), tag.language == requested.language else {
+                return nil
+            }
+            return (locale, tag)
+        }
+        guard !matches.isEmpty else { return fallback }
+
+        if let exact = matches.first(where: {
+            $0.1.canonicalIdentifier.caseInsensitiveCompare(requested.canonicalIdentifier) == .orderedSame
+        }) {
+            return exact.0
+        }
+
+        let fallbackCanonical = parsedLanguageTag(fallback)?.canonicalIdentifier ?? fallback
+        return matches.sorted { left, right in
+            let leftScore = localeMatchScore(
+                left.1,
+                requested: requested,
+                fallbackCanonical: fallbackCanonical
+            )
+            let rightScore = localeMatchScore(
+                right.1,
+                requested: requested,
+                fallbackCanonical: fallbackCanonical
+            )
+            if leftScore != rightScore { return leftScore > rightScore }
+            return left.1.canonicalIdentifier < right.1.canonicalIdentifier
+        }.first?.0 ?? fallback
+    }
+
+    private struct ParsedLanguageTag {
+        let language: String
+        let script: String?
+        let region: String?
+
+        var canonicalIdentifier: String {
+            [language, script, region].compactMap { $0 }.joined(separator: "-")
+        }
+    }
+
+    private static func parsedLanguageTag(_ identifier: String) -> ParsedLanguageTag? {
+        let pieces = identifier
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-", omittingEmptySubsequences: true)
+        guard let first = pieces.first else { return nil }
+        let language = first.lowercased()
+        guard (2...3).contains(language.count),
+              language.allSatisfy({ $0.isLetter }) else { return nil }
+
+        var script: String?
+        var region: String?
+        for piece in pieces.dropFirst() {
+            if script == nil, piece.count == 4, piece.allSatisfy({ $0.isLetter }) {
+                script = piece.prefix(1).uppercased() + piece.dropFirst().lowercased()
+            } else if region == nil,
+                      (piece.count == 2 && piece.allSatisfy({ $0.isLetter })
+                        || piece.count == 3 && piece.allSatisfy({ $0.isNumber })) {
+                region = piece.uppercased()
+            }
+        }
+        return ParsedLanguageTag(language: language, script: script, region: region)
+    }
+
+    private static func localeMatchScore(
+        _ candidate: ParsedLanguageTag,
+        requested: ParsedLanguageTag,
+        fallbackCanonical: String
+    ) -> Int {
+        var score = 0
+        if let requestedScript = requested.script {
+            if candidate.script == requestedScript { score += 40 }
+            else if candidate.script == nil { score += 5 }
+        } else if candidate.script == nil {
+            score += 5
+        }
+        if let requestedRegion = requested.region, candidate.region == requestedRegion {
+            score += 30
+        }
+        if candidate.canonicalIdentifier.caseInsensitiveCompare(fallbackCanonical) == .orderedSame {
+            score += 20
+        }
+        return score
+    }
 
     enum RecognizerError: Error, LocalizedError {
         case nilRecognizer
@@ -291,6 +436,8 @@ class SpeechStreamRecognizer {
         didEmitFinalResult = false
         didLogFirstPartialEmission = false
         didLogFinalEmission = false
+        whisperDiarizationBatchCounter = 0
+        whisperSourceSegmentCounter = 0
         diarizationPcmBuffer = Data()
         currentLanguageIdentifier = identifier
         currentSource = source
@@ -298,7 +445,7 @@ class SpeechStreamRecognizer {
             ? .microphone
             : .glassesPcm
 
-        let localeIdentifier = languageDic[identifier] ?? "en-US"
+        let localeIdentifier = Self.speechLocaleIdentifier(for: identifier)
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
         log("Recognizer locale=\(localeIdentifier)")
 
@@ -454,7 +601,7 @@ class SpeechStreamRecognizer {
         // Prepare the new recognizer and request BEFORE tearing down the old
         // task, so that appendPCMData() sees a valid recognitionRequest for
         // as much of the transition as possible.
-        let localeIdentifier = languageDic[currentLanguageIdentifier] ?? "en-US"
+        let localeIdentifier = Self.speechLocaleIdentifier(for: currentLanguageIdentifier)
         let newRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
 
         guard let newRecognizer = newRecognizer, newRecognizer.isAvailable else {
@@ -533,6 +680,8 @@ class SpeechStreamRecognizer {
         voice: String = "alloy",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
         lastRecognizedText = ""
         lastEmittedText = ""
         didEmitFinalResult = false
@@ -544,6 +693,7 @@ class SpeechStreamRecognizer {
         if activeInputSource == .microphone {
             Task { @MainActor in
                 let micAuthorized = await AVAudioSession.sharedInstance().hasPermissionToRecord()
+                guard self.recognitionGeneration == generation else { return }
                 self.log("OpenAI mic permission granted=\(micAuthorized)")
                 guard micAuthorized else {
                     self.failToStart(RecognizerError.notPermittedToRecord)
@@ -553,7 +703,8 @@ class SpeechStreamRecognizer {
                     identifier: identifier, source: source, apiKey: apiKey,
                     model: model, realtimeConversation: realtimeConversation,
                     conversationModel: conversationModel,
-                    systemPrompt: systemPrompt, voice: voice, completion: completion
+                    systemPrompt: systemPrompt, voice: voice, generation: generation,
+                    completion: completion
                 )
             }
             return
@@ -563,7 +714,8 @@ class SpeechStreamRecognizer {
             identifier: identifier, source: source, apiKey: apiKey,
             model: model, realtimeConversation: realtimeConversation,
             conversationModel: conversationModel,
-            systemPrompt: systemPrompt, voice: voice, completion: completion
+            systemPrompt: systemPrompt, voice: voice, generation: generation,
+            completion: completion
         )
     }
 
@@ -576,36 +728,38 @@ class SpeechStreamRecognizer {
         conversationModel: String = "gpt-realtime-mini",
         systemPrompt: String? = nil,
         voice: String = "alloy",
+        generation: Int,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         openaiTranscriber.onTranscript = { [weak self] text, isFinal in
-            guard let self = self else { return }
+            guard let self = self, self.recognitionGeneration == generation else { return }
             if !text.isEmpty {
                 self.lastRecognizedText = text
                 self.emitTranscript(text, isFinal: isFinal)
             }
         }
         openaiTranscriber.onError = { [weak self] message in
-            self?.emitError(message)
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.emitError(message)
         }
         openaiTranscriber.onResponse = { [weak self] text, isFinal in
-            self?.emitAIResponse(text, isFinal: isFinal)
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.emitAIResponse(text, isFinal: isFinal)
         }
         openaiTranscriber.onUsage = { [weak self] usage in
-            self?.emitUsage(usage)
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.emitUsage(usage)
         }
         openaiTranscriber.onAudioOutput = { [weak self] audioData in
-            self?.onRealtimeAudioOutput?(audioData)
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.onRealtimeAudioOutput?(audioData)
         }
         openaiTranscriber.onAudioOutputDone = { [weak self] in
-            self?.onRealtimeAudioDone?()
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.onRealtimeAudioDone?()
         }
 
-        let langMap: [String: String] = [
-            "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
-            "ES": "es", "RU": "ru", "FR": "fr", "DE": "de",
-        ]
-        let lang = langMap[identifier] ?? "en"
+        let lang = Self.transcriptionLanguageCode(for: identifier)
         openaiTranscriber.inputAlready24kHz = (activeInputSource == .microphone)
 
         // Native realtime conversation routes through `.structuredConversation`,
@@ -622,7 +776,7 @@ class SpeechStreamRecognizer {
             voice: voice,
             conversationModel: conversationModel
         ) { [weak self] result in
-            guard let self = self else { return }
+            guard let self = self, self.recognitionGeneration == generation else { return }
             switch result {
             case .success:
                 if self.activeInputSource == .microphone {
@@ -653,6 +807,7 @@ class SpeechStreamRecognizer {
                         inputNode.installTap(onBus: 0, bufferSize: 4096, format: recordingFormat) {
                             [weak self] buffer, _ in
                             guard let self = self,
+                                  self.recognitionGeneration == generation,
                                   let data = self.convertBufferToOpenAI24kHz(buffer) else { return }
                             self.openaiTranscriber.appendAudio(data)
                         }
@@ -686,6 +841,8 @@ class SpeechStreamRecognizer {
         model: String = "whisper-1",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
         lastRecognizedText = ""
         lastEmittedText = ""
         didEmitFinalResult = false
@@ -694,52 +851,90 @@ class SpeechStreamRecognizer {
         activeInputSource = source.lowercased() == "microphone" ? .microphone : .glassesPcm
         diarizationPcmBuffer = Data()
 
-        // Configure language for Whisper (2-letter code)
-        let langMap: [String: String] = [
-            "CN": "zh", "EN": "en", "JP": "ja", "KR": "ko",
-            "ES": "es", "RU": "ru", "FR": "fr", "DE": "de",
-        ]
-        let lang = langMap[identifier] ?? "en"
+        // Configure language for Whisper (ISO 639 language code).
+        let lang = Self.transcriptionLanguageCode(for: identifier)
 
-        // Wire up Whisper callbacks
-        whisperTranscriber.onTranscript = { [weak self] text, isFinal in
-            guard let self = self else { return }
-            if !text.isEmpty {
-                self.lastRecognizedText = text
-                self.emitTranscript(text, isFinal: isFinal)
-            }
-        }
-
-        whisperTranscriber.onWordTimestamps = { [weak self] words in
-            guard let self = self, self.enableDiarization else { return }
-            let pcmData = self.diarizationPcmBuffer
-            guard !pcmData.isEmpty else { return }
-            let segments = self.speakerTurnDetector.detectTurns(
-                words: words,
-                pcmData: pcmData,
-                sampleRate: 16000
-            )
-            for segment in segments {
-                self.emitSpeakerSegment(segment)
-            }
-        }
-
-        whisperTranscriber.onDiarizedSegment = { [weak self] speaker, text, start, end in
-            guard let self = self else { return }
-            self.emitDiarizedTranscript(speaker: speaker, text: text, start: start, end: end)
-        }
-
-        whisperTranscriber.onError = { [weak self] message in
-            self?.emitError(message)
-        }
-
-        // Start the transcriber
+        // Advance the transcriber epoch before replacing callback properties.
+        // Any in-flight response from the prior recognition session is now
+        // stale and cannot invoke the new generation's handlers.
         whisperTranscriber.start(
             apiKey: apiKey,
             language: lang,
             chunkDurationSec: whisperTranscriber.chunkDurationSec,
             model: model
         )
+
+        // Wire up Whisper callbacks
+        whisperTranscriber.onTranscript = { [weak self] text, _ in
+            guard let self = self, self.recognitionGeneration == generation else { return }
+            if !text.isEmpty {
+                self.lastRecognizedText = text
+                // Every Whisper HTTP response is a completed batch transcript.
+                // Treat periodic batches as finalized segments so question
+                // detection does not wait for the user to stop listening.
+                self.emitTranscript(
+                    text,
+                    isFinal: true,
+                    allowsConsecutiveFinals: true
+                )
+            }
+        }
+
+        whisperTranscriber.onVerboseTranscript = { [weak self] text, words, _ in
+            guard let self, self.recognitionGeneration == generation else { return }
+            let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.lastRecognizedText = normalized
+            self.whisperDiarizationBatchCounter += 1
+            let batch = self.whisperDiarizationBatchCounter
+
+            if self.enableDiarization, !words.isEmpty, !self.diarizationPcmBuffer.isEmpty {
+                let segments = self.speakerTurnDetector.detectTurns(
+                    words: words,
+                    pcmData: self.diarizationPcmBuffer,
+                    sampleRate: 16000
+                )
+                let subturns = WhisperDiarizationEmissionPolicy.subturns(
+                    segments: segments,
+                    recognitionGeneration: generation,
+                    batch: batch
+                )
+                self.diarizationPcmBuffer = Data()
+                if !subturns.isEmpty {
+                    for subturn in subturns {
+                        self.emitWhisperDiarizedSubturn(subturn)
+                    }
+                    return
+                }
+            }
+
+            if self.enableDiarization {
+                self.diarizationPcmBuffer = Data()
+            }
+            guard !normalized.isEmpty else { return }
+            self.emitTranscript(
+                normalized,
+                isFinal: true,
+                allowsConsecutiveFinals: true
+            )
+        }
+        whisperTranscriber.onWordTimestamps = nil
+
+        whisperTranscriber.onDiarizedSegment = { [weak self] speaker, text, start, end in
+            guard let self = self, self.recognitionGeneration == generation else { return }
+            self.whisperSourceSegmentCounter += 1
+            self.emitDiarizedTranscript(
+                speaker: speaker,
+                text: text,
+                start: start,
+                end: end,
+                segmentID: "whisper-source-\(generation)-\(self.whisperSourceSegmentCounter)"
+            )
+        }
+
+        whisperTranscriber.onError = { [weak self] message in
+            guard let self, self.recognitionGeneration == generation else { return }
+            self.emitError(message)
+        }
 
         // If using microphone, set up audio session and tap
         if activeInputSource == .microphone {
@@ -806,13 +1001,35 @@ class SpeechStreamRecognizer {
     }
 
     /// Emit a diarized transcript from the gpt-4o-transcribe-diarize model.
-    private func emitDiarizedTranscript(speaker: String, text: String, start: Double, end: Double) {
+    private func emitDiarizedTranscript(
+        speaker: String,
+        text: String,
+        start: Double,
+        end: Double,
+        segmentID: String
+    ) {
         let payload: [String: Any] = [
             "script": text,
             "isFinal": true,
             "speaker": speaker,
+            "speakerSource": "sourceProvided",
+            "segmentId": segmentID,
             "speakerStartTime": start,
             "speakerEndTime": end,
+            "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
+        ]
+        emitSpeechEvent(payload)
+    }
+
+    private func emitWhisperDiarizedSubturn(_ subturn: WhisperDiarizedSubturn) {
+        let payload: [String: Any] = [
+            "script": subturn.text,
+            "isFinal": true,
+            "speaker": subturn.speaker,
+            "speakerSource": "localEnergyEstimate",
+            "segmentId": subturn.segmentID,
+            "speakerStartTime": subturn.startTime,
+            "speakerEndTime": subturn.endTime,
             "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
         ]
         emitSpeechEvent(payload)
@@ -824,6 +1041,8 @@ class SpeechStreamRecognizer {
             "script": segment.text,
             "isFinal": true,
             "speaker": segment.speaker,
+            "speakerSource": "localEnergyEstimate",
+            "segmentId": segmentCounter,
             "speakerStartTime": segment.startTime,
             "speakerEndTime": segment.endTime,
             "timestampMs": Int(Date().timeIntervalSince1970 * 1000),
@@ -900,13 +1119,13 @@ class SpeechStreamRecognizer {
                 fileURL: fileURL,
                 apiKey: apiKey ?? "",
                 model: model ?? "gpt-4o-mini-transcribe",
-                language: languageDic[identifier] ?? "en-US",
+                language: Self.transcriptionLanguageCode(for: identifier),
                 completion: completion
             )
             return
         }
 
-        let localeIdentifier = languageDic[identifier] ?? "en-US"
+        let localeIdentifier = Self.speechLocaleIdentifier(for: identifier)
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
 
         guard let recognizer = recognizer, recognizer.isAvailable else {
@@ -1306,12 +1525,18 @@ class SpeechStreamRecognizer {
     private func _stopRecognition(emitFinal: Bool) {
         segmentRestartTimer?.invalidate()
         segmentRestartTimer = nil
+        if !emitFinal {
+            // Invalidate every provider callback before teardown. An HTTP or
+            // websocket completion from the cleared conversation must never
+            // flow through a handler installed by the next session.
+            recognitionGeneration += 1
+        }
         log("Stopping recognition emitFinal=\(emitFinal) backend=\(activeBackend.rawValue)")
         if activeBackend == .openai {
-            if emitFinal {
-                emitTranscript(lastRecognizedText, isFinal: true)
-            }
-            openaiTranscriber.stop()
+            // A graceful stop keeps the websocket open for the server's
+            // transcription.completed event. Pre-emitting the last partial
+            // here would poison the final-result guard and drop that result.
+            openaiTranscriber.stop(awaitFinalTranscript: emitFinal)
             if audioEngine.isRunning {
                 audioEngine.stop()
             }
@@ -1321,9 +1546,11 @@ class SpeechStreamRecognizer {
 
         if activeBackend == .whisper {
             if emitFinal {
-                // Flush remaining audio in the whisper buffer
+                // The flush result arrives asynchronously through onTranscript.
+                // Do not emit lastRecognizedText here: doing so both duplicates
+                // the preceding batch and causes the final-result guard to drop
+                // the actual tail response when it arrives.
                 whisperTranscriber.flush()
-                emitTranscript(lastRecognizedText, isFinal: true)
             }
             whisperTranscriber.stop()
             diarizationPcmBuffer = Data()
@@ -1346,7 +1573,11 @@ class SpeechStreamRecognizer {
         cleanupRecognition(deactivateSession: true)
     }
 
-    private func emitTranscript(_ text: String, isFinal: Bool) {
+    private func emitTranscript(
+        _ text: String,
+        isFinal: Bool,
+        allowsConsecutiveFinals: Bool = false
+    ) {
         // While paused, suppress all emissions from the recognizer's internal
         // buffer. Buffered results would trigger competing native analysis
         // cycles and cancel the in-flight answer. The segment will be finalized
@@ -1355,7 +1586,7 @@ class SpeechStreamRecognizer {
 
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalized.isEmpty && !isFinal { return }
-        if didEmitFinalResult && isFinal { return }
+        if didEmitFinalResult && isFinal && !allowsConsecutiveFinals { return }
         if !isFinal && normalized == lastEmittedText { return }
 
         // Reset final guard when new speech arrives (enables multi-segment OpenAI flow)

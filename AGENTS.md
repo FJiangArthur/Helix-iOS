@@ -2,7 +2,7 @@
 
 ## Identity
 
-- **Project**: Helix-iOS (v2.2.95+202607012117)
+- **Project**: Helix-iOS (v2.2.98+202608312013)
 - **Type**: Native iOS Swift app with headless Swift framework
 - **Purpose**: Companion app for Even Realities G1 smart glasses — real-time conversation intelligence with AI
 
@@ -61,7 +61,9 @@ Full details: `docs/TEST_BUG_REPORT.md`
 
 - Dual L/R connection, 191 bytes/packet, sequence numbered
 - Touchpad: notifyIndex 1 = pageBack(L)/pageForward(R)
-- Screen codes: `0x30` streaming, `0x40` complete, `0x70` text page
+- Base AIStatus bits: `0x30` streaming, `0x40` complete, `0x70` plain text;
+  on-wire `screen_status` combines each with new-content `0x01`, yielding
+  `0x31`, `0x41`, and `0x71`
 - Text HUD: 488px, 21pt, 5 lines/page
 
 ## Documentation

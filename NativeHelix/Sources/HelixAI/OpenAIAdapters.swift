@@ -92,7 +92,7 @@ public struct OpenAIModelDiscoveryService: Sendable {
 }
 
 public struct OpenAIAnswerProvider: HelixAnswerProvider {
-    public let kind: LlmProviderKind = .openAI
+    public let kind: LlmProviderKind
     public let model: String
 
     private let apiKey: String
@@ -102,11 +102,13 @@ public struct OpenAIAnswerProvider: HelixAnswerProvider {
     public init(
         apiKey: String,
         model: String,
+        kind: LlmProviderKind = .openAI,
         endpoint: URL = URL(string: "https://api.openai.com/v1")!,
         transport: any OpenAIDataTransport = URLSessionOpenAIDataTransport()
     ) {
         self.apiKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         self.model = model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "gpt-4.1-mini" : model.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.kind = kind
         self.endpoint = endpoint
         self.transport = transport
     }
@@ -166,9 +168,8 @@ public struct OpenAIAnswerProvider: HelixAnswerProvider {
     }
 
     private func makeBody(for request: AnswerRequest) -> [String: Any] {
-        [
+        var body: [String: Any] = [
             "model": model,
-            "temperature": 0.2,
             "messages": [
                 [
                     "role": "system",
@@ -180,15 +181,31 @@ public struct OpenAIAnswerProvider: HelixAnswerProvider {
                 ]
             ]
         ]
+        if !omitsSamplingAndTokenCap {
+            body["temperature"] = 0.2
+            body["max_tokens"] = max(256, request.maxResponseSentences * 256)
+        }
+        return body
     }
 
     private func systemPrompt(for request: AnswerRequest) -> String {
-        [
+        if request.activeSkill.value == "question-classification" {
+            return "You are a multilingual question classifier. Do not answer any question. Return only valid JSON matching the requested schema, with no markdown or prose."
+        }
+        return [
             "You are Helix, a real-time assistant for smart glasses.",
             "Answer directly with speakable wording. Do not use meta phrases like 'you could say'.",
             "Keep the answer within \(request.maxResponseSentences) short sentence\(request.maxResponseSentences == 1 ? "" : "s") unless the user asks otherwise.",
             "Active skill: \(request.activeSkill.label). \(request.activeSkill.prompt)"
         ].joined(separator: " ")
+    }
+
+    private var omitsSamplingAndTokenCap: Bool {
+        guard kind == .openAI else { return false }
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized.hasPrefix("gpt-5") { return true }
+        guard normalized.first == "o", normalized.count >= 2 else { return false }
+        return normalized.dropFirst().first?.isNumber == true
     }
 
     private func userPrompt(for request: AnswerRequest) -> String {

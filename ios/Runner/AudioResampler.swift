@@ -50,9 +50,11 @@ struct AudioResampler {
 
         var didProvideInput = false
         var conversionError: NSError?
+        // The converter is created per call, so this is a one-shot conversion:
+        // signal endOfStream after the single buffer so primed frames flush.
         let status = converter.convert(to: outputBuffer, error: &conversionError) { _, outStatus in
             if didProvideInput {
-                outStatus.pointee = .noDataNow
+                outStatus.pointee = .endOfStream
                 return nil
             }
             didProvideInput = true

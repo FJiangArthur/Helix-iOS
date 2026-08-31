@@ -66,6 +66,8 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private var isStopping = false
     private var sessionConfigured = false
     private var delayedDisconnectWork: DispatchWorkItem?
+    private var stopAwaitingTranscriptItemID: String?
+    private var stopCommittedItemID: String?
     private var sessionCounter: Int = 0
     private var transcriptionFailureTimestamps: [Date] = []
     // Latency instrumentation (structured conversation mode). Set when the
@@ -88,6 +90,7 @@ class OpenAIRealtimeTranscriber: NSObject, URLSessionWebSocketDelegate {
     private let pingIntervalSeconds: TimeInterval = 10
     private let targetSampleRate = 24000
     private let sourceSampleRate = 16000
+    private static let gracefulStopTimeoutSeconds: TimeInterval = 2.0
 
     private func debugLog(_ message: @autoclosure () -> String) {
         #if DEBUG
@@ -256,10 +259,12 @@ RULES:
         conversationModel: String = "gpt-realtime",
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
-        // Cancel any pending delayed disconnect from a previous stop()
-        delayedDisconnectWork?.cancel()
-        delayedDisconnectWork = nil
+        // A graceful stop intentionally keeps its socket alive briefly for a
+        // tail transcript. Starting again must close that socket, not merely
+        // cancel its delayed disconnect: otherwise its late final can be
+        // delivered through the callbacks now owned by the new session.
         sessionCounter += 1
+        disconnect()
 
         guard !apiKey.isEmpty else {
             completion(.failure(TranscriberError.missingApiKey))
@@ -279,6 +284,8 @@ RULES:
         self.currentTranscriptBuffer = ""
         self.audioBuffer = Data()
         self.isStopping = false
+        self.stopAwaitingTranscriptItemID = nil
+        self.stopCommittedItemID = nil
         self.lastEmittedPartialText = ""
         self.stalePartialCount = 0
         self.appendAudioLogCount = 0
@@ -305,7 +312,7 @@ RULES:
         }
     }
 
-    func stop() {
+    func stop(awaitFinalTranscript: Bool = true) {
         dispatchPrecondition(condition: .notOnQueue(audioQueue))
         isStopping = true
         sendTimerSource?.cancel()
@@ -332,16 +339,33 @@ RULES:
             }
             let base64 = dataToSend.base64EncodedString()
             sendEvent(["type": "input_audio_buffer.append", "audio": base64])
-            sendEvent(["type": "input_audio_buffer.commit"])
         }
+
+        guard awaitFinalTranscript, isConnected, sessionConfigured else {
+            completeGracefulStop(emitPartialFallback: awaitFinalTranscript)
+            return
+        }
+
+        // Audio already flushed by the 100 ms timer still lives in the server
+        // input buffer. Always commit on a graceful stop; a too-small/empty
+        // buffer error is harmless and the bounded timeout remains the escape
+        // hatch for an already-committed pending item.
+        stopAwaitingTranscriptItemID = currentTranscriptItemID
+        stopCommittedItemID = nil
+        sendEvent(["type": "input_audio_buffer.commit"])
 
         let currentSession = sessionCounter
         let work = DispatchWorkItem { [weak self] in
-            guard let self = self, self.sessionCounter == currentSession else { return }
-            self.disconnect()
+            guard let self = self,
+                  self.sessionCounter == currentSession,
+                  self.isStopping else { return }
+            self.completeGracefulStop(emitPartialFallback: true)
         }
         delayedDisconnectWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.gracefulStopTimeoutSeconds,
+            execute: work
+        )
     }
 
     // MARK: - URLSessionWebSocketDelegate
@@ -351,6 +375,10 @@ RULES:
         webSocketTask: URLSessionWebSocketTask,
         didOpenWithProtocol protocol: String?
     ) {
+        guard session === urlSession, webSocketTask === self.webSocketTask else {
+            webSocketTask.cancel(with: .normalClosure, reason: nil)
+            return
+        }
         warningLog("[OpenAITranscriber] WebSocket opened")
         connectTimeoutWork?.cancel()
         connectTimeoutWork = nil
@@ -362,7 +390,7 @@ RULES:
         sendSessionConfig()
         startSendTimer()
         startPingTimer()
-        receiveMessage()
+        receiveMessage(from: webSocketTask, sessionToken: sessionCounter)
 
         let completion = pendingCompletion
         pendingCompletion = nil
@@ -375,6 +403,7 @@ RULES:
         didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
         reason: Data?
     ) {
+        guard session === urlSession, webSocketTask === self.webSocketTask else { return }
         let reasonStr = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "none"
         debugLog(
             "[OpenAITranscriber] WebSocket closed: code=\(closeCode.rawValue), "
@@ -392,6 +421,7 @@ RULES:
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        guard session === urlSession, task === webSocketTask else { return }
         guard let error = error else { return }
         let nsError = error as NSError
         warningLog(
@@ -457,8 +487,12 @@ RULES:
         self.webSocketTask = task
         task.resume()
 
+        let currentSession = sessionCounter
         let timeout = DispatchWorkItem { [weak self] in
-            guard let self = self, let completion = self.pendingCompletion else { return }
+            guard let self = self,
+                  self.sessionCounter == currentSession,
+                  self.webSocketTask === task,
+                  let completion = self.pendingCompletion else { return }
             self.pendingCompletion = nil
             self.disconnect()
             self.warningLog("[OpenAITranscriber] Connection timed out")
@@ -488,6 +522,8 @@ RULES:
     }
 
     private func disconnect() {
+        delayedDisconnectWork?.cancel()
+        delayedDisconnectWork = nil
         connectTimeoutWork?.cancel()
         connectTimeoutWork = nil
         sendTimerSource?.cancel()
@@ -501,7 +537,27 @@ RULES:
         webSocketTask = nil
         urlSession?.invalidateAndCancel()
         urlSession = nil
+        stopAwaitingTranscriptItemID = nil
+        stopCommittedItemID = nil
         isStopping = false
+    }
+
+    private func completeGracefulStop(emitPartialFallback: Bool) {
+        guard isStopping else { return }
+        delayedDisconnectWork?.cancel()
+        delayedDisconnectWork = nil
+
+        if emitPartialFallback {
+            let fallback = currentTranscriptBuffer
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !fallback.isEmpty {
+                onTranscript?(fallback, true)
+                onTranscriptWithId?(fallback, true, currentTranscriptItemID)
+                currentTranscriptBuffer = ""
+                currentTranscriptItemID = nil
+            }
+        }
+        disconnect()
     }
 
     /// Tear down the current WebSocket and reconnect to recover from stale
@@ -572,8 +628,11 @@ RULES:
 
     private func sendPing() {
         guard isConnected, let task = webSocketTask else { return }
+        let currentSession = sessionCounter
         task.sendPing { [weak self] error in
             guard let self else { return }
+            guard self.sessionCounter == currentSession,
+                  self.webSocketTask === task else { return }
             if let error {
                 self.warningLog("[OpenAITranscriber] Ping failed: \(error.localizedDescription)")
                 self.handleDisconnect(error: error)
@@ -635,12 +694,15 @@ RULES:
 
     private func sendAudioAppendFast(base64Audio: String) {
         guard let task = webSocketTask, isConnected else { return }
+        let currentSession = sessionCounter
         // Minimal JSON for input_audio_buffer.append. Schema-equivalent to
         // the NSDictionary path: {"type":"input_audio_buffer.append","audio":"<b64>"}
         let json = "{\"type\":\"input_audio_buffer.append\",\"audio\":\"" + base64Audio + "\"}"
         let message = URLSessionWebSocketTask.Message.string(json)
         task.send(message) { [weak self] error in
             guard let self, let error else { return }
+            guard self.sessionCounter == currentSession,
+                  self.webSocketTask === task else { return }
             self.warningLog("[OpenAITranscriber] Send error (input_audio_buffer.append fast): \(error.localizedDescription)")
             DispatchQueue.main.async {
                 self.handleDisconnect(error: error)
@@ -658,8 +720,11 @@ RULES:
         do {
             let data = try JSONSerialization.data(withJSONObject: event)
             let message = URLSessionWebSocketTask.Message.string(String(data: data, encoding: .utf8)!)
+            let currentSession = sessionCounter
             task.send(message) { [weak self] error in
                 guard let self, let error else { return }
+                guard self.sessionCounter == currentSession,
+                      self.webSocketTask === task else { return }
                 self.warningLog("[OpenAITranscriber] Send error (\(eventType)): \(error.localizedDescription)")
                 // Audio send failures indicate a dead socket — trigger reconnect
                 // rather than silently dropping subsequent chunks
@@ -674,23 +739,28 @@ RULES:
         }
     }
 
-    private func receiveMessage() {
-        webSocketTask?.receive { [weak self] result in
+    private func receiveMessage(
+        from task: URLSessionWebSocketTask,
+        sessionToken: Int
+    ) {
+        task.receive { [weak self] result in
             guard let self = self else { return }
+            guard self.sessionCounter == sessionToken,
+                  self.webSocketTask === task else { return }
 
             switch result {
             case .success(let message):
                 switch message {
                 case .string(let text):
-                    self.handleMessage(text)
+                    self.handleMessage(text, sessionToken: sessionToken)
                 case .data(let data):
                     if let text = String(data: data, encoding: .utf8) {
-                        self.handleMessage(text)
+                        self.handleMessage(text, sessionToken: sessionToken)
                     }
                 @unknown default:
                     break
                 }
-                self.receiveMessage()
+                self.receiveMessage(from: task, sessionToken: sessionToken)
 
             case .failure(let error):
                 self.warningLog("[OpenAITranscriber] Receive error: \(error.localizedDescription)")
@@ -700,7 +770,24 @@ RULES:
     }
 
     private var messageLogCount = 0
-    private func handleMessage(_ text: String) {
+    private func deliverOnMain(
+        sessionToken: Int?,
+        _ delivery: @escaping () -> Void
+    ) {
+        let guardedDelivery = { [weak self] in
+            guard let self,
+                  sessionToken == nil || sessionToken == self.sessionCounter else { return }
+            delivery()
+        }
+        if Thread.isMainThread {
+            guardedDelivery()
+        } else {
+            DispatchQueue.main.async(execute: guardedDelivery)
+        }
+    }
+
+    private func handleMessage(_ text: String, sessionToken: Int? = nil) {
+        guard sessionToken == nil || sessionToken == sessionCounter else { return }
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = json["type"] as? String else {
@@ -739,7 +826,7 @@ RULES:
                         stalePartialCount = 0
                         // Finalize current text then reconnect
                         let text = lastRecognizedText
-                        DispatchQueue.main.async {
+                        deliverOnMain(sessionToken: sessionToken) {
                             self.onTranscript?(text, true)
                         }
                         reconnectSession()
@@ -750,23 +837,40 @@ RULES:
                     stalePartialCount = 0
                 }
 
-                DispatchQueue.main.async {
-                    self.onTranscript?(self.currentTranscriptBuffer, false)
+                // Capture the buffer now: a `completed` event can reset it
+                // before the async block runs, which emitted empty partials.
+                let partialText = currentTranscriptBuffer
+                deliverOnMain(sessionToken: sessionToken) {
+                    self.onTranscript?(partialText, false)
                 }
             }
 
         case "conversation.item.input_audio_transcription.completed":
+            let itemId = json["item_id"] as? String
+            let completesGracefulStop = isStopping
+                && itemId != nil
+                && itemId == stopCommittedItemID
             if let transcript = json["transcript"] as? String, !transcript.isEmpty {
-                let itemId = json["item_id"] as? String
                 currentTranscriptItemID = nil
                 currentTranscriptBuffer = ""
                 lastRecognizedText = transcript
-                DispatchQueue.main.async {
+                let deliver = {
                     self.onTranscript?(transcript, true)
                     self.onTranscriptWithId?(transcript, true, itemId)
+                    if completesGracefulStop {
+                        self.completeGracefulStop(emitPartialFallback: false)
+                    }
                 }
+                deliverOnMain(sessionToken: sessionToken, deliver)
+            } else if completesGracefulStop {
+                completeGracefulStop(emitPartialFallback: true)
             }
             emitUsageIfPresent(json, operationType: "transcription")
+
+        case "input_audio_buffer.committed":
+            if isStopping, let itemID = json["item_id"] as? String {
+                stopCommittedItemID = itemID
+            }
 
         case "response.text.delta", "response.output_text.delta":
             if let delta = json["delta"] as? String, !delta.isEmpty {
@@ -783,13 +887,13 @@ RULES:
                         + "(speech_stopped → first response delta)"
                     )
                 }
-                DispatchQueue.main.async {
+                deliverOnMain(sessionToken: sessionToken) {
                     self.onResponse?(delta, false)
                 }
             }
 
         case "response.text.done", "response.output_text.done":
-            DispatchQueue.main.async {
+            deliverOnMain(sessionToken: sessionToken) {
                 self.onResponse?("", true)
             }
             emitUsageIfPresent(json, operationType: "response")
@@ -812,14 +916,14 @@ RULES:
         case "response.audio.delta":
             if let delta = json["delta"] as? String,
                let audioData = Data(base64Encoded: delta) {
-                DispatchQueue.main.async { [weak self] in
-                    self?.onAudioOutput?(audioData)
+                deliverOnMain(sessionToken: sessionToken) {
+                    self.onAudioOutput?(audioData)
                 }
             }
 
         case "response.audio.done":
-            DispatchQueue.main.async { [weak self] in
-                self?.onAudioOutputDone?()
+            deliverOnMain(sessionToken: sessionToken) {
+                self.onAudioOutputDone?()
             }
 
         case "error":
@@ -830,12 +934,12 @@ RULES:
                 return
             }
             if errorMsg.contains("401") || errorMsg.lowercased().contains("auth") {
-                DispatchQueue.main.async {
+                deliverOnMain(sessionToken: sessionToken) {
                     self.onError?("OpenAI API key is invalid or expired")
                 }
                 disconnect()
             } else {
-                DispatchQueue.main.async {
+                deliverOnMain(sessionToken: sessionToken) {
                     self.onError?(errorMsg)
                 }
             }
@@ -863,7 +967,7 @@ RULES:
                 return
             }
 
-            DispatchQueue.main.async {
+            deliverOnMain(sessionToken: sessionToken) {
                 self.onError?("Transcription failed: \(errorMsg)")
             }
 
@@ -918,11 +1022,13 @@ RULES:
 
         if retryCount < maxRetries {
             retryCount += 1
+            let currentSession = sessionCounter
             warningLog(
                 "[OpenAITranscriber] Reconnecting (attempt \(retryCount)/\(maxRetries))"
             )
             DispatchQueue.main.asyncAfter(deadline: .now() + Double(retryCount)) { [weak self] in
-                self?.connect()
+                guard let self, self.sessionCounter == currentSession else { return }
+                self.connect()
             }
         } else {
             warningLog("[OpenAITranscriber] Max retries reached, giving up")
@@ -965,6 +1071,40 @@ RULES:
 }
 
 extension OpenAIRealtimeTranscriber {
+    var debugIsAwaitingGracefulStop: Bool {
+        isStopping
+    }
+
+    func debugBeginGracefulStopForTesting(
+        awaitingItemID: String,
+        partialText: String
+    ) {
+        isStopping = true
+        currentTranscriptItemID = awaitingItemID
+        currentTranscriptBuffer = partialText
+        stopAwaitingTranscriptItemID = awaitingItemID
+        // Simulate the server acknowledgement that associates the manual
+        // stop commit with the item whose transcription must finish.
+        stopCommittedItemID = awaitingItemID
+    }
+
+    /// Starts a socket-generation boundary without opening the network. Tests
+    /// use this to model an immediate Stop→Start and then replay a late message
+    /// captured from the prior socket.
+    @discardableResult
+    func debugBeginSessionForTesting() -> Int {
+        sessionCounter += 1
+        disconnect()
+        lastRecognizedText = ""
+        currentTranscriptItemID = nil
+        currentTranscriptBuffer = ""
+        return sessionCounter
+    }
+
+    func debugForceGracefulStopTimeout() {
+        completeGracefulStop(emitPartialFallback: true)
+    }
+
     func debugConfigureForTesting(
         mode: RealtimeMode,
         language: String = "en",
@@ -979,7 +1119,7 @@ extension OpenAIRealtimeTranscriber {
         sessionConfigEvent(for: resolvedLanguageCode())
     }
 
-    func debugHandleMessage(_ text: String) {
-        handleMessage(text)
+    func debugHandleMessage(_ text: String, sessionToken: Int? = nil) {
+        handleMessage(text, sessionToken: sessionToken)
     }
 }

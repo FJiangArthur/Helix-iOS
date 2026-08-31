@@ -14,7 +14,11 @@ public actor InMemoryConversationStore: ConversationStore {
     public init() {}
 
     public func save(segment: TranscriptSegment) async {
-        segments.append(segment)
+        if let index = segments.firstIndex(where: { $0.id == segment.id }) {
+            segments[index] = segment
+        } else {
+            segments.append(segment)
+        }
     }
 
     public func save(answer: AnswerResponse, for question: QuestionCandidate) async {
@@ -71,6 +75,125 @@ public actor InMemorySessionArchiveStore: SessionArchiveStore {
     }
 }
 
+public struct KnowledgeMemoryUpsertResult: Equatable, Sendable {
+    public var item: NativeKnowledgeItem
+    public var wasInserted: Bool
+    public var previousItem: NativeKnowledgeItem?
+
+    public init(
+        item: NativeKnowledgeItem,
+        wasInserted: Bool,
+        previousItem: NativeKnowledgeItem? = nil
+    ) {
+        self.item = item
+        self.wasInserted = wasInserted
+        self.previousItem = previousItem
+    }
+
+    public var didMutate: Bool { wasInserted || previousItem != nil }
+}
+
+public enum KnowledgeAutomaticAnswerQuality: Int, Equatable, Sendable {
+    case fast = 0
+    case smart = 1
+}
+
+/// Dedupe is an explicit call-site decision. In particular, a note merely
+/// looking like `Question:/Answer:` does not prove that it came from Helix's
+/// automatic answer capture.
+public enum KnowledgeMemoryDeduplication: Equatable, Sendable {
+    case exact
+    case automaticAnswer(quality: KnowledgeAutomaticAnswerQuality)
+}
+
+/// Newly captured automatic answers carry an unambiguous source marker. Old
+/// records are intentionally left untouched and are not retroactively treated
+/// as automatic, because their provenance cannot be proven.
+public enum KnowledgeMemorySource {
+    public static let automaticAnswerMarker = "Helix Knowledge · Automatic answer"
+
+    public static func automaticAnswer(
+        category: String,
+        quality: KnowledgeAutomaticAnswerQuality = .fast
+    ) -> String {
+        let trimmedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+        let qualityMarker = quality == .smart ? "SMART" : "FAST"
+        return trimmedCategory.isEmpty
+            ? "\(automaticAnswerMarker) · \(qualityMarker)"
+            : "\(automaticAnswerMarker) · \(qualityMarker) · \(trimmedCategory)"
+    }
+
+    public static func isAutomaticAnswer(_ source: String) -> Bool {
+        let trimmedSource = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedSource == automaticAnswerMarker
+            || trimmedSource.hasPrefix(automaticAnswerMarker + " · ")
+    }
+
+    public static func automaticAnswerQuality(
+        in source: String
+    ) -> KnowledgeAutomaticAnswerQuality? {
+        guard isAutomaticAnswer(source) else { return nil }
+        let components = source
+            .split(separator: "·")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+        return components.contains("SMART") ? .smart : .fast
+    }
+}
+
+public enum KnowledgeMemoryText {
+    public static func duplicateKey(
+        _ text: String,
+        deduplication: KnowledgeMemoryDeduplication = .exact
+    ) -> String {
+        switch deduplication {
+        case .exact:
+            return normalized(text)
+        case .automaticAnswer:
+            let question = automaticAnswerQuestion(in: text)
+            let normalizedText = normalized(question ?? text)
+            return "automatic-answer:" + normalizedQuestion(normalizedText)
+        }
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text
+            .precomposedStringWithCompatibilityMapping
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+    }
+
+    private static func normalizedQuestion(_ text: String) -> String {
+        let boundaryNoise = CharacterSet(
+            charactersIn: "\"'“”‘’()[]{}«»「」『』（）"
+        ).union(.whitespacesAndNewlines)
+        let terminalNoise: Set<Character> = [
+            ".", "!", "?", "。", "！", "？", "؟",
+            "\"", "'", "”", "’", ")", "]", "}", "»", "」", "』", "）"
+        ]
+        var result = text.trimmingCharacters(in: boundaryNoise)
+        while let last = result.last, terminalNoise.contains(last) {
+            result.removeLast()
+        }
+        return result.trimmingCharacters(in: boundaryNoise)
+    }
+
+    private static func automaticAnswerQuestion(in text: String) -> String? {
+        let pattern = #"(?is)^\s*(?:q|question)\s*:\s*(.*?)\s*\n+\s*(?:a|answer)\s*:"#
+        guard let expression = try? NSRegularExpression(pattern: pattern),
+              let match = expression.firstMatch(
+                  in: text,
+                  range: NSRange(text.startIndex..., in: text)
+              ),
+              match.numberOfRanges > 1,
+              let questionRange = Range(match.range(at: 1), in: text) else {
+            return nil
+        }
+        return String(text[questionRange])
+    }
+}
+
 public protocol KnowledgeLibraryStore: Sendable {
     func snapshot() async -> NativeKnowledgeSnapshot
     func saveProject(_ project: NativeKnowledgeProject) async
@@ -78,8 +201,24 @@ public protocol KnowledgeLibraryStore: Sendable {
     func ingestDocument(title: String, text: String, sourceURL: URL?) async
     func addFact(_ text: String, source: String) async
     func addMemory(_ text: String, source: String) async
+    func addMemoryIfAbsent(
+        _ text: String,
+        source: String,
+        deduplication: KnowledgeMemoryDeduplication
+    ) async -> KnowledgeMemoryUpsertResult?
+    func undoMemoryUpsert(_ result: KnowledgeMemoryUpsertResult) async
+    func removeMemory(id: UUID) async
     func addTodo(_ title: String) async
     func completeTodo(id: UUID, isComplete: Bool) async
+}
+
+public extension KnowledgeLibraryStore {
+    func addMemoryIfAbsent(
+        _ text: String,
+        source: String
+    ) async -> KnowledgeMemoryUpsertResult? {
+        await addMemoryIfAbsent(text, source: source, deduplication: .exact)
+    }
 }
 
 public actor InMemoryKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowledgeStore {
@@ -88,6 +227,7 @@ public actor InMemoryKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowle
     private var documentChunksByProjectID: [UUID: [String]]
     private var facts: [NativeKnowledgeItem]
     private var memories: [NativeKnowledgeItem]
+    private var memoryProjectIDByMemoryID: [UUID: UUID]
     private var todos: [NativeKnowledgeItem]
     private let chunker: NativeDocumentChunker
 
@@ -105,8 +245,14 @@ public actor InMemoryKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowle
         self.documentChunksByProjectID = documentChunksByProjectID
         self.facts = facts
         self.memories = memories
+        self.memoryProjectIDByMemoryID = [:]
         self.todos = todos
         self.chunker = chunker
+        if let activeProjectID = projects.first(where: { $0.isActive })?.id {
+            for memory in memories {
+                self.memoryProjectIDByMemoryID[memory.id] = activeProjectID
+            }
+        }
     }
 
     public func snapshot() async -> NativeKnowledgeSnapshot {
@@ -182,6 +328,83 @@ public actor InMemoryKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowle
     public func addMemory(_ text: String, source: String) async {
         guard let item = Self.makeItem(kind: .memory, text: text, source: source) else { return }
         memories.append(item)
+        setMemoryProjectID(activeProjectID, for: item.id)
+    }
+
+    public func addMemoryIfAbsent(
+        _ text: String,
+        source: String,
+        deduplication: KnowledgeMemoryDeduplication = .exact
+    ) async -> KnowledgeMemoryUpsertResult? {
+        guard let item = Self.makeItem(kind: .memory, text: text, source: source) else { return nil }
+        let key = KnowledgeMemoryText.duplicateKey(
+            item.text,
+            deduplication: deduplication
+        )
+        let scopedProjectID = activeProjectID
+        let matchingIndex = memories.firstIndex {
+            guard memoryProjectIDByMemoryID[$0.id] == scopedProjectID else {
+                return false
+            }
+            if case .automaticAnswer = deduplication {
+                guard KnowledgeMemorySource.isAutomaticAnswer($0.source) else {
+                    return false
+                }
+            }
+            return KnowledgeMemoryText.duplicateKey(
+                $0.text,
+                deduplication: deduplication
+            ) == key
+        }
+        if let matchingIndex {
+            let existing = memories[matchingIndex]
+            guard case .automaticAnswer(let incomingQuality) = deduplication else {
+                return KnowledgeMemoryUpsertResult(item: existing, wasInserted: false)
+            }
+            let exactKey = KnowledgeMemoryText.duplicateKey(item.text)
+            let existingExactKey = KnowledgeMemoryText.duplicateKey(existing.text)
+            let existingQuality = KnowledgeMemorySource.automaticAnswerQuality(in: existing.source) ?? .fast
+            let exactRepeat = exactKey == existingExactKey
+            let shouldUpgradeQuality = incomingQuality.rawValue > existingQuality.rawValue
+            let shouldRefreshSameQuality = incomingQuality == existingQuality && !exactRepeat
+            guard shouldUpgradeQuality || shouldRefreshSameQuality else {
+                return KnowledgeMemoryUpsertResult(item: existing, wasInserted: false)
+            }
+
+            let updated = NativeKnowledgeItem(
+                id: existing.id,
+                kind: existing.kind,
+                text: item.text,
+                source: item.source,
+                isComplete: existing.isComplete,
+                createdAt: Date()
+            )
+            memories[matchingIndex] = updated
+            return KnowledgeMemoryUpsertResult(
+                item: updated,
+                wasInserted: false,
+                previousItem: existing
+            )
+        }
+        memories.append(item)
+        setMemoryProjectID(scopedProjectID, for: item.id)
+        return KnowledgeMemoryUpsertResult(item: item, wasInserted: true)
+    }
+
+    public func undoMemoryUpsert(_ result: KnowledgeMemoryUpsertResult) async {
+        guard result.didMutate,
+              let index = memories.firstIndex(where: { $0.id == result.item.id }) else { return }
+        if let previousItem = result.previousItem {
+            memories[index] = previousItem
+        } else if result.wasInserted {
+            memories.remove(at: index)
+            memoryProjectIDByMemoryID.removeValue(forKey: result.item.id)
+        }
+    }
+
+    public func removeMemory(id: UUID) async {
+        memories.removeAll { $0.id == id }
+        memoryProjectIDByMemoryID.removeValue(forKey: id)
     }
 
     public func addTodo(_ title: String) async {
@@ -237,6 +460,18 @@ public actor InMemoryKnowledgeLibraryStore: KnowledgeLibraryStore, ProjectKnowle
             text: trimmed,
             source: source.trimmingCharacters(in: .whitespacesAndNewlines)
         )
+    }
+
+    private var activeProjectID: UUID? {
+        projects.first(where: { $0.isActive })?.id
+    }
+
+    private func setMemoryProjectID(_ projectID: UUID?, for memoryID: UUID) {
+        if let projectID {
+            memoryProjectIDByMemoryID[memoryID] = projectID
+        } else {
+            memoryProjectIDByMemoryID.removeValue(forKey: memoryID)
+        }
     }
 
     private func incrementActiveProjectFactCount() {
@@ -422,11 +657,14 @@ public actor NativeSettingsManager {
             guard let index = updated.providers.firstIndex(where: { $0.kind == provider }) else {
                 return settings
             }
+            // Preserve existing realtime/transcription selections when the
+            // caller only updates the chat (smart/light) models.
+            let existing = updated.providers[index].modelSelection
             updated.providers[index].modelSelection = ProviderModelSelection(
                 smartModel: smartModel,
                 lightModel: lightModel,
-                realtimeModel: realtimeModel,
-                transcriptionModel: transcriptionModel
+                realtimeModel: realtimeModel ?? existing.realtimeModel,
+                transcriptionModel: transcriptionModel ?? existing.transcriptionModel
             )
             if updated.llmProvider == provider {
                 updated.llmModel = smartModel
@@ -441,26 +679,74 @@ public actor NativeSettingsManager {
     public func updateConversationControls(
         maxResponseSentences: Int? = nil,
         autoDetectQuestions: Bool? = nil,
+        questionDetectionSensitivity: QuestionDetectionSensitivity? = nil,
         autoAnswer: Bool? = nil,
         liveFactCheckEnabled: Bool? = nil
     ) async -> HelixSettings {
         await settingsStore.updateSettings { settings in
-            HelixSettings(
-                maxResponseSentences: maxResponseSentences ?? settings.maxResponseSentences,
-                transcriptionBackend: settings.transcriptionBackend,
-                transcriptionModel: settings.transcriptionModel,
-                llmProvider: settings.llmProvider,
-                llmModel: settings.llmModel,
-                hudRenderPath: settings.hudRenderPath,
-                autoDetectQuestions: autoDetectQuestions ?? settings.autoDetectQuestions,
-                autoAnswer: autoAnswer ?? settings.autoAnswer,
-                webSearchMode: settings.webSearchMode,
-                liveFactCheckEnabled: liveFactCheckEnabled ?? settings.liveFactCheckEnabled,
-                evalGateEnabled: settings.evalGateEnabled,
-                providers: settings.providers,
-                activeSkillID: settings.activeSkillID,
-                customSkills: settings.customSkills
-            )
+            var updated = settings
+            if let maxResponseSentences {
+                updated.maxResponseSentences = max(1, min(10, maxResponseSentences))
+            }
+            if let autoDetectQuestions {
+                updated.autoDetectQuestions = autoDetectQuestions
+            }
+            if let questionDetectionSensitivity {
+                updated.questionDetectionSensitivity = questionDetectionSensitivity
+            }
+            if let autoAnswer {
+                updated.autoAnswer = autoAnswer
+            }
+            if let liveFactCheckEnabled {
+                updated.liveFactCheckEnabled = liveFactCheckEnabled
+            }
+            return updated
+        }
+    }
+
+    public func setInsightsEnabled(_ isEnabled: Bool) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            var updated = settings
+            updated.insightsEnabled = isEnabled
+            return updated
+        }
+    }
+
+    /// Glasses hardware configuration. Values are clamped to firmware ranges
+    /// (angle 0–60, height 0–8, depth 0–9, brightness 0–63).
+    public func updateGlassesDisplay(
+        headUpAngle: Int? = nil,
+        displayHeight: Int? = nil,
+        displayDepth: Int? = nil,
+        brightness: Int? = nil,
+        autoBrightness: Bool? = nil,
+        glassesNotificationsEnabled: Bool? = nil,
+        dashboardEnabled: Bool? = nil
+    ) async -> HelixSettings {
+        await settingsStore.updateSettings { settings in
+            var updated = settings
+            if let headUpAngle {
+                updated.headUpAngle = max(0, min(60, headUpAngle))
+            }
+            if let displayHeight {
+                updated.displayHeight = max(0, min(8, displayHeight))
+            }
+            if let displayDepth {
+                updated.displayDepth = max(0, min(9, displayDepth))
+            }
+            if let brightness {
+                updated.brightness = max(0, min(63, brightness))
+            }
+            if let autoBrightness {
+                updated.autoBrightness = autoBrightness
+            }
+            if let glassesNotificationsEnabled {
+                updated.glassesNotificationsEnabled = glassesNotificationsEnabled
+            }
+            if let dashboardEnabled {
+                updated.dashboardEnabled = dashboardEnabled
+            }
+            return updated
         }
     }
 

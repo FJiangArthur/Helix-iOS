@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- System bars are handled by enableEdgeToEdge() in MainActivity; the
+         window background matches the Compose bg token so there is no flash
+         before the first frame. -->
+    <style name="Theme.Helix" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/helix_window_bg</item>
+    </style>
+</resources>
