@@ -49,6 +49,10 @@ import com.artjiang.helix.g1.G1Side
 import com.artjiang.helix.g1.G1StatusDecoder
 import com.artjiang.helix.g1.G1StatusEvent
 import com.artjiang.helix.g1.G1TouchpadSide
+import com.artjiang.helix.g1.G1PacketEncoder
+import com.artjiang.helix.g1.G1ScreenDeliveryCoverage
+import com.artjiang.helix.g1.ProbeStats
+import com.artjiang.helix.g1.TouchpadProbeLog
 import com.artjiang.helix.notify.G1NotificationSender
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +102,13 @@ class HelixBridge(
     private val transport = G1CommandTransport(bluetooth)
     private val hudPresenter = G1HudPresenter()
     val hudArbiter = HudArbiter()
+
+    private val touchpadProbe = TouchpadProbeLog(clock = System::currentTimeMillis)
+
+    /** Spike S2: raw touchpad/status frames, newest last (Device tab, debug builds). */
+    val probeLog: StateFlow<List<String>> = touchpadProbe.entries
+    private val throughputProbeState = MutableStateFlow("")
+    val throughputProbeResult: StateFlow<String> = throughputProbeState.asStateFlow()
 
     // Transcript sources. Exactly one runs at a time; the switch owns that.
     val transcription = TranscriptionService(appContext)
@@ -747,6 +758,9 @@ class HelixBridge(
             // decode the same frame a second time internally).
             val status = G1StatusDecoder.decode(data)
             transport.handleDecoded(status, side)
+            if (data.size >= 2 && data[0] == 0xF5.toByte()) {
+                touchpadProbe.record("${side.name} F5 idx=${data[1].toInt() and 0xFF}")
+            }
 
             when (status) {
                 is G1StatusEvent.Battery -> {
@@ -1026,6 +1040,33 @@ class HelixBridge(
     private fun nextPositionCounter(): Byte {
         positionCounter = (positionCounter + 1).toByte()
         return positionCounter
+    }
+
+    /**
+     * Spike S3: alternate two full 5-line screens [screens] times and report
+     * per-screen send latency (both lenses ACKed). Blanks the lens afterwards.
+     */
+    fun runThroughputProbe(screens: Int = 20) {
+        if (!isGlassesConnected) {
+            throughputProbeState.value = "Glasses not connected"
+            return
+        }
+        scope.launch {
+            throughputProbeState.value = "Running…"
+            val a = (1..5).joinToString("\n") { "Probe line $it ".padEnd(40, 'a') }
+            val b = (1..5).joinToString("\n") { "Probe line $it ".padEnd(40, 'b') }
+            val durations = mutableListOf<Long>()
+            var failures = 0
+            repeat(screens) { i ->
+                val packets = G1PacketEncoder.encodeTextPage(if (i % 2 == 0) a else b, syncSeq = i.toByte())
+                val start = System.currentTimeMillis()
+                val outcome = transport.sendScreenDetailed(packets)
+                durations += System.currentTimeMillis() - start
+                if (outcome.coverage != G1ScreenDeliveryCoverage.BOTH) failures++
+            }
+            transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions()))
+            throughputProbeState.value = ProbeStats.of(durations).summary() + " failures=$failures"
+        }
     }
 
     // MARK: - HUD output
