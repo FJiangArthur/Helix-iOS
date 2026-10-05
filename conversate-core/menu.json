@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "idle": [
+    { "id": "start", "label": "Start Conversate" }
+  ],
+  "live": [
+    { "id": "pause", "toggle": "paused", "labelOn": "Resume", "labelOff": "Pause" },
+    { "id": "captions", "toggle": "captions", "labelOn": "Captions: on", "labelOff": "Captions: off" },
+    { "id": "cues", "toggle": "cues", "labelOn": "Cues: on", "labelOff": "Cues: off" },
+    { "id": "prep_note", "label": "Prep Note" },
+    { "id": "display_off", "label": "Display off" },
+    { "id": "end", "label": "End session" }
+  ]
+}

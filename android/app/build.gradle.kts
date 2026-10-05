@@ -64,6 +64,12 @@ android {
     }
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        resources.excludes += "/README.md"
+    }
+    // Shared Conversate contract (menu, prompts, vectors) for G1 + G2 apps,
+    // read at runtime and in unit tests via ClassLoader.getResource.
+    sourceSets {
+        getByName("main").resources.srcDir("../../conversate-core")
     }
 }
 

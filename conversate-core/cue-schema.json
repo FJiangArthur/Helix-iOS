@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Conversate cue extraction output",
+  "type": "object",
+  "required": ["cues"],
+  "properties": {
+    "cues": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["type", "title", "body"],
+        "properties": {
+          "type": { "enum": ["CONCEPT", "BIO", "SUGGESTION"] },
+          "title": { "type": "string", "maxLength": 24 },
+          "body": { "type": "string", "maxLength": 220 },
+          "detail": { "type": "string", "maxLength": 1000 },
+          "entity": { "type": "string" }
+        }
+      }
+    }
+  }
+}
