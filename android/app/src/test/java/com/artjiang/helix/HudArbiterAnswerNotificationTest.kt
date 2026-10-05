@@ -30,8 +30,8 @@ class HudArbiterAnswerNotificationTest {
     fun notificationIsGrantedOnceTheAnswerReleases() = runTest {
         var now = 0L
         val arbiter = HudArbiter(clock = { now })
-        arbiter.requestDisplay(HudArbiter.Priority.ANSWER)
-        arbiter.releaseDisplay()
+        val lease = arbiter.acquire(HudArbiter.Priority.ANSWER)!!
+        arbiter.release(lease)
         assertTrue(arbiter.requestDisplay(HudArbiter.Priority.NOTIFICATION))
     }
 }

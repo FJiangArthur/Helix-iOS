@@ -439,6 +439,10 @@ class HelixBridge(
      */
     private var hudPriority: HudArbiter.Priority = HudArbiter.Priority.ANSWER
 
+    /** Lease held by [hudSession]'s current answer, if any. */
+    @Volatile
+    private var answerLease: HudArbiter.Lease? = null
+
     /**
      * The current G1 text lifecycle: 0x71 for every plain-text page and 0x18
      * to clear/exit. Owns its own timers; the phone-side page mirror follows it via
@@ -453,8 +457,13 @@ class HelixBridge(
             // lifecycle timer can never interleave packets with another write.
             transport.sendScreenDetailed(packets)
         },
-        requestDisplay = { hudArbiter.requestDisplay(hudPriority) },
-        releaseDisplay = { hudArbiter.releaseDisplay() },
+        requestDisplay = {
+            hudArbiter.acquire(hudPriority, replacing = answerLease)?.also { answerLease = it } != null
+        },
+        releaseDisplay = {
+            answerLease?.let { hudArbiter.release(it) }
+            answerLease = null
+        },
         // 0x18 clears the lens and drops the firmware back to its dashboard —
         // the wearer looks up, reads the answer, and it goes away. iOS never
         // blanks at all, so this is the one piece of the lifecycle with no
@@ -816,7 +825,8 @@ class HelixBridge(
                 hudPageIndexState.value = 0
                 scope.launch {
                     transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions()))
-                    hudArbiter.releaseDisplay()
+                    answerLease?.let { hudArbiter.release(it) }
+                    answerLease = null
                 }
             }
 
@@ -2027,7 +2037,7 @@ class HelixBridge(
     ) {
         if (!isGlassesConnected || !glassesNotificationsEnabled.value) return
         scope.launch {
-            if (!hudArbiter.requestDisplay(HudArbiter.Priority.NOTIFICATION)) return@launch
+            val lease = hudArbiter.acquire(HudArbiter.Priority.NOTIFICATION) ?: return@launch
             try {
                 notificationSender.sendNotification(
                     appId = appId,
@@ -2043,7 +2053,7 @@ class HelixBridge(
                 // refused and never drew — "notifications don't show up".
                 // 0x4B is a fire-and-forget firmware notification: the firmware
                 // owns its own dismissal, so there is nothing to dwell on here.
-                hudArbiter.releaseDisplay()
+                hudArbiter.release(lease)
             }
         }
     }

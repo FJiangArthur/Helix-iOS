@@ -70,8 +70,8 @@ class HudArbiterTest {
     @Test
     fun `release frees the display immediately`() = runTest {
         val arbiter = HudArbiter(FakeClock())
-        arbiter.requestDisplay(HudArbiter.Priority.ANSWER)
-        arbiter.releaseDisplay()
+        val lease = arbiter.acquire(HudArbiter.Priority.ANSWER)!!
+        arbiter.release(lease)
         assertNull(arbiter.currentHolder())
         assertTrue(arbiter.requestDisplay(HudArbiter.Priority.INSIGHT))
     }
@@ -102,5 +102,43 @@ class HudArbiterTest {
         assertTrue(arbiter.requestDisplay(HudArbiter.Priority.ANSWER))
         // Strictly lower priority is still refused while the window is live.
         assertFalse(arbiter.requestDisplay(HudArbiter.Priority.INSIGHT))
+    }
+
+    @Test
+    fun `stale lease release is ignored`() = runTest {
+        val arbiter = HudArbiter(FakeClock())
+        val old = arbiter.acquire(HudArbiter.Priority.ANSWER)!!
+        val conversate = arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)!!
+        arbiter.release(old)
+        assertEquals(HudArbiter.Priority.CONVERSATE_INTERACTIVE, arbiter.currentHolder())
+        assertTrue(arbiter.isCurrent(conversate))
+        arbiter.release(conversate)
+        assertNull(arbiter.currentHolder())
+    }
+
+    @Test
+    fun `interactive conversate refuses notifications and answers`() = runTest {
+        val arbiter = HudArbiter(FakeClock())
+        arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)!!
+        assertNull(arbiter.acquire(HudArbiter.Priority.NOTIFICATION))
+        assertNull(arbiter.acquire(HudArbiter.Priority.ANSWER))
+    }
+
+    @Test
+    fun `holder can downgrade its own lease`() = runTest {
+        val arbiter = HudArbiter(FakeClock())
+        val menu = arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)!!
+        assertNull(arbiter.acquire(HudArbiter.Priority.CONVERSATE_LIVE))
+        val live = arbiter.acquire(HudArbiter.Priority.CONVERSATE_LIVE, replacing = menu)
+        assertTrue(live != null)
+        assertEquals(HudArbiter.Priority.CONVERSATE_LIVE, arbiter.currentHolder())
+    }
+
+    @Test
+    fun `refused acquire returns null and keeps holder`() = runTest {
+        val arbiter = HudArbiter(FakeClock())
+        arbiter.acquire(HudArbiter.Priority.CONVERSATE_LIVE)!!
+        assertNull(arbiter.acquire(HudArbiter.Priority.INSIGHT))
+        assertEquals(HudArbiter.Priority.CONVERSATE_LIVE, arbiter.currentHolder())
     }
 }
