@@ -51,6 +51,7 @@ import com.artjiang.helix.g1.G1StatusEvent
 import com.artjiang.helix.g1.G1TouchpadSide
 import com.artjiang.helix.g1.G1PacketEncoder
 import com.artjiang.helix.g1.G1ScreenDeliveryCoverage
+import com.artjiang.helix.g1.G1ScreenDeliveryOutcome
 import com.artjiang.helix.g1.ProbeStats
 import com.artjiang.helix.g1.TouchpadProbeLog
 import com.artjiang.helix.notify.G1NotificationSender
@@ -444,9 +445,8 @@ class HelixBridge(
      */
     private var hudPriority: HudArbiter.Priority = HudArbiter.Priority.ANSWER
 
-    /** Lease held by [hudSession]'s current answer, if any. */
-    @Volatile
-    private var answerLease: HudArbiter.Lease? = null
+    /** [hudSession]'s hold on the HUD; see [AnswerLeaseGate]. */
+    private val answerGate = AnswerLeaseGate(hudArbiter)
 
     /**
      * The current G1 text lifecycle: 0x71 for every plain-text page and 0x18
@@ -460,20 +460,21 @@ class HelixBridge(
             // sendScreenDetailed owns the left-then-400ms-then-right ordering
             // and holds the transport queue lock for the whole screen, so a
             // lifecycle timer can never interleave packets with another write.
-            transport.sendScreenDetailed(packets)
+            //
+            // Auto-advance pages don't re-ask the arbiter, so check ownership
+            // here: a Conversate menu drawn since must not be overwritten.
+            if (answerGate.owns()) transport.sendScreenDetailed(packets)
+            else G1ScreenDeliveryOutcome.failed(packets.size)
         },
-        requestDisplay = {
-            hudArbiter.acquire(hudPriority, replacing = answerLease)?.also { answerLease = it } != null
-        },
-        releaseDisplay = {
-            answerLease?.let { hudArbiter.release(it) }
-            answerLease = null
-        },
+        requestDisplay = { answerGate.request(hudPriority) },
+        releaseDisplay = { answerGate.release() },
         // 0x18 clears the lens and drops the firmware back to its dashboard —
         // the wearer looks up, reads the answer, and it goes away. iOS never
         // blanks at all, so this is the one piece of the lifecycle with no
         // upstream reference; it is why the dwell is user-configurable.
-        clearScreen = { transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions())) },
+        clearScreen = {
+            if (answerGate.owns()) transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions()))
+        },
         completeDelayMillis = { hudDwellSeconds.value * 1_000L },
         // User-tunable page cadence. The vendor hard-codes 5 s
         // (`EvenAI.updateReplyToOSByTimer`), but reading speed in peripheral
@@ -912,8 +913,7 @@ class HelixBridge(
                 hudPageIndexState.value = 0
                 scope.launch {
                     transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions()))
-                    answerLease?.let { hudArbiter.release(it) }
-                    answerLease = null
+                    answerGate.release()
                 }
             }
 
@@ -941,6 +941,9 @@ class HelixBridge(
             // The firmware's own notification filter is per-connection state:
             // push it now so a whitelist edited while disconnected takes effect.
             pushNotificationWhitelist()
+            // A reconnected lens shows the firmware dashboard: put the
+            // Conversate screen (if any) back.
+            conversate.redraw()
 
             // Heartbeat every 10 s; battery poll every 6th beat (60 s).
             var beat = 0

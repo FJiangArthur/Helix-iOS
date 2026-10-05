@@ -82,6 +82,11 @@ class HudArbiter(private val clock: () -> Long = System::currentTimeMillis) {
         activeUntilMillis = 0
     }
 
+    /** True while nobody has acquired or released since [lease] was granted (expiry ignored). */
+    suspend fun isLatest(lease: Lease): Boolean = mutex.withLock {
+        lease.generation == generation && activePriority != null
+    }
+
     suspend fun isCurrent(lease: Lease): Boolean = mutex.withLock {
         lease.generation == generation && activePriority != null && activeUntilMillis > clock()
     }

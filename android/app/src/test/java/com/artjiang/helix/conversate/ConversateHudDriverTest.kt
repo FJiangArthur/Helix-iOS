@@ -95,6 +95,7 @@ class ConversateHudDriverTest {
         )
         driver.submit(HudFrame("a"), true); advanceTimeBy(500)
         fail = false
+        advanceTimeBy(ConversateHudDriver.RETRY_BACKOFF_MILLIS)
         driver.submit(HudFrame("a"), true); advanceTimeBy(500)
         assertEquals(listOf("ok"), sent)
     }
@@ -114,5 +115,41 @@ class ConversateHudDriverTest {
         rig.driver.shutdown()
         assertEquals(1, rig.clears)
         assertNull(rig.arbiter.currentHolder())
+    }
+
+    @Test
+    fun `after shutdown a blank frame does not send a clear`() = runTest {
+        val rig = Rig(this)
+        rig.driver.submit(HudFrame("x"), true); advanceTimeBy(1_000)
+        rig.driver.shutdown()
+        rig.driver.submit(null, false); advanceTimeBy(1_000)
+        assertEquals(1, rig.clears)
+    }
+
+    @Test
+    fun `invalidate redraws an identical frame after reconnect`() = runTest {
+        val rig = Rig(this)
+        rig.driver.submit(HudFrame("menu"), true); advanceTimeBy(1_000)
+        rig.driver.invalidate()
+        rig.driver.submit(HudFrame("menu"), true); advanceTimeBy(1_000)
+        assertEquals(listOf("menu", "menu"), rig.sent)
+    }
+
+    @Test
+    fun `failed identical frames back off`() = runTest {
+        var attempts = 0
+        val driver = ConversateHudDriver(
+            scope = backgroundScope,
+            sendScreen = { p -> attempts++; G1ScreenDeliveryOutcome.failed(p.size) },
+            clearScreen = {},
+            arbiter = HudArbiter { testScheduler.currentTime },
+            clock = { testScheduler.currentTime },
+        )
+        driver.submit(HudFrame("a"), true); advanceTimeBy(250)
+        driver.submit(HudFrame("a"), true); advanceTimeBy(250)
+        assertEquals(1, attempts)
+        advanceTimeBy(2_000)
+        driver.submit(HudFrame("a"), true); advanceTimeBy(250)
+        assertEquals(2, attempts)
     }
 }

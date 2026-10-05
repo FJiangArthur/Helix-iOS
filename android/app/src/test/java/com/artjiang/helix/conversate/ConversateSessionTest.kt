@@ -150,4 +150,17 @@ class ConversateSessionTest {
         s.onIntent(BACK)
         assertTrue(s.screen() is ScreenModel.Live)
     }
+
+    @Test
+    fun `head movement neither wakes display off nor cancels end confirm`() {
+        val s = session(); s.startLive(null)
+        s.onIntent(BACK)
+        s.onIntent(ConversateIntent.HEAD_DOWN)
+        assertEquals(ScreenModel.ConfirmEnd, s.screen())
+        now += 500
+        s.onIntent(PREV)
+        s.onIntent(MENU); repeat(4) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        s.onIntent(ConversateIntent.HEAD_UP)
+        assertEquals(ScreenModel.Blank, s.screen())
+    }
 }

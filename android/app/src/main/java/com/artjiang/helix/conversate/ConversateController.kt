@@ -75,7 +75,11 @@ class ConversateController(
         }
     }
 
-    fun setPrefs(prefs: ConversatePrefs) { session.updatePrefs(prefs); render() }
+    fun setPrefs(prefs: ConversatePrefs) {
+        session.updatePrefs(prefs)
+        // Disabled means hands off the lens entirely (no stray 0x18).
+        if (enabledState.value) render()
+    }
 
     fun setPrepNotes(notes: List<PrepNote>) {
         prepNotes = notes
@@ -109,7 +113,9 @@ class ConversateController(
     fun offerExternal(text: String, priority: HudArbiter.Priority) {
         if (!session.isLive) return
         val type = if (priority == HudArbiter.Priority.ANSWER) CueType.ANSWER else CueType.NOTICE
-        val lines = text.trim()
+        // Collapse newlines: HudPaginator wraps on spaces only, so an embedded
+        // newline would add rows beyond the 5-line card.
+        val lines = text.trim().replace(Regex("\\s+"), " ")
         val title = if (type == CueType.ANSWER) "Answer" else "Notice"
         session.onCue(
             Cue(
@@ -121,6 +127,13 @@ class ConversateController(
                 createdAtMillis = clock(),
             ),
         )
+        render()
+    }
+
+    /** Re-sends the current screen, e.g. after the glasses reconnect. */
+    fun redraw() {
+        if (!enabledState.value) return
+        driver.invalidate()
         render()
     }
 

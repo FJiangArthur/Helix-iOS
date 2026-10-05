@@ -85,4 +85,35 @@ class ConversateControllerTest {
         rig.controller.end()
         assertFalse(rig.controller.paused.value)
     }
+
+    @Test
+    fun `changing prefs while disabled sends nothing`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setPrefs(ConversatePrefs(captionsOn = false))
+        advanceTimeBy(1_000)
+        assertEquals(0, rig.clears)
+        assertEquals(emptyList<String>(), rig.sent)
+    }
+
+    @Test
+    fun `multi-line answers never exceed five lens lines`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.start(null)
+        rig.controller.offerExternal("Point one.\nPoint two.\nPoint three.\nPoint four.", HudArbiter.Priority.ANSWER)
+        advanceTimeBy(1_000)
+        assertTrue(rig.sent.last().lines().size <= 5)
+    }
+
+    @Test
+    fun `redraw resends the current screen`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        advanceTimeBy(500)
+        val before = rig.sent.size
+        rig.controller.redraw()
+        advanceTimeBy(500)
+        assertEquals(before + 1, rig.sent.size)
+    }
 }

@@ -96,6 +96,9 @@ class ConversateSession(
         handle(intent).also { promote(clock()) }
 
     private fun handle(intent: ConversateIntent): List<SessionEffect> {
+        // No head-up dashboard yet (Plan C): head movement must not act as a
+        // tap — it would wake "Display off" or cancel "End session?".
+        if (intent == ConversateIntent.HEAD_UP || intent == ConversateIntent.HEAD_DOWN) return emptyList()
         val now = clock()
         when (val o = overlay) {
             Overlay.Off -> { overlay = null; return emptyList() }

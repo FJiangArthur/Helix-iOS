@@ -32,6 +32,7 @@ class ConversateHudDriver(
         /** Replace with max(700, S3 p90 + 100) once spike S3 is recorded. */
         const val CAPTION_INTERVAL_DEFAULT_MILLIS = 700L
         const val LEASE_RENEW_MILLIS = 20_000L
+        const val RETRY_BACKOFF_MILLIS = 2_000L
     }
 
     private data class Submission(val frame: HudFrame?, val interactive: Boolean)
@@ -44,6 +45,10 @@ class ConversateHudDriver(
     private var lastSentAt = Long.MIN_VALUE / 2
     private var syncSeq = 0
     private var heldPriority = HudArbiter.Priority.CONVERSATE_LIVE
+    @Volatile
+    private var forceRedraw = false
+    private var failedFrame: HudFrame? = null
+    private var failedAt = Long.MIN_VALUE / 2
     private val lastSentState = MutableStateFlow<String?>(null)
     val lastSentText: StateFlow<String?> = lastSentState.asStateFlow()
 
@@ -69,6 +74,11 @@ class ConversateHudDriver(
         }
     }
 
+    /** Forget what the lens shows so the next frame is sent even if identical. */
+    fun invalidate() {
+        forceRedraw = true
+    }
+
     fun submit(frame: HudFrame?, interactive: Boolean) {
         slot.trySend(Submission(frame, interactive))
     }
@@ -78,12 +88,16 @@ class ConversateHudDriver(
         if (last != null && last !== Unset) clearScreen()
         lease?.let { arbiter.release(it) }
         lease = null
-        last = Unset
+        // The lens is blank now: a later blank frame must not clear again.
+        last = null
         lastSentState.value = null
     }
 
     private suspend fun draw(s: Submission) {
-        if (s.frame == last) return
+        if (!forceRedraw && s.frame == last) return
+        // Disconnected glasses: don't hammer the transport with the same frame.
+        if (s.frame != null && s.frame == failedFrame && clock() - failedAt < RETRY_BACKOFF_MILLIS) return
+        forceRedraw = false
         if (s.frame == null) {
             clearScreen()
             lease?.let { arbiter.release(it) }
@@ -114,7 +128,12 @@ class ConversateHudDriver(
         }
         // Remember the frame only if a lens took it; otherwise the
         // identical-frame guard would block the retry.
-        if (outcome == null || outcome.coverage == G1ScreenDeliveryCoverage.NONE) return
+        if (outcome == null || outcome.coverage == G1ScreenDeliveryCoverage.NONE) {
+            failedFrame = s.frame
+            failedAt = clock()
+            return
+        }
+        failedFrame = null
         last = s.frame
         lastSentAt = clock()
         lastSentState.value = s.frame.text
