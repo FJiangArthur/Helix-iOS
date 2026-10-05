@@ -1,0 +1,13 @@
+{
+  "name": "cue popup, dwell, priority",
+  "prefs": { "cueDurationMillis": 6000 },
+  "steps": [
+    { "start": null },
+    { "cue": { "id": 1, "type": "SUGGESTION", "title": "Ask budget", "body": "Ask about budget." }, "expect": { "kind": "Live", "cueId": 1 } },
+    { "cue": { "id": 2, "type": "CONCEPT", "title": "RAG", "body": "Retrieval augmented generation." } },
+    { "cue": { "id": 3, "type": "ANSWER", "title": "Answer", "body": "Q3 revenue was $4M." }, "expect": { "kind": "Live", "cueId": 3 } },
+    { "advance": 6001, "tick": true, "expect": { "kind": "Live", "cueId": 2 } },
+    { "intent": "NEXT", "expect": { "kind": "CueDetail", "cueId": 2, "page": 0 } },
+    { "intent": "BACK", "expect": { "kind": "Live", "cueId": 1 } }
+  ]
+}

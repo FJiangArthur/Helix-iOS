@@ -1,0 +1,11 @@
+{
+  "name": "end confirm and timeout",
+  "steps": [
+    { "start": null },
+    { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
+    { "advance": 3001, "tick": true, "expect": { "kind": "Live" } },
+    { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
+    { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
+    { "advance": 500, "intent": "BACK", "effects": ["End"], "expect": { "kind": "Blank", "live": false } }
+  ]
+}
