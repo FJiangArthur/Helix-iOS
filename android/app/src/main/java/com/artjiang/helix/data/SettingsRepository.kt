@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
+import com.artjiang.helix.conversate.ConversatePrefs
 
 private val Context.helixDataStore: DataStore<Preferences> by preferencesDataStore(name = "helix_settings")
 
@@ -261,6 +262,33 @@ class SettingsRepository(context: Context) : KeyStore {
         appContext.helixDataStore.edit { prefs -> prefs[SESSION_TAP_TOGGLE_KEY] = enabled }
     }
 
+    /** Conversate mode (spec 2026-10-04): owns the touchpad and HUD while on. */
+    val conversateEnabled: Flow<Boolean> =
+        appContext.helixDataStore.data.map { prefs -> prefs[CONVERSATE_ENABLED_KEY] ?: false }
+
+    suspend fun setConversateEnabled(enabled: Boolean) {
+        appContext.helixDataStore.edit { prefs -> prefs[CONVERSATE_ENABLED_KEY] = enabled }
+    }
+
+    val conversatePrefs: Flow<ConversatePrefs> =
+        appContext.helixDataStore.data.map { prefs ->
+            ConversatePrefs(
+                captionsOn = prefs[CONVERSATE_CAPTIONS_KEY] ?: true,
+                cuesOn = prefs[CONVERSATE_CUES_KEY] ?: true,
+                autoPopup = prefs[CONVERSATE_AUTO_POPUP_KEY] ?: true,
+                cueDurationMillis = (prefs[CONVERSATE_CUE_SECONDS_KEY] ?: 6).coerceIn(3, 15) * 1_000L,
+            )
+        }
+
+    suspend fun setConversatePrefs(value: ConversatePrefs) {
+        appContext.helixDataStore.edit { prefs ->
+            prefs[CONVERSATE_CAPTIONS_KEY] = value.captionsOn
+            prefs[CONVERSATE_CUES_KEY] = value.cuesOn
+            prefs[CONVERSATE_AUTO_POPUP_KEY] = value.autoPopup
+            prefs[CONVERSATE_CUE_SECONDS_KEY] = (value.cueDurationMillis / 1_000L).toInt().coerceIn(3, 15)
+        }
+    }
+
     // MARK: - KeyStore
 
     override fun keyFor(kind: String): String? =
@@ -285,6 +313,11 @@ class SettingsRepository(context: Context) : KeyStore {
         private val OMI_LAST_IMPORT_KEY = longPreferencesKey("omi_last_import_millis")
         private val HUD_DWELL_SECONDS_KEY = intPreferencesKey("hud_dwell_seconds")
         private val SESSION_TAP_TOGGLE_KEY = booleanPreferencesKey("session_tap_toggle_enabled")
+        private val CONVERSATE_ENABLED_KEY = booleanPreferencesKey("conversate_enabled")
+        private val CONVERSATE_CAPTIONS_KEY = booleanPreferencesKey("conversate_captions")
+        private val CONVERSATE_CUES_KEY = booleanPreferencesKey("conversate_cues")
+        private val CONVERSATE_AUTO_POPUP_KEY = booleanPreferencesKey("conversate_auto_popup")
+        private val CONVERSATE_CUE_SECONDS_KEY = intPreferencesKey("conversate_cue_seconds")
         private val HUD_SCROLL_SECONDS_KEY = intPreferencesKey("hud_scroll_seconds")
 
         /** Vendor default is 5 s (`EvenAI.updateReplyToOSByTimer`: `int interval = 5`). */
