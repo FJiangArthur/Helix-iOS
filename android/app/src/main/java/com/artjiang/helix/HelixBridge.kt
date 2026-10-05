@@ -79,6 +79,11 @@ import com.artjiang.helix.speech.TranscriptSourceSwitch
 import com.artjiang.helix.speech.TranscriptionService
 import com.artjiang.helix.speech.TranscriptionSource
 import java.io.File
+import com.artjiang.helix.conversate.ConversateController
+import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.PrepNote
+import com.artjiang.helix.conversate.PrepNoteRepository
+import com.artjiang.helix.conversate.SessionEffect
 
 /**
  * The single seam between the Android shell and the pure Kotlin layers.
@@ -505,6 +510,72 @@ class HelixBridge(
         scope.launch { settingsRepository.setHudDwellSeconds(seconds) }
     }
 
+    // MARK: - Conversate
+
+    val prepNoteRepository = PrepNoteRepository(File(appContext.filesDir, "prep_notes.json"), scope)
+
+    val conversateEnabled: StateFlow<Boolean> = settingsRepository.conversateEnabled
+        .stateIn(scope, SharingStarted.Eagerly, false)
+
+    val conversatePrefs: StateFlow<ConversatePrefs> = settingsRepository.conversatePrefs
+        .stateIn(scope, SharingStarted.Eagerly, ConversatePrefs())
+
+    /**
+     * G2-style live captions + cues (spec 2026-10-04). While enabled it owns the
+     * touchpad and, during a session, the HUD; disabled, the app is unchanged.
+     */
+    val conversate = ConversateController(
+        scope = scope,
+        sendScreen = { packets -> transport.sendScreenDetailed(packets) },
+        clearScreen = { transport.send(G1Command(bytes = G1CommandEncoder.exitAllFunctions())) },
+        arbiter = hudArbiter,
+        classify = { prompt, maxTokens ->
+            val provider = fastProvider
+            // Same keyless guard as the question classifier: the deterministic
+            // provider's canned prose must never be parsed as cues.
+            if (provider.kind == ProviderKind.DETERMINISTIC) {
+                throw IllegalStateException("No provider configured for Conversate cues.")
+            }
+            provider.classify(prompt, maxTokens)
+        },
+        onEffect = ::applyConversateEffect,
+    )
+
+    private fun applyConversateEffect(effect: SessionEffect) {
+        when (effect) {
+            is SessionEffect.Start -> {
+                // Stop any legacy answer lifecycle so its dwell timer cannot
+                // blank the lens under the session.
+                hudSession.reset()
+                if (!isListening.value) startListening()
+            }
+            SessionEffect.End -> if (isListening.value) stopListening()
+            is SessionEffect.SetPaused -> if (effect.paused) stopListening() else startListening()
+            is SessionEffect.SetCaptions -> setConversatePrefs(conversatePrefs.value.copy(captionsOn = effect.on))
+            is SessionEffect.SetCues -> setConversatePrefs(conversatePrefs.value.copy(cuesOn = effect.on))
+        }
+    }
+
+    fun setConversateEnabled(enabled: Boolean) {
+        scope.launch { settingsRepository.setConversateEnabled(enabled) }
+    }
+
+    fun setConversatePrefs(prefs: ConversatePrefs) {
+        scope.launch { settingsRepository.setConversatePrefs(prefs) }
+    }
+
+    fun startConversate(prepNoteId: String?) = conversate.start(prepNoteId)
+
+    fun endConversate() = conversate.end()
+
+    fun upsertPrepNote(note: PrepNote) {
+        scope.launch { prepNoteRepository.upsert(note) }
+    }
+
+    fun deletePrepNote(id: String) {
+        scope.launch { prepNoteRepository.delete(id) }
+    }
+
     private var positionCounter: Byte = 0
 
     init {
@@ -534,7 +605,17 @@ class HelixBridge(
         }
 
         // Sources may emit on OkHttp/audio threads; hop to the bridge scope.
-        sourceSwitch.onSegment = { segment -> scope.launch { handleSegment(segment) } }
+        sourceSwitch.onSegment = { segment ->
+            scope.launch {
+                // Conversate takes partials too (live captions); the legacy
+                // pipeline below still only acts on finals.
+                conversate.onSegment(segment)
+                handleSegment(segment)
+            }
+        }
+        scope.launch { conversateEnabled.collect { conversate.setEnabled(it) } }
+        scope.launch { conversatePrefs.collect { conversate.setPrefs(it) } }
+        scope.launch { prepNoteRepository.notes.collect { conversate.setPrepNotes(it) } }
 
         // Keeps the glasses-side 0x04 filter in step with the user's list.
         observeNotificationWhitelist()
@@ -788,8 +869,14 @@ class HelixBridge(
             }
 
             val touchpadSide = if (side == G1Side.RIGHT) G1TouchpadSide.RIGHT else G1TouchpadSide.LEFT
+            conversate.handleStatus(status)
+
             val frame = G1StatusDecoder.decodeTouchpad(data, touchpadSide) ?: return@launch
             lastTouchpadState.value = "${touchpadSide.name.lowercase()} pad - index ${frame.notifyIndex}"
+            // Conversate spec §4.1: while enabled it owns every touchpad index.
+            // The legacy decider (manual question / StopListening / ClearHud /
+            // tap counter) must never see the event.
+            if (conversate.handleTouchpad(frame)) return@launch
             val hasAnswer = engine.activeAnswer != null
             // Triple tap on the RIGHT pad toggles a transcription session.
             //
@@ -1090,6 +1177,12 @@ class HelixBridge(
     ) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
+        // During a Conversate session answers and notices become cues; the
+        // session owns the lens.
+        if (conversate.isLive.value) {
+            conversate.offerExternal(trimmed, priority)
+            return
+        }
         val pages = hudPresenter.textPages(trimmed)
         val deliveryId = ++nextHudDeliveryId
         activeHudDeliveryId = deliveryId
@@ -1632,6 +1725,7 @@ class HelixBridge(
      * the BLE queue. [streamHudJob] still gates overlapping writes.
      */
     private fun maybeRepaintHudWhileStreaming(text: String) {
+        if (conversate.isLive.value) return
         if (!isGlassesConnected) return
         val frame = hudLineStream.update(text) ?: return
         if (streamHudJob?.isActive == true) return
