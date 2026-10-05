@@ -178,6 +178,14 @@ data class KnowledgeItem(
  *    non-blocking; callers hop to their own dispatcher.
  *  - It is never invoked after [answer] returns or throws.
  */
+/**
+ * Default token budget for [AnswerProvider.classify]. A classification response
+ * is a short list of questions (or the literal "NONE"), never prose, so this is
+ * intentionally tiny — the cost control for the always-on question-detection
+ * path. Callers needing structured output (Conversate cues) pass their own.
+ */
+const val CLASSIFY_MAX_TOKENS = 120
+
 interface AnswerProvider {
     val kind: ProviderKind
     val model: String
@@ -198,7 +206,7 @@ interface AnswerProvider {
      * every existing [AnswerProvider] implementation source-compatible).
      * Real network providers override this with their own small-budget call.
      */
-    suspend fun classify(prompt: String): String =
+    suspend fun classify(prompt: String, maxTokens: Int = CLASSIFY_MAX_TOKENS): String =
         answer(
             AnswerRequest(
                 question = prompt,

@@ -479,4 +479,20 @@ class ProvidersTest {
             .make(HelixSettings(activeProvider = "NOT_A_PROVIDER"))
         assertTrue(provider is DeterministicProvider)
     }
+
+    @Test
+    fun `classify honours a caller token budget on both providers`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"choices":[{"message":{"content":"{}"}}]}"""))
+        server.enqueue(MockResponse().setBody("""{"content":[{"type":"text","text":"{}"}]}"""))
+
+        OpenAiCompatibleProvider(apiKey = "sk", model = "gpt-4.1", kind = ProviderKind.OPENAI, baseUrl = baseUrl())
+            .classify("cues?", maxTokens = 600)
+        val openAi = helixJson.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(600, openAi["max_tokens"]?.jsonPrimitive?.content?.toInt())
+
+        AnthropicProvider(apiKey = "sk-ant", model = "claude-sonnet-4-5", baseUrl = baseUrl())
+            .classify("cues?", maxTokens = 600)
+        val anthropic = helixJson.parseToJsonElement(server.takeRequest().body.readUtf8()).jsonObject
+        assertEquals(600, anthropic["max_tokens"]?.jsonPrimitive?.content?.toInt())
+    }
 }

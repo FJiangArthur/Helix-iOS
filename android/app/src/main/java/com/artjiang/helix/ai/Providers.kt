@@ -260,13 +260,6 @@ internal fun omitsTokenCap(kind: ProviderKind, model: String): Boolean =
  */
 internal const val DEFAULT_MAX_TOKENS = 400
 
-/**
- * Token budget for [AnswerProvider.classify] calls. A classification response
- * is a short list of questions (or the literal "NONE"), never prose, so this
- * is intentionally far smaller than [DEFAULT_MAX_TOKENS] — this is the "tiny
- * token budget" cost control for the always-on question-detection path.
- */
-internal const val CLASSIFY_MAX_TOKENS = 120
 
 /** Builds the [AnswerResponse], preferring the model the API reports. */
 internal fun answerFrom(
@@ -487,14 +480,14 @@ open class OpenAiCompatibleProvider(
      * path's max_tokens logic at all). Never streamed — the classifier wants
      * one compact buffered response.
      */
-    override suspend fun classify(prompt: String): String = withContext(Dispatchers.IO) {
+    override suspend fun classify(prompt: String, maxTokens: Int): String = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) throw MissingApiKeyException(kind)
         val url = baseUrl.trimEnd('/') + "/chat/completions"
         val headers = authHeadersFor(kind, apiKey)
         val body = buildJsonObject {
             put("model", model)
             if (!omitsTemperature(kind, model)) put("temperature", 0.0)
-            if (!omitsTokenCap(kind, model)) put("max_tokens", CLASSIFY_MAX_TOKENS)
+            if (!omitsTokenCap(kind, model)) put("max_tokens", maxTokens)
             put("messages", buildJsonArray {
                 add(buildJsonObject {
                     put("role", "user")
@@ -629,13 +622,13 @@ class AnthropicProvider(
      * [OpenAiCompatibleProvider.classify] override for why this bypasses
      * [PromptBuilder] and [buildBody]/[maxTokens] entirely. Never streamed.
      */
-    override suspend fun classify(prompt: String): String = withContext(Dispatchers.IO) {
+    override suspend fun classify(prompt: String, maxTokens: Int): String = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) throw MissingApiKeyException(kind)
         val url = baseUrl.trimEnd('/') + "/messages"
         val headers = authHeadersFor(kind, apiKey)
         val body = buildJsonObject {
             put("model", model)
-            put("max_tokens", CLASSIFY_MAX_TOKENS)
+            put("max_tokens", maxTokens)
             put("temperature", 0.0)
             put("messages", buildJsonArray {
                 add(buildJsonObject {

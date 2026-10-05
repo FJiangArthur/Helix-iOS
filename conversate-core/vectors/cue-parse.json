@@ -1,0 +1,57 @@
+[
+  {
+    "name": "plain",
+    "raw": "{\"cues\":[{\"type\":\"CONCEPT\",\"title\":\"RAG\",\"body\":\"Retrieval augmented generation.\",\"entity\":\"RAG\"}]}",
+    "titles": [
+      "RAG"
+    ]
+  },
+  {
+    "name": "fenced",
+    "raw": "```json\n{\"cues\":[{\"type\":\"BIO\",\"title\":\"Jensen Huang\",\"body\":\"Nvidia CEO.\"}]}\n```",
+    "titles": [
+      "Jensen Huang"
+    ]
+  },
+  {
+    "name": "prose around json",
+    "raw": "Sure! {\"cues\":[{\"type\":\"SUGGESTION\",\"title\":\"Ask timeline\",\"body\":\"Ask when it ships.\"}]} Hope that helps",
+    "titles": [
+      "Ask timeline"
+    ]
+  },
+  {
+    "name": "empty",
+    "raw": "{\"cues\":[]}",
+    "titles": []
+  },
+  {
+    "name": "unknown type skipped",
+    "raw": "{\"cues\":[{\"type\":\"ANSWER\",\"title\":\"x\",\"body\":\"y\"},{\"type\":\"concept\",\"title\":\"API\",\"body\":\"Interface.\"}]}",
+    "titles": [
+      "API"
+    ]
+  },
+  {
+    "name": "blank body skipped",
+    "raw": "{\"cues\":[{\"type\":\"CONCEPT\",\"title\":\"x\",\"body\":\"  \"}]}",
+    "titles": []
+  },
+  {
+    "name": "oversize truncated",
+    "raw": "{\"cues\":[{\"type\":\"CONCEPT\",\"title\":\"ABCDEFGHIJKLMNOPQRSTUVWXYZ123\",\"body\":\"b\"}]}",
+    "titles": [
+      "ABCDEFGHIJKLMNOPQRSTUVW~"
+    ]
+  },
+  {
+    "name": "prose only",
+    "raw": "I could not find anything.",
+    "rejected": true
+  },
+  {
+    "name": "broken json",
+    "raw": "{\"cues\":[{\"type\":",
+    "rejected": true
+  }
+]
