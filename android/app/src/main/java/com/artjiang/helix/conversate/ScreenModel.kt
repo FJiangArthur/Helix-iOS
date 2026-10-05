@@ -37,3 +37,12 @@ sealed interface SessionEffect {
     data class SetCaptions(val on: Boolean) : SessionEffect
     data class SetCues(val on: Boolean) : SessionEffect
 }
+
+/** ASCII-only HUD glyphs until the G1 font's coverage is confirmed on hardware. */
+object HudGlyphs {
+    const val CUE = "*"
+    const val CURSOR = ">"
+    const val MORE = ">>"
+    const val RULE = "- - - - - - - - - -"
+    const val PAUSED = "||"
+}
