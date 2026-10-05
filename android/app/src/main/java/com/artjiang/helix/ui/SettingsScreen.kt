@@ -136,6 +136,8 @@ fun SettingsScreen(bridge: HelixBridge, modifier: Modifier = Modifier) {
             ) { value -> bridge.updateSettings { it.copy(maxResponseSentences = value) } }
         }
 
+        ConversateSettingsSection(bridge)
+
         // Port of the iOS active-skill picker + custom-skill sheet
         // (NativeSettingsView.swift): six built-ins plus the user's custom
         // skills, tap to activate, with add/edit/delete for customs.
@@ -973,4 +975,20 @@ private fun CustomSkillDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** Conversate glasses-interface settings (spec §5.5). */
+@Composable
+fun ConversateSettingsSection(bridge: HelixBridge) {
+    val prefs by bridge.conversatePrefs.collectAsStateWithLifecycle()
+    HelixSection(title = "Conversate", subtitle = "What appears on the glasses during a session") {
+        ToggleRow("Live captions", prefs.captionsOn) { bridge.setConversatePrefs(prefs.copy(captionsOn = it)) }
+        ToggleRow("AI cues", prefs.cuesOn) { bridge.setConversatePrefs(prefs.copy(cuesOn = it)) }
+        ToggleRow("Auto pop-up", prefs.autoPopup, detail = "Off: new cues wait until you tap.") {
+            bridge.setConversatePrefs(prefs.copy(autoPopup = it))
+        }
+        SliderRow("Cue duration", (prefs.cueDurationMillis / 1000).toInt(), 3..15, suffix = " s") {
+            bridge.setConversatePrefs(prefs.copy(cueDurationMillis = it * 1_000L))
+        }
+    }
 }

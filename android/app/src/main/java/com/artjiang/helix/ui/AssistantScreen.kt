@@ -308,6 +308,10 @@ fun AssistantScreen(bridge: HelixBridge, modifier: Modifier = Modifier) {
                 onStartNew = { confirmNewConversation = true },
             )
 
+            Box(modifier = Modifier.padding(horizontal = HelixSpacing.screen)) {
+                ConversateCard(bridge)
+            }
+
             AnimatedContent(
                 targetState = hasConversation,
                 transitionSpec = {

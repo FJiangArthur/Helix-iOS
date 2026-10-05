@@ -70,4 +70,19 @@ class ConversateControllerTest {
         assertEquals(1, rig.clears)
         assertFalse(rig.controller.isLive.value)
     }
+
+    @Test
+    fun `pause from glasses menu and from phone share one state`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.start(null)
+        rig.controller.intent(ConversateIntent.MENU)
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertTrue(rig.controller.paused.value)
+        rig.controller.setPaused(false)
+        assertFalse(rig.controller.paused.value)
+        assertEquals(SessionEffect.SetPaused(false), rig.effects.last())
+        rig.controller.end()
+        assertFalse(rig.controller.paused.value)
+    }
 }

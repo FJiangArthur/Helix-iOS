@@ -56,6 +56,10 @@ class ConversateController(
     val enabled: StateFlow<Boolean> = enabledState.asStateFlow()
     private val liveState = MutableStateFlow(false)
     val isLive: StateFlow<Boolean> = liveState.asStateFlow()
+    private val pausedState = MutableStateFlow(false)
+
+    /** One pause state for the glasses menu and the phone button. */
+    val paused: StateFlow<Boolean> = pausedState.asStateFlow()
     private val screenState = MutableStateFlow<ScreenModel>(ScreenModel.Blank)
     val screen: StateFlow<ScreenModel> = screenState.asStateFlow()
     private val previewState = MutableStateFlow("")
@@ -124,7 +128,12 @@ class ConversateController(
 
     fun end() = apply(session.endLive())
 
-    fun setPaused(paused: Boolean) { session.setPaused(paused); render() }
+    /** Phone-side pause; emits the same effect as the glasses menu toggle. */
+    fun setPaused(paused: Boolean) {
+        if (!session.isLive || pausedState.value == paused) return
+        session.setPaused(paused)
+        apply(listOf(SessionEffect.SetPaused(paused)))
+    }
 
     private fun apply(effects: List<SessionEffect>) {
         effects.forEach { effect ->
@@ -134,13 +143,16 @@ class ConversateController(
                     engine.reset()
                     engine.setPrepNote(prepNotes.firstOrNull { it.id == effect.prepNoteId }?.text)
                     liveState.value = true
+                    pausedState.value = false
                     startTicker()
                 }
                 SessionEffect.End -> {
                     liveState.value = false
+                    pausedState.value = false
                     engine.reset()
                     captions.clear()
                 }
+                is SessionEffect.SetPaused -> pausedState.value = effect.paused
                 else -> Unit
             }
             onEffect(effect)
