@@ -118,7 +118,7 @@ class HudProbeTest {
         var now = 1_000L
         val log = TouchpadProbeLog(capacity = 2, clock = { now })
         log.record("a"); now += 150; log.record("b"); now += 50; log.record("c")
-        assertEquals(listOf("+150ms b", "+200ms c"), log.entries.value)
+        assertEquals(listOf("+150ms b", "+50ms c"), log.entries.value)
     }
 }
 ```
@@ -264,7 +264,7 @@ git commit -m "feat(conversate): add G1 hardware probe for touchpad and throughp
 - Test: `android/app/src/test/java/com/artjiang/helix/HudArbiterTest.kt`, `HudArbiterAnswerNotificationTest.kt`
 
 **Interfaces:**
-- Produces: `HudArbiter.Priority.CONVERSATE_LIVE` (rank 3), `CONVERSATE_INTERACTIVE` (rank 4); `@JvmInline value class HudArbiter.Lease(val generation: Long)`; `suspend fun acquire(priority: Priority, durationMillis: Long = defaultDurationFor(priority)): Lease?`; `suspend fun release(lease: Lease)`; `suspend fun isCurrent(lease: Lease): Boolean`. `requestDisplay(...)` stays (returns `acquire(...) != null`). **`releaseDisplay()` is removed.**
+- Produces: `HudArbiter.Priority.CONVERSATE_LIVE` (rank 3), `CONVERSATE_INTERACTIVE` (rank 4); `@JvmInline value class HudArbiter.Lease(val generation: Long)`; `suspend fun acquire(priority: Priority, durationMillis: Long = defaultDurationFor(priority), replacing: Lease? = null): Lease?` (a holder may always re-acquire, even at a lower priority, by passing its current lease); `suspend fun release(lease: Lease)`; `suspend fun isCurrent(lease: Lease): Boolean`. `requestDisplay(...)` stays (returns `acquire(...) != null`). **`releaseDisplay()` is removed.**
 
 - [ ] **Step 1: Write the failing tests** (append to `HudArbiterTest`)
 
@@ -287,6 +287,16 @@ git commit -m "feat(conversate): add G1 hardware probe for touchpad and throughp
         arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)!!
         assertNull(arbiter.acquire(HudArbiter.Priority.NOTIFICATION))
         assertNull(arbiter.acquire(HudArbiter.Priority.ANSWER))
+    }
+
+    @Test
+    fun `holder can downgrade its own lease`() = runTest {
+        val arbiter = HudArbiter(FakeClock())
+        val menu = arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)!!
+        assertNull(arbiter.acquire(HudArbiter.Priority.CONVERSATE_LIVE))
+        val live = arbiter.acquire(HudArbiter.Priority.CONVERSATE_LIVE, replacing = menu)
+        assertTrue(live != null)
+        assertEquals(HudArbiter.Priority.CONVERSATE_LIVE, arbiter.currentHolder())
     }
 
     @Test
@@ -333,11 +343,13 @@ Expected: compilation FAIL (`Unresolved reference: acquire`).
     suspend fun acquire(
         priority: Priority,
         durationMillis: Long = defaultDurationFor(priority),
+        replacing: Lease? = null,
     ): Lease? = mutex.withLock {
         val now = clock()
         val current = activePriority
         val expired = current == null || activeUntilMillis <= now
-        if (current != null && !expired && priority.rank < current.rank) return@withLock null
+        val ownsIt = replacing != null && replacing.generation == generation && !expired
+        if (!ownsIt && current != null && !expired && priority.rank < current.rank) return@withLock null
         activePriority = priority
         activeUntilMillis = now + durationMillis
         generation += 1
@@ -373,7 +385,7 @@ In `HelixBridge.kt`:
 and change the `hudSession` lambdas (line ~445):
 
 ```kotlin
-        requestDisplay = { hudArbiter.acquire(hudPriority).also { answerLease = it } != null },
+        requestDisplay = { hudArbiter.acquire(hudPriority, replacing = answerLease)?.also { answerLease = it } != null },
         releaseDisplay = { answerLease?.let { hudArbiter.release(it) }; answerLease = null },
 ```
 
@@ -1011,6 +1023,7 @@ class ConversateSessionTest {
         now += 3_001; s.tick()
         assertTrue(s.screen() is ScreenModel.Live)
         s.onIntent(BACK)
+        now += 500
         assertEquals(listOf(SessionEffect.End), s.onIntent(BACK))
         assertFalse(s.isLive)
         assertEquals(ScreenModel.Blank, s.screen())
@@ -1129,6 +1142,7 @@ class ConversateSession(
 ) {
     companion object {
         const val CONFIRM_END_MILLIS = 3_000L
+        const val CONFIRM_GUARD_MILLIS = 400L
         const val LIVE_TITLE = "CONVERSATE"
         const val PICKER_TITLE = "PREP NOTE"
         const val SKIP_AND_START = "Skip & start"
@@ -1238,6 +1252,8 @@ class ConversateSession(
                 return emptyList()
             }
             is Overlay.Confirm -> {
+                // Ignore a BACK that is really the same double-tap echoed.
+                if (intent == ConversateIntent.BACK && now < o.until - CONFIRM_END_MILLIS + CONFIRM_GUARD_MILLIS) return emptyList()
                 if (intent == ConversateIntent.BACK) return endLive()
                 overlay = null
                 return emptyList()
@@ -1402,7 +1418,8 @@ class ConversateSession(
     { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
     { "advance": 3001, "tick": true, "expect": { "kind": "Live" } },
     { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
-    { "intent": "BACK", "effects": ["End"], "expect": { "kind": "Blank", "live": false } }
+    { "intent": "BACK", "expect": { "kind": "ConfirmEnd" } },
+    { "advance": 500, "intent": "BACK", "effects": ["End"], "expect": { "kind": "Blank", "live": false } }
   ]
 }
 ```
@@ -1580,6 +1597,14 @@ class G1HudComposerTest {
     }
 
     @Test
+    fun `prep note keeps line breaks and never exceeds five lines`() {
+        val text = (1..8).joinToString("\n") { "Point $it" }
+        val f = composer.compose(ScreenModel.PrepNoteView("Acme", text, 0))!!
+        assertEquals(listOf("Acme", "Point 1", "Point 2", "Point 3", "Point 4"), f.text.lines())
+        assertEquals(2, f.pageCount)
+    }
+
+    @Test
     fun `blank clears`() { assertNull(composer.compose(ScreenModel.Blank)) }
 
     @Test
@@ -1627,9 +1652,14 @@ class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
         ScreenModel.ConfirmEnd -> HudFrame("End session?\n\nDouble-tap again to end\nAny other tap cancels")
     }
 
-    fun detailPageCount(cue: Cue): Int = paginator.pages(detailText(cue)).size.coerceAtLeast(1)
+    fun detailPageCount(cue: Cue): Int = pages(detailText(cue)).size
 
-    fun textPageCount(text: String): Int = paginator.pages(text).size.coerceAtLeast(1)
+    fun textPageCount(text: String): Int = pages(text).size
+
+    /** HudPaginator.lines() splits on spaces only, so honour explicit newlines here. */
+    private fun pages(text: String): List<String> =
+        text.split("\n").flatMap { para -> if (para.isBlank()) listOf("") else paginator.lines(para) }
+            .chunked(rows).map { it.joinToString("\n") }.ifEmpty { listOf("") }
 
     private fun live(s: ScreenModel.Live): HudFrame? {
         if (s.paused) return HudFrame("${HudGlyphs.PAUSED} Paused\nHold left pad for menu")
@@ -1672,7 +1702,7 @@ class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
     private fun detailText(cue: Cue) = "${HudGlyphs.CUE} ${cue.type.label}  ${cue.title}\n${cue.detail ?: cue.body}"
 
     private fun paged(text: String, page: Int): HudFrame {
-        val pages = paginator.pages(text).ifEmpty { listOf("") }
+        val pages = pages(text)
         val index = page.coerceIn(0, pages.size - 1)
         return HudFrame(pages[index], index + 1, pages.size)
     }
@@ -1684,7 +1714,7 @@ class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
 }
 ```
 
-Note: `paginator.pages(text)` must honour explicit `\n` breaks; verify with `grep -n "fun pages" -A20 android/app/src/main/java/com/artjiang/helix/g1/G1Protocol.kt`. If it collapses newlines, build detail pages as `listOf(header) + paginator.lines(body)` chunked by 5 instead (keep the test).
+Note: `HudPaginator.lines()` splits on spaces only, which is why the composer's private `pages()` splits on `\n` first.
 
 - [ ] **Step 4: Run → PASS.** Adjust only `fit`/layout code if a golden string differs by whitespace; never weaken the 5-line / 46-char assertions.
 - [ ] **Step 5: Commit** — `git commit -m "feat(conversate): G1 5-line HUD composer"`.
@@ -1876,6 +1906,34 @@ class ConversateHudDriverTest {
     }
 
     @Test
+    fun `captions draw again after a menu closes`() = runTest {
+        val rig = Rig(this)
+        rig.driver.submit(HudFrame("menu"), true); advanceTimeBy(1_000)
+        rig.driver.submit(HudFrame("caption"), false); advanceTimeBy(1_000)
+        assertEquals(listOf("menu", "caption"), rig.sent)
+    }
+
+    @Test
+    fun `failed send is retried on the next identical frame`() = runTest {
+        var fail = true
+        val sent = mutableListOf<String>()
+        val driver = ConversateHudDriver(
+            scope = backgroundScope,
+            sendScreen = { p ->
+                if (fail) G1ScreenDeliveryOutcome.failed(p.size)
+                else { sent += "ok"; G1ScreenDeliveryOutcome.deliveredToBoth(p.size) }
+            },
+            clearScreen = {},
+            arbiter = HudArbiter { testScheduler.currentTime },
+            clock = { testScheduler.currentTime },
+        )
+        driver.submit(HudFrame("a"), true); advanceTimeBy(500)
+        fail = false
+        driver.submit(HudFrame("a"), true); advanceTimeBy(500)
+        assertEquals(listOf("ok"), sent)
+    }
+
+    @Test
     fun `refused lease skips the draw`() = runTest {
         val rig = Rig(this)
         rig.arbiter.acquire(HudArbiter.Priority.CONVERSATE_INTERACTIVE)
@@ -1907,9 +1965,12 @@ package com.artjiang.helix.conversate
 
 import com.artjiang.helix.HudArbiter
 import com.artjiang.helix.g1.G1PacketEncoder
+import com.artjiang.helix.g1.G1ScreenDeliveryCoverage
 import com.artjiang.helix.g1.G1ScreenDeliveryOutcome
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -1929,6 +1990,7 @@ class ConversateHudDriver(
     companion object {
         /** Replace with max(700, S3 p90 + 100) once spike S3 is recorded. */
         const val CAPTION_INTERVAL_DEFAULT_MILLIS = 700L
+        const val LEASE_RENEW_MILLIS = 20_000L
     }
 
     private data class Submission(val frame: HudFrame?, val interactive: Boolean)
@@ -1940,6 +2002,7 @@ class ConversateHudDriver(
     private var last: Any? = Unset
     private var lastSentAt = Long.MIN_VALUE / 2
     private var syncSeq = 0
+    private var heldPriority = HudArbiter.Priority.CONVERSATE_LIVE
     private val lastSentState = MutableStateFlow<String?>(null)
     val lastSentText: StateFlow<String?> = lastSentState.asStateFlow()
 
@@ -1955,6 +2018,12 @@ class ConversateHudDriver(
                     next = withTimeoutOrNull(wait) { slot.receive() } ?: break
                 }
                 lock.withLock { draw(next) }
+            }
+        }
+        scope.launch {
+            while (true) {
+                delay(LEASE_RENEW_MILLIS)
+                renew()
             }
         }
     }
@@ -1983,8 +2052,11 @@ class ConversateHudDriver(
             return
         }
         val priority = if (s.interactive) HudArbiter.Priority.CONVERSATE_INTERACTIVE else HudArbiter.Priority.CONVERSATE_LIVE
-        val granted = arbiter.acquire(priority) ?: return
+        // Passing our own lease lets a closed menu (INTERACTIVE) step back
+        // down to captions (LIVE) instead of being refused by itself.
+        val granted = arbiter.acquire(priority, replacing = lease) ?: return
         lease = granted
+        heldPriority = priority
         syncSeq = (syncSeq + 1) and 0xFF
         val packets = G1PacketEncoder.encodeTextPage(
             text = s.frame.text,
@@ -1992,10 +2064,25 @@ class ConversateHudDriver(
             maxPage = s.frame.pageCount,
             syncSeq = syncSeq.toByte(),
         )
-        sendScreen(packets)
+        val outcome = try {
+            sendScreen(packets)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // Remember the frame only if a lens took it; otherwise the
+        // identical-frame guard would block the retry.
+        if (outcome == null || outcome.coverage == G1ScreenDeliveryCoverage.NONE) return
         last = s.frame
         lastSentAt = clock()
         lastSentState.value = s.frame.text
+    }
+
+    /** Re-acquires the held lease so a long-open menu never expires under the wearer. */
+    private suspend fun renew() = lock.withLock {
+        val held = lease ?: return@withLock
+        lease = arbiter.acquire(heldPriority, replacing = held) ?: held
     }
 }
 ```
@@ -2072,6 +2159,13 @@ class CueParserTest {
     }
 
     @Test
+    fun `newlines in fields are collapsed`() {
+        val cue = CueParser.parse("""{"cues":[{"type":"BIO","title":"Ada\nLovelace","body":"First\n\nprogrammer."}]}""")!!.single()
+        assertEquals("Ada Lovelace", cue.title)
+        assertEquals("First programmer.", cue.body)
+    }
+
+    @Test
     fun `fields are bounded`() {
         val raw = """{"cues":[{"type":"CONCEPT","title":"t","body":"${"b".repeat(400)}","detail":"${"d".repeat(2000)}"}]}"""
         val cue = CueParser.parse(raw)!!.single()
@@ -2123,20 +2217,22 @@ object CueParser {
         return envelope.cues.mapNotNull { c ->
             val type = runCatching { CueType.valueOf(c.type.trim().uppercase()) }.getOrNull()
             if (type == null || type !in allowed) return@mapNotNull null
-            val title = c.title.trim()
-            val body = c.body.trim()
+            val title = c.title.squash()
+            val body = c.body.squash()
             if (title.isEmpty() || body.isEmpty()) return@mapNotNull null
             ParsedCue(
                 type = type,
                 title = bound(title, TITLE_MAX),
                 body = bound(body, BODY_MAX),
-                detail = c.detail?.trim()?.takeIf { it.isNotEmpty() }?.let { bound(it, DETAIL_MAX) },
+                detail = c.detail?.squash()?.takeIf { it.isNotEmpty() }?.let { bound(it, DETAIL_MAX) },
                 entity = c.entity?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }
 
     private fun bound(text: String, max: Int) = if (text.length <= max) text else text.take(max - 1) + "~"
+
+    private fun String.squash() = trim().replace(Regex("\\s+"), " ")
 }
 ```
 
@@ -2216,6 +2312,24 @@ class CueEngineTest {
     }
 
     @Test
+    fun `a new final does not cancel the call in flight`() = runTest {
+        var calls = 0
+        val rig = Rig(this) { calls++; json("RAG") }
+        val slow = CueEngine(
+            scope = backgroundScope,
+            classify = { _, _ -> calls++; kotlinx.coroutines.delay(3_000); json("RAG") },
+            prompt = CuePrompt(1, 600, "{{transcript}}"),
+            clock = { testScheduler.currentTime },
+            emit = { rig.emitted += it },
+        )
+        slow.onFinal("a"); advanceTimeBy(1_600)
+        slow.onFinal("b"); advanceTimeBy(1_600)
+        advanceTimeBy(2_000)
+        assertEquals(listOf("RAG"), rig.emitted.map { it.title })
+        assertEquals(0, slow.failures.value)
+    }
+
+    @Test
     fun `malformed output emits nothing`() = runTest {
         val rig = Rig(this) { "no json" }
         rig.engine.onFinal("x"); advanceTimeBy(1_600)
@@ -2244,6 +2358,7 @@ class CueEngineTest {
 // [minGapMillis], never the same entity twice per session.
 package com.artjiang.helix.conversate
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -2270,7 +2385,8 @@ class CueEngine(
     private val shownTitles = mutableListOf<String>()
     private var prepNote: String = ""
     private var lastEmitAt = Long.MIN_VALUE / 2
-    private var pending: Job? = null
+    private var debounce: Job? = null
+    private var inFlight: Job? = null
     private val ids = AtomicLong(0)
     private val failureState = MutableStateFlow(0)
     val failures: StateFlow<Int> = failureState.asStateFlow()
@@ -2280,7 +2396,8 @@ class CueEngine(
     fun setPrepNote(text: String?) { prepNote = text.orEmpty() }
 
     fun reset() {
-        pending?.cancel()
+        debounce?.cancel()
+        inFlight?.cancel()
         window.clear(); shownKeys.clear(); shownTitles.clear()
         lastEmitAt = Long.MIN_VALUE / 2
         failureState.value = 0
@@ -2290,10 +2407,12 @@ class CueEngine(
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         window.addLast(Line(trimmed, clock()))
-        pending?.cancel()
-        pending = scope.launch {
+        // Only the debounce restarts; an LLM call already in flight finishes.
+        debounce?.cancel()
+        debounce = scope.launch {
             delay(debounceMillis)
-            run()
+            if (inFlight?.isActive == true) return@launch
+            inFlight = scope.launch { run() }
         }
     }
 
@@ -2306,7 +2425,11 @@ class CueEngine(
             prepNote = prepNote,
             shown = shownTitles,
         )
-        val raw = runCatching { classify(text, prompt.maxTokens) }.getOrElse {
+        val raw = try {
+            classify(text, prompt.maxTokens)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             failureState.value += 1
             return
         }
