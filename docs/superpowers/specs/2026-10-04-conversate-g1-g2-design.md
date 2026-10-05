@@ -363,6 +363,23 @@ navigation first, so nothing in Plan A depends on R1.
 | S2 G1 gestures | Does long-press (`23`) trigger firmware UI/mic side effects? Does head-up (`2`) firmware dashboard fight a Helix screen? | debug build logging + screen send on `23`/`2` | D3 gesture fallback; head-up dashboard disabled |
 | S3 Throughput | Fastest stable full-screen rate on G1 | send N screens back-to-back, measure ACK latency | raise caption coalesce interval |
 
+### Hardware results — PENDING
+
+Plan A software shipped on `feature/conversate` (2026-10-05). Run the Device-tab
+"Conversate probe" (debug build) and record here before merge:
+
+| Check | Result |
+|---|---|
+| Left long-press → `23` then `24`? Firmware UI / mic indicator? | |
+| Right long-press indices | |
+| Single tap L/R → `1` per side? | |
+| Fast double-tap → one `0` or two `1`s? | |
+| Head up/down while a Helix screen is shown | |
+| Throughput probe ×3 (median / p90) → caption interval = max(700, p90+100) | |
+
+Plan A acceptance checklist: see Task 15 in
+`docs/superpowers/plans/2026-10-05-conversate-plan-a-g1-mvp.md`.
+
 ## 11. Implementation plans
 
 This spec is delivered as four plans, each built, tested and shipped in order:

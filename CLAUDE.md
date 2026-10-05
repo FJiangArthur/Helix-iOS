@@ -85,6 +85,8 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 | `NativeHelix/Sources/HelixG1` | G1 protocol, touchpad routing, HUD pagination |
 | `NativeHelix/Sources/HelixPersistence` | Native stores, SwiftData schema, document chunking |
 | `NativeHelix/Tests/HelixConversationTests` | Native framework parity and eval tests |
+| `conversate-core/` | Shared Conversate contract (menu, prompts, cue schema, test vectors) for the Android G1 app and the G2 Even Hub app |
+| `android/app/src/main/java/com/artjiang/helix/conversate/` | Android Conversate: session state machine, G1 HUD composer/driver, cue engine, Prep Notes |
 
 ### BLE & HUD Protocol
 
@@ -114,6 +116,8 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 | Active answer displayed | Previous page | Next page |
 
 Answer flag (`EvenAI.hasActiveAnswer`) set when response completes, cleared when new transcription arrives.
+
+**Conversate mode (Android)** owns the whole touchpad while enabled: left long-press = menu (select inside lists), right/left tap = next/previous, double-tap = back (twice at the session root ends it). Spec: `docs/superpowers/specs/2026-10-04-conversate-g1-g2-design.md`.
 
 ## Technical Findings
 
