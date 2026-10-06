@@ -43,6 +43,12 @@ and `.completed` (`item_id`, `transcript`); `gpt-4o-mini-transcribe` is still in
 - **Ruling: Blank → Menu (both full-screen) is an upgrade, not a rebuild — same layout and same `menuObject`, so a rebuild is unnecessary flicker — cost if wrong: none.**
 - **Ruling: FOREGROUND_EXIT closes the mic (`audioControl(false)`) and stops the transcriber; FOREGROUND_ENTER re-opens it and forces a full rebuild; SYSTEM/ABNORMAL_EXIT are treated like background — plan review focus 5 — cost if wrong: if the host keeps the WebView alive in background, captions pause while the user is in another glasses app (intended).**
 
+## Phone page (src/phone, src/main.ts)
+
+- **Ruling: the bridge is used only if `waitForEvenAppBridge()` resolves within 2 s AND `window.flutter_inappwebview.callHandler` exists; otherwise the page runs bridge-less with `localStorage` — the SDK's bridge object can exist in a plain browser, but every native call then fails with "Flutter handler not available" — cost if wrong: if a host exposes the bridge without that global, the app silently runs phone-only; widen the check in `main.ts`.**
+- **Ruling: the key field is `type=password`, cleared after save, never echoed back to the DOM, and its placeholder avoids the `sk-` prefix — keeps `grep -r "sk-" dist release` meaningful as a secret check — cost if wrong: none.**
+- **Ruling: Prep Notes are edited as plain text (≤5000 chars, enforced by `maxlength` and again in `App.savePrepNote`); no TXT/PDF import in v0.1 — the plan's Task 7 lists list/add/edit/delete only — cost if wrong: paste-only import.**
+
 ## Input (src/g2/input.ts)
 
 - **Ruling: an Even Hub event with no `eventType` is treated as CLICK — `CLICK_EVENT` is protobuf value 0 and proto3 JSON omits defaults; the SDK parses `{containerID}` to `eventType: undefined` — cost if wrong: some other untyped host push would act as SELECT (opens a cue; never ends a session, which needs BACK).**
