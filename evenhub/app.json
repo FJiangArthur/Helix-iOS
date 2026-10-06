@@ -1,0 +1,24 @@
+{
+  "package_id": "com.artjiang.helixconversate",
+  "edition": "202601",
+  "name": "Helix Conversate",
+  "version": "0.1.0",
+  "min_sdk_version": "0.0.14",
+  "entrypoint": "index.html",
+  "permissions": [
+    {
+      "name": "g2-microphone",
+      "desc": "Live captions and conversation cues are transcribed from the glasses microphone."
+    },
+    {
+      "name": "phone-microphone",
+      "desc": "Optionally transcribe from the phone microphone instead of the glasses."
+    },
+    {
+      "name": "network",
+      "desc": "Sends audio and transcript text to OpenAI, using your own API key, for transcription and cues.",
+      "whitelist": ["https://api.openai.com", "wss://api.openai.com"]
+    }
+  ],
+  "supported_languages": ["en"]
+}
