@@ -1,0 +1,14 @@
+[
+  { "type": "session.created", "event_id": "event_1", "session": { "type": "transcription" } },
+  { "type": "session.updated", "event_id": "event_2", "session": { "type": "transcription" } },
+  { "type": "input_audio_buffer.speech_started", "event_id": "event_3", "audio_start_ms": 0, "item_id": "item_001" },
+  { "type": "input_audio_buffer.speech_stopped", "event_id": "event_4", "audio_end_ms": 1000, "item_id": "item_001" },
+  { "type": "input_audio_buffer.committed", "event_id": "event_5", "previous_item_id": null, "item_id": "item_001" },
+  { "type": "conversation.item.input_audio_transcription.delta", "event_id": "event_6", "item_id": "item_001", "content_index": 0, "delta": "Hello," },
+  { "type": "conversation.item.input_audio_transcription.delta", "event_id": "event_7", "item_id": "item_001", "content_index": 0, "delta": " how are" },
+  { "type": "input_audio_buffer.speech_started", "event_id": "event_8", "audio_start_ms": 1200, "item_id": "item_002" },
+  { "type": "conversation.item.input_audio_transcription.delta", "event_id": "event_9", "item_id": "item_002", "content_index": 0, "delta": "Fine" },
+  { "type": "conversation.item.input_audio_transcription.completed", "event_id": "event_10", "item_id": "item_001", "content_index": 0, "transcript": "Hello, how are you?" },
+  { "type": "input_audio_buffer.speech_stopped", "event_id": "event_11", "audio_end_ms": 2000, "item_id": "item_002" },
+  { "type": "conversation.item.input_audio_transcription.completed", "event_id": "event_12", "item_id": "item_002", "content_index": 0, "transcript": "Fine, thanks." }
+]
