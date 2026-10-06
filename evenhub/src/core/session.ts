@@ -131,6 +131,23 @@ export class ConversateSession {
     return effects;
   }
 
+  /**
+   * G2 native contextual menu: the OS picks an item directly (no cursor).
+   * Activates the idle/live menu item [id] as if the in-app cursor were on
+   * it, replacing any open in-app menu. Ids not in the current context are
+   * ignored.
+   */
+  activateMenuItem(id: string): SessionEffect[] {
+    const kind: MenuKind = this.live ? 'LIVE' : 'IDLE';
+    const items = kind === 'IDLE' ? this.menu.idle : this.menu.live;
+    const cursor = items.findIndex((i) => i.id === id);
+    if (cursor < 0) return [];
+    if (this.overlay?.t === 'Menu' || this.overlay?.t === 'Off') this.overlay = null;
+    const effects = this.activate({ t: 'Menu', kind, cursor });
+    this.promote(this.clock());
+    return effects;
+  }
+
   private handle(intent: ConversateIntent): SessionEffect[] {
     // No head-up dashboard yet: head movement must not act as a tap.
     if (intent === 'HEAD_UP' || intent === 'HEAD_DOWN') return [];
