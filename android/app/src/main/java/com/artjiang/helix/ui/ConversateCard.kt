@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.artjiang.helix.HelixBridge
 import com.artjiang.helix.conversate.ConversateIntent
+import com.artjiang.helix.ring.RingLinkState
 
 /** Assistant-tab control surface for Conversate (spec §5.5). */
 @Composable
@@ -74,5 +75,37 @@ fun ConversateCard(bridge: HelixBridge) {
             }
         }
     }
+    if (enabled) RingSection(bridge)
     if (editorOpen) PrepNotesSheet(bridge, onDismiss = { editorOpen = false })
 }
+
+/** R1 ring controller (Plan B): opt-in, status, last gesture for hardware checks. */
+@Composable
+private fun RingSection(bridge: HelixBridge) {
+    val ringOn by bridge.ringEnabled.collectAsStateWithLifecycle()
+    val state by bridge.ringState.collectAsStateWithLifecycle()
+    val name by bridge.ringName.collectAsStateWithLifecycle()
+    val last by bridge.ringLastGesture.collectAsStateWithLifecycle()
+    HelixSection(title = "R1 ring", subtitle = "Tap select · double-tap back · hold menu · swipe scroll") {
+        ToggleRow(
+            title = "Use R1 ring",
+            checked = ringOn,
+            detail = "Set the ring up in the Even app once, then force-stop the Even app so Helix can connect.",
+            onCheckedChange = bridge::setRingEnabled,
+        )
+        if (ringOn) {
+            val status = when (state) {
+                RingLinkState.OFF -> "Off"
+                RingLinkState.SEARCHING -> "Searching for ring..."
+                RingLinkState.CONNECTING -> "Connecting${name?.let { " to $it" } ?: ""}..."
+                RingLinkState.CONNECTED -> "Connected${name?.let { ": $it" } ?: ""}"
+                RingLinkState.NOT_FOUND -> "Ring not found - is it bonded and released by the Even app?"
+                RingLinkState.NO_PERMISSION -> "Bluetooth permission needed (connect glasses once first)."
+            }
+            Text(status, style = MaterialTheme.typography.bodySmall)
+            if (last.isNotEmpty()) Text("Last gesture: $last", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = { bridge.reconnectRing() }) { Text("Reconnect ring") }
+        }
+    }
+}
+

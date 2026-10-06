@@ -270,6 +270,14 @@ class SettingsRepository(context: Context) : KeyStore {
         appContext.helixDataStore.edit { prefs -> prefs[CONVERSATE_ENABLED_KEY] = enabled }
     }
 
+    /** Use an Even R1 ring as a Conversate controller (Plan B). */
+    val ringEnabled: Flow<Boolean> =
+        appContext.helixDataStore.data.map { prefs -> prefs[RING_ENABLED_KEY] ?: false }
+
+    suspend fun setRingEnabled(enabled: Boolean) {
+        appContext.helixDataStore.edit { prefs -> prefs[RING_ENABLED_KEY] = enabled }
+    }
+
     val conversatePrefs: Flow<ConversatePrefs> =
         appContext.helixDataStore.data.map { prefs ->
             ConversatePrefs(
@@ -314,6 +322,7 @@ class SettingsRepository(context: Context) : KeyStore {
         private val HUD_DWELL_SECONDS_KEY = intPreferencesKey("hud_dwell_seconds")
         private val SESSION_TAP_TOGGLE_KEY = booleanPreferencesKey("session_tap_toggle_enabled")
         private val CONVERSATE_ENABLED_KEY = booleanPreferencesKey("conversate_enabled")
+        private val RING_ENABLED_KEY = booleanPreferencesKey("conversate_ring_enabled")
         private val CONVERSATE_CAPTIONS_KEY = booleanPreferencesKey("conversate_captions")
         private val CONVERSATE_CUES_KEY = booleanPreferencesKey("conversate_cues")
         private val CONVERSATE_AUTO_POPUP_KEY = booleanPreferencesKey("conversate_auto_popup")

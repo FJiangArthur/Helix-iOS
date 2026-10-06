@@ -85,6 +85,10 @@ import com.artjiang.helix.conversate.ConversatePrefs
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
 import com.artjiang.helix.conversate.SessionEffect
+import com.artjiang.helix.ring.R1Transport
+import com.artjiang.helix.ring.RingLinkState
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 /**
  * The single seam between the Android shell and the pure Kotlin layers.
@@ -557,6 +561,24 @@ class HelixBridge(
         }
     }
 
+    /** Even R1 ring as a Conversate controller (Plan B). */
+    private val ring = R1Transport(appContext, scope)
+    val ringState: StateFlow<RingLinkState> = ring.state
+    val ringName: StateFlow<String?> = ring.deviceName
+    val ringLastGesture: StateFlow<String> = ring.lastGesture
+    val ringEnabled: StateFlow<Boolean> = settingsRepository.ringEnabled
+        .stateIn(scope, SharingStarted.Eagerly, false)
+
+    fun setRingEnabled(enabled: Boolean) {
+        scope.launch { settingsRepository.setRingEnabled(enabled) }
+    }
+
+    /** Drops and re-establishes the ring link (e.g. after force-stopping the Even app). */
+    fun reconnectRing() {
+        ring.stop()
+        if (conversateEnabled.value && ringEnabled.value) ring.start()
+    }
+
     fun setConversateEnabled(enabled: Boolean) {
         scope.launch { settingsRepository.setConversateEnabled(enabled) }
     }
@@ -617,6 +639,13 @@ class HelixBridge(
         scope.launch { conversateEnabled.collect { conversate.setEnabled(it) } }
         scope.launch { conversatePrefs.collect { conversate.setPrefs(it) } }
         scope.launch { prepNoteRepository.notes.collect { conversate.setPrepNotes(it) } }
+        // Ring gestures arrive on a binder thread; the controller is main-scope only.
+        ring.onGesture = { gesture -> scope.launch { conversate.handleRing(gesture) } }
+        scope.launch {
+            combine(conversateEnabled, ringEnabled) { conversateOn, ringOn -> conversateOn && ringOn }
+                .distinctUntilChanged()
+                .collect { wanted -> if (wanted) ring.start() else ring.stop() }
+        }
 
         // Keeps the glasses-side 0x04 filter in step with the user's list.
         observeNotificationWhitelist()
