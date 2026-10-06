@@ -34,6 +34,15 @@ and `.completed` (`item_id`, `transcript`); `gpt-4o-mini-transcribe` is still in
 - **Ruling: speaker role per segment = majority `AudioSpeakerRole` over the segment's `audio_start_ms..audio_end_ms` of appended audio — the realtime API knows nothing of Even's role tags, VAD events give the time span — cost if wrong: a segment straddling speakers gets the majority role; role is informational only in v0.1.**
 - **Ruling: a realtime connection reports at most one failure (error event or close, whichever first) and the supervisor reconnects once, then switches to `ChunkedTranscriber` for the rest of the app run — plan says "if the socket fails twice" — cost if wrong: a flaky network permanently degrades to chunked until the app restarts.**
 
+## Cues, answers and app wiring (src/ai, src/app.ts)
+
+- **Ruling: ANSWER cues come from a minimal detector (`?`-terminated or wh/auxiliary opener, ≥3 words) + one `gpt-4.1-mini` call (≤3 sentences), one answer in flight, and questions tagged `AudioSpeakerRole.Self` are not answered — Android reuses its existing QuestionDetector which does not exist here; the wearer rarely wants their own question answered — cost if wrong: if the Even role classifier mislabels the other speaker as self, their questions go unanswered (role `unknown` is still answered).**
+- **Ruling: the cue engine and answers run only while Cues are on — the menu toggle "Cues: off" should silence the model calls too, not just hide results — cost if wrong: none.**
+- **Ruling: with no API key a session still starts; the caption slot shows "Add your OpenAI key in / Helix Conversate on your phone", the mic stays closed, and saving a key mid-session arms audio — plan: "missing key shows a phone-page prompt and a lens line, never a crash" — cost if wrong: none.**
+- **Ruling: render pipeline = one bridge call in flight, latest state wins; rebuilds and user-driven upgrades go immediately, caption/tick upgrades are spaced ≥300 ms; a failed create/rebuild/upgrade drops the cached page so the next render rebuilds — plan "render coalescing (latest state wins; upgrades ≥300 ms apart for captions)" — cost if wrong: a failing host is retried every 250 ms tick.**
+- **Ruling: Blank → Menu (both full-screen) is an upgrade, not a rebuild — same layout and same `menuObject`, so a rebuild is unnecessary flicker — cost if wrong: none.**
+- **Ruling: FOREGROUND_EXIT closes the mic (`audioControl(false)`) and stops the transcriber; FOREGROUND_ENTER re-opens it and forces a full rebuild; SYSTEM/ABNORMAL_EXIT are treated like background — plan review focus 5 — cost if wrong: if the host keeps the WebView alive in background, captions pause while the user is in another glasses app (intended).**
+
 ## Input (src/g2/input.ts)
 
 - **Ruling: an Even Hub event with no `eventType` is treated as CLICK — `CLICK_EVENT` is protobuf value 0 and proto3 JSON omits defaults; the SDK parses `{containerID}` to `eventType: undefined` — cost if wrong: some other untyped host push would act as SELECT (opens a cue; never ends a session, which needs BACK).**
