@@ -116,4 +116,33 @@ class ConversateControllerTest {
         advanceTimeBy(500)
         assertEquals(before + 1, rig.sent.size)
     }
+
+    @Test
+    fun `ring hold opens the menu and ring tap selects`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.HOLD)
+        assertTrue(rig.controller.screen.value is ScreenModel.Menu)
+        rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.HOLD_RELEASE)
+        rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.TAP)
+        assertEquals(listOf<SessionEffect>(SessionEffect.Start(null)), rig.effects)
+    }
+
+    @Test
+    fun `ring swipe and touchpad tap for the same move count once`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.start(null)
+        rig.controller.intent(ConversateIntent.MENU)
+        rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.SWIPE_FORWARD)
+        rig.controller.handleTouchpad(G1TouchpadFrame(1, G1TouchpadSide.RIGHT))
+        assertEquals(1, (rig.controller.screen.value as ScreenModel.Menu).cursor)
+    }
+
+    @Test
+    fun `ring is ignored while conversate is disabled`() = runTest {
+        val rig = Rig(this)
+        rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.HOLD)
+        assertEquals(ScreenModel.Blank, rig.controller.screen.value)
+    }
 }

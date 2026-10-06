@@ -8,6 +8,7 @@ import com.artjiang.helix.core.TranscriptSegment
 import com.artjiang.helix.g1.G1ScreenDeliveryOutcome
 import com.artjiang.helix.g1.G1StatusEvent
 import com.artjiang.helix.g1.G1TouchpadFrame
+import com.artjiang.helix.ring.R1Gesture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -90,6 +91,12 @@ class ConversateController(
         if (TouchpadOwner.route(frame.notifyIndex, enabledState.value) != TouchpadOwner.CONVERSATE) return false
         G1InputMapper.map(frame, session.selectContext)?.let { intent(it, IntentSource.G1_TOUCHPAD) }
         return true
+    }
+
+    /** R1 ring gesture (Plan B). Same intents as the touchpad; duplicates are deduped. */
+    fun handleRing(gesture: R1Gesture) {
+        if (!enabledState.value) return
+        R1InputMapper.map(gesture)?.let { intent(it, IntentSource.R1) }
     }
 
     fun handleStatus(event: G1StatusEvent?) {

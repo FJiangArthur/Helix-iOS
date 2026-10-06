@@ -5,6 +5,7 @@ package com.artjiang.helix.conversate
 import com.artjiang.helix.g1.G1StatusEvent
 import com.artjiang.helix.g1.G1TouchpadFrame
 import com.artjiang.helix.g1.G1TouchpadSide
+import com.artjiang.helix.ring.R1Gesture
 
 enum class ConversateIntent { NEXT, PREV, SELECT, BACK, MENU, HEAD_UP, HEAD_DOWN }
 
@@ -28,6 +29,18 @@ object G1InputMapper {
         G1StatusEvent.HeadUp -> ConversateIntent.HEAD_UP
         G1StatusEvent.HeadDown -> ConversateIntent.HEAD_DOWN
         else -> null
+    }
+}
+
+/** R1 ring gesture -> intent (spec §4.1). The ring has a real tap, so SELECT is never overloaded. */
+object R1InputMapper {
+    fun map(gesture: R1Gesture): ConversateIntent? = when (gesture) {
+        R1Gesture.TAP -> ConversateIntent.SELECT
+        R1Gesture.DOUBLE_TAP -> ConversateIntent.BACK
+        R1Gesture.HOLD -> ConversateIntent.MENU
+        R1Gesture.HOLD_RELEASE -> null
+        R1Gesture.SWIPE_FORWARD -> ConversateIntent.NEXT
+        R1Gesture.SWIPE_BACK -> ConversateIntent.PREV
     }
 }
 
