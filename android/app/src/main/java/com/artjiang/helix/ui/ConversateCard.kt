@@ -1,5 +1,7 @@
 package com.artjiang.helix.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -86,6 +88,9 @@ private fun RingSection(bridge: HelixBridge) {
     val state by bridge.ringState.collectAsStateWithLifecycle()
     val name by bridge.ringName.collectAsStateWithLifecycle()
     val last by bridge.ringLastGesture.collectAsStateWithLifecycle()
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { bridge.reconnectRing() }
     HelixSection(title = "R1 ring", subtitle = "Tap select · double-tap back · hold menu · swipe scroll") {
         ToggleRow(
             title = "Use R1 ring",
@@ -96,15 +101,20 @@ private fun RingSection(bridge: HelixBridge) {
         if (ringOn) {
             val status = when (state) {
                 RingLinkState.OFF -> "Off"
-                RingLinkState.SEARCHING -> "Searching for ring..."
                 RingLinkState.CONNECTING -> "Connecting${name?.let { " to $it" } ?: ""}..."
                 RingLinkState.CONNECTED -> "Connected${name?.let { ": $it" } ?: ""}"
-                RingLinkState.NOT_FOUND -> "Ring not found - is it bonded and released by the Even app?"
-                RingLinkState.NO_PERMISSION -> "Bluetooth permission needed (connect glasses once first)."
+                RingLinkState.NOT_FOUND -> "No paired R1 ring found. Pair it in the Even app first, then force-stop the Even app."
+                RingLinkState.NO_PERMISSION -> "Bluetooth permission needed."
             }
             Text(status, style = MaterialTheme.typography.bodySmall)
             if (last.isNotEmpty()) Text("Last gesture: $last", style = MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick = { bridge.reconnectRing() }) { Text("Reconnect ring") }
+            if (state == RingLinkState.NO_PERMISSION) {
+                OutlinedButton(onClick = { permissionLauncher.launch(bridge.bluetooth.requiredPermissions()) }) {
+                    Text("Grant Bluetooth permission")
+                }
+            } else {
+                OutlinedButton(onClick = { bridge.reconnectRing() }) { Text("Reconnect ring") }
+            }
         }
     }
 }

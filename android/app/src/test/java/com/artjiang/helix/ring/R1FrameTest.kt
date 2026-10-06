@@ -60,4 +60,13 @@ class R1FrameTest {
         assertFalse(R1Frame.isRingName("Even G1_42_L_ABC"))
         assertFalse(R1Frame.isRingName(null))
     }
+
+    @Test
+    fun `only a bonded ring is ever chosen`() {
+        val spoofed = RingCandidate(name = "EVEN R1_AAAAAA", bonded = false)
+        val glasses = RingCandidate(name = "Even G1_42_L_ABC", bonded = true)
+        val mine = RingCandidate(name = "EVEN R1_B1B2B3", bonded = true)
+        assertNull(R1Frame.pickRing(listOf(spoofed, glasses)))
+        assertEquals(mine, R1Frame.pickRing(listOf(spoofed, glasses, mine)))
+    }
 }

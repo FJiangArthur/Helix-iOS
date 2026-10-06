@@ -14,9 +14,6 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -31,7 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-enum class RingLinkState { OFF, SEARCHING, CONNECTING, CONNECTED, NOT_FOUND, NO_PERMISSION }
+enum class RingLinkState { OFF, CONNECTING, CONNECTED, NOT_FOUND, NO_PERMISSION }
 
 @SuppressLint("MissingPermission") // Guarded by hasPermissions().
 class R1Transport(
@@ -45,7 +42,6 @@ class R1Transport(
         val SERVICE: UUID = uuid("0001")
         val NOTIFY_CHARACTERISTICS: List<UUID> = listOf(uuid("0011"), uuid("0013"))
         val CLIENT_CHARACTERISTIC_CONFIG: UUID = UUID.fromString("00002902-0000-1000-8000-00805F9B34FB")
-        const val SCAN_TIMEOUT_MILLIS = 15_000L
         const val MAX_BACKOFF_MILLIS = 30_000L
     }
 
@@ -72,7 +68,6 @@ class R1Transport(
     private var pendingSubscriptions = ArrayDeque<BluetoothGattCharacteristic>()
     private var backoffMillis = 1_000L
     private var reconnectJob: Job? = null
-    private var scanTimeoutJob: Job? = null
 
     fun hasPermissions(): Boolean {
         val needed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -83,7 +78,7 @@ class R1Transport(
         return needed.all { ContextCompat.checkSelfPermission(appContext, it) == PackageManager.PERMISSION_GRANTED }
     }
 
-    /** Finds the bonded ring (or scans for it) and keeps the link up until [stop]. */
+    /** Finds the bonded ring and keeps the link up until [stop]. */
     fun start() {
         if (running) return
         running = true
@@ -94,8 +89,6 @@ class R1Transport(
     fun stop() {
         running = false
         reconnectJob?.cancel()
-        scanTimeoutJob?.cancel()
-        stopScan()
         gatt?.let { runCatching { it.disconnect(); it.close() } }
         gatt = null
         stateFlow.value = RingLinkState.OFF
@@ -111,47 +104,17 @@ class R1Transport(
             stateFlow.value = RingLinkState.NOT_FOUND
             return
         }
-        val bonded = device ?: runCatching { bt.bondedDevices }.getOrNull()
-            ?.firstOrNull { R1Frame.isRingName(it.name) }
-        if (bonded != null) connect(bonded) else startScan(bt)
-    }
-
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) {
-            val name = result.scanRecord?.deviceName ?: runCatching { result.device.name }.getOrNull()
-            if (!R1Frame.isRingName(name)) return
-            stopScan()
-            connect(result.device)
+        // Bonded devices only (see R1Frame.pickRing): never connect to a ring
+        // just because something nearby advertises the right name.
+        val bonded = runCatching { bt.bondedDevices.toList() }.getOrDefault(emptyList())
+        val ring = bonded.firstOrNull { device ->
+            R1Frame.pickRing(listOf(RingCandidate(runCatching { device.name }.getOrNull(), bonded = true))) != null
         }
-
-        override fun onScanFailed(errorCode: Int) {
-            Log.w(TAG, "scan failed $errorCode")
-            stateFlow.value = RingLinkState.NOT_FOUND
-        }
-    }
-
-    private fun startScan(bt: BluetoothAdapter) {
-        val scanner = bt.bluetoothLeScanner ?: run {
+        if (ring == null) {
             stateFlow.value = RingLinkState.NOT_FOUND
             return
         }
-        stateFlow.value = RingLinkState.SEARCHING
-        runCatching {
-            scanner.startScan(null, ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback)
-        }.onFailure { stateFlow.value = RingLinkState.NOT_FOUND; return }
-        scanTimeoutJob?.cancel()
-        scanTimeoutJob = scope.launch {
-            delay(SCAN_TIMEOUT_MILLIS)
-            if (stateFlow.value == RingLinkState.SEARCHING) {
-                stopScan()
-                stateFlow.value = RingLinkState.NOT_FOUND
-            }
-        }
-    }
-
-    private fun stopScan() {
-        scanTimeoutJob?.cancel()
-        if (hasPermissions()) runCatching { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
+        connect(ring)
     }
 
     private fun connect(target: BluetoothDevice) {

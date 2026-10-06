@@ -7,6 +7,9 @@ package com.artjiang.helix.ring
 
 enum class R1Gesture { TAP, DOUBLE_TAP, HOLD, HOLD_RELEASE, SWIPE_FORWARD, SWIPE_BACK }
 
+/** A device the phone knows about; [bonded] = paired at OS level (via the Even app). */
+data class RingCandidate(val name: String?, val bonded: Boolean)
+
 object R1Frame {
     private const val SHORT_HEADER = 0xFF
     private val LONG_HEADER = intArrayOf(0x00, 0x09, 0x61, 0x00)
@@ -16,6 +19,14 @@ object R1Frame {
         11 -> decodeLong(raw)
         else -> null
     }
+
+    /**
+     * Security: only a ring already bonded to this phone is eligible. Anyone can
+     * advertise an `EVEN R1_` name, and an unbonded impostor could inject
+     * gestures (e.g. end a session), so advertised names alone are never trusted.
+     */
+    fun pickRing(candidates: List<RingCandidate>): RingCandidate? =
+        candidates.firstOrNull { it.bonded && isRingName(it.name) }
 
     /** `EVEN R1_<last 3 MAC bytes>` — the ring's advertised name. */
     fun isRingName(name: String?): Boolean = name?.startsWith("EVEN R1_") == true
