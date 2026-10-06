@@ -117,7 +117,7 @@ Helix listens to conversations, detects questions, generates AI answers, and dis
 
 Answer flag (`EvenAI.hasActiveAnswer`) set when response completes, cleared when new transcription arrives.
 
-**Conversate mode (Android)** owns the whole touchpad while enabled: left long-press = menu (select inside lists), right/left tap = next/previous, double-tap = back (twice at the session root ends it). Spec: `docs/superpowers/specs/2026-10-04-conversate-g1-g2-design.md`.
+**Conversate mode (Android)** owns the whole touchpad while enabled: left long-press = menu (select inside lists), right/left tap = next/previous, double-tap = back (twice at the session root ends it). An OS-bonded **Even R1 ring** can drive the same intents (tap select, double-tap back, hold menu, swipe scroll) via `ring/R1Transport.kt` — bonded rings only, never a name-matched scan. Spec: `docs/superpowers/specs/2026-10-04-conversate-g1-g2-design.md`.
 
 ## Technical Findings
 

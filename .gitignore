@@ -55,3 +55,6 @@ coverage/
 # Superpowers brainstorm ephemeral state
 .superpowers/
 .env
+
+# Locally built deliverables (APKs are large; share them, do not commit)
+/release/
