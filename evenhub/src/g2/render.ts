@@ -17,7 +17,7 @@ import { fitBytes } from './contextMenu';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, TEXT_CREATE_MAX_BYTES } from './validate';
 
 /** Characters per full-width line; conservative estimate of the G2 font (see NOTES.md). */
-export const LINE_CHARS = 44;
+export const LINE_CHARS = 54;
 /** Full-screen lines we fill (the font fits ~10; one is left as headroom). */
 export const FULL_LINES = 9;
 export const CUE_BODY_LINES = 3;

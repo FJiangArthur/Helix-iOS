@@ -44,8 +44,8 @@ describe('mapEvenHubEvent', () => {
   });
 
   it('foreground and exit events become lifecycle actions', () => {
-    expect(mapEvenHubEvent(sys(OsEventTypeList.FOREGROUND_ENTER_EVENT))).toEqual({ type: 'lifecycle', phase: 'foreground' });
-    expect(mapEvenHubEvent(sys(OsEventTypeList.FOREGROUND_EXIT_EVENT))).toEqual({ type: 'lifecycle', phase: 'background' });
+    expect(mapEvenHubEvent(sys(OsEventTypeList.FOREGROUND_ENTER_EVENT))).toEqual({ type: 'lifecycle', phase: 'foregroundEnter' });
+    expect(mapEvenHubEvent(sys(OsEventTypeList.FOREGROUND_EXIT_EVENT))).toEqual({ type: 'lifecycle', phase: 'foregroundExit' });
     expect(mapEvenHubEvent(sys(OsEventTypeList.SYSTEM_EXIT_EVENT))).toEqual({ type: 'lifecycle', phase: 'exit' });
     expect(mapEvenHubEvent(sys(OsEventTypeList.ABNORMAL_EXIT_EVENT))).toEqual({ type: 'lifecycle', phase: 'exit' });
   });

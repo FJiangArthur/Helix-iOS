@@ -8,7 +8,7 @@ import { menuIdForItem } from './contextMenu';
 export type InputAction =
   | { type: 'intent'; intent: ConversateIntent; source: IntentSource }
   | { type: 'menuItem'; menuId: string }
-  | { type: 'lifecycle'; phase: 'foreground' | 'background' | 'exit' };
+  | { type: 'lifecycle'; phase: 'foregroundEnter' | 'foregroundExit' | 'exit' };
 
 const GESTURES: Partial<Record<OsEventTypeList, ConversateIntent>> = {
   [OsEventTypeList.CLICK_EVENT]: 'SELECT',
@@ -34,8 +34,8 @@ export function mapEvenHubEvent(event: EvenHubEvent): InputAction | null {
   const sys = event.sysEvent;
   if (sys) {
     switch (sys.eventType) {
-      case OsEventTypeList.FOREGROUND_ENTER_EVENT: return { type: 'lifecycle', phase: 'foreground' };
-      case OsEventTypeList.FOREGROUND_EXIT_EVENT: return { type: 'lifecycle', phase: 'background' };
+      case OsEventTypeList.FOREGROUND_ENTER_EVENT: return { type: 'lifecycle', phase: 'foregroundEnter' };
+      case OsEventTypeList.FOREGROUND_EXIT_EVENT: return { type: 'lifecycle', phase: 'foregroundExit' };
       case OsEventTypeList.ABNORMAL_EXIT_EVENT:
       case OsEventTypeList.SYSTEM_EXIT_EVENT: return { type: 'lifecycle', phase: 'exit' };
       case OsEventTypeList.IMU_DATA_REPORT: return null;
@@ -47,8 +47,8 @@ export function mapEvenHubEvent(event: EvenHubEvent): InputAction | null {
   const item = event.textEvent ?? event.listEvent;
   if (item) {
     switch (item.eventType) {
-      case OsEventTypeList.FOREGROUND_ENTER_EVENT: return { type: 'lifecycle', phase: 'foreground' };
-      case OsEventTypeList.FOREGROUND_EXIT_EVENT: return { type: 'lifecycle', phase: 'background' };
+      case OsEventTypeList.FOREGROUND_ENTER_EVENT: return { type: 'lifecycle', phase: 'foregroundEnter' };
+      case OsEventTypeList.FOREGROUND_EXIT_EVENT: return { type: 'lifecycle', phase: 'foregroundExit' };
       default: return gesture(item.eventType, 'G2_TOUCHPAD');
     }
   }

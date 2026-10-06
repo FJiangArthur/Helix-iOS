@@ -27,6 +27,10 @@ async function boot(): Promise<void> {
   const app = new App({ bridge, store });
   await app.init();
   mountPhoneUi(root, app);
+  // Android may suspend the WebView in the background: re-arm on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void app.resume();
+  });
   if (!bridge) console.info('[helix] no Even app bridge: running phone page only');
 }
 

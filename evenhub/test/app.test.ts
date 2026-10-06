@@ -140,20 +140,41 @@ describe('App', () => {
     expect(classify.mock.calls[0]![0]).toBe('test-key');
   });
 
-  it('background stops audio; foreground re-arms audio and rebuilds the page', async () => {
+  // Simulator 0.9.5 emits FOREGROUND_ENTER when the OS context menu opens over
+  // the app and FOREGROUND_EXIT when it closes (see NOTES.md), so neither may
+  // close the mic: both re-assert it, and EXIT (overlay gone) redraws the page.
+  it('foreground enter/exit never close the mic; exit re-arms audio and rebuilds', async () => {
     await boot();
     await app.start(null);
     await flush();
     bridge.clear();
-    bridge.gesture(OsEventTypeList.FOREGROUND_EXIT_EVENT);
-    await flush();
-    expect(bridge.of('audio')).toEqual([{ fn: 'audio', arg: false, arg2: undefined }]);
-    expect(tx.stopped).toBeGreaterThan(0);
-    bridge.clear();
     bridge.gesture(OsEventTypeList.FOREGROUND_ENTER_EVENT);
     await flush();
     expect(bridge.of('audio')).toEqual([{ fn: 'audio', arg: true, arg2: AudioInputSource.Glasses }]);
+    expect(bridge.of('rebuild')).toEqual([]);
+    bridge.clear();
+    bridge.gesture(OsEventTypeList.FOREGROUND_EXIT_EVENT);
+    await flush();
+    expect(bridge.of('audio')).toEqual([{ fn: 'audio', arg: true, arg2: AudioInputSource.Glasses }]);
     expect(bridge.of('rebuild').length).toBe(1);
+    expect(tx.stopped).toBe(0);
+    expect(tx.started).toBe(1);
+  });
+
+  it('phone WebView resume re-arms audio and rebuilds; system exit closes the mic', async () => {
+    await boot();
+    await app.start(null);
+    await flush();
+    bridge.clear();
+    await app.resume();
+    await flush();
+    expect(bridge.of('audio')).toEqual([{ fn: 'audio', arg: true, arg2: AudioInputSource.Glasses }]);
+    expect(bridge.of('rebuild').length).toBe(1);
+    bridge.clear();
+    bridge.gesture(OsEventTypeList.SYSTEM_EXIT_EVENT);
+    await flush();
+    expect(bridge.of('audio')).toEqual([{ fn: 'audio', arg: false, arg2: undefined }]);
+    expect(tx.stopped).toBe(1);
   });
 
   it('native context menu end item ends the session and closes the mic', async () => {

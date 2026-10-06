@@ -279,17 +279,50 @@ export class App {
     }
   }
 
-  private async onLifecycle(phase: 'foreground' | 'background' | 'exit'): Promise<void> {
-    if (phase === 'foreground') {
-      this.patch({ foreground: true });
-      // The WebView may have been suspended: re-arm audio and redraw everything.
-      this.lastRendered = null;
-      await this.syncAudio();
-      this.requestRender(true);
-    } else {
+  /**
+   * The phone WebView came back (visibilitychange) after a possible
+   * suspension: re-assert the mic and redraw the whole page.
+   */
+  async resume(): Promise<void> {
+    this.patch({ foreground: true });
+    await this.rearmAudio();
+    this.lastRendered = null;
+    this.requestRender(true);
+  }
+
+  /**
+   * FOREGROUND_ENTER/EXIT bracket a system layer over the app (observed:
+   * the OS context menu emits ENTER on open, EXIT on close), so neither
+   * closes the mic. Both re-assert it; EXIT (layer gone) also redraws.
+   * Only SYSTEM/ABNORMAL_EXIT close the mic.
+   */
+  private async onLifecycle(phase: 'foregroundEnter' | 'foregroundExit' | 'exit'): Promise<void> {
+    if (phase === 'exit') {
       this.patch({ foreground: false });
       await this.syncAudio();
+      return;
     }
+    await this.rearmAudio();
+    if (phase === 'foregroundExit') {
+      this.lastRendered = null;
+      this.requestRender(true);
+    }
+  }
+
+  private async rearmAudio(): Promise<void> {
+    if (!this.state.audioOn) {
+      await this.syncAudio();
+      return;
+    }
+    try {
+      await this.deps.bridge?.audioControl(true, this.audioInput());
+    } catch {
+      /* next re-arm retries */
+    }
+  }
+
+  private audioInput(): AudioInputSource {
+    return this.state.audioSource === 'phone' ? AudioInputSource.Phone : AudioInputSource.Glasses;
   }
 
   private onSegment(seg: Segment): void {
@@ -365,7 +398,7 @@ export class App {
     t.onSegment = (s) => this.onSegment(s);
     t.onMode = (m) => this.patch({ transcriberMode: m });
     t.start();
-    const source = this.state.audioSource === 'phone' ? AudioInputSource.Phone : AudioInputSource.Glasses;
+    const source = this.audioInput();
     try {
       const ok = (await this.deps.bridge?.audioControl(true, source)) ?? false;
       if (!ok && this.deps.bridge) this.patch({ lastError: 'Microphone could not be opened' });

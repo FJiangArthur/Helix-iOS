@@ -7,7 +7,7 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
-    "pack": "evenhub pack app.json dist -o release/helix-conversate.ehpk --sdk-ver 0.0.16"
+    "pack": "mkdir -p release && evenhub pack app.json dist -o release/helix-conversate.ehpk --sdk-ver 0.0.16"
   },
   "dependencies": {
     "@evenrealities/even_hub_sdk": "0.0.16"
