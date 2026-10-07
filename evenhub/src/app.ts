@@ -79,6 +79,13 @@ export const TICK_MILLIS = 250;
 export const CAPTION_UPGRADE_GAP_MILLIS = 300;
 export const NEEDS_KEY_LINES = ['Add your OpenAI key in', 'Helix Live on your phone'];
 
+/** Idle home page: first launch must explain what to do, never show a black screen. */
+export function idleHint(hasKey: boolean): string {
+  return hasKey
+    ? 'Helix Live\n\nHold the touchpad or R1 ring\nto start a session.\n\nDouble-tap to exit.'
+    : 'Helix Live\n\n' + NEEDS_KEY_LINES.join('\n') + '.\n\nDouble-tap to exit.';
+}
+
 function defaultTranscriber(apiKey: string): AppTranscriber {
   const sup = new TranscriberSupervisor({
     realtime: () => new RealtimeTranscriber({ apiKey, model: DEFAULT_TRANSCRIBE_MODEL }),
@@ -467,7 +474,11 @@ export class App {
     try {
       const flags = { paused: this.session.isPaused, ...flagsOf(this.session.currentPrefs) };
       const menu = buildContextMenu(this.menu, this.session.isLive, flags);
-      const result = renderPage(this.session.screen(), { menu, previous: this.lastRendered });
+      const result = renderPage(this.session.screen(), {
+        menu,
+        previous: this.lastRendered,
+        idleHint: this.session.isLive ? undefined : idleHint(this.apiKey !== null),
+      });
       const preview = Object.values(result.contents).join('\n\n');
       if (preview !== this.state.preview) this.patch({ preview });
       const bridge = this.deps.bridge;

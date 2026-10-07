@@ -213,6 +213,20 @@ describe('App', () => {
     expect(app.state.needsKey).toBe(false);
   });
 
+  it('review rule: first launch is never a black screen - idle home explains what to do', async () => {
+    await boot();
+    const page = bridge.of('create')[0]!.arg as CreateStartUpPageContainer;
+    const text = (page.textObject ?? []).map((t) => t.content).join('\n');
+    expect(text).toContain('Hold the touchpad or R1 ring');
+  });
+
+  it('review rule: first launch without a key tells the wearer to add it on the phone', async () => {
+    await boot(memoryStore({}));
+    const page = bridge.of('create')[0]!.arg as CreateStartUpPageContainer;
+    const text = (page.textObject ?? []).map((t) => t.content).join('\n');
+    expect(text).toContain('Add your OpenAI key');
+  });
+
   it('review rule: double-tap on the idle root page opens the system exit dialog', async () => {
     await boot();
     bridge.clear();

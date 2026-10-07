@@ -50,6 +50,8 @@ export interface RenderResult {
 export interface RenderOptions {
   menu: MenuContainerProperty;
   previous?: RenderResult | null;
+  /** Shown instead of an empty page when no session is running (review: never a black screen). */
+  idleHint?: string;
 }
 
 const fit = (text: string, max = LINE_CHARS) => (text.length <= max ? text : text.slice(0, max - 1).trimEnd() + '~');
@@ -95,11 +97,11 @@ function cueCard(cue: Cue): string {
   return [header, ...shown].join('\n');
 }
 
-function layout(model: ScreenModel): { key: string; boxes: Box[] } {
+function layout(model: ScreenModel, idleHint?: string): { key: string; boxes: Box[] } {
   const full = (content: string): Box[] => [{ name: 'main', x: 0, y: 0, w: CANVAS_WIDTH, h: CANVAS_HEIGHT, capture: true, content }];
   switch (model.kind) {
     case 'Blank':
-      return { key: 'main', boxes: full(' ') };
+      return { key: 'main', boxes: full(idleHint ?? ' ') };
     case 'Menu':
       return { key: 'main', boxes: full(menuText(model)) };
     case 'CueDetail':
@@ -150,7 +152,7 @@ function container(b: Box): TextContainerProperty {
 }
 
 export function renderPage(model: ScreenModel, opts: RenderOptions): RenderResult {
-  const { key, boxes } = layout(model);
+  const { key, boxes } = layout(model, opts.idleHint);
   for (const b of boxes) b.content = fitBytes(b.content, TEXT_CREATE_MAX_BYTES);
   const menuSig = JSON.stringify((opts.menu.menuItems ?? []).map((i) => [i.itemID, i.itemName]));
   const layoutKey = `${key}|${menuSig}`;
