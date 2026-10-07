@@ -77,7 +77,7 @@ export interface AppState {
 
 export const TICK_MILLIS = 250;
 export const CAPTION_UPGRADE_GAP_MILLIS = 300;
-export const NEEDS_KEY_LINES = ['Add your OpenAI key in', 'Helix Conversate on your phone'];
+export const NEEDS_KEY_LINES = ['Add your OpenAI key in', 'Helix Live on your phone'];
 
 function defaultTranscriber(apiKey: string): AppTranscriber {
   const sup = new TranscriberSupervisor({
@@ -203,7 +203,15 @@ export class App {
 
   intent(intent: ConversateIntent, source: IntentSource = 'PHONE'): Promise<void> {
     if (!this.deduper.accept(intent, source)) return Promise.resolve();
+    // Even Hub review rule: double-tap on the root page must open the system
+    // exit dialog (shutDownPageContainer(1)); custom confirm screens are
+    // rejected. So on G2 the shared ConfirmEnd overlay is never used.
+    if (intent === 'BACK' && this.session.isAtRoot) return this.exitToSystem();
     return this.apply(this.session.onIntent(intent));
+  }
+
+  private async exitToSystem(): Promise<void> {
+    await this.deps.bridge?.shutDownPageContainer(1);
   }
 
   async updatePrefs(prefs: ConversatePrefs): Promise<void> {
@@ -298,6 +306,8 @@ export class App {
    */
   private async onLifecycle(phase: 'foregroundEnter' | 'foregroundExit' | 'exit'): Promise<void> {
     if (phase === 'exit') {
+      // The wearer confirmed the system exit dialog: end the session too.
+      if (this.session.isLive) await this.apply(this.session.endLive());
       this.patch({ foreground: false });
       await this.syncAudio();
       return;

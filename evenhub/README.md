@@ -1,6 +1,6 @@
-# Helix Conversate for Even G2 (Even Hub app)
+# Helix Live for Even G2 (Even Hub app)
 
-Helix Conversate on Even G2 glasses (and the R1 ring through G2): live captions,
+Helix Live on Even G2 glasses (and the R1 ring through G2): live captions,
 AI cues (concepts, people, suggestions, answers to questions), a contextual
 menu and Prep Notes. It is the web-app twin of the Android G1 Conversate and
 shares its contract in [`../conversate-core/`](../conversate-core/): the same
@@ -38,7 +38,7 @@ npm run build     # tsc --noEmit && vite build -> dist/
    in the phone page. It is stored only in the Even app's local storage on that
    phone; the app never ships with a key.
 2. On the glasses: **long-press** for the Conversate menu (or use the native
-   context menu) → *Start Conversate* (pick a Prep Note if you have any).
+   context menu) → *Start session* (pick a Prep Note if you have any).
 3. Gestures (temple or R1 ring): **scroll down** = next / open cue detail,
    **scroll up** = previous / dismiss cue, **tap** = select, **double-tap** = back;
    double-tap at the live screen asks to confirm, double-tap again ends.

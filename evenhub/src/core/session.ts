@@ -9,7 +9,7 @@ import { type ConversatePrefs, DEFAULT_PREFS, type PrepNoteRef, type ScreenModel
 
 export const CONFIRM_END_MILLIS = 3_000;
 export const CONFIRM_GUARD_MILLIS = 400;
-export const LIVE_TITLE = 'CONVERSATE';
+export const LIVE_TITLE = 'HELIX';
 export const PICKER_TITLE = 'PREP NOTE';
 export const SKIP_AND_START = 'Skip & start';
 export const NO_PREP_NOTE = 'No prep note for this session.';
@@ -52,6 +52,11 @@ export class ConversateSession {
   /** True while a list is open (G1 long-press means SELECT, not MENU). */
   get selectContext(): boolean {
     return this.overlay?.t === 'Menu';
+  }
+
+  /** Nothing open and no cue on screen: BACK here would leave the page. */
+  get isAtRoot(): boolean {
+    return this.overlay === null && this.currentShown(this.clock()) === null;
   }
 
   get currentPrefs(): ConversatePrefs {

@@ -7,7 +7,7 @@ import './ui.css';
 
 const TEMPLATE = `
 <header class="bar">
-  <h1>Helix Conversate</h1>
+  <h1>Helix Live</h1>
   <p id="status" role="status" aria-live="polite"></p>
 </header>
 

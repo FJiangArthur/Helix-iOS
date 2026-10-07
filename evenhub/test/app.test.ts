@@ -76,7 +76,7 @@ describe('App', () => {
     expect(create).toBeDefined();
     const page = create!.arg as CreateStartUpPageContainer;
     expect(validatePage(page)).toEqual({ valid: true });
-    expect(page.menuObject!.menuItems!.map((i) => i.itemName)).toEqual(['Start Conversate']);
+    expect(page.menuObject!.menuItems!.map((i) => i.itemName)).toEqual(['Start session']);
     expect(bridge.listener).not.toBeNull();
     expect(bridge.of('rebuild')).toEqual([]);
   });
@@ -87,7 +87,7 @@ describe('App', () => {
     await flush();
     // Blank -> menu share the full-screen layout, so the menu arrives as an upgrade.
     expect(bridge.of('rebuild')).toEqual([]);
-    expect((bridge.of('upgrade').at(-1)!.arg as TextContainerUpgrade).content).toContain('> Start Conversate');
+    expect((bridge.of('upgrade').at(-1)!.arg as TextContainerUpgrade).content).toContain('> Start session');
     bridge.gesture(OsEventTypeList.CLICK_EVENT);
     await flush();
     expect(app.state.live).toBe(true);
@@ -211,6 +211,35 @@ describe('App', () => {
     await flush();
     expect(tx.started).toBe(1);
     expect(app.state.needsKey).toBe(false);
+  });
+
+  it('review rule: double-tap on the idle root page opens the system exit dialog', async () => {
+    await boot();
+    bridge.clear();
+    bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+    await flush();
+    expect(bridge.of('shutdown')).toEqual([{ fn: 'shutdown', arg: 1 }]);
+  });
+
+  it('review rule: double-tap at the live root uses the system exit dialog, not a custom confirm', async () => {
+    await boot();
+    await app.start(null);
+    await flush();
+    bridge.clear();
+    bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+    await flush();
+    expect(bridge.of('shutdown')).toEqual([{ fn: 'shutdown', arg: 1 }]);
+    expect((app as unknown as { session: { screen(): { kind: string } } }).session.screen().kind).not.toBe('ConfirmEnd');
+  });
+
+  it('double-tap inside the menu goes back without exiting', async () => {
+    await boot();
+    bridge.gesture(OsEventTypeList.LONG_PRESS_EVENT);
+    await flush();
+    bridge.clear();
+    bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+    await flush();
+    expect(bridge.of('shutdown')).toEqual([]);
   });
 
   it('a failed rebuild forces the next render to rebuild again', async () => {

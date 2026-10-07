@@ -13,7 +13,7 @@ class ConversateSession(
     companion object {
         const val CONFIRM_END_MILLIS = 3_000L
         const val CONFIRM_GUARD_MILLIS = 400L
-        const val LIVE_TITLE = "CONVERSATE"
+        const val LIVE_TITLE = "HELIX"
         const val PICKER_TITLE = "PREP NOTE"
         const val SKIP_AND_START = "Skip & start"
         const val NO_PREP_NOTE = "No prep note for this session."

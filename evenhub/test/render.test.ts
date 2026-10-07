@@ -27,7 +27,7 @@ const models: Record<string, ScreenModel> = {
   livePaused: live({ paused: true }),
   liveManyCaptions: live({ captionLines: Array.from({ length: 30 }, (_, i) => `line ${i} `.repeat(5)) }),
   cueDetail: { kind: 'CueDetail', cue: cue({ detail: longText }), page: 2 },
-  menu: { kind: 'Menu', title: 'CONVERSATE', items: ['Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'Display off', 'End session'], cursor: 3 },
+  menu: { kind: 'Menu', title: 'HELIX', items: ['Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'Display off', 'End session'], cursor: 3 },
   bigMenu: { kind: 'Menu', title: 'PREP NOTE', items: Array.from({ length: 25 }, (_, i) => `Note ${i} ${'y'.repeat(80)}`), cursor: 21 },
   prep: { kind: 'PrepNoteView', title: 'Acme', text: longText, page: 1 },
   confirm: { kind: 'ConfirmEnd' },
@@ -127,9 +127,9 @@ describe('context menu', () => {
     expect(menuIdForItem(999)).toBeNull();
   });
 
-  it('idle context menu offers Start Conversate', () => {
+  it('idle context menu offers Start session', () => {
     const idle = buildContextMenu(menu, false, liveFlags);
-    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start Conversate']);
+    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start session']);
     expect(menuIdForItem(idle.menuItems![0]!.itemID!)).toBe('start');
   });
 

@@ -63,7 +63,7 @@ describe('ConversateSession', () => {
   it('idle menu starts a session without prep notes', () => {
     const s = session();
     s.onIntent('MENU');
-    expect(s.screen()).toEqual({ kind: 'Menu', title: 'CONVERSATE', items: ['Start Conversate'], cursor: 0 });
+    expect(s.screen()).toEqual({ kind: 'Menu', title: 'HELIX', items: ['Start session'], cursor: 0 });
     expect(s.selectContext).toBe(true);
     expect(s.onIntent('SELECT')).toEqual([{ type: 'Start', prepNoteId: null }]);
     expect(s.isLive).toBe(true);

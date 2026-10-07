@@ -1,7 +1,7 @@
 {
   "name": "menu navigation and toggles",
   "steps": [
-    { "intent": "MENU", "expect": { "kind": "Menu", "items": ["Start Conversate"], "cursor": 0 } },
+    { "intent": "MENU", "expect": { "kind": "Menu", "items": ["Start session"], "cursor": 0 } },
     { "intent": "SELECT", "effects": ["Start:null"], "expect": { "kind": "Live", "live": true } },
     { "intent": "MENU", "expect": { "kind": "Menu", "cursor": 0 } },
     { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" },

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "idle": [
-    { "id": "start", "label": "Start Conversate" }
+    { "id": "start", "label": "Start session" }
   ],
   "live": [
     { "id": "pause", "toggle": "paused", "labelOn": "Resume", "labelOff": "Pause" },

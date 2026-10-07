@@ -20,7 +20,7 @@ class ConversateSessionTest {
     fun `idle menu starts a session without prep notes`() {
         val s = session()
         s.onIntent(MENU)
-        assertEquals(ScreenModel.Menu("CONVERSATE", listOf("Start Conversate"), 0), s.screen())
+        assertEquals(ScreenModel.Menu("HELIX", listOf("Start session"), 0), s.screen())
         assertTrue(s.selectContext)
         assertEquals(listOf(SessionEffect.Start(null)), s.onIntent(SELECT))
         assertTrue(s.isLive)

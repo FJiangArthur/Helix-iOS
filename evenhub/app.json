@@ -1,7 +1,7 @@
 {
   "package_id": "com.artjiang.helixconversate",
   "edition": "202601",
-  "name": "Helix Conversate",
+  "name": "Helix Live",
   "version": "0.1.0",
   "min_sdk_version": "0.0.14",
   "entrypoint": "index.html",

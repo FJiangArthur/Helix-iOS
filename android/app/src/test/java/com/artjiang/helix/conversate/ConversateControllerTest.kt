@@ -42,7 +42,7 @@ class ConversateControllerTest {
         assertTrue(rig.controller.handleTouchpad(G1TouchpadFrame(23, G1TouchpadSide.LEFT)))
         assertTrue(rig.controller.handleTouchpad(G1TouchpadFrame(24, G1TouchpadSide.LEFT)))
         advanceTimeBy(500)
-        assertTrue(rig.sent.last().startsWith("CONVERSATE"))
+        assertTrue(rig.sent.last().startsWith("HELIX"))
         rig.controller.handleTouchpad(G1TouchpadFrame(23, G1TouchpadSide.LEFT))
         assertEquals(listOf<SessionEffect>(SessionEffect.Start(null)), rig.effects)
         rig.controller.onSegment(TranscriptSegment("hello world", false, 0))
