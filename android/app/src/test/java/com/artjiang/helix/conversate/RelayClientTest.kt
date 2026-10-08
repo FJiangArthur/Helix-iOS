@@ -1,8 +1,17 @@
 package com.artjiang.helix.conversate
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -111,7 +120,7 @@ class RelayClientTest {
         json(ConversateResources.read("fixtures/relay-reminders.json"))
         val r = client().getReminders(sinceMillis = 1_234L)
         assertEquals("/reminders?since=1234", server.takeRequest().path)
-        assertEquals(listOf("r-t1", "r-brief"), r.map { it.id })
+        assertEquals(listOf("r-t1", "r-brief-2026-10-07"), r.map { it.id })
         assertEquals("Due 2pm: Send Q3 churn deck to Sam", r[0].text)
         assertEquals("briefing", r[1].kind)
     }
@@ -155,5 +164,72 @@ class RelayClientTest {
             assertEquals(RelayException.Kind.FAILED, e.kind)
             assertEquals("upstream down", e.message)
         }
+    }
+
+    @Test
+    fun `cancelling an ask cancels the http call immediately`() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"delta\":\"A\"}\n\n" + "data: {\"delta\":\"B\"}\n\n".repeat(40))
+                .throttleBody(20, 300, TimeUnit.MILLISECONDS),
+        )
+        val deltas = CopyOnWriteArrayList<String>()
+        val first = CompletableDeferred<Unit>()
+        val job = launch(Dispatchers.IO) {
+            runCatching { client().ask("q", null, false) { deltas += it; first.complete(Unit) } }
+        }
+        withTimeout(5_000) { first.await() }
+        // The blocked socket read must be torn down now, not after the stream ends.
+        withTimeout(1_000) { job.cancelAndJoin() }
+        val seen = deltas.size
+        Thread.sleep(1_000)
+        assertEquals("no deltas after cancel", seen, deltas.size)
+    }
+
+    private suspend fun assertUnexpected(block: suspend () -> Unit) {
+        try {
+            block(); fail()
+        } catch (e: RelayException) {
+            assertEquals(RelayException.Kind.FAILED, e.kind)
+            assertEquals("Unexpected relay response", e.message)
+        }
+    }
+
+    @Test
+    fun `a hung relay request times out as unreachable`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val c = RelayClient(config = { config }, timeoutMillis = 300)
+        val started = System.nanoTime()
+        try {
+            withTimeout(5_000) { c.getDashboard() }; fail()
+        } catch (e: RelayException) {
+            assertEquals(RelayException.Kind.UNREACHABLE, e.kind)
+        }
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 3_000)
+    }
+
+    @Test
+    fun `ask tolerates ping comments and outlives the per-request timeout while data flows`() = runBlocking {
+        val body = ": ping\n\n: ping\n\n" + "data: {\"delta\":\"ab\"}\n\n".repeat(8) + "data: {\"done\":true}\n\n"
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/event-stream").setBody(body)
+                .throttleBody(24, 150, TimeUnit.MILLISECONDS),
+        )
+        // Whole stream takes ~1 s: longer than the 300 ms request timeout, but
+        // no gap exceeds the ask read timeout.
+        val c = RelayClient(config = { config }, timeoutMillis = 300, askReadTimeoutMillis = 1_000)
+        val answer = withTimeout(10_000) { c.ask("q", null, false) {} }
+        assertEquals("ab".repeat(8), answer)
+    }
+
+    @Test
+    fun `non-JSON 200 from dashboard or health is a relay error`() = runTest {
+        val html = "<html><body>Tailscale login</body></html>"
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().getDashboard() }
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().health() }
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().getReminders(0) }
     }
 }

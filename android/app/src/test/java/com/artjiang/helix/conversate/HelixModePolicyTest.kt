@@ -38,6 +38,19 @@ class HelixModePolicyTest {
     }
 
     @Test
+    fun `glasses ask opens the phone mic for one utterance even in display only`() {
+        // Contract 0.3 §6: Ask is an explicit wearer action, so Display-only
+        // opens the mic for that one question instead of refusing.
+        assertEquals(TranscriptionSource.DEVICE, HelixModePolicy.askSourceFor(HelixMode.DISPLAY_ONLY, TranscriptionSource.DEVICE))
+        assertEquals(
+            TranscriptionSource.OPENAI_REALTIME,
+            HelixModePolicy.askSourceFor(HelixMode.DISPLAY_ONLY, TranscriptionSource.OMI),
+        )
+        assertEquals(TranscriptionSource.OMI, HelixModePolicy.askSourceFor(HelixMode.OMI, TranscriptionSource.DEVICE))
+        assertEquals(TranscriptionSource.DEVICE, HelixModePolicy.askSourceFor(HelixMode.PHONE_MIC, TranscriptionSource.DEVICE))
+    }
+
+    @Test
     fun `brightness levels map to the contract G1 bytes`() {
         assertEquals(listOf(10, 20, 30, 42), (1..4).map(ConversatePrefs::g1BrightnessByte))
         assertEquals(10, ConversatePrefs.g1BrightnessByte(0))

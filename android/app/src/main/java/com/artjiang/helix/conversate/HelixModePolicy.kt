@@ -18,6 +18,14 @@ object HelixModePolicy {
 
     fun canListen(mode: HelixMode): Boolean = mode != HelixMode.DISPLAY_ONLY
 
+    /**
+     * The source a glasses Ask listens with (contract 0.3 §6). Ask is an
+     * explicit wearer action, so Display-only opens the phone mic for that one
+     * utterance instead of refusing; other modes use their own source.
+     */
+    fun askSourceFor(mode: HelixMode, current: TranscriptionSource): TranscriptionSource =
+        sourceFor(mode, current) ?: sourceFor(HelixMode.PHONE_MIC, current) ?: current
+
     /** Mode implied by a stored source, for installs that predate HelixMode. */
     fun modeFor(source: TranscriptionSource): HelixMode =
         if (source == TranscriptionSource.OMI) HelixMode.OMI else HelixMode.PHONE_MIC

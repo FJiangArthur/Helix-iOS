@@ -3,12 +3,10 @@
 // in the encrypted key store (never in HelixSettings JSON).
 package com.artjiang.helix.conversate
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -17,6 +15,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,6 +25,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resumeWithException
 
 data class RelayConfig(val baseUrl: String, val key: String)
 
@@ -75,29 +75,41 @@ private data class HealthBody(val ok: Boolean = false, val version: String = "")
 
 class RelayClient(
     private val config: () -> RelayConfig?,
-    private val http: OkHttpClient = defaultHttp,
+    http: OkHttpClient = defaultHttp,
+    timeoutMillis: Long = REQUEST_TIMEOUT_MILLIS,
+    askReadTimeoutMillis: Long = ASK_READ_TIMEOUT_MILLIS,
 ) {
+    // Contract 0.3 §8: every request is bounded by 15 s end to end. Ask is
+    // bounded by 15 s to connect, then only by the gap between reads — the
+    // relay pings every 15 s until the first delta, so 30 s never trips on a
+    // healthy stream however long the answer takes.
+    private val http: OkHttpClient = http.newBuilder()
+        .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .callTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .build()
+    private val askHttp: OkHttpClient = this.http.newBuilder()
+        .readTimeout(askReadTimeoutMillis, TimeUnit.MILLISECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
     companion object {
         /** Key-store kinds (SettingsRepository.setKey); both live only in encrypted prefs. */
         const val URL_KEY_KIND = "HELIX_RELAY_URL"
         const val BEARER_KEY_KIND = "HELIX_RELAY_KEY"
+        const val UNEXPECTED_RESPONSE = "Unexpected relay response"
 
         private val JSON = "application/json".toMediaType()
-        private val defaultHttp: OkHttpClient by lazy {
-            OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .build()
-        }
+        const val REQUEST_TIMEOUT_MILLIS = 15_000L
+        const val ASK_READ_TIMEOUT_MILLIS = 30_000L
+        private val defaultHttp: OkHttpClient by lazy { OkHttpClient() }
     }
 
-    suspend fun health(): String {
-        val body = execute(request("health", auth = false).get().build())
-        return conversateJson.decodeFromString(HealthBody.serializer(), body).version
-    }
+    suspend fun health(): String =
+        decode(HealthBody.serializer(), execute(request("health", auth = false).get().build())).version
 
     suspend fun getDashboard(): RelayDashboard =
-        conversateJson.decodeFromString(RelayDashboard.serializer(), execute(request("dashboard").get().build()))
+        decode(RelayDashboard.serializer(), execute(request("dashboard").get().build()))
 
     suspend fun patchTodo(id: String, completed: Boolean) {
         val body = buildJsonObject { put("completed", completed) }.toString().toRequestBody(JSON)
@@ -106,13 +118,25 @@ class RelayClient(
 
     suspend fun getReminders(sinceMillis: Long): List<RelayReminder> {
         val req = request("reminders") { addQueryParameter("since", sinceMillis.toString()) }.get().build()
-        return conversateJson.decodeFromString(RemindersBody.serializer(), execute(req)).reminders
+        return decode(RemindersBody.serializer(), execute(req)).reminders
+    }
+
+    /**
+     * Contract 0.3 §8: a 200 that is not the expected JSON (e.g. a captive
+     * portal or proxy page) is a relay error, never a crash.
+     */
+    private fun <T> decode(serializer: DeserializationStrategy<T>, body: String): T = try {
+        conversateJson.decodeFromString(serializer, body)
+    } catch (e: SerializationException) {
+        throw RelayException(RelayException.Kind.FAILED, UNEXPECTED_RESPONSE, e)
+    } catch (e: IllegalArgumentException) {
+        throw RelayException(RelayException.Kind.FAILED, UNEXPECTED_RESPONSE, e)
     }
 
     /**
      * POST /ask and read the SSE stream (`data: {"delta"}` ... `{"done":true}`).
-     * [onDelta] runs on the IO thread for each chunk; returns the whole answer.
-     * Cancelling the caller cancels the HTTP call.
+     * [onDelta] runs on an OkHttp thread for each chunk; returns the whole
+     * answer. Cancelling the caller cancels the HTTP call immediately.
      */
     suspend fun ask(question: String, context: String?, deep: Boolean, onDelta: (String) -> Unit): String {
         val payload = buildJsonObject {
@@ -121,7 +145,7 @@ class RelayClient(
             put("deep", deep)
         }.toString().toRequestBody(JSON)
         val req = request("ask").post(payload).header("Accept", "text/event-stream").build()
-        return withCall(req) { response ->
+        return withCall(req, askHttp) { response ->
             val source = response.body?.source() ?: throw RelayException(RelayException.Kind.FAILED, "Empty response")
             val answer = StringBuilder()
             while (true) {
@@ -160,33 +184,40 @@ class RelayClient(
 
     private suspend fun execute(req: Request): String = withCall(req) { it.body?.string().orEmpty() }
 
-    private suspend fun <T> withCall(req: Request, read: (Response) -> T): T {
-        val call: Call = http.newCall(req)
-        val job = currentCoroutineContext()[Job]
-        val handle = job?.invokeOnCompletion { call.cancel() }
-        try {
-            return withContext(Dispatchers.IO) {
-                val response = try {
-                    call.execute()
-                } catch (e: IOException) {
-                    currentCoroutineContext().ensureActive()
-                    throw RelayException(RelayException.Kind.UNREACHABLE, "Relay unreachable", e)
-                }
-                response.use {
-                    when {
-                        it.code == 401 -> throw RelayException(RelayException.Kind.UNAUTHORIZED, "Relay key rejected")
-                        !it.isSuccessful -> throw RelayException(RelayException.Kind.FAILED, "Relay error ${it.code}")
-                    }
-                    try {
-                        read(it)
-                    } catch (e: IOException) {
-                        currentCoroutineContext().ensureActive()
-                        throw RelayException(RelayException.Kind.UNREACHABLE, "Relay connection dropped", e)
-                    }
-                }
+    /**
+     * Runs [req] on OkHttp's dispatcher and [read]s the body there. Cancelling
+     * the caller cancels the call at once (closing the socket), so a blocked
+     * SSE read ends immediately instead of when the stream finishes.
+     */
+    private suspend fun <T> withCall(
+        req: Request,
+        client: OkHttpClient = http,
+        read: (Response) -> T,
+    ): T = suspendCancellableCoroutine { cont ->
+        val call: Call = client.newCall(req)
+        cont.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                cont.resumeWithException(RelayException(RelayException.Kind.UNREACHABLE, "Relay unreachable", e))
             }
-        } finally {
-            handle?.dispose()
-        }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = runCatching {
+                    response.use {
+                        when {
+                            it.code == 401 -> throw RelayException(RelayException.Kind.UNAUTHORIZED, "Relay key rejected")
+                            !it.isSuccessful -> throw RelayException(RelayException.Kind.FAILED, "Relay error ${it.code}")
+                        }
+                        try {
+                            read(it)
+                        } catch (e: IOException) {
+                            throw RelayException(RelayException.Kind.UNREACHABLE, "Relay connection dropped", e)
+                        }
+                    }
+                }
+                // A no-op when the caller already cancelled.
+                cont.resumeWith(result)
+            }
+        })
     }
 }

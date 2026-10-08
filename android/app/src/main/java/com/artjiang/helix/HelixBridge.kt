@@ -22,6 +22,7 @@ import com.artjiang.helix.ble.DiscoveredPair
 import com.artjiang.helix.ble.G1BluetoothManager
 import com.artjiang.helix.ble.LensConnectionState
 import com.artjiang.helix.core.AnswerProvider
+import com.artjiang.helix.core.AnswerRequest
 import com.artjiang.helix.core.ConversationMode
 import com.artjiang.helix.core.HelixSettings
 import com.artjiang.helix.core.KnowledgeBucket
@@ -93,6 +94,7 @@ import com.artjiang.helix.conversate.PanelRow
 import com.artjiang.helix.conversate.RelayClient
 import com.artjiang.helix.conversate.RelayConfig
 import com.artjiang.helix.conversate.RelayException
+import com.artjiang.helix.conversate.RelayKeyEdit
 import com.artjiang.helix.conversate.ReminderScheduler
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
@@ -173,6 +175,10 @@ class HelixBridge(
      */
     @Volatile
     private var fastProvider: AnswerProvider = providerFactory.makeFast(HelixSettings())
+
+    /** The SMART-tier answer provider; null until the first [rebuildProvider]. */
+    @Volatile
+    private var smartProvider: AnswerProvider? = null
 
     val questionSensitivity: StateFlow<QuestionSensitivity> =
         settingsRepository.questionSensitivity.stateIn(
@@ -646,10 +652,10 @@ class HelixBridge(
 
     fun hasRelayKey(): Boolean = settingsRepository.hasKey(RelayClient.BEARER_KEY_KIND)
 
-    /** Saves the relay URL and (when non-null) key; a blank key value removes it. */
-    fun setRelay(url: String, key: String?) {
+    /** Saves the relay URL and applies [key] (keep / replace / remove) to the stored key. */
+    fun setRelay(url: String, key: RelayKeyEdit) {
         settingsRepository.setKey(RelayClient.URL_KEY_KIND, url.trim().ifEmpty { null })
-        if (key != null) settingsRepository.setKey(RelayClient.BEARER_KEY_KIND, key)
+        if (key != RelayKeyEdit.Keep) settingsRepository.setKey(RelayClient.BEARER_KEY_KIND, key.storedValue)
         relayStatusState.value = ""
         scope.launch { dashboard.invalidate() }
     }
@@ -673,16 +679,45 @@ class HelixBridge(
         }
     }
 
-    /** Ask ChatGPT via the relay; answers go to the phone (state + feed) and the lens. */
+    /** Feed label of the model that answered the current Ask. */
+    @Volatile
+    private var askModelLabel = RELAY_ASK_MODEL_LABEL
+
+    /**
+     * Ask ChatGPT via the relay; answers go to the phone (state + feed) and the
+     * lens. With no relay set up, the active answer provider answers instead
+     * (contract 0.3 §6); a configured relay that fails does not fall back.
+     */
     val ask = AskCoordinator(
         scope = scope,
-        ask = relay::ask,
+        ask = { q, context, deep, onDelta ->
+            askModelLabel = RELAY_ASK_MODEL_LABEL
+            relay.ask(q, context, deep, onDelta)
+        },
         show = { type, text ->
-            if (type == CueType.ANSWER) appendFeed(FeedEntry.Kind.ANSWER, text, model = RELAY_ASK_MODEL_LABEL)
+            if (type == CueType.ANSWER) appendFeed(FeedEntry.Kind.ANSWER, text, model = askModelLabel)
             if (conversateEnabled.value) conversate.showCard(type, text)
             else if (type == CueType.ANSWER) presentToGlasses(text)
         },
+        fallback = { q, context, _, onDelta -> askWithAnswerProvider(q, context, onDelta) },
     )
+
+    private suspend fun askWithAnswerProvider(question: String, context: String?, onDelta: (String) -> Unit): String {
+        val provider = smartProvider ?: fastProvider
+        if (provider.kind == ProviderKind.DETERMINISTIC) {
+            throw IllegalStateException("No AI provider configured for Ask.")
+        }
+        askModelLabel = provider.model
+        val current = settings.value
+        val request = AnswerRequest(
+            question = question,
+            mode = current.mode,
+            skill = current.resolvedSkill(),
+            maxResponseSentences = current.maxResponseSentences,
+            conversationContext = context.orEmpty(),
+        )
+        return provider.answer(request, onDelta).text
+    }
     val askState: StateFlow<AskState> = ask.state
 
     /** True while the mic was opened only to hear one glasses Ask question. */
@@ -703,16 +738,12 @@ class HelixBridge(
     /**
      * Glasses menu Ask: the session now waits for the next final segment. If
      * nothing is listening, open the mic for this one question only (no
-     * session banner — it would paint over the Ask screen). Display-only has
-     * no mic, so the wearer is told to type instead.
+     * session banner — it would paint over the Ask screen). Display-only
+     * opens the phone mic for that one utterance too (contract 0.3 §6).
      */
     private fun beginGlassesAsk() {
-        if (!HelixModePolicy.canListen(helixMode.value)) {
-            conversate.showCard(CueType.NOTICE, "Display only has no mic. Type your question in the Helix app.")
-            return
-        }
         if (isListening.value) return
-        val source = HelixModePolicy.sourceFor(helixMode.value, transcriptionSource.value) ?: return
+        val source = HelixModePolicy.askSourceFor(helixMode.value, transcriptionSource.value)
         askOpenedMic = true
         sourceSwitch.start(source)
     }
@@ -916,6 +947,7 @@ class HelixBridge(
             providerFactory.makeFast(current) to providerFactory.make(current)
         }
         fastProvider = fast
+        smartProvider = smart
         engine.setProviders(fast, smart)
         effectiveProviderState.value = smart.kind
     }
