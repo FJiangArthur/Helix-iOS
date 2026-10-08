@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template for auto-starting the local codex-proxy (~/develop/codex-proxy/start.sh) at login.
+  setup.sh renders it to data/launchd/com.artjiang.codex-proxy.plist with __HOME__ and __PATH__ filled in.
+  codex-proxy has no auth and must stay bound to 127.0.0.1 (see its data/local.yaml).
+  Install:  cp data/launchd/com.artjiang.codex-proxy.plist ~/Library/LaunchAgents/
+            launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.artjiang.codex-proxy.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.artjiang.codex-proxy</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__HOME__/develop/codex-proxy/start.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__HOME__/develop/codex-proxy</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__HOME__/develop/codex-proxy/run-proxy.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/develop/codex-proxy/run-proxy.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>__PATH__</string>
+  </dict>
+</dict>
+</plist>

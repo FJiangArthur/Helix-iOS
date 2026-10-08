@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template. setup.sh renders it to data/launchd/com.artjiang.helix-relay.plist with
+  __NODE__ (absolute node binary) and __RELAY_DIR__ (absolute relay/helix-relay path) filled in.
+  Install:  cp data/launchd/com.artjiang.helix-relay.plist ~/Library/LaunchAgents/
+            launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.artjiang.helix-relay.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.artjiang.helix-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__NODE__</string>
+    <string>--env-file-if-exists=.env</string>
+    <string>dist/server.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__RELAY_DIR__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>StandardOutPath</key>
+  <string>__RELAY_DIR__/data/relay.log</string>
+  <key>StandardErrorPath</key>
+  <string>__RELAY_DIR__/data/relay.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key>
+    <string>production</string>
+  </dict>
+</dict>
+</plist>
