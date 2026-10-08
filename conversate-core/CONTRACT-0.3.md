@@ -38,6 +38,10 @@ BACK in a child returns to that menu with the **same cursor**. BACK in a menu be
 - The app feeds the next final transcript segment(s) via `onAskText(text)` → effect `AskQuestion:<text>` and the overlay closes to where the menu was opened from (the menu itself is closed too).
 - BACK while listening → effect `AskCancel`, back to the parent menu.
 - The answer is delivered as an `ANSWER` cue through the normal cue path (live) or shown as `AnswerCard` when not live (G1 Display-only / idle): session `showAnswer(cue)` sets an overlay `CueDetail`.
+- `showAnswer` while the `Ask` overlay is open first cancels it (effect `AskCancel`) so the app always releases a mic it opened for Ask.
+- Display-only mode: glasses Ask opens the mic for that one utterance only (explicit wearer action), then closes it.
+- No relay configured: Ask falls back to the app's own configured AI provider (G2: the user's OpenAI key; Android: the active answer provider). A configured-but-failing relay shows "Ask failed" and does not fall back.
+- Cancelling an Ask (BACK while listening, or a newer Ask) aborts only the glasses Ask's own request; a phone Ask is never aborted by the glasses.
 
 ## 7. Relay API (`relay/helix-relay`, reached at `HELIX_RELAY_URL`, e.g. `https://<mac>.<tailnet>.ts.net`)
 All requests: `Authorization: Bearer <HELIX_RELAY_KEY>`; missing/wrong key → `401 {"error":"unauthorized"}`.
@@ -48,8 +52,13 @@ Titles ≤ 60 chars, details ≤ 600 chars (relay truncates). Times ISO-8601 UTC
 | GET | `/health` (no auth) | `{"ok":true,"version":"0.3.0"}` |
 | GET | `/dashboard` | see `fixtures/relay-dashboard.json` |
 | PATCH | `/todos/:id` body `{"completed":bool}` | `{"ok":true,"todo":{…}}` |
-| GET | `/reminders?since=<epochMs>` | see `fixtures/relay-reminders.json` |
-| POST | `/ask` body `{"question":str,"context"?:str,"deep"?:bool}` | `text/event-stream`: `data: {"delta":"…"}` …, `data: {"done":true}`; on failure `data: {"error":"…"}` |
+| GET | `/reminders?since=<epochMs>` | see `fixtures/relay-reminders.json`; due/overdue to-dos with `since < dueAt <= now+10min`, plus **today's briefing on every call** with a per-day id `r-brief-YYYY-MM-DD` (relay time zone) — clients dedupe by id |
+| POST | `/ask` body `{"question":str,"context"?:str,"deep"?:bool}` | `text/event-stream`: `data: {"delta":"…"}` …, `data: {"done":true}`; on failure `data: {"error":"upstream error"}` (details logged server-side only); a `: ping` comment every 15 s until the first delta |
 
 CORS: relay answers preflight for any origin with `Access-Control-Allow-Headers: authorization, content-type`
 (the bearer key is the protection; the relay is only reachable inside the user's tailnet).
+
+## 8. Client robustness
+- Every relay request has a 15 s timeout (Ask: 15 s to first byte, then no limit while pings/deltas arrive).
+- A 200 response that is not the expected JSON is a relay error ("Unexpected relay response"), never a crash.
+- App startup never waits on the relay: the UI renders first, relay data fills in later.
