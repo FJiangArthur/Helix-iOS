@@ -204,6 +204,20 @@ class ConversateControllerTest {
     }
 
     @Test
+    fun `idle notice card and live notice cue`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.showCard(CueType.NOTICE, "Ask failed: relay unreachable")
+        advanceTimeBy(500)
+        assertEquals("* NOTE Notice\nAsk failed: relay unreachable", rig.sent.last())
+        rig.controller.intent(ConversateIntent.BACK)
+        rig.controller.start(null)
+        rig.controller.showCard(CueType.NOTICE, "Ask failed: relay unreachable")
+        advanceTimeBy(1_000)
+        assertTrue(rig.sent.last().startsWith("* NOTE  Notice"))
+    }
+
+    @Test
     fun `ring is ignored while conversate is disabled`() = runTest {
         val rig = Rig(this)
         rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.HOLD)

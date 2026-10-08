@@ -82,7 +82,10 @@ import com.artjiang.helix.speech.TranscriptionSource
 import java.io.File
 import com.artjiang.helix.conversate.ConversateController
 import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.AskCoordinator
+import com.artjiang.helix.conversate.AskState
 import com.artjiang.helix.conversate.ConversateSession
+import com.artjiang.helix.conversate.CueType
 import com.artjiang.helix.conversate.DashboardRepository
 import com.artjiang.helix.conversate.HelixMode
 import com.artjiang.helix.conversate.HelixModePolicy
@@ -567,6 +570,12 @@ class HelixBridge(
             is SessionEffect.SetPaused -> if (effect.paused) stopListening() else startListening()
             is SessionEffect.SetCaptions -> setConversatePrefs(conversatePrefs.value.copy(captionsOn = effect.on))
             is SessionEffect.SetCues -> setConversatePrefs(conversatePrefs.value.copy(cuesOn = effect.on))
+            SessionEffect.AskListen -> beginGlassesAsk()
+            is SessionEffect.AskQuestion -> {
+                endGlassesAskMic()
+                askRelay(effect.text)
+            }
+            SessionEffect.AskCancel -> endGlassesAskMic()
             is SessionEffect.RequestPanel -> loadPanel(effect.kind)
             is SessionEffect.ToggleTodo -> syncTodo(effect.id, effect.done)
             is SessionEffect.SetMode -> setHelixMode(effect.mode)
@@ -663,6 +672,56 @@ class HelixBridge(
                 }
             }
         }
+    }
+
+    /** Ask ChatGPT via the relay; answers go to the phone (state + feed) and the lens. */
+    val ask = AskCoordinator(
+        scope = scope,
+        ask = relay::ask,
+        show = { type, text ->
+            if (type == CueType.ANSWER) appendFeed(FeedEntry.Kind.ANSWER, text, model = RELAY_ASK_MODEL_LABEL)
+            if (conversateEnabled.value) conversate.showCard(type, text)
+            else if (type == CueType.ANSWER) presentToGlasses(text)
+        },
+    )
+    val askState: StateFlow<AskState> = ask.state
+
+    /** True while the mic was opened only to hear one glasses Ask question. */
+    private var askOpenedMic = false
+
+    /** Phone Ask box (or glasses Ask): the last minute of transcript goes along as context. */
+    fun askRelay(question: String, deep: Boolean = false) {
+        val q = question.trim()
+        if (q.isEmpty()) return
+        appendFeed(FeedEntry.Kind.QUESTION, q, isUser = true)
+        val context = listOf(recentTranscript.recent(), partialTranscript.value)
+            .filter { it.isNotBlank() }
+            .joinToString("\n")
+            .ifBlank { null }
+        ask.ask(q, context, deep)
+    }
+
+    /**
+     * Glasses menu Ask: the session now waits for the next final segment. If
+     * nothing is listening, open the mic for this one question only (no
+     * session banner — it would paint over the Ask screen). Display-only has
+     * no mic, so the wearer is told to type instead.
+     */
+    private fun beginGlassesAsk() {
+        if (!HelixModePolicy.canListen(helixMode.value)) {
+            conversate.showCard(CueType.NOTICE, "Display only has no mic. Type your question in the Helix app.")
+            return
+        }
+        if (isListening.value) return
+        val source = HelixModePolicy.sourceFor(helixMode.value, transcriptionSource.value) ?: return
+        askOpenedMic = true
+        sourceSwitch.start(source)
+    }
+
+    private fun endGlassesAskMic() {
+        if (!askOpenedMic) return
+        askOpenedMic = false
+        if (!conversate.isLive.value) sourceSwitch.stop()
     }
 
     /** RequestPanel: rows come from the 60 s dashboard cache and land on the open panel. */
@@ -791,7 +850,9 @@ class HelixBridge(
             scope.launch {
                 // Conversate takes partials too (live captions); the legacy
                 // pipeline below still only acts on finals.
-                conversate.onSegment(segment)
+                // A segment consumed as the wearer's Ask question is not also
+                // run through question detection.
+                if (conversate.onSegment(segment)) return@launch
                 handleSegment(segment)
             }
         }
@@ -2427,6 +2488,7 @@ class HelixBridge(
         const val OMI_RELAY_KEY_KIND = "OMI_RELAY"
         const val RELAY_UNREACHABLE_ROW = "Relay unreachable"
         const val REMINDER_TITLE = "Helix reminder"
+        const val RELAY_ASK_MODEL_LABEL = "ChatGPT (relay)"
 
         /** `display_name` for Helix's own 0x4B notifications and whitelist row. */
         const val HELIX_DISPLAY_NAME = "Helix"

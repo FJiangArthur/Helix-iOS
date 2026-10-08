@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -96,6 +99,7 @@ fun ConversateCard(bridge: HelixBridge) {
                 Text(preview, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             }
         }
+        AskBox(bridge)
         SliderRow(
             title = "Caption lines",
             value = prefs.captionLines,
@@ -111,6 +115,37 @@ fun ConversateCard(bridge: HelixBridge) {
     }
     if (enabled) RingSection(bridge)
     if (editorOpen) PrepNotesSheet(bridge, onDismiss = { editorOpen = false })
+}
+
+/** "Ask ChatGPT" through the Helix relay; the answer streams here and lands on the lens. */
+@Composable
+private fun AskBox(bridge: HelixBridge) {
+    val state by bridge.askState.collectAsStateWithLifecycle()
+    var question by remember { mutableStateOf("") }
+    var deep by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = question,
+        onValueChange = { question = it },
+        label = { Text("Ask ChatGPT") },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            TextButton(
+                onClick = { bridge.askRelay(question, deep); question = "" },
+                enabled = question.isNotBlank(),
+            ) { Text("Ask") }
+        },
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = deep, onCheckedChange = { deep = it })
+        Text("Think deeper", style = MaterialTheme.typography.bodySmall)
+    }
+    if (state.question.isNotEmpty()) {
+        LinenCard(modifier = Modifier.fillMaxWidth()) {
+            Text(state.question, style = MaterialTheme.typography.labelMedium)
+            val body = state.error ?: state.answer.ifEmpty { if (state.streaming) "..." else "" }
+            Text(body, style = MaterialTheme.typography.bodySmall)
+        }
+    }
 }
 
 internal fun helixModeTitle(mode: HelixMode): String = when (mode) {

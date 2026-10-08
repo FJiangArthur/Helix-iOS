@@ -135,9 +135,19 @@ class ConversateController(
     }
 
     /** An answer outside a live session (Display-only / idle): an AnswerCard on the lens. */
-    fun showAnswer(text: String) {
+    fun showAnswer(text: String) = showCard(CueType.ANSWER, text)
+
+    /**
+     * Ask results (contract 0.3 §6): a live session gets a cue through the
+     * normal cue path; otherwise the card opens as a detail overlay.
+     */
+    fun showCard(type: CueType, text: String) {
         if (!enabledState.value || text.isBlank()) return
-        session.showAnswer(externalCue(text, CueType.ANSWER))
+        if (session.isLive) {
+            offerExternal(text, if (type == CueType.ANSWER) HudArbiter.Priority.ANSWER else HudArbiter.Priority.NOTIFICATION)
+            return
+        }
+        session.showAnswer(externalCue(text, type))
         render()
     }
 
