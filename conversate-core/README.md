@@ -13,3 +13,8 @@ G2 Even Hub app (`evenhub/`, Plan D). Spec:
 Android packages this directory as Java resources (`build.gradle.kts`), so files
 are read with `ClassLoader.getResource("<path>")`. Changing a file here changes
 both apps: run both test suites.
+
+## 0.3 additions
+- `CONTRACT-0.3.md` — normative semantics for mode/display pickers, dashboard panels, Ask, and the helix-relay HTTP API.
+- `fixtures/relay-*.json` — canonical relay responses; app tests use them for fake relays.
+- `vectors/session-pickers.json`, `vectors/session-panels.json` — new behaviour vectors (runner step types `panelRows`, `askText`; expect field `title`).

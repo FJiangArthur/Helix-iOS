@@ -1,0 +1,25 @@
+{
+  "name": "mode and display pickers",
+  "steps": [
+    { "intent": "MENU", "expect": { "kind": "Menu", "cursor": 0 } },
+    { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" },
+    { "expect": { "kind": "Menu", "cursor": 6 } },
+    { "intent": "SELECT", "expect": { "kind": "Menu", "title": "MODE", "items": ["Phone mic", "Omi pendant", "Display only"], "cursor": 0 } },
+    { "intent": "NEXT" }, { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["SetMode:DISPLAY_ONLY"], "expect": { "kind": "Menu", "cursor": 6 } },
+    { "intent": "SELECT", "expect": { "kind": "Menu", "title": "MODE", "cursor": 2 } },
+    { "intent": "BACK", "effects": [], "expect": { "kind": "Menu", "cursor": 6 } },
+    { "intent": "NEXT" },
+    { "intent": "SELECT", "expect": { "kind": "Menu", "title": "DISPLAY", "items": ["Caption lines: 5", "Cue time: 6s", "Brightness: 3", "Captions: on"], "cursor": 0 } },
+    { "intent": "SELECT", "effects": ["SetPref:captionLines=2"], "expect": { "kind": "Menu", "title": "DISPLAY", "items": ["Caption lines: 2", "Cue time: 6s", "Brightness: 3", "Captions: on"], "cursor": 0 } },
+    { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["SetPref:cueSeconds=10"] },
+    { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["SetPref:brightness=4"] },
+    { "intent": "SELECT", "effects": ["SetPref:brightness=1"] },
+    { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["SetPref:captions=off"], "expect": { "kind": "Menu", "title": "DISPLAY", "items": ["Caption lines: 2", "Cue time: 10s", "Brightness: 1", "Captions: off"], "cursor": 3 } },
+    { "intent": "BACK", "expect": { "kind": "Menu", "cursor": 7 } },
+    { "intent": "BACK", "expect": { "kind": "Blank" } }
+  ]
+}

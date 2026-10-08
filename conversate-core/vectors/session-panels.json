@@ -1,0 +1,29 @@
+{
+  "name": "dashboard panels and ask",
+  "steps": [
+    { "intent": "MENU" },
+    { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["RequestPanel:todos"], "expect": { "kind": "Panel", "title": "TO-DO", "items": ["Nothing here"], "cursor": 0 } },
+    { "panelRows": { "kind": "todos", "rows": [
+      { "id": "t1", "title": "Send Q3 churn deck to Sam", "detail": "", "done": false },
+      { "id": "t2", "title": "Book dentist", "detail": "", "done": true }
+    ] }, "expect": { "kind": "Panel", "items": ["[ ] Send Q3 churn deck to Sam", "[x] Book dentist"], "cursor": 0 } },
+    { "intent": "SELECT", "effects": ["ToggleTodo:t1=true"], "expect": { "kind": "Panel", "items": ["[x] Send Q3 churn deck to Sam", "[x] Book dentist"], "cursor": 0 } },
+    { "intent": "NEXT" },
+    { "intent": "SELECT", "effects": ["ToggleTodo:t2=false"], "expect": { "kind": "Panel", "items": ["[x] Send Q3 churn deck to Sam", "[ ] Book dentist"], "cursor": 1 } },
+    { "intent": "BACK", "expect": { "kind": "Menu", "cursor": 4 } },
+    { "intent": "PREV" }, { "intent": "PREV" },
+    { "intent": "SELECT", "effects": ["RequestPanel:news"], "expect": { "kind": "Panel", "title": "NEWS", "cursor": 0 } },
+    { "panelRows": { "kind": "news", "rows": [
+      { "id": "n1", "title": "Fed holds rates steady", "detail": "The Federal Reserve kept rates at 4.25-4.50%." }
+    ] } },
+    { "intent": "SELECT", "expect": { "kind": "PanelDetail", "page": 0 } },
+    { "intent": "BACK", "expect": { "kind": "Panel", "title": "NEWS", "cursor": 0 } },
+    { "intent": "BACK", "expect": { "kind": "Menu", "cursor": 2 } },
+    { "intent": "PREV" },
+    { "intent": "SELECT", "effects": ["AskListen"], "expect": { "kind": "Ask" } },
+    { "intent": "BACK", "effects": ["AskCancel"], "expect": { "kind": "Menu", "cursor": 1 } },
+    { "intent": "SELECT", "effects": ["AskListen"], "expect": { "kind": "Ask" } },
+    { "askText": "What is the capital of Australia?", "effects": ["AskQuestion:What is the capital of Australia?"], "expect": { "kind": "Blank" } }
+  ]
+}

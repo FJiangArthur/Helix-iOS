@@ -1,12 +1,94 @@
 {
   "name": "menu navigation and toggles",
   "steps": [
-    { "intent": "MENU", "expect": { "kind": "Menu", "items": ["Start session"], "cursor": 0 } },
-    { "intent": "SELECT", "effects": ["Start:null"], "expect": { "kind": "Live", "live": true } },
-    { "intent": "MENU", "expect": { "kind": "Menu", "cursor": 0 } },
-    { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" }, { "intent": "NEXT" },
-    { "expect": { "kind": "Menu", "cursor": 5 } },
-    { "intent": "PREV", "expect": { "kind": "Menu", "cursor": 4 } },
-    { "intent": "BACK", "expect": { "kind": "Live" } }
+    {
+      "intent": "MENU",
+      "expect": {
+        "kind": "Menu",
+        "items": [
+          "Start session",
+          "Ask ChatGPT",
+          "News",
+          "X posts",
+          "To-dos",
+          "Omi",
+          "Mode",
+          "Display"
+        ],
+        "cursor": 0
+      }
+    },
+    {
+      "intent": "SELECT",
+      "effects": [
+        "Start:null"
+      ],
+      "expect": {
+        "kind": "Live",
+        "live": true
+      }
+    },
+    {
+      "intent": "MENU",
+      "expect": {
+        "kind": "Menu",
+        "cursor": 0
+      }
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "intent": "NEXT"
+    },
+    {
+      "expect": {
+        "kind": "Menu",
+        "cursor": 12
+      }
+    },
+    {
+      "intent": "PREV",
+      "expect": {
+        "kind": "Menu",
+        "cursor": 11
+      }
+    },
+    {
+      "intent": "BACK",
+      "expect": {
+        "kind": "Live"
+      }
+    }
   ]
 }

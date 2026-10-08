@@ -1,0 +1,6 @@
+{
+  "reminders": [
+    { "id": "r-t1", "kind": "todo", "text": "Due 2pm: Send Q3 churn deck to Sam", "dueAt": "2026-10-07T21:00:00Z" },
+    { "id": "r-brief", "kind": "briefing", "text": "Call with Acme at 3pm: bring the Q3 churn numbers.", "dueAt": null }
+  ]
+}

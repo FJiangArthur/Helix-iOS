@@ -1,14 +1,53 @@
 {
-  "version": 1,
+  "version": 2,
   "idle": [
-    { "id": "start", "label": "Start session" }
+    { "id": "start", "label": "Start session" },
+    { "id": "ask", "label": "Ask ChatGPT" },
+    { "id": "news", "label": "News" },
+    { "id": "x", "label": "X posts" },
+    { "id": "todos", "label": "To-dos" },
+    { "id": "omi", "label": "Omi" },
+    { "id": "mode", "label": "Mode" },
+    { "id": "display", "label": "Display" }
   ],
   "live": [
     { "id": "pause", "toggle": "paused", "labelOn": "Resume", "labelOff": "Pause" },
     { "id": "captions", "toggle": "captions", "labelOn": "Captions: on", "labelOff": "Captions: off" },
     { "id": "cues", "toggle": "cues", "labelOn": "Cues: on", "labelOff": "Cues: off" },
     { "id": "prep_note", "label": "Prep Note" },
+    { "id": "ask", "label": "Ask ChatGPT" },
+    { "id": "news", "label": "News" },
+    { "id": "x", "label": "X posts" },
+    { "id": "todos", "label": "To-dos" },
+    { "id": "omi", "label": "Omi" },
+    { "id": "mode", "label": "Mode" },
+    { "id": "display", "label": "Display" },
     { "id": "display_off", "label": "Display off" },
     { "id": "end", "label": "End session" }
-  ]
+  ],
+  "pickers": {
+    "mode": {
+      "title": "MODE",
+      "items": [
+        { "id": "PHONE_MIC", "label": "Phone mic" },
+        { "id": "OMI", "label": "Omi pendant" },
+        { "id": "DISPLAY_ONLY", "label": "Display only" }
+      ]
+    },
+    "display": {
+      "title": "DISPLAY",
+      "items": [
+        { "id": "captionLines", "label": "Caption lines: {v}", "values": [2, 3, 4, 5] },
+        { "id": "cueSeconds", "label": "Cue time: {v}s", "values": [3, 6, 10, 15] },
+        { "id": "brightness", "label": "Brightness: {v}", "values": [1, 2, 3, 4] },
+        { "id": "captions", "label": "Captions: {v}", "values": ["on", "off"] }
+      ]
+    }
+  },
+  "panels": {
+    "news": { "title": "NEWS" },
+    "x": { "title": "X POSTS" },
+    "todos": { "title": "TO-DO" },
+    "omi": { "title": "OMI" }
+  }
 }
