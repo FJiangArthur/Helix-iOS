@@ -167,10 +167,10 @@ describe('App with helix-relay (contract 0.3)', () => {
       const polls = relay.of('/reminders');
       expect(polls.length).toBeGreaterThanOrEqual(2);
       expect(new URL(polls.at(-1)!.url).searchParams.get('since')).not.toBeNull();
-      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief']);
+      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief-2026-10-07']);
       await vi.advanceTimersByTimeAsync(REMINDER_POLL_MILLIS);
       await flush();
-      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief']);
+      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief-2026-10-07']);
     });
 
     it('not live: reminders update the idle home', async () => {
@@ -248,6 +248,106 @@ describe('App with helix-relay (contract 0.3)', () => {
       const second = app.ask('two');
       await Promise.all([first, second]);
       expect((relay.of('/ask')[0]!.init.signal as AbortSignal).aborted).toBe(true);
+    });
+  });
+
+  describe('ask cancel isolation (contract §6)', () => {
+    const slow = { sse: ['data: {"delta":"thinking"}\n\n'], hang: true };
+    const signalOf = (i: number) => relay.of('/ask')[i]!.init.signal as AbortSignal;
+
+    it('glasses BACK while listening never aborts a phone Ask', async () => {
+      await boot(relayStore(), slow);
+      void app.ask('phone question');
+      await flush();
+      expect(app.state.askBusy).toBe(true);
+      bridge.menu('ask');
+      await flush();
+      bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+      await flush();
+      expect(signalOf(0).aborted).toBe(false);
+      expect(app.state.askBusy).toBe(true);
+    });
+
+    it('a newer glasses Ask never aborts a phone Ask', async () => {
+      await boot(relayStore(), slow);
+      void app.ask('phone question');
+      await flush();
+      bridge.menu('ask');
+      await flush();
+      tx.final('glasses question');
+      await flush();
+      expect(relay.of('/ask')).toHaveLength(2);
+      expect(signalOf(0).aborted).toBe(false);
+    });
+
+    it('AskCancel aborts the glasses Ask in flight and clears askBusy', async () => {
+      await boot(relayStore(), slow);
+      bridge.menu('ask');
+      await flush();
+      tx.final('glasses question');
+      await flush();
+      expect(app.state.askBusy).toBe(true);
+      bridge.menu('ask');
+      await flush();
+      bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+      await flush();
+      expect(signalOf(0).aborted).toBe(true);
+      expect(app.state.askBusy).toBe(false);
+      expect(app.state.lastError).toBeNull();
+    });
+
+    it('a newer glasses Ask aborts the older glasses Ask only', async () => {
+      await boot(relayStore(), slow);
+      bridge.menu('ask');
+      await flush();
+      tx.final('first');
+      await flush();
+      bridge.menu('ask');
+      await flush();
+      tx.final('second');
+      await flush();
+      expect(signalOf(0).aborted).toBe(true);
+      expect(signalOf(1).aborted).toBe(false);
+      expect(app.state.askBusy).toBe(true);
+    });
+  });
+
+  describe('ask releases the mic (contract §6)', () => {
+    const listening = async () => {
+      bridge.menu('ask');
+      await flush();
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: true });
+      expect(app.state.audioOn).toBe(true);
+    };
+
+    it('a phone answer shown while the glasses listen closes Ask and the mic', async () => {
+      await boot();
+      await listening();
+      await app.ask('Capital?');
+      await flush();
+      expect(lens()).toContain('Canberra.');
+      expect(lens()).not.toContain('Ask: listening');
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
+      expect(app.state.audioOn).toBe(false);
+    });
+
+    it('an Ask-failed notice shown while listening releases the mic', async () => {
+      await boot(relayStore(), { sse: ['data: {"error":"down"}\n\n'] });
+      await listening();
+      await app.ask('Q?');
+      await flush();
+      expect(lens()).toMatch(/Ask failed/);
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
+      expect(app.state.audioOn).toBe(false);
+    });
+
+    it('Display only: an answer shown while listening closes the one-utterance mic', async () => {
+      await boot();
+      await app.setMode('DISPLAY_ONLY');
+      await listening();
+      await app.ask('Q?');
+      await flush();
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
     });
   });
 

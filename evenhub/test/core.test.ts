@@ -301,6 +301,16 @@ describe('ConversateSession 0.3 (overlays, pickers, panels, ask)', () => {
     expect(s.screen()).toEqual({ kind: 'Blank' });
   });
 
+  it('showAnswer while the Ask overlay is open cancels it first (AskCancel)', () => {
+    const s = session();
+    openIdle(s, 'ask');
+    const answer: Cue = { id: 9, type: 'ANSWER', title: 'Answer', body: 'Canberra.', createdAtMillis: 0 };
+    expect(s.showAnswer(answer)).toEqual([{ type: 'AskCancel' }]);
+    expect(s.isAsking).toBe(false);
+    expect(s.screen()).toEqual({ kind: 'CueDetail', cue: answer, page: 0 });
+    expect(s.showAnswer(answer)).toEqual([]);
+  });
+
   it('live ask from the live menu returns to the live screen', () => {
     const s = session(); s.startLive(null);
     s.onIntent('MENU');

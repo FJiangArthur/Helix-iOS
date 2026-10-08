@@ -3,7 +3,7 @@
 // bridge and stores settings in localStorage.
 import { waitForEvenAppBridge } from '@evenrealities/even_hub_sdk';
 import { App, type HubBridge } from './app';
-import { mountPhoneUi } from './phone/ui';
+import { startApp } from './boot';
 import { browserStore, bridgeStore, type KeyValueStore } from './storage';
 
 const BRIDGE_WAIT_MILLIS = 2_000;
@@ -25,12 +25,7 @@ async function boot(): Promise<void> {
   if (!root) return;
   const { bridge, store } = await connect();
   const app = new App({ bridge, store });
-  await app.init();
-  mountPhoneUi(root, app);
-  // Android may suspend the WebView in the background: re-arm on return.
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void app.resume();
-  });
+  await startApp(root, app);
   if (!bridge) console.info('[helix] no Even app bridge: running phone page only');
 }
 

@@ -3,6 +3,9 @@
 
 export type FetchFn = (url: string, init?: RequestInit) => Promise<Response>;
 
+/** Every relay request (Ask: until its first byte) gives up after this (§8). */
+export const RELAY_TIMEOUT_MILLIS = 15_000;
+
 export interface RelayConfig {
   url: string;
   key: string;
@@ -122,12 +125,19 @@ export class RelayClient {
     const body: Record<string, unknown> = { question };
     if (opts.context) body.context = opts.context;
     if (opts.deep) body.deep = true;
-    const res = await this.request('/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify(body),
-      signal: opts.signal,
-    });
+    // 15 s to the first byte (pings count), then no limit (§8).
+    const deadline = new Deadline(RELAY_TIMEOUT_MILLIS, opts.signal);
+    let res: Response;
+    try {
+      res = await this.request('/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify(body),
+      }, true, deadline);
+    } catch (e) {
+      deadline.clear();
+      throw e;
+    }
     let answer = '';
     let done = false;
     const onEvent = (data: string) => {
@@ -150,52 +160,135 @@ export class RelayClient {
       const dec = new TextDecoder();
       try {
         while (!done) {
-          if (opts.signal?.aborted) throw abortError();
-          const { value, done: end } = await reader.read();
+          deadline.check();
+          const { value, done: end } = await deadline.race(reader.read());
+          deadline.clear(); // first byte (or end) arrived: no limit from here
           if (end) break;
           parser.push(dec.decode(value, { stream: true }));
-          if (opts.signal?.aborted) throw abortError();
+          deadline.check();
         }
         parser.push(dec.decode());
         parser.end();
       } finally {
-        try { await reader.cancel(); } catch { /* already closed */ }
+        deadline.clear();
+        void reader.cancel().catch(() => { /* already closed */ });
       }
     } else {
-      parser.push(await res.text());
+      try {
+        parser.push(await deadline.race(res.text()));
+      } finally {
+        deadline.clear();
+      }
       parser.end();
     }
     return answer;
   }
 
   private async json(path: string, init: RequestInit, auth = true): Promise<unknown> {
-    const res = await this.request(path, init, auth);
+    const deadline = new Deadline(RELAY_TIMEOUT_MILLIS, init.signal ?? undefined);
     try {
-      return await res.json();
-    } catch {
-      throw new RelayError('Relay sent an invalid response');
+      const res = await this.request(path, init, auth, deadline);
+      try {
+        return await deadline.race(res.json());
+      } catch (e) {
+        if (isAbort(e) || e instanceof RelayError) throw e;
+        throw new RelayError('Relay sent an invalid response');
+      }
+    } finally {
+      deadline.clear();
     }
   }
 
-  private async request(path: string, init: RequestInit, auth = true): Promise<Response> {
+  /** fetch bounded by [deadline]; the caller clears it. */
+  private async request(path: string, init: RequestInit, auth: boolean, deadline: Deadline): Promise<Response> {
     const headers = new Headers(init.headers);
     if (auth) headers.set('Authorization', `Bearer ${this.config.key}`);
     let res: Response;
     try {
-      res = await this.fetchFn(this.base + path, { ...init, headers });
+      res = await deadline.race(this.fetchFn(this.base + path, { ...init, headers, signal: deadline.signal }));
     } catch (e) {
-      if ((e as { name?: string })?.name === 'AbortError') throw e;
+      if (isAbort(e) || e instanceof RelayError) throw e;
       throw new RelayError(`Relay unreachable: ${e instanceof Error ? e.message : String(e)}`);
     }
     if (!res.ok) {
       let reason = '';
       try {
-        reason = str(((await res.json()) as { error?: unknown }).error);
-      } catch { /* no body */ }
+        reason = str(((await deadline.race(res.json())) as { error?: unknown }).error);
+      } catch (e) {
+        if (isAbort(e) || e instanceof RelayError) throw e;
+      }
       throw new RelayError(`Relay HTTP ${res.status}${reason ? `: ${reason}` : ''}`, res.status);
     }
     return res;
   }
+}
+
+const isAbort = (e: unknown) => (e as { name?: string })?.name === 'AbortError';
+
+/**
+ * Caller signal + timeout, combined like AbortSignal.any([signal,
+ * AbortSignal.timeout(ms)]). The timer is a plain setTimeout so it can be
+ * cleared once the response starts (Ask) and driven by fake timers in tests.
+ * A timeout surfaces as RelayError("Relay timed out"); a caller abort stays an
+ * AbortError.
+ */
+class Deadline {
+  readonly signal: AbortSignal;
+  private readonly timeout = new AbortController();
+  private timer: ReturnType<typeof setTimeout> | null;
+
+  constructor(ms: number, private readonly caller?: AbortSignal) {
+    this.timer = setTimeout(() => {
+      this.timer = null;
+      this.timeout.abort(new RelayError('Relay timed out'));
+    }, ms);
+    this.signal = caller ? anySignal([caller, this.timeout.signal]) : this.timeout.signal;
+  }
+
+  clear(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+  }
+
+  /** Throws the reason if the caller aborted or the deadline passed. */
+  check(): void {
+    if (this.caller?.aborted) throw abortError();
+    if (this.timeout.signal.aborted) throw new RelayError('Relay timed out');
+  }
+
+  /** [p], or the abort/timeout error as soon as either fires (even if [p] ignores the signal). */
+  race<T>(p: Promise<T>): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const onAbort = () => {
+        try {
+          this.check();
+        } catch (e) {
+          reject(e);
+        }
+      };
+      if (this.signal.aborted) return onAbort();
+      this.signal.addEventListener('abort', onAbort, { once: true });
+      p.then(
+        (v) => { this.signal.removeEventListener('abort', onAbort); resolve(v); },
+        (e) => {
+          this.signal.removeEventListener('abort', onAbort);
+          if (this.signal.aborted) onAbort();
+          else reject(e);
+        },
+      );
+    });
+  }
+}
+
+function anySignal(signals: AbortSignal[]): AbortSignal {
+  const any = (AbortSignal as unknown as { any?: (s: AbortSignal[]) => AbortSignal }).any;
+  if (typeof any === 'function') return any.call(AbortSignal, signals);
+  const ac = new AbortController();
+  for (const s of signals) {
+    if (s.aborted) { ac.abort(s.reason); break; }
+    s.addEventListener('abort', () => ac.abort(s.reason), { once: true });
+  }
+  return ac.signal;
 }
 
 function abortError(): Error {

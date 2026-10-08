@@ -64,6 +64,8 @@ export interface AppDeps {
 }
 
 export type AudioSourceChoice = 'glasses' | 'phone';
+/** Where an Ask came from: the phone box or the glasses Ask overlay. */
+export type AskSource = 'phone' | 'glasses';
 
 export interface AppState {
   live: boolean;
@@ -164,7 +166,8 @@ export class App {
   private reminderTimer: ReturnType<typeof setInterval> | null = null;
   private lastReminderPoll: number | null = null;
   private homeReminders: string[] = [];
-  private askAbort: AbortController | null = null;
+  /** In-flight Ask per origin: the glasses never abort a phone Ask (§6). */
+  private readonly asks: Record<AskSource, { ac: AbortController; gen: number } | null> = { phone: null, glasses: null };
   private askGeneration = 0;
 
   // render pipeline
@@ -252,10 +255,11 @@ export class App {
       this.session.tick();
       this.requestRender(false);
     }, TICK_MILLIS);
-    this.reminderTimer = setInterval(() => void this.pollRelay(), REMINDER_POLL_MILLIS);
+    this.reminderTimer = setInterval(() => this.pollRelaySafely(), REMINDER_POLL_MILLIS);
     // First paint is the static hint (never black); the dashboard follows.
     this.requestRender(true);
-    await this.pollRelay();
+    // Never wait on the relay (§8): the dashboard fills in when it arrives.
+    this.pollRelaySafely();
   }
 
   dispose(): void {
@@ -263,8 +267,8 @@ export class App {
     if (this.throttle) clearTimeout(this.throttle);
     if (this.reminderTimer) clearInterval(this.reminderTimer);
     this.reminderTimer = null;
-    this.askAbort?.abort();
-    this.askAbort = null;
+    this.cancelAsk('phone');
+    this.cancelAsk('glasses');
     this.ticker = null;
     this.throttle = null;
     this.unsubscribe?.();
@@ -413,6 +417,11 @@ export class App {
     }
   }
 
+  /** Fire-and-forget pollRelay: failures land in relayStatus, never reject. */
+  private pollRelaySafely(): void {
+    this.pollRelay().catch((e) => this.patch({ relayStatus: errorText(e) }));
+  }
+
   /** Dashboard refresh + reminder poll (every REMINDER_POLL_MILLIS while open). */
   private async pollRelay(): Promise<void> {
     if (!this.relayClient) return;
@@ -481,15 +490,17 @@ export class App {
   /**
    * Ask ChatGPT (phone box or glasses Ask). Relay configured -> POST /ask
    * (streamed); otherwise the user's OpenAI key. A new question cancels the
-   * one in flight. The answer is an ANSWER cue (live) or an answer card.
+   * one in flight from the same origin only. The answer is an ANSWER cue
+   * (live) or an answer card.
    */
-  async ask(question: string, deep = false): Promise<void> {
+  async ask(question: string, deep = false, source: AskSource = 'phone'): Promise<void> {
     const q = question.trim();
     if (q === '') return;
-    this.askAbort?.abort();
+    this.cancelAsk(source);
     const ac = new AbortController();
-    this.askAbort = ac;
     const gen = ++this.askGeneration;
+    this.asks[source] = { ac, gen };
+    const current = () => this.asks[source]?.gen === gen;
     const context = this.session.isLive ? this.cues.recentText() : '';
     this.patch({ askBusy: true, askAnswer: '' });
     let text: string;
@@ -501,7 +512,7 @@ export class App {
           deep,
           signal: ac.signal,
           onDelta: (d) => {
-            if (gen !== this.askGeneration) return;
+            if (!current()) return;
             streamed += d;
             this.patch({ askAnswer: streamed });
           },
@@ -513,16 +524,30 @@ export class App {
         throw new RelayError('Add a relay or an OpenAI key on the phone');
       }
     } catch (e) {
-      if (gen !== this.askGeneration || (e as { name?: string })?.name === 'AbortError') return;
-      this.patch({ askBusy: false, askAnswer: '', lastError: `Ask failed: ${errorText(e)}` });
+      if (!current()) return; // a newer Ask from this origin owns the state
+      this.asks[source] = null;
+      if ((e as { name?: string })?.name === 'AbortError') {
+        this.patch({ askBusy: this.askInFlight() });
+        return;
+      }
+      this.patch({ askBusy: this.askInFlight(), askAnswer: '', lastError: `Ask failed: ${errorText(e)}` });
       this.notify('Ask failed', errorText(e));
       return;
     }
-    if (gen !== this.askGeneration) return;
-    this.askAbort = null;
+    if (!current()) return;
+    this.asks[source] = null;
     const answer = text.replace(/\s+/g, ' ').trim() || 'No answer.';
-    this.patch({ askBusy: false, askAnswer: answer });
+    this.patch({ askBusy: this.askInFlight(), askAnswer: answer });
     this.deliver(this.makeCue('ANSWER', 'Answer', answer));
+  }
+
+  /** Aborts [source]'s in-flight Ask; its catch path clears askBusy. */
+  private cancelAsk(source: AskSource): void {
+    this.asks[source]?.ac.abort();
+  }
+
+  private askInFlight(): boolean {
+    return this.asks.phone !== null || this.asks.glasses !== null;
   }
 
   private makeCue(type: CueType, title: string, text: string): Cue {
@@ -540,10 +565,9 @@ export class App {
   /** Live with cues on -> cue path; otherwise an answer card overlay. */
   private deliver(cue: Cue): void {
     if (this.session.isLive && this.session.currentPrefs.cuesOn) this.onCue(cue);
-    else {
-      this.session.showAnswer(cue);
-      this.requestRender(true);
-    }
+    // showAnswer cancels an open Ask overlay (AskCancel); apply() then
+    // re-syncs audio so the mic opened for Ask is released (§6).
+    else void this.apply(this.session.showAnswer(cue));
   }
 
   private notify(title: string, text: string): void {
@@ -699,10 +723,10 @@ export class App {
           void this.toggleTodo(effect.id, effect.done);
           break;
         case 'AskCancel':
-          this.askAbort?.abort();
+          this.cancelAsk('glasses');
           break;
         case 'AskQuestion':
-          void this.ask(effect.text);
+          void this.ask(effect.text, false, 'glasses');
           break;
       }
     }

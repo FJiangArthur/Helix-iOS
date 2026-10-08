@@ -14,6 +14,8 @@ export interface FakeRelayOptions {
   fail?: boolean;
   failPatch?: boolean;
   reminders?: unknown;
+  /** /ask keeps the stream open after the last chunk (an Ask still in flight). */
+  hang?: boolean;
 }
 
 export function fakeRelay(opts: FakeRelayOptions = {}) {
@@ -41,7 +43,10 @@ export function fakeRelay(opts: FakeRelayOptions = {}) {
         async pull(controller) {
           if (signal?.aborted) { controller.error(new DOMException('aborted', 'AbortError')); return; }
           const next = chunks.shift();
-          if (next === undefined) controller.close();
+          if (next === undefined && state.hang) {
+            await new Promise<void>((resolve) => signal?.addEventListener('abort', () => resolve(), { once: true }));
+            controller.error(new DOMException('aborted', 'AbortError'));
+          } else if (next === undefined) controller.close();
           else controller.enqueue(enc.encode(next));
         },
       });
