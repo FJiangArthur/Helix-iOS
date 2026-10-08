@@ -167,10 +167,10 @@ describe('App with helix-relay (contract 0.3)', () => {
       const polls = relay.of('/reminders');
       expect(polls.length).toBeGreaterThanOrEqual(2);
       expect(new URL(polls.at(-1)!.url).searchParams.get('since')).not.toBeNull();
-      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief']);
+      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief-2026-10-07']);
       await vi.advanceTimersByTimeAsync(REMINDER_POLL_MILLIS);
       await flush();
-      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief']);
+      expect(app.state.remindersShown).toEqual(['r-t1', 'r-brief-2026-10-07']);
     });
 
     it('not live: reminders update the idle home', async () => {

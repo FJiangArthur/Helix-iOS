@@ -54,7 +54,7 @@ describe('RelayClient', () => {
     const f = fakeRelay();
     const r = await client(f).getReminders(1234);
     expect(f.calls[0]!.url).toBe(`${BASE}/reminders?since=1234`);
-    expect(r.map((x) => x.id)).toEqual(['r-t1', 'r-brief']);
+    expect(r.map((x) => x.id)).toEqual(['r-t1', 'r-brief-2026-10-07']);
   });
 
   it('ask streams SSE deltas split across chunks and resolves the full answer', async () => {
