@@ -126,9 +126,21 @@ describe('contract: relay output matches conversate-core fixtures', () => {
     app = await populatedApp();
     const res = await app.inject({ method: 'GET', url: `/reminders?since=${NOW - 16 * 3600_000}`, headers: auth });
     expect(res.statusCode).toBe(200);
-    const body = res.json() as { reminders: Array<{ kind: string }> };
+    const body = res.json() as { reminders: Array<{ id: string; kind: string }> };
     assertShape(body, fixture('relay-reminders.json'));
     expect(new Set(body.reminders.map((r) => r.kind))).toEqual(new Set(['todo', 'briefing']));
+    // §7: the briefing id is per local day (r-brief-YYYY-MM-DD), like the fixture's.
+    const BRIEF_ID = /^r-brief-\d{4}-\d{2}-\d{2}$/;
+    const fixtureBrief = (fixture('relay-reminders.json') as typeof body).reminders.find((r) => r.kind === 'briefing');
+    expect(fixtureBrief?.id).toMatch(BRIEF_ID);
+    for (const r of body.reminders.filter((r) => r.kind === 'briefing')) expect(r.id).toMatch(BRIEF_ID);
+  });
+
+  it('GET /reminders includes the briefing even when already polled today', async () => {
+    app = await populatedApp();
+    const res = await app.inject({ method: 'GET', url: `/reminders?since=${NOW - 60_000}`, headers: auth });
+    const body = res.json() as { reminders: Array<{ id: string; kind: string }> };
+    expect(body.reminders.filter((r) => r.kind === 'briefing')).toHaveLength(1);
   });
 
   it('GET /health matches §7', async () => {

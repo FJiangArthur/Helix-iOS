@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { RateLimitedError } from '../src/sources/omi.js';
 import { emptySnapshot, Store } from '../src/store.js';
@@ -139,18 +139,34 @@ describe('GET /reminders', () => {
       reminders: [
         { id: 'r-t4', kind: 'todo', text: 'Due 12pm: Task t4', dueAt: '2026-10-07T19:00:00Z' },
         { id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' },
-        { id: 'r-brief', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
+        { id: 'r-brief-2026-10-07', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
       ],
     });
   });
 
-  it('skips items already delivered (dueAt <= since) and the briefing once already polled today', async () => {
+  it('skips items already delivered (dueAt <= since) but includes today\'s briefing on every call', async () => {
     app = buildTestApp({ store: seeded(), now: () => NOW });
     const since = Date.parse('2026-10-07T20:00:00Z'); // 1pm LA, same local day
     const res = await app.inject({ method: 'GET', url: `/reminders?since=${since}`, headers: auth });
     expect(res.json()).toEqual({
-      reminders: [{ id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' }],
+      reminders: [
+        { id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' },
+        { id: 'r-brief-2026-10-07', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
+      ],
     });
+  });
+
+  it('keys the briefing id by the local day in RELAY_TZ, not UTC', async () => {
+    const lateEvening = Date.parse('2026-10-08T05:30:00Z'); // 10:30pm Oct 7 in Los Angeles, Oct 8 in UTC
+    app = buildTestApp({ store: seeded(), now: () => lateEvening });
+    const res = await app.inject({ method: 'GET', url: `/reminders?since=${lateEvening - 60_000}`, headers: auth });
+    const ids = (res.json() as { reminders: Array<{ id: string }> }).reminders.map((r) => r.id);
+    expect(ids).toContain('r-brief-2026-10-07');
+    await app.close();
+
+    app = buildTestApp({ store: seeded(), now: () => lateEvening, config: testConfig({ RELAY_TZ: 'UTC' }) });
+    const utc = await app.inject({ method: 'GET', url: `/reminders?since=${lateEvening - 60_000}`, headers: auth });
+    expect((utc.json() as { reminders: Array<{ id: string }> }).reminders.map((r) => r.id)).toContain('r-brief-2026-10-08');
   });
 
   it('defaults a missing since to 24h ago and rejects garbage', async () => {
@@ -210,7 +226,113 @@ describe('POST /ask', () => {
       },
     });
     const res = await app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
-    expect(res.body).toBe('data: {"delta":"par"}\n\ndata: {"error":"codex-proxy: HTTP 502"}\n\n');
+    expect(res.body).toBe('data: {"delta":"par"}\n\ndata: {"error":"upstream error"}\n\n');
+  });
+
+  it('never leaks upstream status, body or message to the client', async () => {
+    app = buildTestApp({
+      streamChat: async function* () {
+        throw new UpstreamError('codex-proxy', 401, 'invalid token sk-secret-123 for account a@b.c');
+      },
+    });
+    const res = await app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+    expect(res.body).toBe('data: {"error":"upstream error"}\n\n');
+    for (const leak of ['codex-proxy', '401', 'sk-secret', 'a@b.c']) expect(res.body).not.toContain(leak);
+  });
+
+  describe('keepalive pings', () => {
+    const TIMERS: Array<'setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval'> = ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'];
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const gate = () => {
+      let open!: () => void;
+      const p = new Promise<void>((r) => (open = r));
+      return { p, open };
+    };
+
+    it('sends `: ping` every 15 s until the first delta, then stops; no timers left after done', async () => {
+      vi.useFakeTimers({ toFake: TIMERS });
+      const started = gate();
+      const first = gate();
+      const second = gate();
+      app = buildTestApp({
+        streamChat: async function* () {
+          started.open();
+          await first.p;
+          yield 'hi';
+          await second.p;
+          yield ' there';
+        },
+      });
+      const resP = app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(14_999);
+      await vi.advanceTimersByTimeAsync(31_000); // t = 45.999 s → 3 pings
+      first.open();
+      await vi.advanceTimersByTimeAsync(60_000); // after the first delta: no more pings
+      second.open();
+      const res = await resP;
+      expect(res.body).toBe(
+        ': ping\n\n: ping\n\n: ping\n\ndata: {"delta":"hi"}\n\ndata: {"delta":" there"}\n\ndata: {"done":true}\n\n',
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('stops pinging when the upstream errors before any delta', async () => {
+      vi.useFakeTimers({ toFake: TIMERS });
+      const started = gate();
+      const fail = gate();
+      app = buildTestApp({
+        streamChat: async function* () {
+          started.open();
+          await fail.p;
+          throw new Error('boom');
+        },
+      });
+      const resP = app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(15_000);
+      fail.open();
+      const res = await resP;
+      expect(res.body.startsWith(': ping\n\ndata: {"error":')).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('stops pinging when the client disconnects before any delta', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const started = gate();
+      let aborted!: () => void;
+      const abortedP = new Promise<void>((r) => (aborted = r));
+      app = buildTestApp({
+        streamChat: async function* (_req, signal) {
+          started.open();
+          await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()));
+          aborted();
+        },
+      });
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const { port } = app.server.address() as AddressInfo;
+      let req!: http.ClientRequest;
+      const firstChunk = new Promise<string>((resolve, reject) => {
+        req = http.request(
+          { host: '127.0.0.1', port, path: '/ask', method: 'POST', headers: { ...auth, 'content-type': 'application/json' } },
+          (res) => res.once('data', (chunk: Buffer) => resolve(chunk.toString())),
+        );
+        req.on('error', () => {});
+        req.once('error', reject);
+        req.end(JSON.stringify({ question: 'q' }));
+      });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await firstChunk).toBe(': ping\n\n');
+      req.destroy();
+      await abortedP;
+      await new Promise((r) => setImmediate(r));
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   it.each([[{}], [{ question: '' }], [{ question: 'q', deep: 'yes' }], [{ question: 'q', context: 5 }]])(
