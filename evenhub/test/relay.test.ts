@@ -1,48 +1,7 @@
-import dashboardFixture from '@core-contract/fixtures/relay-dashboard.json';
-import remindersFixture from '@core-contract/fixtures/relay-reminders.json';
-import { describe, expect, it, vi } from 'vitest';
-import { DashboardSource, dashboardRows } from '../src/relay/dashboard';
+import { describe, expect, it } from 'vitest';
 import { normalizeRelayUrl, RelayClient, RelayError } from '../src/relay/client';
-
-const BASE = 'https://mac.tail1234.ts.net';
-const KEY = 'relay-test-key';
-
-interface Call { url: string; init: RequestInit }
-
-/** Fake relay: serves the conversate-core fixtures, enforces the bearer key. */
-function fakeRelay(opts: { sse?: string[]; fail?: boolean } = {}) {
-  const calls: Call[] = [];
-  const fetchFn = vi.fn(async (url: string, init: RequestInit = {}) => {
-    calls.push({ url, init });
-    if (opts.fail) throw new TypeError('Failed to fetch');
-    const path = new URL(url).pathname;
-    const auth = new Headers(init.headers).get('authorization');
-    if (path === '/health') return Response.json({ ok: true, version: '0.3.0' });
-    if (auth !== `Bearer ${KEY}`) return Response.json({ error: 'unauthorized' }, { status: 401 });
-    if (path === '/dashboard') return Response.json(dashboardFixture);
-    if (path === '/reminders') return Response.json(remindersFixture);
-    if (path.startsWith('/todos/') && init.method === 'PATCH') {
-      const body = JSON.parse(String(init.body));
-      return Response.json({ ok: true, todo: { ...dashboardFixture.todos[0], id: path.slice(7), completed: body.completed } });
-    }
-    if (path === '/ask' && init.method === 'POST') {
-      const enc = new TextEncoder();
-      const chunks = opts.sse ?? [];
-      const signal = init.signal;
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          if (signal?.aborted) { controller.error(new DOMException('aborted', 'AbortError')); return; }
-          const next = chunks.shift();
-          if (next === undefined) controller.close();
-          else controller.enqueue(enc.encode(next));
-        },
-      });
-      return new Response(stream, { headers: { 'content-type': 'text/event-stream' } });
-    }
-    return Response.json({ error: 'not found' }, { status: 404 });
-  });
-  return { calls, fetchFn };
-}
+import { DashboardSource, dashboardRows } from '../src/relay/dashboard';
+import { dashboardFixture, fakeRelay, RELAY_KEY as KEY, RELAY_URL as BASE } from './fakeRelay';
 
 const client = (f: ReturnType<typeof fakeRelay>, key = KEY) => new RelayClient({ url: BASE + '/', key }, f.fetchFn);
 

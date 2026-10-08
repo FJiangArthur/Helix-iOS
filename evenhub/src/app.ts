@@ -19,15 +19,19 @@ import type { Segment, SpeakerRole } from './audio/segments';
 import { type TranscriberMode, TranscriberSupervisor } from './audio/supervisor';
 import { DEFAULT_TRANSCRIBE_MODEL } from './audio/transcriber';
 import { CaptionBuffer, wrapText } from './core/captionBuffer';
-import type { Cue } from './core/cue';
+import type { Cue, CueType } from './core/cue';
+import { BODY_MAX, DETAIL_MAX } from './core/cueParser';
 import { loadCuePrompt } from './core/cuePrompt';
 import { type ConversateIntent, IntentDeduper, type IntentSource } from './core/intents';
 import { loadMenu } from './core/menu';
-import { type ConversatePrefs, DEFAULT_PREFS, type PrepNoteRef, type SessionEffect } from './core/screen';
+import { type ConversatePrefs, DEFAULT_PREFS, PANEL_KINDS, type PanelKind, type PrepNoteRef, type SessionEffect } from './core/screen';
 import { ConversateSession } from './core/session';
 import { buildContextMenu } from './g2/contextMenu';
 import { InputAdapter } from './g2/input';
+import { DEFAULT_G2_MODE, type G2Mode, g2MenuSpec, isG2Mode, OMI_UNAVAILABLE } from './g2/modes';
 import { detailPageCount, FULL_LINES, LINE_CHARS, renderPage, type RenderResult, textPageCount } from './g2/render';
+import { type Dashboard, type FetchFn, normalizeRelayUrl, RelayClient, RelayError } from './relay/client';
+import { DashboardSource } from './relay/dashboard';
 import { KEYS, type KeyValueStore, parseJson, PREP_NOTE_MAX_CHARS, sanitizePrepNotes } from './storage';
 
 /** The subset of EvenAppBridge the app uses (EvenAppBridge satisfies it). */
@@ -55,6 +59,8 @@ export interface AppDeps {
   makeTranscriber?: (apiKey: string) => AppTranscriber;
   classify?: (apiKey: string, prompt: string, maxTokens: number) => Promise<string>;
   answer?: (apiKey: string, question: string, context: string) => Promise<string>;
+  /** fetch used for helix-relay calls (tests inject a fake relay). */
+  relayFetch?: FetchFn;
 }
 
 export type AudioSourceChoice = 'glasses' | 'phone';
@@ -73,11 +79,53 @@ export interface AppState {
   audioSource: AudioSourceChoice;
   preview: string;
   lastError: string | null;
+  mode: G2Mode;
+  relayConfigured: boolean;
+  /** Relay URL (not secret); the relay key never enters state. */
+  relayUrl: string;
+  relayStatus: string | null;
+  askBusy: boolean;
+  /** Streamed answer to the last Ask (phone page). */
+  askAnswer: string;
+  /** Reminder ids already shown while this app run is open (dedupe). */
+  remindersShown: string[];
 }
 
 export const TICK_MILLIS = 250;
 export const CAPTION_UPGRADE_GAP_MILLIS = 300;
+export const REMINDER_POLL_MILLIS = 5 * 60_000;
+/** Reminder lines kept for the idle home. */
+export const HOME_REMINDERS = 2;
 export const NEEDS_KEY_LINES = ['Add your OpenAI key in', 'Helix Live on your phone'];
+const HOME_FOOTER = 'Hold for menu. Double-tap to exit.';
+const HOME_KEY_LINE = 'Add your OpenAI key on the phone for captions.';
+
+const fitLine = (t: string) => {
+  const s = t.replace(/\s+/g, ' ').trim();
+  return s.length <= LINE_CHARS ? s : s.slice(0, LINE_CHARS - 1).trimEnd() + '~';
+};
+
+/**
+ * Idle home from the relay dashboard (plan D2): reminders, briefing, next open
+ * to-do and the top headline, at most FULL_LINES lines. Lower-priority lines
+ * (briefing) are dropped first when the budget is short.
+ */
+export function dashboardHome(d: Dashboard | null, reminders: string[], hasKey: boolean): string {
+  const fixed = ['Helix Live', ...(hasKey ? [] : [HOME_KEY_LINE]), HOME_FOOTER];
+  let budget = FULL_LINES - fixed.length;
+  const take = (lines: string[]) => {
+    const out = lines.slice(0, Math.max(0, budget));
+    budget -= out.length;
+    return out;
+  };
+  const remind = take(reminders.slice(-HOME_REMINDERS).map((r) => fitLine(`! ${r}`)));
+  const todo = d?.todos.find((t) => !t.completed);
+  const todoLine = take(todo ? [fitLine(`To-do: ${todo.title}`)] : []);
+  const news = take(d?.news[0] ? [fitLine(`News: ${d.news[0].title}`)] : []);
+  const seen = new Set(reminders.map((r) => r.trim()));
+  const brief = take((d?.briefing ?? []).filter((b) => !seen.has(b.trim())).map(fitLine));
+  return [fixed[0]!, ...remind, ...brief, ...todoLine, ...news, ...fixed.slice(1)].join('\n');
+}
 
 /** Idle home page: first launch must explain what to do, never show a black screen. */
 export function idleHint(hasKey: boolean): string {
@@ -96,7 +144,7 @@ function defaultTranscriber(apiKey: string): AppTranscriber {
 
 export class App {
   private readonly clock: () => number;
-  private readonly menu = loadMenu();
+  private readonly menu = g2MenuSpec(loadMenu());
   private readonly session: ConversateSession;
   private readonly captions = new CaptionBuffer((t) => wrapText(t, LINE_CHARS), FULL_LINES);
   private readonly deduper: IntentDeduper;
@@ -108,6 +156,16 @@ export class App {
   private unsubscribe: (() => void) | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
   private listeners = new Set<(s: AppState) => void>();
+
+  // relay (dashboards, reminders, ask)
+  private relayKey: string | null = null;
+  private relayClient: RelayClient | null = null;
+  private readonly dashboard: DashboardSource;
+  private reminderTimer: ReturnType<typeof setInterval> | null = null;
+  private lastReminderPoll: number | null = null;
+  private homeReminders: string[] = [];
+  private askAbort: AbortController | null = null;
+  private askGeneration = 0;
 
   // render pipeline
   private created = false;
@@ -132,11 +190,20 @@ export class App {
     audioSource: 'glasses',
     preview: '',
     lastError: null,
+    mode: DEFAULT_G2_MODE,
+    relayConfigured: false,
+    relayUrl: '',
+    relayStatus: null,
+    askBusy: false,
+    askAnswer: '',
+    remindersShown: [],
   };
 
   constructor(private readonly deps: AppDeps) {
     this.clock = deps.clock ?? (() => Date.now());
     this.session = new ConversateSession(this.menu, this.clock, DEFAULT_PREFS, detailPageCount, textPageCount);
+    this.session.setMode(DEFAULT_G2_MODE);
+    this.dashboard = new DashboardSource(() => this.relayClient, this.clock);
     this.deduper = new IntentDeduper(this.clock);
     this.input = new InputAdapter(this.clock);
     const classify = deps.classify ?? ((key, prompt, max) => openaiClassify(key, prompt, max));
@@ -162,21 +229,42 @@ export class App {
     this.apiKey = (await store.get(KEYS.apiKey))?.trim() || null;
     const prefs = sanitizePrefs(parseJson<Partial<ConversatePrefs>>(await store.get(KEYS.prefs), {}));
     const notes = sanitizePrepNotes(parseJson<unknown>(await store.get(KEYS.prepNotes), []));
-    const source = (await store.get(KEYS.audioSource)) === 'phone' ? 'phone' : 'glasses';
+    const storedMode = await store.get(KEYS.mode);
+    const legacySource = (await store.get(KEYS.audioSource)) === 'phone' ? 'PHONE_MIC' : DEFAULT_G2_MODE;
+    const mode: G2Mode = isG2Mode(storedMode) ? storedMode : legacySource;
+    const relayUrl = normalizeRelayUrl((await store.get(KEYS.relayUrl)) ?? '');
+    this.relayKey = (await store.get(KEYS.relayKey))?.trim() || null;
+    this.relayClient = this.makeRelayClient(relayUrl);
     this.session.updatePrefs(prefs);
     this.session.setPrepNotes(notes);
-    this.patch({ prefs, prepNotes: notes, audioSource: source, hasKey: this.apiKey !== null });
+    this.session.setMode(mode);
+    this.patch({
+      prefs,
+      prepNotes: notes,
+      mode,
+      audioSource: sourceOf(mode),
+      hasKey: this.apiKey !== null,
+      relayConfigured: this.relayClient !== null,
+      relayUrl: relayUrl ?? '',
+    });
     this.unsubscribe = this.deps.bridge?.onEvenHubEvent((e) => this.onHubEvent(e)) ?? null;
     this.ticker = setInterval(() => {
       this.session.tick();
       this.requestRender(false);
     }, TICK_MILLIS);
+    this.reminderTimer = setInterval(() => void this.pollRelay(), REMINDER_POLL_MILLIS);
+    // First paint is the static hint (never black); the dashboard follows.
     this.requestRender(true);
+    await this.pollRelay();
   }
 
   dispose(): void {
     if (this.ticker) clearInterval(this.ticker);
     if (this.throttle) clearTimeout(this.throttle);
+    if (this.reminderTimer) clearInterval(this.reminderTimer);
+    this.reminderTimer = null;
+    this.askAbort?.abort();
+    this.askAbort = null;
     this.ticker = null;
     this.throttle = null;
     this.unsubscribe?.();
@@ -245,13 +333,228 @@ export class App {
     this.requestRender(true);
   }
 
+  /** Legacy microphone selector: glasses -> GLASSES_MIC, phone -> PHONE_MIC. */
   async setAudioSource(source: AudioSourceChoice): Promise<void> {
-    await this.deps.store.set(KEYS.audioSource, source);
-    this.patch({ audioSource: source });
-    if (this.state.audioOn) {
-      await this.audioOff();
-      await this.syncAudio();
+    await this.setMode(source === 'phone' ? 'PHONE_MIC' : 'GLASSES_MIC');
+  }
+
+  /**
+   * Operating mode from the phone or the glasses picker. Contract id OMI has
+   * no G2 path: the wearer gets a notice and the current mode stays.
+   */
+  async setMode(id: string): Promise<void> {
+    if (!isG2Mode(id)) {
+      this.session.setMode(this.state.mode);
+      if (id === 'OMI') this.notify('Mode', OMI_UNAVAILABLE);
+      this.requestRender(true);
+      return;
     }
+    this.session.setMode(id);
+    await this.deps.store.set(KEYS.mode, id);
+    await this.deps.store.set(KEYS.audioSource, sourceOf(id));
+    const sourceChanged = sourceOf(id) !== this.state.audioSource;
+    this.patch({ mode: id, audioSource: sourceOf(id) });
+    if (this.state.audioOn && sourceChanged) await this.audioOff();
+    this.refreshCaptions();
+    await this.syncAudio();
+    this.requestRender(true);
+  }
+
+  // ---- relay (dashboards, reminders, ask) ----------------------------------
+
+  private makeRelayClient(url: string | null): RelayClient | null {
+    if (!url || !this.relayKey) return null;
+    try {
+      return new RelayClient({ url, key: this.relayKey }, this.deps.relayFetch);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Saves the relay URL and key (key stays out of state); empty URL clears. */
+  async setRelay(rawUrl: string, key: string): Promise<void> {
+    const trimmed = rawUrl.trim();
+    const url = trimmed === '' ? null : normalizeRelayUrl(trimmed);
+    if (trimmed !== '' && url === null) {
+      this.patch({ relayStatus: 'Relay URL is not valid (use https://<mac>.<tailnet>.ts.net)' });
+      return;
+    }
+    const k = key.trim();
+    if (k !== '' || url === null) this.relayKey = k === '' ? null : k;
+    await this.deps.store.set(KEYS.relayUrl, url ?? '');
+    if (k !== '' || url === null) await this.deps.store.set(KEYS.relayKey, this.relayKey ?? '');
+    this.relayClient = this.makeRelayClient(url);
+    this.dashboard.reset();
+    this.homeReminders = [];
+    this.patch({
+      relayConfigured: this.relayClient !== null,
+      relayUrl: url ?? '',
+      relayStatus: url !== null && this.relayKey === null ? 'Add the relay key' : null,
+    });
+    this.requestRender(true);
+    await this.pollRelay();
+  }
+
+  /** "Test connection": /health, then an authenticated /dashboard to check the key. */
+  async testRelay(): Promise<void> {
+    const client = this.relayClient;
+    if (!client) {
+      this.patch({ relayStatus: 'Relay not configured' });
+      return;
+    }
+    try {
+      const h = await client.health();
+      await this.dashboard.dashboard(true);
+      const err = this.dashboard.lastError;
+      this.patch({ relayStatus: err ? `Relay reachable, but: ${err}` : `Connected (relay ${h.version || '?'})` });
+      this.applyDashboard();
+    } catch (e) {
+      this.patch({ relayStatus: errorText(e) });
+    }
+  }
+
+  /** Dashboard refresh + reminder poll (every REMINDER_POLL_MILLIS while open). */
+  private async pollRelay(): Promise<void> {
+    if (!this.relayClient) return;
+    await this.dashboard.dashboard();
+    this.patch({ relayStatus: this.dashboard.lastError });
+    this.applyDashboard();
+    await this.pollReminders();
+    this.requestRender(false);
+  }
+
+  private applyDashboard(): void {
+    if (!this.dashboard.current) return;
+    for (const kind of PANEL_KINDS) this.session.setPanelRows(kind, this.dashboard.rows(kind));
+    this.requestRender(false);
+  }
+
+  private async pollReminders(): Promise<void> {
+    const client = this.relayClient;
+    if (!client) return;
+    const now = this.clock();
+    const since = this.lastReminderPoll ?? now - REMINDER_POLL_MILLIS;
+    let list;
+    try {
+      list = await client.getReminders(since);
+    } catch (e) {
+      this.patch({ relayStatus: errorText(e) });
+      return;
+    }
+    this.lastReminderPoll = now;
+    const seen = new Set(this.state.remindersShown);
+    const fresh = list.filter((r) => !seen.has(r.id));
+    if (fresh.length === 0) return;
+    this.patch({ remindersShown: [...this.state.remindersShown, ...fresh.map((r) => r.id)] });
+    for (const r of fresh) {
+      if (this.session.isLive && this.session.currentPrefs.cuesOn) {
+        this.onCue(this.makeCue('NOTICE', 'Reminder', r.text));
+      } else {
+        this.homeReminders = [...this.homeReminders, r.text].slice(-HOME_REMINDERS);
+      }
+    }
+    this.requestRender(true);
+  }
+
+  private async openPanel(kind: PanelKind): Promise<void> {
+    if (!this.relayClient) {
+      this.patch({ relayStatus: 'Add a relay URL and key on the phone for dashboards' });
+      return;
+    }
+    await this.dashboard.dashboard();
+    this.patch({ relayStatus: this.dashboard.lastError });
+    if (this.dashboard.current) this.session.setPanelRows(kind, this.dashboard.rows(kind));
+    this.requestRender(true);
+  }
+
+  private async toggleTodo(id: string, done: boolean): Promise<void> {
+    try {
+      await this.dashboard.toggleTodo(id, done);
+    } catch (e) {
+      this.dashboard.setDone(id, !done);
+      this.session.setPanelRows('todos', this.session.panelRows('todos').map((r) => (r.id === id ? { ...r, done: !done } : r)));
+      this.patch({ lastError: `Could not update to-do: ${errorText(e)}` });
+      this.requestRender(true);
+    }
+  }
+
+  /**
+   * Ask ChatGPT (phone box or glasses Ask). Relay configured -> POST /ask
+   * (streamed); otherwise the user's OpenAI key. A new question cancels the
+   * one in flight. The answer is an ANSWER cue (live) or an answer card.
+   */
+  async ask(question: string, deep = false): Promise<void> {
+    const q = question.trim();
+    if (q === '') return;
+    this.askAbort?.abort();
+    const ac = new AbortController();
+    this.askAbort = ac;
+    const gen = ++this.askGeneration;
+    const context = this.session.isLive ? this.cues.recentText() : '';
+    this.patch({ askBusy: true, askAnswer: '' });
+    let text: string;
+    try {
+      if (this.relayClient) {
+        let streamed = '';
+        text = await this.relayClient.ask(q, {
+          context,
+          deep,
+          signal: ac.signal,
+          onDelta: (d) => {
+            if (gen !== this.askGeneration) return;
+            streamed += d;
+            this.patch({ askAnswer: streamed });
+          },
+        });
+      } else if (this.apiKey) {
+        const answer = this.deps.answer ?? ((key, qq, ctx) => openaiAnswer(key, qq, ctx, 3));
+        text = await answer(this.apiKey, q, context);
+      } else {
+        throw new RelayError('Add a relay or an OpenAI key on the phone');
+      }
+    } catch (e) {
+      if (gen !== this.askGeneration || (e as { name?: string })?.name === 'AbortError') return;
+      this.patch({ askBusy: false, askAnswer: '', lastError: `Ask failed: ${errorText(e)}` });
+      this.notify('Ask failed', errorText(e));
+      return;
+    }
+    if (gen !== this.askGeneration) return;
+    this.askAbort = null;
+    const answer = text.replace(/\s+/g, ' ').trim() || 'No answer.';
+    this.patch({ askBusy: false, askAnswer: answer });
+    this.deliver(this.makeCue('ANSWER', 'Answer', answer));
+  }
+
+  private makeCue(type: CueType, title: string, text: string): Cue {
+    const body = text.replace(/\s+/g, ' ').trim();
+    return {
+      id: this.cues.nextCueId(),
+      type,
+      title,
+      body: body.slice(0, BODY_MAX),
+      detail: body.length > BODY_MAX ? body.slice(0, DETAIL_MAX) : null,
+      createdAtMillis: this.clock(),
+    };
+  }
+
+  /** Live with cues on -> cue path; otherwise an answer card overlay. */
+  private deliver(cue: Cue): void {
+    if (this.session.isLive && this.session.currentPrefs.cuesOn) this.onCue(cue);
+    else {
+      this.session.showAnswer(cue);
+      this.requestRender(true);
+    }
+  }
+
+  private notify(title: string, text: string): void {
+    this.deliver(this.makeCue('NOTICE', title, text));
+  }
+
+  private homeText(): string {
+    const hasKey = this.apiKey !== null;
+    const d = this.dashboard.current;
+    if (this.relayClient && (d || this.homeReminders.length > 0)) return dashboardHome(d, this.homeReminders, hasKey);
+    return idleHint(hasKey);
   }
 
   async savePrepNote(note: PrepNoteRef): Promise<void> {
@@ -338,6 +641,11 @@ export class App {
   }
 
   private onSegment(seg: Segment): void {
+    if (this.session.isAsking) {
+      // Ask (contract §6): the next final utterance is the question.
+      if (seg.isFinal) void this.apply(this.session.onAskText(seg.text));
+      return;
+    }
     if (!this.session.isLive) return;
     this.captions.onSegment(seg);
     this.session.onCaptionLines(this.captions.lines());
@@ -375,11 +683,33 @@ export class App {
           break;
         case 'SetCaptions':
         case 'SetCues':
+        case 'SetPref':
           await this.persistPrefs();
           break;
         case 'SetPaused':
+        case 'AskListen':
+          break;
+        case 'SetMode':
+          await this.setMode(effect.mode);
+          break;
+        case 'RequestPanel':
+          void this.openPanel(effect.kind);
+          break;
+        case 'ToggleTodo':
+          void this.toggleTodo(effect.id, effect.done);
+          break;
+        case 'AskCancel':
+          this.askAbort?.abort();
+          break;
+        case 'AskQuestion':
+          void this.ask(effect.text);
           break;
       }
+    }
+    if (effects.some((e) => e.type === 'AskListen') && this.apiKey === null) {
+      // No speech-to-text without the OpenAI key: back out with a hint.
+      this.session.onIntent('BACK');
+      this.notify('Ask', 'Ask by voice needs your OpenAI key; use the Ask box on the phone.');
     }
     this.patch({ live: this.session.isLive, paused: this.session.isPaused, prefs: this.session.currentPrefs });
     this.refreshCaptions();
@@ -389,14 +719,16 @@ export class App {
 
   /** With no key the caption slot carries the setup prompt instead of speech. */
   private refreshCaptions(): void {
-    const needsKey = this.session.isLive && this.apiKey === null;
+    const needsKey = this.session.isLive && this.apiKey === null && this.state.mode !== 'DISPLAY_ONLY';
     this.patch({ needsKey });
     if (needsKey) this.session.onCaptionLines(NEEDS_KEY_LINES);
     else this.session.onCaptionLines(this.captions.lines());
   }
 
   private async syncAudio(): Promise<void> {
-    const want = this.session.isLive && !this.session.isPaused && this.state.foreground && this.apiKey !== null;
+    // Display-only keeps the mic closed except while Ask is listening (the wearer asked to speak).
+    const captioning = this.session.isLive && !this.session.isPaused && this.state.mode !== 'DISPLAY_ONLY';
+    const want = (captioning || this.session.isAsking) && this.state.foreground && this.apiKey !== null;
     if (want && !this.state.audioOn) await this.audioOn();
     else if (!want && this.state.audioOn) await this.audioOff();
   }
@@ -475,7 +807,7 @@ export class App {
         previous: this.lastRendered,
         captionLines: prefs.captionLines,
         brightness: prefs.brightness,
-        idleHint: this.session.isLive ? undefined : idleHint(this.apiKey !== null),
+        idleHint: this.session.isLive ? undefined : this.homeText(),
       });
       const preview = Object.values(result.contents).join('\n\n');
       if (preview !== this.state.preview) this.patch({ preview });
@@ -548,6 +880,15 @@ export function sanitizePrefs(p: Partial<ConversatePrefs>): ConversatePrefs {
     captionLines: clampInt(p.captionLines, 2, 5, d.captionLines),
     brightness: clampInt(p.brightness, 1, 4, d.brightness),
   };
+}
+
+/** Mic used by a mode (DISPLAY_ONLY: glasses, only for Ask). */
+function sourceOf(mode: G2Mode): AudioSourceChoice {
+  return mode === 'PHONE_MIC' ? 'phone' : 'glasses';
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 function flagsOf(p: ConversatePrefs) {
