@@ -252,10 +252,11 @@ export class App {
       this.session.tick();
       this.requestRender(false);
     }, TICK_MILLIS);
-    this.reminderTimer = setInterval(() => void this.pollRelay(), REMINDER_POLL_MILLIS);
+    this.reminderTimer = setInterval(() => this.pollRelaySafely(), REMINDER_POLL_MILLIS);
     // First paint is the static hint (never black); the dashboard follows.
     this.requestRender(true);
-    await this.pollRelay();
+    // Never wait on the relay (§8): the dashboard fills in when it arrives.
+    this.pollRelaySafely();
   }
 
   dispose(): void {
@@ -411,6 +412,11 @@ export class App {
     } catch (e) {
       this.patch({ relayStatus: errorText(e) });
     }
+  }
+
+  /** Fire-and-forget pollRelay: failures land in relayStatus, never reject. */
+  private pollRelaySafely(): void {
+    this.pollRelay().catch((e) => this.patch({ relayStatus: errorText(e) }));
   }
 
   /** Dashboard refresh + reminder poll (every REMINDER_POLL_MILLIS while open). */
