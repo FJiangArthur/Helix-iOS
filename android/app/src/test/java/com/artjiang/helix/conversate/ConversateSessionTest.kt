@@ -20,7 +20,10 @@ class ConversateSessionTest {
     fun `idle menu starts a session without prep notes`() {
         val s = session()
         s.onIntent(MENU)
-        assertEquals(ScreenModel.Menu("HELIX", listOf("Start session"), 0), s.screen())
+        assertEquals(
+            ScreenModel.Menu("HELIX", listOf("Start session", "Ask ChatGPT", "News", "X posts", "To-dos", "Omi", "Mode", "Display"), 0),
+            s.screen(),
+        )
         assertTrue(s.selectContext)
         assertEquals(listOf(SessionEffect.Start(null)), s.onIntent(SELECT))
         assertTrue(s.isLive)
@@ -111,8 +114,8 @@ class ConversateSessionTest {
         assertEquals("Resume", (s.screen() as ScreenModel.Menu).items[0])
         s.onIntent(NEXT)
         assertEquals(listOf(SessionEffect.SetCaptions(false)), s.onIntent(SELECT))
-        repeat(10) { s.onIntent(NEXT) }
-        assertEquals(5, (s.screen() as ScreenModel.Menu).cursor)
+        repeat(20) { s.onIntent(NEXT) }
+        assertEquals(12, (s.screen() as ScreenModel.Menu).cursor)
         assertEquals(listOf(SessionEffect.End), s.onIntent(SELECT))
     }
 
@@ -134,7 +137,7 @@ class ConversateSessionTest {
     fun `display off blanks until any intent`() {
         val s = session(); s.startLive(null)
         s.onIntent(MENU)
-        repeat(4) { s.onIntent(NEXT) }
+        repeat(11) { s.onIntent(NEXT) }
         s.onIntent(SELECT)
         assertEquals(ScreenModel.Blank, s.screen())
         s.onIntent(PREV)
@@ -159,8 +162,100 @@ class ConversateSessionTest {
         assertEquals(ScreenModel.ConfirmEnd, s.screen())
         now += 500
         s.onIntent(PREV)
-        s.onIntent(MENU); repeat(4) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        s.onIntent(MENU); repeat(11) { s.onIntent(NEXT) }; s.onIntent(SELECT)
         s.onIntent(ConversateIntent.HEAD_UP)
+        assertEquals(ScreenModel.Blank, s.screen())
+    }
+
+    @Test
+    fun `phone setMode moves the mode picker cursor`() {
+        val s = session()
+        s.setMode(HelixMode.OMI)
+        s.onIntent(MENU); repeat(6) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        assertEquals(ScreenModel.Menu("MODE", listOf("Phone mic", "Omi pendant", "Display only"), 1), s.screen())
+        assertTrue(s.selectContext)
+    }
+
+    @Test
+    fun `display picker updates session prefs and live caption rows`() {
+        val s = session(); s.startLive(null)
+        s.onIntent(MENU); repeat(10) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        assertEquals(listOf(SessionEffect.SetPref("captionLines", "2")), s.onIntent(SELECT))
+        s.onIntent(BACK); s.onIntent(BACK)
+        s.onCaptionLines(listOf("a"))
+        assertEquals(2, (s.screen() as ScreenModel.Live).captionRows)
+    }
+
+    @Test
+    fun `phone prefs show in the display picker labels`() {
+        val s = session(ConversatePrefs(captionLines = 3, brightness = 2, cueDurationMillis = 15_000, captionsOn = false))
+        s.onIntent(MENU); repeat(7) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        assertEquals(
+            listOf("Caption lines: 3", "Cue time: 15s", "Brightness: 2", "Captions: off"),
+            (s.screen() as ScreenModel.Menu).items,
+        )
+    }
+
+    @Test
+    fun `panel detail pages and returns to the panel`() {
+        val s = ConversateSession(MenuSpec.load(), { now }, textPageCount = { 3 })
+        s.onIntent(MENU); repeat(2) { s.onIntent(NEXT) }
+        assertEquals(listOf(SessionEffect.RequestPanel("news")), s.onIntent(SELECT))
+        assertTrue(s.selectContext)
+        s.setPanelRows("news", listOf(PanelRow("n1", "A", "a"), PanelRow("n2", "B", "b")))
+        s.onIntent(NEXT); s.onIntent(SELECT)
+        assertEquals(ScreenModel.PanelDetail("B", "b", 0), s.screen())
+        repeat(5) { s.onIntent(NEXT) }
+        assertEquals(2, (s.screen() as ScreenModel.PanelDetail).page)
+        s.onIntent(BACK)
+        assertEquals(ScreenModel.Panel("NEWS", listOf("A", "B"), 1), s.screen())
+    }
+
+    @Test
+    fun `replacing panel rows clamps the cursor and empty select is a no-op`() {
+        val s = session()
+        s.onIntent(MENU); repeat(5) { s.onIntent(NEXT) }; s.onIntent(SELECT)
+        s.setPanelRows("omi", listOf(PanelRow("1", "A", ""), PanelRow("2", "B", ""), PanelRow("3", "C", "")))
+        repeat(2) { s.onIntent(NEXT) }
+        s.setPanelRows("omi", listOf(PanelRow("1", "A", "")))
+        assertEquals(0, (s.screen() as ScreenModel.Panel).cursor)
+        s.setPanelRows("omi", emptyList())
+        assertEquals(emptyList<SessionEffect>(), s.onIntent(SELECT))
+        assertEquals(ScreenModel.Panel("OMI", listOf("Nothing here"), 0), s.screen())
+    }
+
+    @Test
+    fun `ask text outside the ask screen is ignored`() {
+        val s = session()
+        assertEquals(emptyList<SessionEffect>(), s.onAskText("hello"))
+        assertFalse(s.isAskListening)
+        s.onIntent(MENU); s.onIntent(NEXT); s.onIntent(SELECT)
+        assertTrue(s.isAskListening)
+        assertEquals(ScreenModel.Ask, s.screen())
+        assertEquals(listOf(SessionEffect.AskQuestion("hi")), s.onAskText("  hi "))
+        assertFalse(s.isAskListening)
+    }
+
+    @Test
+    fun `live ask closes back to captions`() {
+        val s = session(); s.startLive(null)
+        s.onIntent(MENU); repeat(4) { s.onIntent(NEXT) }
+        assertEquals(listOf(SessionEffect.AskListen), s.onIntent(SELECT))
+        s.onAskText("q")
+        assertTrue(s.screen() is ScreenModel.Live)
+    }
+
+    @Test
+    fun `showAnswer when idle opens a detail card and back clears it`() {
+        val s = session()
+        s.showAnswer(cue(9, CueType.ANSWER))
+        assertEquals(ScreenModel.CueDetail(cue(9, CueType.ANSWER), 0), s.screen())
+        s.onIntent(MENU)
+        assertEquals("Start session", (s.screen() as ScreenModel.Menu).items[0])
+        s.onIntent(BACK)
+        assertEquals(ScreenModel.Blank, s.screen())
+        s.showAnswer(cue(9, CueType.ANSWER))
+        s.onIntent(BACK)
         assertEquals(ScreenModel.Blank, s.screen())
     }
 }

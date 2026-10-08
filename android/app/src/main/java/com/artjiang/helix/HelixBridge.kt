@@ -558,6 +558,7 @@ class HelixBridge(
             is SessionEffect.SetPaused -> if (effect.paused) stopListening() else startListening()
             is SessionEffect.SetCaptions -> setConversatePrefs(conversatePrefs.value.copy(captionsOn = effect.on))
             is SessionEffect.SetCues -> setConversatePrefs(conversatePrefs.value.copy(cuesOn = effect.on))
+            else -> Unit
         }
     }
 

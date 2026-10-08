@@ -16,6 +16,7 @@ class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
         is ScreenModel.CueDetail -> paged(detailText(screen.cue), screen.page)
         is ScreenModel.PrepNoteView -> paged("${screen.title}\n${screen.text}", screen.page)
         ScreenModel.ConfirmEnd -> HudFrame("End session?\n\nDouble-tap again to end\nAny other tap cancels")
+        else -> null
     }
 
     fun detailPageCount(cue: Cue): Int = pages(detailText(cue)).size
