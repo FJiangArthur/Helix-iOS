@@ -583,7 +583,6 @@ class HelixBridge(
                 setConversatePrefs(conversate.currentPrefs)
                 if (effect.id == "brightness") applyConversateBrightness(conversate.currentPrefs.brightness)
             }
-            else -> Unit
         }
     }
 
