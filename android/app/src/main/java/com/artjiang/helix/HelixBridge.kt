@@ -703,16 +703,12 @@ class HelixBridge(
     /**
      * Glasses menu Ask: the session now waits for the next final segment. If
      * nothing is listening, open the mic for this one question only (no
-     * session banner — it would paint over the Ask screen). Display-only has
-     * no mic, so the wearer is told to type instead.
+     * session banner — it would paint over the Ask screen). Display-only
+     * opens the phone mic for that one utterance too (contract 0.3 §6).
      */
     private fun beginGlassesAsk() {
-        if (!HelixModePolicy.canListen(helixMode.value)) {
-            conversate.showCard(CueType.NOTICE, "Display only has no mic. Type your question in the Helix app.")
-            return
-        }
         if (isListening.value) return
-        val source = HelixModePolicy.sourceFor(helixMode.value, transcriptionSource.value) ?: return
+        val source = HelixModePolicy.askSourceFor(helixMode.value, transcriptionSource.value)
         askOpenedMic = true
         sourceSwitch.start(source)
     }
