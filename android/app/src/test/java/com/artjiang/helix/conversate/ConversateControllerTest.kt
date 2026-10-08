@@ -140,6 +140,70 @@ class ConversateControllerTest {
     }
 
     @Test
+    fun `display picker change is reported with the session prefs`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        repeat(7) { rig.controller.intent(ConversateIntent.NEXT) }
+        rig.controller.intent(ConversateIntent.SELECT)
+        repeat(2) { rig.controller.intent(ConversateIntent.NEXT) }
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertEquals(SessionEffect.SetPref("brightness", "4"), rig.effects.last())
+        assertEquals(4, rig.controller.currentPrefs.brightness)
+    }
+
+    @Test
+    fun `phone mode change shows in the glasses picker`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.setMode(HelixMode.DISPLAY_ONLY)
+        rig.controller.intent(ConversateIntent.MENU)
+        repeat(6) { rig.controller.intent(ConversateIntent.NEXT) }
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertEquals(2, (rig.controller.screen.value as ScreenModel.Menu).cursor)
+    }
+
+    @Test
+    fun `panel rows arrive after the request and render on the lens`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        repeat(2) { rig.controller.intent(ConversateIntent.NEXT) }
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertEquals(SessionEffect.RequestPanel("news"), rig.effects.last())
+        rig.controller.setPanelRows("news", listOf(PanelRow("n1", "Fed holds rates steady", "detail")))
+        advanceTimeBy(500)
+        assertEquals("> Fed holds rates steady", rig.sent.last().lines()[1])
+    }
+
+    @Test
+    fun `idle ask takes the next final segment and ignores partials`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        rig.controller.intent(ConversateIntent.NEXT)
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertEquals(SessionEffect.AskListen, rig.effects.last())
+        assertTrue(rig.controller.isAskListening)
+        advanceTimeBy(500)
+        assertTrue(rig.sent.last().startsWith("Ask: listening..."))
+        assertFalse(rig.controller.onSegment(TranscriptSegment("what is", false, 0)))
+        assertTrue(rig.controller.onSegment(TranscriptSegment("What is the capital of Australia?", true, 0)))
+        assertEquals(SessionEffect.AskQuestion("What is the capital of Australia?"), rig.effects.last())
+        assertFalse(rig.controller.isAskListening)
+    }
+
+    @Test
+    fun `answer when not live shows a detail card`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.showAnswer("Canberra is the capital.")
+        advanceTimeBy(500)
+        assertEquals("* ANSWER Answer\nCanberra is the capital.", rig.sent.last())
+        assertTrue(rig.controller.screen.value is ScreenModel.CueDetail)
+    }
+
+    @Test
     fun `ring is ignored while conversate is disabled`() = runTest {
         val rig = Rig(this)
         rig.controller.handleRing(com.artjiang.helix.ring.R1Gesture.HOLD)

@@ -109,33 +109,69 @@ class ConversateController(
         apply(session.onIntent(intent))
     }
 
-    fun onSegment(segment: TranscriptSegment) {
-        if (!session.isLive) return
+    /**
+     * Partials and finals from the active transcript source. Returns true when
+     * the segment was consumed as the wearer's Ask question (contract 0.3 §6),
+     * so the legacy question pipeline must not also act on it.
+     */
+    fun onSegment(segment: TranscriptSegment): Boolean {
+        if (enabledState.value && session.isAskListening && segment.isFinal && segment.text.isNotBlank()) {
+            apply(session.onAskText(segment.text))
+            return true
+        }
+        if (!session.isLive) return false
         captions.onSegment(segment)
         session.onCaptionLines(captions.lines())
         if (segment.isFinal) engine.onFinal(segment.text)
         render()
+        return false
     }
 
     fun offerExternal(text: String, priority: HudArbiter.Priority) {
         if (!session.isLive) return
         val type = if (priority == HudArbiter.Priority.ANSWER) CueType.ANSWER else CueType.NOTICE
+        session.onCue(externalCue(text, type))
+        render()
+    }
+
+    /** An answer outside a live session (Display-only / idle): an AnswerCard on the lens. */
+    fun showAnswer(text: String) {
+        if (!enabledState.value || text.isBlank()) return
+        session.showAnswer(externalCue(text, CueType.ANSWER))
+        render()
+    }
+
+    private fun externalCue(text: String, type: CueType): Cue {
         // Collapse newlines: HudPaginator wraps on spaces only, so an embedded
         // newline would add rows beyond the 5-line card.
         val lines = text.trim().replace(Regex("\\s+"), " ")
-        val title = if (type == CueType.ANSWER) "Answer" else "Notice"
-        session.onCue(
-            Cue(
-                id = engine.nextCueId(),
-                type = type,
-                title = title,
-                body = lines.take(CueParser.BODY_MAX),
-                detail = lines.takeIf { it.length > CueParser.BODY_MAX }?.take(CueParser.DETAIL_MAX),
-                createdAtMillis = clock(),
-            ),
+        return Cue(
+            id = engine.nextCueId(),
+            type = type,
+            title = if (type == CueType.ANSWER) "Answer" else "Notice",
+            body = lines.take(CueParser.BODY_MAX),
+            detail = lines.takeIf { it.length > CueParser.BODY_MAX }?.take(CueParser.DETAIL_MAX),
+            createdAtMillis = clock(),
         )
-        render()
     }
+
+    val currentPrefs: ConversatePrefs get() = session.currentPrefs
+
+    val isAskListening: Boolean get() = session.isAskListening
+
+    /** Phone-side mode change; the glasses picker opens on it next time. */
+    fun setMode(mode: HelixMode) {
+        session.setMode(mode)
+        if (enabledState.value) render()
+    }
+
+    /** Dashboard rows for [kind] (contract 0.3 §5), e.g. after a RequestPanel. */
+    fun setPanelRows(kind: String, rows: List<PanelRow>) {
+        session.setPanelRows(kind, rows)
+        if (enabledState.value) render()
+    }
+
+    fun panelRows(kind: String): List<PanelRow> = session.panelRows(kind)
 
     /** Re-sends the current screen, e.g. after the glasses reconnect. */
     fun redraw() {

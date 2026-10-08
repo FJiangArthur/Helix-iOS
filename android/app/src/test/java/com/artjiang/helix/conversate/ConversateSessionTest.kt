@@ -177,6 +177,18 @@ class ConversateSessionTest {
     }
 
     @Test
+    fun `start in display only opens the to-do dashboard instead of listening`() {
+        val s = session()
+        s.setMode(HelixMode.DISPLAY_ONLY)
+        s.onIntent(MENU)
+        assertEquals(listOf(SessionEffect.RequestPanel("todos")), s.onIntent(SELECT))
+        assertFalse(s.isLive)
+        assertEquals("TO-DO", (s.screen() as ScreenModel.Panel).title)
+        s.onIntent(BACK)
+        assertEquals(0, (s.screen() as ScreenModel.Menu).cursor)
+    }
+
+    @Test
     fun `display picker updates session prefs and live caption rows`() {
         val s = session(); s.startLive(null)
         s.onIntent(MENU); repeat(10) { s.onIntent(NEXT) }; s.onIntent(SELECT)

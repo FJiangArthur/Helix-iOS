@@ -313,6 +313,11 @@ class ConversateSession(
             overlay = Overlay.Panel(id, 0, o)
             return listOf(SessionEffect.RequestPanel(id))
         }
+        // Display-only has no mic: "Start session" opens the to-do dashboard instead.
+        if (id == "start" && mode == HelixMode.DISPLAY_ONLY && TODOS in menu.panels) {
+            overlay = Overlay.Panel(TODOS, 0, o)
+            return listOf(SessionEffect.RequestPanel(TODOS))
+        }
         return when (id) {
             "start" -> if (prepNotes.isEmpty()) startLive(null) else { overlay = Overlay.Menu(MenuKind.PICKER, 0); emptyList() }
             "pause" -> { paused = !paused; listOf(SessionEffect.SetPaused(paused)) }

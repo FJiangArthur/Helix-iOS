@@ -82,6 +82,8 @@ import com.artjiang.helix.speech.TranscriptionSource
 import java.io.File
 import com.artjiang.helix.conversate.ConversateController
 import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.HelixMode
+import com.artjiang.helix.conversate.HelixModePolicy
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
 import com.artjiang.helix.conversate.SessionEffect
@@ -558,7 +560,55 @@ class HelixBridge(
             is SessionEffect.SetPaused -> if (effect.paused) stopListening() else startListening()
             is SessionEffect.SetCaptions -> setConversatePrefs(conversatePrefs.value.copy(captionsOn = effect.on))
             is SessionEffect.SetCues -> setConversatePrefs(conversatePrefs.value.copy(cuesOn = effect.on))
+            is SessionEffect.SetMode -> setHelixMode(effect.mode)
+            is SessionEffect.SetPref -> {
+                setConversatePrefs(conversate.currentPrefs)
+                if (effect.id == "brightness") applyConversateBrightness(conversate.currentPrefs.brightness)
+            }
             else -> Unit
+        }
+    }
+
+    /**
+     * Operating mode (plan M): phone mic / Omi pendant / display only. Only
+     * meaningful while Conversate is enabled; with it off the app keeps using
+     * the Settings transcription source exactly as before.
+     */
+    val helixMode: StateFlow<HelixMode> = settingsRepository.helixMode
+        .stateIn(scope, SharingStarted.Eagerly, HelixMode.PHONE_MIC)
+
+    fun setHelixMode(mode: HelixMode) {
+        scope.launch { settingsRepository.setHelixMode(mode) }
+        conversate.setMode(mode)
+        val source = HelixModePolicy.sourceFor(mode, transcriptionSource.value)
+        if (source == null) {
+            // Display only: no mic at all. A live session ends with it.
+            if (conversate.isLive.value) conversate.end()
+            if (isListening.value) stopListening()
+            return
+        }
+        if (source == transcriptionSource.value) return
+        val resume = isListening.value && conversate.isLive.value
+        setTranscriptionSource(source)
+        // Keep a live Conversate session hearing: restart on the new backend.
+        if (resume) sourceSwitch.start(source)
+    }
+
+    /** Display controls from the phone (contract 0.3 §4); same path as the glasses picker. */
+    fun setConversateCaptionLines(lines: Int) {
+        setConversatePrefs(conversatePrefs.value.copy(captionLines = lines.coerceIn(ConversatePrefs.CAPTION_LINE_RANGE)))
+    }
+
+    fun setConversateBrightness(level: Int) {
+        val clamped = level.coerceIn(ConversatePrefs.BRIGHTNESS_RANGE)
+        setConversatePrefs(conversatePrefs.value.copy(brightness = clamped))
+        applyConversateBrightness(clamped)
+    }
+
+    /** Contract 0.3 §4: level 1..4 -> 0x01 brightness 10/20/30/42, manual. Reuses the Device-tab push. */
+    private fun applyConversateBrightness(level: Int) {
+        updateDisplayPrefs {
+            it.copy(brightness = ConversatePrefs.g1BrightnessByte(level), autoBrightness = false)
         }
     }
 
@@ -639,6 +689,7 @@ class HelixBridge(
         }
         scope.launch { conversateEnabled.collect { conversate.setEnabled(it) } }
         scope.launch { conversatePrefs.collect { conversate.setPrefs(it) } }
+        scope.launch { helixMode.collect { conversate.setMode(it) } }
         scope.launch { prepNoteRepository.notes.collect { conversate.setPrepNotes(it) } }
         // Ring gestures arrive on a binder thread; the controller is main-scope only.
         ring.onGesture = { gesture -> scope.launch { conversate.handleRing(gesture) } }
@@ -1286,6 +1337,11 @@ class HelixBridge(
      * reminder cadence are identical whichever way the session began.
      */
     fun startListening() {
+        // Display-only mode (Conversate on) has no mic by definition.
+        if (conversateEnabled.value && !HelixModePolicy.canListen(helixMode.value)) {
+            providerErrorState.value = "Display only mode: listening is off. Switch Mode to listen."
+            return
+        }
         val wasListening = isListening.value
         // A new session is a new conversation: clear per-session dedup state so
         // a question asked in an earlier session is answerable again. Without

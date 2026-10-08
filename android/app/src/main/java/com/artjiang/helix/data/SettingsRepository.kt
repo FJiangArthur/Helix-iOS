@@ -30,6 +30,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.HelixMode
+import com.artjiang.helix.conversate.HelixModePolicy
 
 private val Context.helixDataStore: DataStore<Preferences> by preferencesDataStore(name = "helix_settings")
 
@@ -285,6 +287,8 @@ class SettingsRepository(context: Context) : KeyStore {
                 cuesOn = prefs[CONVERSATE_CUES_KEY] ?: true,
                 autoPopup = prefs[CONVERSATE_AUTO_POPUP_KEY] ?: true,
                 cueDurationMillis = (prefs[CONVERSATE_CUE_SECONDS_KEY] ?: 6).coerceIn(3, 15) * 1_000L,
+                captionLines = parseCaptionLines(prefs[CONVERSATE_CAPTION_LINES_KEY]),
+                brightness = parseBrightness(prefs[CONVERSATE_BRIGHTNESS_KEY]),
             )
         }
 
@@ -294,7 +298,22 @@ class SettingsRepository(context: Context) : KeyStore {
             prefs[CONVERSATE_CUES_KEY] = value.cuesOn
             prefs[CONVERSATE_AUTO_POPUP_KEY] = value.autoPopup
             prefs[CONVERSATE_CUE_SECONDS_KEY] = (value.cueDurationMillis / 1_000L).toInt().coerceIn(3, 15)
+            prefs[CONVERSATE_CAPTION_LINES_KEY] = parseCaptionLines(value.captionLines)
+            prefs[CONVERSATE_BRIGHTNESS_KEY] = parseBrightness(value.brightness)
         }
+    }
+
+    /**
+     * Operating mode (plan M / contract 0.3 §3). Own DataStore key; a missing
+     * value follows the stored transcription source so upgrades keep behaving.
+     */
+    val helixMode: Flow<HelixMode> =
+        appContext.helixDataStore.data.map { prefs ->
+            parseHelixMode(prefs[HELIX_MODE_KEY], parseTranscriptionSource(prefs[TRANSCRIPTION_SOURCE_KEY]))
+        }
+
+    suspend fun setHelixMode(mode: HelixMode) {
+        appContext.helixDataStore.edit { prefs -> prefs[HELIX_MODE_KEY] = mode.name }
     }
 
     // MARK: - KeyStore
@@ -328,6 +347,18 @@ class SettingsRepository(context: Context) : KeyStore {
         private val CONVERSATE_AUTO_POPUP_KEY = booleanPreferencesKey("conversate_auto_popup")
         private val CONVERSATE_CUE_SECONDS_KEY = intPreferencesKey("conversate_cue_seconds")
         private val HUD_SCROLL_SECONDS_KEY = intPreferencesKey("hud_scroll_seconds")
+        private val CONVERSATE_CAPTION_LINES_KEY = intPreferencesKey("conversate_caption_lines")
+        private val CONVERSATE_BRIGHTNESS_KEY = intPreferencesKey("conversate_brightness")
+        private val HELIX_MODE_KEY = stringPreferencesKey("helix_mode")
+
+        internal fun parseHelixMode(raw: String?, source: TranscriptionSource): HelixMode =
+            HelixMode.entries.firstOrNull { it.name == raw } ?: HelixModePolicy.modeFor(source)
+
+        internal fun parseCaptionLines(raw: Int?): Int =
+            (raw ?: ConversatePrefs.DEFAULT_CAPTION_LINES).coerceIn(ConversatePrefs.CAPTION_LINE_RANGE)
+
+        internal fun parseBrightness(raw: Int?): Int =
+            (raw ?: ConversatePrefs.DEFAULT_BRIGHTNESS).coerceIn(ConversatePrefs.BRIGHTNESS_RANGE)
 
         /** Vendor default is 5 s (`EvenAI.updateReplyToOSByTimer`: `int interval = 5`). */
         const val DEFAULT_HUD_SCROLL_SECONDS = 3
