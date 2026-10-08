@@ -258,6 +258,32 @@ class ConversateSessionTest {
     }
 
     @Test
+    fun `showAnswer while the ask screen is open cancels the ask first`() {
+        val s = session()
+        assertEquals(emptyList<SessionEffect>(), s.showAnswer(cue(8, CueType.ANSWER)))
+        s.onIntent(BACK)
+        s.onIntent(MENU); s.onIntent(NEXT)
+        assertEquals(listOf(SessionEffect.AskListen), s.onIntent(SELECT))
+        assertEquals(listOf(SessionEffect.AskCancel), s.showAnswer(cue(9, CueType.ANSWER)))
+        assertFalse(s.isAskListening)
+        assertEquals(ScreenModel.CueDetail(cue(9, CueType.ANSWER), 0), s.screen())
+    }
+
+    @Test
+    fun `starting or ending a session while asking cancels the ask`() {
+        val s = session()
+        s.onIntent(MENU); s.onIntent(NEXT); s.onIntent(SELECT)
+        assertTrue(s.isAskListening)
+        assertEquals(listOf(SessionEffect.Start(null), SessionEffect.AskCancel), s.startLive(null))
+        assertFalse(s.isAskListening)
+        s.onIntent(MENU); repeat(4) { s.onIntent(NEXT) }
+        assertEquals(listOf(SessionEffect.AskListen), s.onIntent(SELECT))
+        assertEquals(listOf(SessionEffect.End, SessionEffect.AskCancel), s.endLive())
+        assertFalse(s.isAskListening)
+        assertEquals(listOf(SessionEffect.End), s.endLive())
+    }
+
+    @Test
     fun `showAnswer when idle opens a detail card and back clears it`() {
         val s = session()
         s.showAnswer(cue(9, CueType.ANSWER))

@@ -194,6 +194,31 @@ class ConversateControllerTest {
     }
 
     @Test
+    fun `an answer card while the ask screen listens releases the ask mic`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        rig.controller.intent(ConversateIntent.NEXT)
+        rig.controller.intent(ConversateIntent.SELECT)
+        assertTrue(rig.controller.isAskListening)
+        rig.controller.showAnswer("Answer from the phone Ask.")
+        assertEquals(SessionEffect.AskCancel, rig.effects.last())
+        assertFalse(rig.controller.isAskListening)
+    }
+
+    @Test
+    fun `disabling conversate while asking releases the ask mic`() = runTest {
+        val rig = Rig(this)
+        rig.controller.setEnabled(true)
+        rig.controller.intent(ConversateIntent.MENU)
+        rig.controller.intent(ConversateIntent.NEXT)
+        rig.controller.intent(ConversateIntent.SELECT)
+        rig.controller.setEnabled(false)
+        assertEquals(SessionEffect.AskCancel, rig.effects.last())
+        assertFalse(rig.controller.isAskListening)
+    }
+
+    @Test
     fun `answer when not live shows a detail card`() = runTest {
         val rig = Rig(this)
         rig.controller.setEnabled(true)

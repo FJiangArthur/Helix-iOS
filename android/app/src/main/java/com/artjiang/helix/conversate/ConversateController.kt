@@ -71,6 +71,8 @@ class ConversateController(
         if (enabledState.value == enabled) return
         enabledState.value = enabled
         if (!enabled) {
+            // Release a mic opened for a glasses Ask before going hands-off.
+            if (session.isAskListening) apply(session.cancelAsk())
             if (session.isLive) end()
             scope.launch { driver.shutdown() }
         }
@@ -147,8 +149,8 @@ class ConversateController(
             offerExternal(text, if (type == CueType.ANSWER) HudArbiter.Priority.ANSWER else HudArbiter.Priority.NOTIFICATION)
             return
         }
-        session.showAnswer(externalCue(text, type))
-        render()
+        val effects = session.showAnswer(externalCue(text, type))
+        if (effects.isEmpty()) render() else apply(effects)
     }
 
     private fun externalCue(text: String, type: CueType): Cue {

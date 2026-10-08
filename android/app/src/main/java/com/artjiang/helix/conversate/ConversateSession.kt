@@ -101,24 +101,44 @@ class ConversateSession(
         return listOf(SessionEffect.AskQuestion(question))
     }
 
-    /** An answer outside a live session (Display-only / idle): shown as a detail card. */
-    fun showAnswer(cue: Cue) {
+    /**
+     * An answer outside a live session (Display-only / idle): shown as a
+     * detail card. An open Ask screen is cancelled first (contract 0.3 §6) so
+     * the app releases any mic it opened for that Ask.
+     */
+    fun showAnswer(cue: Cue): List<SessionEffect> {
+        val effects = askCancelIfOpen()
         overlay = Overlay.Detail(cue, 0)
+        return effects
     }
 
     fun startLive(prepNoteId: String?): List<SessionEffect> {
+        val cancel = askCancelIfOpen()
         isLive = true
         paused = false
         activePrep = prepNotes.firstOrNull { it.id == prepNoteId }
         queue.clear(); shown = null; captions = emptyList(); overlay = null
-        return listOf(SessionEffect.Start(prepNoteId))
+        return listOf(SessionEffect.Start(prepNoteId)) + cancel
     }
 
     fun endLive(): List<SessionEffect> {
+        val cancel = askCancelIfOpen()
         isLive = false
         queue.clear(); shown = null; captions = emptyList(); overlay = null; activePrep = null
-        return listOf(SessionEffect.End)
+        return listOf(SessionEffect.End) + cancel
     }
+
+    /** Closes an open Ask screen (to its parent menu); AskCancel when one was open. */
+    fun cancelAsk(): List<SessionEffect> {
+        val o = overlay as? Overlay.Ask ?: return emptyList()
+        overlay = o.parent
+        return listOf(SessionEffect.AskCancel)
+    }
+
+    // Any path that leaves the Ask screen must say so, or a mic opened just
+    // for that Ask stays on.
+    private fun askCancelIfOpen(): List<SessionEffect> =
+        if (overlay is Overlay.Ask) listOf(SessionEffect.AskCancel) else emptyList()
 
     fun onCaptionLines(lines: List<String>) { captions = lines }
 
