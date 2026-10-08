@@ -1,4 +1,4 @@
-import { clockLabel, startOfLocalDay } from './time.js';
+import { clockLabel, dayKey } from './time.js';
 import { detail } from './text.js';
 import type { Dashboard, Reminder } from './types.js';
 
@@ -8,8 +8,8 @@ export const LEAD_MS = 10 * 60_000;
 /**
  * CONTRACT-0.3 §7 /reminders:
  * - open to-dos with `since < dueAt <= now + 10 min` (due soon or overdue since the last poll), oldest first;
- * - the briefing's headline once per local day: included when the client's last poll (`since`) was before
- *   today's local midnight in `timeZone`.
+ * - today's briefing headline on EVERY call, with a per-day id `r-brief-YYYY-MM-DD` (local day in `timeZone`);
+ *   clients dedupe by id.
  */
 export function buildReminders(d: Dashboard, since: number, now: number, timeZone: string): Reminder[] {
   const horizon = now + LEAD_MS;
@@ -26,8 +26,8 @@ export function buildReminders(d: Dashboard, since: number, now: number, timeZon
     }));
   const out = [...todos];
   const headline = d.briefing[0];
-  if (headline && since < startOfLocalDay(now, timeZone)) {
-    out.push({ id: 'r-brief', kind: 'briefing', text: headline, dueAt: null });
+  if (headline) {
+    out.push({ id: `r-brief-${dayKey(now, timeZone)}`, kind: 'briefing', text: headline, dueAt: null });
   }
   return out;
 }

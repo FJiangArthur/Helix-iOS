@@ -139,18 +139,34 @@ describe('GET /reminders', () => {
       reminders: [
         { id: 'r-t4', kind: 'todo', text: 'Due 12pm: Task t4', dueAt: '2026-10-07T19:00:00Z' },
         { id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' },
-        { id: 'r-brief', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
+        { id: 'r-brief-2026-10-07', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
       ],
     });
   });
 
-  it('skips items already delivered (dueAt <= since) and the briefing once already polled today', async () => {
+  it('skips items already delivered (dueAt <= since) but includes today\'s briefing on every call', async () => {
     app = buildTestApp({ store: seeded(), now: () => NOW });
     const since = Date.parse('2026-10-07T20:00:00Z'); // 1pm LA, same local day
     const res = await app.inject({ method: 'GET', url: `/reminders?since=${since}`, headers: auth });
     expect(res.json()).toEqual({
-      reminders: [{ id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' }],
+      reminders: [
+        { id: 'r-t1', kind: 'todo', text: 'Due 2pm: Send Q3 churn deck to Sam', dueAt: '2026-10-07T21:00:00Z' },
+        { id: 'r-brief-2026-10-07', kind: 'briefing', text: 'Call with Acme at 3pm: bring the Q3 churn numbers.', dueAt: null },
+      ],
     });
+  });
+
+  it('keys the briefing id by the local day in RELAY_TZ, not UTC', async () => {
+    const lateEvening = Date.parse('2026-10-08T05:30:00Z'); // 10:30pm Oct 7 in Los Angeles, Oct 8 in UTC
+    app = buildTestApp({ store: seeded(), now: () => lateEvening });
+    const res = await app.inject({ method: 'GET', url: `/reminders?since=${lateEvening - 60_000}`, headers: auth });
+    const ids = (res.json() as { reminders: Array<{ id: string }> }).reminders.map((r) => r.id);
+    expect(ids).toContain('r-brief-2026-10-07');
+    await app.close();
+
+    app = buildTestApp({ store: seeded(), now: () => lateEvening, config: testConfig({ RELAY_TZ: 'UTC' }) });
+    const utc = await app.inject({ method: 'GET', url: `/reminders?since=${lateEvening - 60_000}`, headers: auth });
+    expect((utc.json() as { reminders: Array<{ id: string }> }).reminders.map((r) => r.id)).toContain('r-brief-2026-10-08');
   });
 
   it('defaults a missing since to 24h ago and rejects garbage', async () => {

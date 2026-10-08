@@ -42,7 +42,7 @@ All need `Authorization: Bearer $HELIX_RELAY_KEY` except `GET /health`; a bad ke
 - `GET /health` → `{"ok":true,"version":"0.3.0"}`
 - `GET /dashboard` → `{generatedAt, briefing[], news[], x[], todos[], omi[]}` (also `GET /news`, `/x`, `/todos`, `/omi/memories`)
 - `PATCH /todos/:id` `{"completed":bool}` → Omi PATCH → `{"ok":true,"todo":{…}}` (429 + `Retry-After` while Omi rate-limits)
-- `GET /reminders?since=<epochMs>` → open to-dos due by now+10 min and after `since`, plus the briefing headline once per local day
+- `GET /reminders?since=<epochMs>` → open to-dos due by now+10 min and after `since`, plus today's briefing headline on every call (id `r-brief-YYYY-MM-DD`, dedupe by id)
 - `POST /ask` `{"question","context"?,"deep"?}` → `text/event-stream` of `{"delta"}` … `{"done":true}` or `{"error"}`; the upstream request is aborted when the client disconnects
 
 ## Jobs
