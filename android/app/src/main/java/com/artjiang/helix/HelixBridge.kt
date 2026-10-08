@@ -90,6 +90,7 @@ import com.artjiang.helix.conversate.PanelRow
 import com.artjiang.helix.conversate.RelayClient
 import com.artjiang.helix.conversate.RelayConfig
 import com.artjiang.helix.conversate.RelayException
+import com.artjiang.helix.conversate.ReminderScheduler
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
 import com.artjiang.helix.conversate.SessionEffect
@@ -612,6 +613,22 @@ class HelixBridge(
     /** Result line of the last "Test connection" (Settings > Helix relay). */
     val relayStatus: StateFlow<String> = relayStatusState.asStateFlow()
 
+    /**
+     * Relay reminders, polled every 5 min for as long as the process (and so
+     * this bridge) lives — the recording foreground service keeps it alive
+     * while a session runs. Each new one becomes a G1 firmware notification
+     * (0x4B, works with the HUD busy) and a phone feed entry.
+     */
+    private val reminders = ReminderScheduler(
+        scope = scope,
+        fetch = relay::getReminders,
+        deliver = { reminder ->
+            appendFeed(FeedEntry.Kind.REMINDER, reminder.text)
+            forwardHelixEvent(REMINDER_TITLE, reminder.text)
+        },
+        isConfigured = { relayConfig()?.key?.isNotBlank() == true },
+    )
+
     private fun relayConfig(): RelayConfig? {
         val url = settingsRepository.keyFor(RelayClient.URL_KEY_KIND) ?: return null
         return RelayConfig(url, settingsRepository.keyFor(RelayClient.BEARER_KEY_KIND).orEmpty())
@@ -781,6 +798,7 @@ class HelixBridge(
         scope.launch { conversateEnabled.collect { conversate.setEnabled(it) } }
         scope.launch { conversatePrefs.collect { conversate.setPrefs(it) } }
         scope.launch { helixMode.collect { conversate.setMode(it) } }
+        reminders.start()
         scope.launch { prepNoteRepository.notes.collect { conversate.setPrepNotes(it) } }
         // Ring gestures arrive on a binder thread; the controller is main-scope only.
         ring.onGesture = { gesture -> scope.launch { conversate.handleRing(gesture) } }
@@ -2408,6 +2426,7 @@ class HelixBridge(
         /** KeyStore kind for the Omi relay feed URL (secret — it carries the token). */
         const val OMI_RELAY_KEY_KIND = "OMI_RELAY"
         const val RELAY_UNREACHABLE_ROW = "Relay unreachable"
+        const val REMINDER_TITLE = "Helix reminder"
 
         /** `display_name` for Helix's own 0x4B notifications and whitelist row. */
         const val HELIX_DISPLAY_NAME = "Helix"
