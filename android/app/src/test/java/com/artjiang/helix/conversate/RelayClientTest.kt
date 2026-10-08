@@ -111,7 +111,7 @@ class RelayClientTest {
         json(ConversateResources.read("fixtures/relay-reminders.json"))
         val r = client().getReminders(sinceMillis = 1_234L)
         assertEquals("/reminders?since=1234", server.takeRequest().path)
-        assertEquals(listOf("r-t1", "r-brief"), r.map { it.id })
+        assertEquals(listOf("r-t1", "r-brief-2026-10-07"), r.map { it.id })
         assertEquals("Due 2pm: Send Q3 churn deck to Sam", r[0].text)
         assertEquals("briefing", r[1].kind)
     }
