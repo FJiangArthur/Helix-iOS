@@ -107,4 +107,48 @@ class AskCoordinatorTest {
         hold.complete("fresh"); runCurrent()
         assertEquals(listOf(CueType.ANSWER to "fresh"), shown)
     }
+
+    private class FallbackRig(scope: TestScope, relayError: RelayException.Kind) {
+        val shown = mutableListOf<Pair<CueType, String>>()
+        val fallbackAsked = mutableListOf<Triple<String, String?, Boolean>>()
+        var fallbackReply: (String) -> String = { "Provider says Canberra." }
+        val coordinator = AskCoordinator(
+            scope = scope.backgroundScope,
+            ask = { _, _, _, _ -> throw RelayException(relayError, "x") },
+            show = { type, text -> shown += type to text },
+            fallback = { q, ctx, deep, onDelta ->
+                fallbackAsked += Triple(q, ctx, deep)
+                fallbackReply(q).also(onDelta)
+            },
+        )
+    }
+
+    @Test
+    fun `no relay configured falls back to the active answer provider`() = runTest {
+        val rig = FallbackRig(this, RelayException.Kind.NOT_CONFIGURED)
+        rig.coordinator.ask("Capital of Australia?", "travel", false)
+        runCurrent()
+        assertEquals(listOf(Triple("Capital of Australia?", "travel", false)), rig.fallbackAsked)
+        assertEquals(listOf(CueType.ANSWER to "Provider says Canberra."), rig.shown)
+        assertEquals("Provider says Canberra.", rig.coordinator.state.value.answer)
+        assertTrue(rig.coordinator.state.value.viaFallback)
+    }
+
+    @Test
+    fun `configured but failing relay does not fall back`() = runTest {
+        val rig = FallbackRig(this, RelayException.Kind.UNREACHABLE)
+        rig.coordinator.ask("q", null, false)
+        runCurrent()
+        assertTrue(rig.fallbackAsked.isEmpty())
+        assertEquals(listOf(CueType.NOTICE to "Ask failed: relay unreachable"), rig.shown)
+    }
+
+    @Test
+    fun `failing fallback provider becomes a notice`() = runTest {
+        val rig = FallbackRig(this, RelayException.Kind.NOT_CONFIGURED)
+        rig.fallbackReply = { throw IllegalStateException("boom") }
+        rig.coordinator.ask("q", null, false)
+        runCurrent()
+        assertEquals(listOf(CueType.NOTICE to "Ask failed: AI provider error"), rig.shown)
+    }
 }

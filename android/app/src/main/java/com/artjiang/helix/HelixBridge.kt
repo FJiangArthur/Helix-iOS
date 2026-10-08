@@ -22,6 +22,7 @@ import com.artjiang.helix.ble.DiscoveredPair
 import com.artjiang.helix.ble.G1BluetoothManager
 import com.artjiang.helix.ble.LensConnectionState
 import com.artjiang.helix.core.AnswerProvider
+import com.artjiang.helix.core.AnswerRequest
 import com.artjiang.helix.core.ConversationMode
 import com.artjiang.helix.core.HelixSettings
 import com.artjiang.helix.core.KnowledgeBucket
@@ -173,6 +174,10 @@ class HelixBridge(
      */
     @Volatile
     private var fastProvider: AnswerProvider = providerFactory.makeFast(HelixSettings())
+
+    /** The SMART-tier answer provider; null until the first [rebuildProvider]. */
+    @Volatile
+    private var smartProvider: AnswerProvider? = null
 
     val questionSensitivity: StateFlow<QuestionSensitivity> =
         settingsRepository.questionSensitivity.stateIn(
@@ -673,16 +678,45 @@ class HelixBridge(
         }
     }
 
-    /** Ask ChatGPT via the relay; answers go to the phone (state + feed) and the lens. */
+    /** Feed label of the model that answered the current Ask. */
+    @Volatile
+    private var askModelLabel = RELAY_ASK_MODEL_LABEL
+
+    /**
+     * Ask ChatGPT via the relay; answers go to the phone (state + feed) and the
+     * lens. With no relay set up, the active answer provider answers instead
+     * (contract 0.3 §6); a configured relay that fails does not fall back.
+     */
     val ask = AskCoordinator(
         scope = scope,
-        ask = relay::ask,
+        ask = { q, context, deep, onDelta ->
+            askModelLabel = RELAY_ASK_MODEL_LABEL
+            relay.ask(q, context, deep, onDelta)
+        },
         show = { type, text ->
-            if (type == CueType.ANSWER) appendFeed(FeedEntry.Kind.ANSWER, text, model = RELAY_ASK_MODEL_LABEL)
+            if (type == CueType.ANSWER) appendFeed(FeedEntry.Kind.ANSWER, text, model = askModelLabel)
             if (conversateEnabled.value) conversate.showCard(type, text)
             else if (type == CueType.ANSWER) presentToGlasses(text)
         },
+        fallback = { q, context, _, onDelta -> askWithAnswerProvider(q, context, onDelta) },
     )
+
+    private suspend fun askWithAnswerProvider(question: String, context: String?, onDelta: (String) -> Unit): String {
+        val provider = smartProvider ?: fastProvider
+        if (provider.kind == ProviderKind.DETERMINISTIC) {
+            throw IllegalStateException("No AI provider configured for Ask.")
+        }
+        askModelLabel = provider.model
+        val current = settings.value
+        val request = AnswerRequest(
+            question = question,
+            mode = current.mode,
+            skill = current.resolvedSkill(),
+            maxResponseSentences = current.maxResponseSentences,
+            conversationContext = context.orEmpty(),
+        )
+        return provider.answer(request, onDelta).text
+    }
     val askState: StateFlow<AskState> = ask.state
 
     /** True while the mic was opened only to hear one glasses Ask question. */
@@ -912,6 +946,7 @@ class HelixBridge(
             providerFactory.makeFast(current) to providerFactory.make(current)
         }
         fastProvider = fast
+        smartProvider = smart
         engine.setProviders(fast, smart)
         effectiveProviderState.value = smart.kind
     }
