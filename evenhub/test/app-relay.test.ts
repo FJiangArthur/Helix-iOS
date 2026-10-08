@@ -251,6 +251,67 @@ describe('App with helix-relay (contract 0.3)', () => {
     });
   });
 
+  describe('ask cancel isolation (contract §6)', () => {
+    const slow = { sse: ['data: {"delta":"thinking"}\n\n'], hang: true };
+    const signalOf = (i: number) => relay.of('/ask')[i]!.init.signal as AbortSignal;
+
+    it('glasses BACK while listening never aborts a phone Ask', async () => {
+      await boot(relayStore(), slow);
+      void app.ask('phone question');
+      await flush();
+      expect(app.state.askBusy).toBe(true);
+      bridge.menu('ask');
+      await flush();
+      bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+      await flush();
+      expect(signalOf(0).aborted).toBe(false);
+      expect(app.state.askBusy).toBe(true);
+    });
+
+    it('a newer glasses Ask never aborts a phone Ask', async () => {
+      await boot(relayStore(), slow);
+      void app.ask('phone question');
+      await flush();
+      bridge.menu('ask');
+      await flush();
+      tx.final('glasses question');
+      await flush();
+      expect(relay.of('/ask')).toHaveLength(2);
+      expect(signalOf(0).aborted).toBe(false);
+    });
+
+    it('AskCancel aborts the glasses Ask in flight and clears askBusy', async () => {
+      await boot(relayStore(), slow);
+      bridge.menu('ask');
+      await flush();
+      tx.final('glasses question');
+      await flush();
+      expect(app.state.askBusy).toBe(true);
+      bridge.menu('ask');
+      await flush();
+      bridge.gesture(OsEventTypeList.DOUBLE_CLICK_EVENT);
+      await flush();
+      expect(signalOf(0).aborted).toBe(true);
+      expect(app.state.askBusy).toBe(false);
+      expect(app.state.lastError).toBeNull();
+    });
+
+    it('a newer glasses Ask aborts the older glasses Ask only', async () => {
+      await boot(relayStore(), slow);
+      bridge.menu('ask');
+      await flush();
+      tx.final('first');
+      await flush();
+      bridge.menu('ask');
+      await flush();
+      tx.final('second');
+      await flush();
+      expect(signalOf(0).aborted).toBe(true);
+      expect(signalOf(1).aborted).toBe(false);
+      expect(app.state.askBusy).toBe(true);
+    });
+  });
+
   describe('mode and display pickers', () => {
     it('G2 mode picker offers Glasses mic / Phone mic / Display only and switches the mic', async () => {
       const store = relayStore();
