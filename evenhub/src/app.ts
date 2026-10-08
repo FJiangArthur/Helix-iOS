@@ -469,9 +469,12 @@ export class App {
     try {
       const flags = { paused: this.session.isPaused, ...flagsOf(this.session.currentPrefs) };
       const menu = buildContextMenu(this.menu, this.session.isLive, flags);
+      const prefs = this.session.currentPrefs;
       const result = renderPage(this.session.screen(), {
         menu,
         previous: this.lastRendered,
+        captionLines: prefs.captionLines,
+        brightness: prefs.brightness,
         idleHint: this.session.isLive ? undefined : idleHint(this.apiKey !== null),
       });
       const preview = Object.values(result.contents).join('\n\n');

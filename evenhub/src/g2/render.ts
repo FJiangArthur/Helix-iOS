@@ -5,7 +5,7 @@
 // Layouts (576x288 canvas):
 //   live-captions  one full-screen text container, last caption lines
 //   live-cue       bordered cue card on top + caption strip below
-//   main           full-screen text for menu / cue detail / prep note / blank
+//   main           full-screen text for menu / panel / cue, panel detail / prep note / ask / blank
 //   confirm        centred confirm-end box
 // The session owns cursors and pages, so menus and long text are drawn as
 // text (with a `>` cursor / `p/n` footer) rather than native lists/scroll.
@@ -52,7 +52,13 @@ export interface RenderOptions {
   previous?: RenderResult | null;
   /** Shown instead of an empty page when no session is running (review: never a black screen). */
   idleHint?: string;
+  /** Caption rows in captions-only / pending layouts (prefs.captionLines, 2..5); default fills the screen. */
+  captionLines?: number;
+  /** Text brightness 1..4 (prefs.brightness) -> `textColor` on every text container; omitted = device default. */
+  brightness?: number;
 }
+
+export const ASK_LISTENING = 'Ask: listening...';
 
 const fit = (text: string, max = LINE_CHARS) => (text.length <= max ? text : text.slice(0, max - 1).trimEnd() + '~');
 
@@ -76,7 +82,8 @@ function paged(text: string, page: number): string {
   return all.length > 1 ? `${body}\n[${index + 1}/${all.length}]` : body;
 }
 
-function menuText(s: Extract<ScreenModel, { kind: 'Menu' }>): string {
+/** Menu and dashboard panel: title + `n/N` counter, rows with a `>` cursor, windowed around the cursor. */
+function menuText(s: { title: string; items: string[]; cursor: number }): string {
   const visible = FULL_LINES - 1;
   const start = Math.floor(s.cursor / visible) * visible;
   const counter = `${s.cursor + 1}/${s.items.length}`;
@@ -97,13 +104,18 @@ function cueCard(cue: Cue): string {
   return [header, ...shown].join('\n');
 }
 
-function layout(model: ScreenModel, idleHint?: string): { key: string; boxes: Box[] } {
+function layout(model: ScreenModel, idleHint?: string, captionLimit = FULL_LINES): { key: string; boxes: Box[] } {
   const full = (content: string): Box[] => [{ name: 'main', x: 0, y: 0, w: CANVAS_WIDTH, h: CANVAS_HEIGHT, capture: true, content }];
   switch (model.kind) {
     case 'Blank':
       return { key: 'main', boxes: full(idleHint ?? ' ') };
     case 'Menu':
+    case 'Panel':
       return { key: 'main', boxes: full(menuText(model)) };
+    case 'PanelDetail':
+      return { key: 'main', boxes: full(paged(`${model.title}\n${model.text}`, model.page)) };
+    case 'Ask':
+      return { key: 'main', boxes: full(`${ASK_LISTENING}\n\nSay your question.\nDouble-tap to cancel.`) };
     case 'CueDetail':
       return { key: 'main', boxes: full(paged(detailText(model.cue), model.page)) };
     case 'PrepNoteView':
@@ -127,14 +139,14 @@ function layout(model: ScreenModel, idleHint?: string): { key: string; boxes: Bo
       }
       if (model.pendingCount > 0) {
         const head = `${HudGlyphs.CUE} ${model.pendingCount} new cue${model.pendingCount === 1 ? '' : 's'}`;
-        return { key: 'live-captions', boxes: full([head, ...captions.slice(-(FULL_LINES - 1))].join('\n')) };
+        return { key: 'live-captions', boxes: full([head, ...captions.slice(-Math.min(captionLimit, FULL_LINES - 1))].join('\n')) };
       }
-      return { key: 'live-captions', boxes: full(captions.slice(-FULL_LINES).join('\n') || ' ') };
+      return { key: 'live-captions', boxes: full(captions.slice(-Math.min(captionLimit, FULL_LINES)).join('\n') || ' ') };
     }
   }
 }
 
-function container(b: Box): TextContainerProperty {
+function container(b: Box, textColor?: number): TextContainerProperty {
   return new TextContainerProperty({
     xPosition: b.x,
     yPosition: b.y,
@@ -148,16 +160,18 @@ function container(b: Box): TextContainerProperty {
     containerName: b.name,
     isEventCapture: b.capture ? 1 : 0,
     content: b.content,
+    ...(textColor === undefined ? {} : { textColor }),
   });
 }
 
 export function renderPage(model: ScreenModel, opts: RenderOptions): RenderResult {
-  const { key, boxes } = layout(model, opts.idleHint);
+  const { key, boxes } = layout(model, opts.idleHint, opts.captionLines);
+  const textColor = opts.brightness === undefined ? undefined : Math.max(1, Math.min(4, Math.round(opts.brightness)));
   for (const b of boxes) b.content = fitBytes(b.content, TEXT_CREATE_MAX_BYTES);
   const menuSig = JSON.stringify((opts.menu.menuItems ?? []).map((i) => [i.itemID, i.itemName]));
-  const layoutKey = `${key}|${menuSig}`;
+  const layoutKey = `${key}|b${textColor ?? '-'}|${menuSig}`;
   const contents: Record<string, string> = Object.fromEntries(boxes.map((b) => [b.name, b.content]));
-  const page = new RebuildPageContainer({ containerTotalNum: boxes.length, textObject: boxes.map(container), menuObject: opts.menu });
+  const page = new RebuildPageContainer({ containerTotalNum: boxes.length, textObject: boxes.map((b) => container(b, textColor)), menuObject: opts.menu });
   const prev = opts.previous;
   if (!prev || prev.layoutKey !== layoutKey) return { kind: 'rebuild', layoutKey, page, upgrades: [], contents };
   const upgrades = boxes

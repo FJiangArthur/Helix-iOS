@@ -268,6 +268,15 @@ describe('App', () => {
     expect(bridge.of('rebuild').length).toBe(1);
   });
 
+  it('brightness and caption lines from prefs reach the lens', async () => {
+    await boot();
+    await app.updatePrefs({ brightness: 1, captionLines: 9 });
+    await flush();
+    expect(app.state.prefs.captionLines).toBe(5);
+    const page = bridge.of('rebuild').at(-1)!.arg as RebuildPageContainer;
+    expect(page.textObject!.every((t) => t.textColor === 1)).toBe(true);
+  });
+
   it('persists prefs and prep notes, capping note length', async () => {
     const store = memoryStore({ [KEYS.apiKey]: 'k' });
     await boot(store);
