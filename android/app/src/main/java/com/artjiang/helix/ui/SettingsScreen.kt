@@ -137,6 +137,7 @@ fun SettingsScreen(bridge: HelixBridge, modifier: Modifier = Modifier) {
         }
 
         ConversateSettingsSection(bridge)
+        HelixRelaySection(bridge)
 
         // Port of the iOS active-skill picker + custom-skill sheet
         // (NativeSettingsView.swift): six built-ins plus the user's custom

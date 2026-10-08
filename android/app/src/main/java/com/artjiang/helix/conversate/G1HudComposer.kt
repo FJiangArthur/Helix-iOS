@@ -1,4 +1,4 @@
-// Renders a ScreenModel to one 5-line G1 text frame (spec §5.2).
+// Renders a ScreenModel to one 5-line G1 text frame (spec §5.2, contract 0.3).
 package com.artjiang.helix.conversate
 
 import com.artjiang.helix.g1.HudPaginator
@@ -6,15 +6,23 @@ import com.artjiang.helix.g1.HudPaginator
 data class HudFrame(val text: String, val page: Int = 1, val pageCount: Int = 1)
 
 class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
+    companion object {
+        /** Contract 0.3 §6 lens text, with an ASCII ellipsis (see [HudGlyphs]). */
+        const val ASK_LISTENING = "Ask: listening..."
+    }
+
     private val width = paginator.maxCharactersPerLine
     private val rows = paginator.linesPerPage
 
     fun compose(screen: ScreenModel): HudFrame? = when (screen) {
         ScreenModel.Blank -> null
         is ScreenModel.Live -> live(screen)
-        is ScreenModel.Menu -> HudFrame(menu(screen))
+        is ScreenModel.Menu -> HudFrame(list(screen.title, screen.items, screen.cursor))
+        is ScreenModel.Panel -> HudFrame(list(screen.title, screen.items, screen.cursor))
         is ScreenModel.CueDetail -> paged(detailText(screen.cue), screen.page)
         is ScreenModel.PrepNoteView -> paged("${screen.title}\n${screen.text}", screen.page)
+        is ScreenModel.PanelDetail -> paged("${screen.title}\n${screen.text}", screen.page)
+        ScreenModel.Ask -> HudFrame("$ASK_LISTENING\n\nSpeak your question\nDouble-tap to cancel")
         ScreenModel.ConfirmEnd -> HudFrame("End session?\n\nDouble-tap again to end\nAny other tap cancels")
     }
 
@@ -44,22 +52,25 @@ class G1HudComposer(private val paginator: HudPaginator = HudPaginator()) {
             return HudFrame(listOf(header, shown[0], shown[1], HudGlyphs.RULE, fit(caption)).joinToString("\n"))
         }
         val captionRows = if (s.captionsOn) s.captionLines.map(::fit) else emptyList()
+        // Contract 0.3 §4: the wearer's caption-line pref caps both caption layouts.
+        val cap = s.captionRows.coerceIn(1, rows)
         if (s.pendingCount > 0) {
             val head = "${HudGlyphs.CUE} ${s.pendingCount} new cue${if (s.pendingCount == 1) "" else "s"}"
-            return HudFrame((listOf(head) + captionRows.takeLast(rows - 1)).joinToString("\n"))
+            return HudFrame((listOf(head) + captionRows.takeLast(minOf(cap, rows - 1))).joinToString("\n"))
         }
         if (captionRows.isEmpty()) return if (s.captionsOn) HudFrame("") else null
-        return HudFrame(captionRows.takeLast(rows).joinToString("\n"))
+        return HudFrame(captionRows.takeLast(cap).joinToString("\n"))
     }
 
-    private fun menu(s: ScreenModel.Menu): String {
+    /** Menus and dashboard panels: header + counter, a window of four rows, `>` cursor. */
+    private fun list(titleText: String, items: List<String>, cursor: Int): String {
         val visible = rows - 1
-        val start = (s.cursor / visible) * visible
-        val counter = "${s.cursor + 1}/${s.items.size}"
-        val title = s.title.take(width - counter.length - 1)
+        val start = (cursor / visible) * visible
+        val counter = "${cursor + 1}/${items.size}"
+        val title = titleText.take(width - counter.length - 1)
         val header = title + " ".repeat((width - title.length - counter.length).coerceAtLeast(1)) + counter
-        val lines = s.items.drop(start).take(visible).mapIndexed { i, item ->
-            val prefix = if (start + i == s.cursor) "${HudGlyphs.CURSOR} " else "  "
+        val lines = items.drop(start).take(visible).mapIndexed { i, item ->
+            val prefix = if (start + i == cursor) "${HudGlyphs.CURSOR} " else "  "
             fit(prefix + item)
         }
         return (listOf(header) + lines).joinToString("\n")

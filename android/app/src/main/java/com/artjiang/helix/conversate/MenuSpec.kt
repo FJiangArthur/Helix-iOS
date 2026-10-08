@@ -4,6 +4,7 @@ package com.artjiang.helix.conversate
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 
 internal val conversateJson = Json { ignoreUnknownKeys = true }
 
@@ -29,8 +30,28 @@ data class MenuItemSpec(
         else labelOff ?: id
 }
 
+/** A picker entry (menu v2). [values] are cycled by the display picker; mode items have none. */
 @Serializable
-data class MenuSpec(val version: Int, val idle: List<MenuItemSpec>, val live: List<MenuItemSpec>) {
+data class PickerItemSpec(val id: String, val label: String, val values: List<JsonPrimitive> = emptyList()) {
+    val valueStrings: List<String> get() = values.map { it.content }
+
+    fun renderValue(value: String): String = label.replace("{v}", value)
+}
+
+@Serializable
+data class PickerSpec(val title: String, val items: List<PickerItemSpec>)
+
+@Serializable
+data class PanelSpec(val title: String)
+
+@Serializable
+data class MenuSpec(
+    val version: Int,
+    val idle: List<MenuItemSpec>,
+    val live: List<MenuItemSpec>,
+    val pickers: Map<String, PickerSpec> = emptyMap(),
+    val panels: Map<String, PanelSpec> = emptyMap(),
+) {
     companion object {
         fun load(): MenuSpec = conversateJson.decodeFromString(serializer(), ConversateResources.read("menu.json"))
     }

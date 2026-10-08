@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +25,8 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.artjiang.helix.HelixBridge
 import com.artjiang.helix.conversate.ConversateIntent
+import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.HelixMode
 import com.artjiang.helix.ring.RingLinkState
 
 /** Assistant-tab control surface for Conversate (spec §5.5). */
@@ -36,6 +41,8 @@ fun ConversateCard(bridge: HelixBridge) {
     var pickerOpen by remember { mutableStateOf(false) }
     var editorOpen by remember { mutableStateOf(false) }
     val paused by bridge.conversate.paused.collectAsStateWithLifecycle()
+    val mode by bridge.helixMode.collectAsStateWithLifecycle()
+    val prefs by bridge.conversatePrefs.collectAsStateWithLifecycle()
 
     HelixSection(title = "Conversate", subtitle = "Live captions and AI cues on your glasses") {
         ToggleRow(
@@ -45,6 +52,19 @@ fun ConversateCard(bridge: HelixBridge) {
             onCheckedChange = bridge::setConversateEnabled,
         )
         if (!enabled) return@HelixSection
+        Text("Mode", style = MaterialTheme.typography.labelMedium)
+        HelixSegmentedRow(
+            entries = HelixMode.entries,
+            selected = mode,
+            label = ::helixModeTitle,
+            onSelect = bridge::setHelixMode,
+        )
+        if (mode == HelixMode.DISPLAY_ONLY) {
+            Text(
+                "No microphone. The glasses show dashboards, reminders and answers to questions you type below.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(HelixSpacing.s8)) {
             TextButton(onClick = { pickerOpen = true }) {
                 Text("Prep note: " + (notes.firstOrNull { it.id == selectedNoteId }?.title ?: "None"))
@@ -59,7 +79,10 @@ fun ConversateCard(bridge: HelixBridge) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(HelixSpacing.s8)) {
             if (!live) {
-                Button(onClick = { bridge.startConversate(selectedNoteId) }) { Text("Start") }
+                Button(
+                    onClick = { bridge.startConversate(selectedNoteId) },
+                    enabled = mode != HelixMode.DISPLAY_ONLY,
+                ) { Text("Start") }
             } else {
                 OutlinedButton(onClick = { bridge.conversate.setPaused(!paused) }) {
                     Text(if (paused) "Resume" else "Pause")
@@ -76,9 +99,59 @@ fun ConversateCard(bridge: HelixBridge) {
                 Text(preview, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
             }
         }
+        AskBox(bridge)
+        SliderRow(
+            title = "Caption lines",
+            value = prefs.captionLines,
+            range = ConversatePrefs.CAPTION_LINE_RANGE,
+            onCommit = bridge::setConversateCaptionLines,
+        )
+        SliderRow(
+            title = "Glasses brightness",
+            value = prefs.brightness,
+            range = ConversatePrefs.BRIGHTNESS_RANGE,
+            onCommit = bridge::setConversateBrightness,
+        )
     }
     if (enabled) RingSection(bridge)
     if (editorOpen) PrepNotesSheet(bridge, onDismiss = { editorOpen = false })
+}
+
+/** "Ask ChatGPT" through the Helix relay; the answer streams here and lands on the lens. */
+@Composable
+private fun AskBox(bridge: HelixBridge) {
+    val state by bridge.askState.collectAsStateWithLifecycle()
+    var question by remember { mutableStateOf("") }
+    var deep by remember { mutableStateOf(false) }
+    OutlinedTextField(
+        value = question,
+        onValueChange = { question = it },
+        label = { Text("Ask ChatGPT") },
+        modifier = Modifier.fillMaxWidth(),
+        trailingIcon = {
+            TextButton(
+                onClick = { bridge.askRelay(question, deep); question = "" },
+                enabled = question.isNotBlank(),
+            ) { Text("Ask") }
+        },
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Checkbox(checked = deep, onCheckedChange = { deep = it })
+        Text("Think deeper", style = MaterialTheme.typography.bodySmall)
+    }
+    if (state.question.isNotEmpty()) {
+        LinenCard(modifier = Modifier.fillMaxWidth()) {
+            Text(state.question, style = MaterialTheme.typography.labelMedium)
+            val body = state.error ?: state.answer.ifEmpty { if (state.streaming) "..." else "" }
+            Text(body, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+internal fun helixModeTitle(mode: HelixMode): String = when (mode) {
+    HelixMode.PHONE_MIC -> "Phone mic"
+    HelixMode.OMI -> "Omi"
+    HelixMode.DISPLAY_ONLY -> "Display only"
 }
 
 /** R1 ring controller (Plan B): opt-in, status, last gesture for hardware checks. */

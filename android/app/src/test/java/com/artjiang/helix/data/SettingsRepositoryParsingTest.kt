@@ -1,6 +1,7 @@
 package com.artjiang.helix.data
 
 import com.artjiang.helix.ai.QuestionSensitivity
+import com.artjiang.helix.conversate.HelixMode
 import com.artjiang.helix.speech.QuestionMode
 import com.artjiang.helix.speech.RealtimeEvents
 import com.artjiang.helix.speech.TranscriptionSource
@@ -66,5 +67,24 @@ class SettingsRepositoryParsingTest {
         assertEquals(RealtimeEvents.DEFAULT_MODEL, SettingsRepository.parseTranscriptionModel(null))
         assertEquals(RealtimeEvents.DEFAULT_MODEL, SettingsRepository.parseTranscriptionModel("   "))
         assertEquals("whisper-1", SettingsRepository.parseTranscriptionModel("  whisper-1 "))
+    }
+
+    @Test
+    fun `helix mode parses known names and otherwise follows the transcription source`() {
+        assertEquals(HelixMode.DISPLAY_ONLY, SettingsRepository.parseHelixMode("DISPLAY_ONLY", TranscriptionSource.OMI))
+        assertEquals(HelixMode.OMI, SettingsRepository.parseHelixMode(null, TranscriptionSource.OMI))
+        assertEquals(HelixMode.PHONE_MIC, SettingsRepository.parseHelixMode(null, TranscriptionSource.DEVICE))
+        assertEquals(HelixMode.PHONE_MIC, SettingsRepository.parseHelixMode("GLASSES", TranscriptionSource.OPENAI_REALTIME))
+    }
+
+    @Test
+    fun `conversate display prefs clamp to the contract ranges`() {
+        assertEquals(5, SettingsRepository.parseCaptionLines(null))
+        assertEquals(2, SettingsRepository.parseCaptionLines(1))
+        assertEquals(4, SettingsRepository.parseCaptionLines(4))
+        assertEquals(5, SettingsRepository.parseCaptionLines(9))
+        assertEquals(3, SettingsRepository.parseBrightness(null))
+        assertEquals(1, SettingsRepository.parseBrightness(0))
+        assertEquals(4, SettingsRepository.parseBrightness(7))
     }
 }
