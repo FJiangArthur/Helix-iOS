@@ -82,8 +82,14 @@ import com.artjiang.helix.speech.TranscriptionSource
 import java.io.File
 import com.artjiang.helix.conversate.ConversateController
 import com.artjiang.helix.conversate.ConversatePrefs
+import com.artjiang.helix.conversate.ConversateSession
+import com.artjiang.helix.conversate.DashboardRepository
 import com.artjiang.helix.conversate.HelixMode
 import com.artjiang.helix.conversate.HelixModePolicy
+import com.artjiang.helix.conversate.PanelRow
+import com.artjiang.helix.conversate.RelayClient
+import com.artjiang.helix.conversate.RelayConfig
+import com.artjiang.helix.conversate.RelayException
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
 import com.artjiang.helix.conversate.SessionEffect
@@ -560,6 +566,8 @@ class HelixBridge(
             is SessionEffect.SetPaused -> if (effect.paused) stopListening() else startListening()
             is SessionEffect.SetCaptions -> setConversatePrefs(conversatePrefs.value.copy(captionsOn = effect.on))
             is SessionEffect.SetCues -> setConversatePrefs(conversatePrefs.value.copy(cuesOn = effect.on))
+            is SessionEffect.RequestPanel -> loadPanel(effect.kind)
+            is SessionEffect.ToggleTodo -> syncTodo(effect.id, effect.done)
             is SessionEffect.SetMode -> setHelixMode(effect.mode)
             is SessionEffect.SetPref -> {
                 setConversatePrefs(conversate.currentPrefs)
@@ -592,6 +600,89 @@ class HelixBridge(
         setTranscriptionSource(source)
         // Keep a live Conversate session hearing: restart on the new backend.
         if (resume) sourceSwitch.start(source)
+    }
+
+    // MARK: - Helix relay (dashboards, reminders, Ask)
+
+    /** URL + bearer key live only in the encrypted key store, never in settings JSON. */
+    val relay = RelayClient(config = ::relayConfig)
+    val dashboard = DashboardRepository(fetch = relay::getDashboard)
+    private val relayStatusState = MutableStateFlow("")
+
+    /** Result line of the last "Test connection" (Settings > Helix relay). */
+    val relayStatus: StateFlow<String> = relayStatusState.asStateFlow()
+
+    private fun relayConfig(): RelayConfig? {
+        val url = settingsRepository.keyFor(RelayClient.URL_KEY_KIND) ?: return null
+        return RelayConfig(url, settingsRepository.keyFor(RelayClient.BEARER_KEY_KIND).orEmpty())
+    }
+
+    fun relayUrl(): String = settingsRepository.keyFor(RelayClient.URL_KEY_KIND).orEmpty()
+
+    fun hasRelayKey(): Boolean = settingsRepository.hasKey(RelayClient.BEARER_KEY_KIND)
+
+    /** Saves the relay URL and (when non-null) key; a blank key value removes it. */
+    fun setRelay(url: String, key: String?) {
+        settingsRepository.setKey(RelayClient.URL_KEY_KIND, url.trim().ifEmpty { null })
+        if (key != null) settingsRepository.setKey(RelayClient.BEARER_KEY_KIND, key)
+        relayStatusState.value = ""
+        scope.launch { dashboard.invalidate() }
+    }
+
+    /** GET /health, then an authenticated /reminders probe so a wrong key shows too. */
+    fun testRelay() {
+        relayStatusState.value = "Testing..."
+        scope.launch {
+            relayStatusState.value = try {
+                val version = relay.health()
+                relay.getReminders(System.currentTimeMillis())
+                "Connected (relay $version)"
+            } catch (e: RelayException) {
+                when (e.kind) {
+                    RelayException.Kind.NOT_CONFIGURED -> "Enter the relay URL and key first."
+                    RelayException.Kind.UNAUTHORIZED -> "Reachable, but the key was rejected."
+                    RelayException.Kind.UNREACHABLE -> "Relay unreachable. Is Tailscale on and the Mac awake?"
+                    RelayException.Kind.FAILED -> e.message ?: "Relay error."
+                }
+            }
+        }
+    }
+
+    /** RequestPanel: rows come from the 60 s dashboard cache and land on the open panel. */
+    private fun loadPanel(kind: String) {
+        scope.launch {
+            val rows = try {
+                dashboard.rows(kind)
+            } catch (e: RelayException) {
+                if (kind == ConversateSession.TODOS) emptyList()
+                else listOf(PanelRow("relay-error", RELAY_UNREACHABLE_ROW, relayFailureText(e)))
+            }
+            conversate.setPanelRows(kind, rows)
+        }
+    }
+
+    /** ToggleTodo: optimistic on the lens, PATCH /todos/:id, rolled back if the relay refuses. */
+    private fun syncTodo(id: String, done: Boolean) {
+        scope.launch {
+            dashboard.applyToggle(id, done)
+            try {
+                relay.patchTodo(id, done)
+            } catch (e: RelayException) {
+                dashboard.applyToggle(id, !done)
+                conversate.setPanelRows(
+                    ConversateSession.TODOS,
+                    conversate.panelRows(ConversateSession.TODOS).map { if (it.id == id) it.copy(done = !done) else it },
+                )
+                providerErrorState.value = "To-do not updated: ${relayFailureText(e)}"
+            }
+        }
+    }
+
+    private fun relayFailureText(e: RelayException): String = when (e.kind) {
+        RelayException.Kind.NOT_CONFIGURED -> "Set up Helix relay in Settings."
+        RelayException.Kind.UNAUTHORIZED -> "Relay key rejected."
+        RelayException.Kind.UNREACHABLE -> "Relay unreachable."
+        RelayException.Kind.FAILED -> e.message ?: "Relay error."
     }
 
     /** Display controls from the phone (contract 0.3 §4); same path as the glasses picker. */
@@ -2316,6 +2407,7 @@ class HelixBridge(
     companion object {
         /** KeyStore kind for the Omi relay feed URL (secret — it carries the token). */
         const val OMI_RELAY_KEY_KIND = "OMI_RELAY"
+        const val RELAY_UNREACHABLE_ROW = "Relay unreachable"
 
         /** `display_name` for Helix's own 0x4B notifications and whitelist row. */
         const val HELIX_DISPLAY_NAME = "Helix"
