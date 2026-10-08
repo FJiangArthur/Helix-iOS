@@ -1,6 +1,14 @@
 package com.artjiang.helix.conversate
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeout
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -155,5 +163,25 @@ class RelayClientTest {
             assertEquals(RelayException.Kind.FAILED, e.kind)
             assertEquals("upstream down", e.message)
         }
+    }
+
+    @Test
+    fun `cancelling an ask cancels the http call immediately`() = runBlocking {
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/event-stream")
+                .setBody("data: {\"delta\":\"A\"}\n\n" + "data: {\"delta\":\"B\"}\n\n".repeat(40))
+                .throttleBody(20, 300, TimeUnit.MILLISECONDS),
+        )
+        val deltas = CopyOnWriteArrayList<String>()
+        val first = CompletableDeferred<Unit>()
+        val job = launch(Dispatchers.IO) {
+            runCatching { client().ask("q", null, false) { deltas += it; first.complete(Unit) } }
+        }
+        withTimeout(5_000) { first.await() }
+        // The blocked socket read must be torn down now, not after the stream ends.
+        withTimeout(1_000) { job.cancelAndJoin() }
+        val seen = deltas.size
+        Thread.sleep(1_000)
+        assertEquals("no deltas after cancel", seen, deltas.size)
     }
 }

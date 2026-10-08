@@ -87,4 +87,24 @@ class AskCoordinatorTest {
         runCurrent()
         assertTrue(rig.asked.isEmpty())
     }
+
+    @Test
+    fun `deltas from a superseded stream of the same question are ignored`() = runTest {
+        val sinks = mutableListOf<(String) -> Unit>()
+        val hold = CompletableDeferred<String>()
+        val shown = mutableListOf<Pair<CueType, String>>()
+        val c = AskCoordinator(
+            scope = backgroundScope,
+            ask = { _, _, _, onDelta -> sinks += onDelta; hold.await() },
+            show = { t, x -> shown += t to x },
+        )
+        c.ask("same?", null, false); runCurrent()
+        c.ask("same?", null, false); runCurrent()
+        assertEquals(2, sinks.size)
+        sinks[0]("stale ") // superseded stream still draining on its OkHttp thread
+        sinks[1]("fresh")
+        assertEquals("fresh", c.state.value.answer)
+        hold.complete("fresh"); runCurrent()
+        assertEquals(listOf(CueType.ANSWER to "fresh"), shown)
+    }
 }

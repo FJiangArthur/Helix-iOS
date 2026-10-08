@@ -3,11 +3,7 @@
 // in the encrypted key store (never in HelixSettings JSON).
 package com.artjiang.helix.conversate
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -17,6 +13,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,6 +23,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resumeWithException
 
 data class RelayConfig(val baseUrl: String, val key: String)
 
@@ -111,8 +109,8 @@ class RelayClient(
 
     /**
      * POST /ask and read the SSE stream (`data: {"delta"}` ... `{"done":true}`).
-     * [onDelta] runs on the IO thread for each chunk; returns the whole answer.
-     * Cancelling the caller cancels the HTTP call.
+     * [onDelta] runs on an OkHttp thread for each chunk; returns the whole
+     * answer. Cancelling the caller cancels the HTTP call immediately.
      */
     suspend fun ask(question: String, context: String?, deep: Boolean, onDelta: (String) -> Unit): String {
         val payload = buildJsonObject {
@@ -160,33 +158,36 @@ class RelayClient(
 
     private suspend fun execute(req: Request): String = withCall(req) { it.body?.string().orEmpty() }
 
-    private suspend fun <T> withCall(req: Request, read: (Response) -> T): T {
+    /**
+     * Runs [req] on OkHttp's dispatcher and [read]s the body there. Cancelling
+     * the caller cancels the call at once (closing the socket), so a blocked
+     * SSE read ends immediately instead of when the stream finishes.
+     */
+    private suspend fun <T> withCall(req: Request, read: (Response) -> T): T = suspendCancellableCoroutine { cont ->
         val call: Call = http.newCall(req)
-        val job = currentCoroutineContext()[Job]
-        val handle = job?.invokeOnCompletion { call.cancel() }
-        try {
-            return withContext(Dispatchers.IO) {
-                val response = try {
-                    call.execute()
-                } catch (e: IOException) {
-                    currentCoroutineContext().ensureActive()
-                    throw RelayException(RelayException.Kind.UNREACHABLE, "Relay unreachable", e)
-                }
-                response.use {
-                    when {
-                        it.code == 401 -> throw RelayException(RelayException.Kind.UNAUTHORIZED, "Relay key rejected")
-                        !it.isSuccessful -> throw RelayException(RelayException.Kind.FAILED, "Relay error ${it.code}")
-                    }
-                    try {
-                        read(it)
-                    } catch (e: IOException) {
-                        currentCoroutineContext().ensureActive()
-                        throw RelayException(RelayException.Kind.UNREACHABLE, "Relay connection dropped", e)
-                    }
-                }
+        cont.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                cont.resumeWithException(RelayException(RelayException.Kind.UNREACHABLE, "Relay unreachable", e))
             }
-        } finally {
-            handle?.dispose()
-        }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = runCatching {
+                    response.use {
+                        when {
+                            it.code == 401 -> throw RelayException(RelayException.Kind.UNAUTHORIZED, "Relay key rejected")
+                            !it.isSuccessful -> throw RelayException(RelayException.Kind.FAILED, "Relay error ${it.code}")
+                        }
+                        try {
+                            read(it)
+                        } catch (e: IOException) {
+                            throw RelayException(RelayException.Kind.UNREACHABLE, "Relay connection dropped", e)
+                        }
+                    }
+                }
+                // A no-op when the caller already cancelled.
+                cont.resumeWith(result)
+            }
+        })
     }
 }
