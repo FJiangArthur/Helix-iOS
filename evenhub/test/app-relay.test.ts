@@ -312,6 +312,45 @@ describe('App with helix-relay (contract 0.3)', () => {
     });
   });
 
+  describe('ask releases the mic (contract §6)', () => {
+    const listening = async () => {
+      bridge.menu('ask');
+      await flush();
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: true });
+      expect(app.state.audioOn).toBe(true);
+    };
+
+    it('a phone answer shown while the glasses listen closes Ask and the mic', async () => {
+      await boot();
+      await listening();
+      await app.ask('Capital?');
+      await flush();
+      expect(lens()).toContain('Canberra.');
+      expect(lens()).not.toContain('Ask: listening');
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
+      expect(app.state.audioOn).toBe(false);
+    });
+
+    it('an Ask-failed notice shown while listening releases the mic', async () => {
+      await boot(relayStore(), { sse: ['data: {"error":"down"}\n\n'] });
+      await listening();
+      await app.ask('Q?');
+      await flush();
+      expect(lens()).toMatch(/Ask failed/);
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
+      expect(app.state.audioOn).toBe(false);
+    });
+
+    it('Display only: an answer shown while listening closes the one-utterance mic', async () => {
+      await boot();
+      await app.setMode('DISPLAY_ONLY');
+      await listening();
+      await app.ask('Q?');
+      await flush();
+      expect(bridge.of('audio').at(-1)).toMatchObject({ arg: false });
+    });
+  });
+
   describe('mode and display pickers', () => {
     it('G2 mode picker offers Glasses mic / Phone mic / Display only and switches the mic', async () => {
       const store = relayStore();

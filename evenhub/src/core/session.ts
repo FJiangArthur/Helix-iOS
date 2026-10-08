@@ -190,9 +190,14 @@ export class ConversateSession {
     return [{ type: 'AskQuestion', text: q }];
   }
 
-  /** Shows an answer as a cue detail overlay (not live / display-only, §6). */
-  showAnswer(cue: Cue): void {
+  /**
+   * Shows an answer as a cue detail overlay (not live / display-only, §6).
+   * An open Ask overlay is cancelled first so the app releases its mic.
+   */
+  showAnswer(cue: Cue): SessionEffect[] {
+    const effects: SessionEffect[] = this.overlay?.t === 'Ask' ? [{ type: 'AskCancel' }] : [];
     this.overlay = { t: 'Detail', cue, page: 0 };
+    return effects;
   }
 
   tick(): void {

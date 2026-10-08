@@ -565,10 +565,9 @@ export class App {
   /** Live with cues on -> cue path; otherwise an answer card overlay. */
   private deliver(cue: Cue): void {
     if (this.session.isLive && this.session.currentPrefs.cuesOn) this.onCue(cue);
-    else {
-      this.session.showAnswer(cue);
-      this.requestRender(true);
-    }
+    // showAnswer cancels an open Ask overlay (AskCancel); apply() then
+    // re-syncs audio so the mic opened for Ask is released (§6).
+    else void this.apply(this.session.showAnswer(cue));
   }
 
   private notify(title: string, text: string): void {
