@@ -94,6 +94,7 @@ class RelayClient(
         .build()
 
     companion object {
+        private val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1", "::1", "[::1]")
         /** Key-store kinds (SettingsRepository.setKey); both live only in encrypted prefs. */
         const val URL_KEY_KIND = "HELIX_RELAY_URL"
         const val BEARER_KEY_KIND = "HELIX_RELAY_KEY"
@@ -173,6 +174,11 @@ class RelayClient(
             ?: throw RelayException(RelayException.Kind.NOT_CONFIGURED, "Helix relay is not set up")
         val base = cfg.baseUrl.trim().toHttpUrlOrNull()
             ?: throw RelayException(RelayException.Kind.NOT_CONFIGURED, "Helix relay URL is invalid")
+        // Security: never send the bearer key in cleartext. Plain http is only
+        // allowed to this device's own loopback (local development).
+        if (!base.isHttps && base.host !in LOOPBACK_HOSTS) {
+            throw RelayException(RelayException.Kind.NOT_CONFIGURED, "Helix relay URL must use https")
+        }
         val url = base.newBuilder().apply {
             segments.forEach { addPathSegment(it) }
             query()

@@ -232,4 +232,14 @@ class RelayClientTest {
         server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
         assertUnexpected { client().getReminders(0) }
     }
+
+    @Test
+    fun `plain http to a non-loopback host is refused before sending the key`() = runTest {
+        config = RelayConfig("http://mac.example.com:8790", "k-test")
+        val error = runCatching { client().health() }.exceptionOrNull()
+        assertTrue(error is RelayException)
+        assertEquals(RelayException.Kind.NOT_CONFIGURED, (error as RelayException).kind)
+        assertEquals("Helix relay URL must use https", error.message)
+        assertEquals(0, server.requestCount)
+    }
 }

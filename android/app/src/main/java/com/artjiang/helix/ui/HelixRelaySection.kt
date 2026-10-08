@@ -55,7 +55,7 @@ fun HelixRelaySection(bridge: HelixBridge) {
         Row(horizontalArrangement = Arrangement.spacedBy(HelixSpacing.s8)) {
             Button(
                 onClick = {
-                    bridge.setRelay(trimmed, RelayKeyEdit.resolve(trimmed, key, removeRequested = false))
+                    bridge.setRelay(trimmed, RelayKeyEdit.resolve(trimmed, key, removeRequested = false, previousUrl = storedUrl))
                     key = ""
                 },
                 enabled = looksValid,

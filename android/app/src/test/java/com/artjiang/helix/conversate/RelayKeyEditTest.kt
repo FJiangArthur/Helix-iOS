@@ -31,4 +31,28 @@ class RelayKeyEditTest {
         assertEquals(null, RelayKeyEdit.Remove.storedValue)
         assertEquals("k", RelayKeyEdit.Replace("k").storedValue)
     }
+
+    @Test
+    fun `changing the relay host without a new key drops the stored key`() {
+        assertEquals(
+            RelayKeyEdit.Remove,
+            RelayKeyEdit.resolve("https://other.example", typedKey = "", removeRequested = false, previousUrl = url),
+        )
+    }
+
+    @Test
+    fun `same origin with a trailing slash keeps the stored key`() {
+        assertEquals(
+            RelayKeyEdit.Keep,
+            RelayKeyEdit.resolve("$url/", typedKey = "", removeRequested = false, previousUrl = url),
+        )
+    }
+
+    @Test
+    fun `changing host with a newly typed key stores the new key`() {
+        assertEquals(
+            RelayKeyEdit.Replace("k2"),
+            RelayKeyEdit.resolve("https://other.example", typedKey = "k2", removeRequested = false, previousUrl = url),
+        )
+    }
 }
