@@ -75,8 +75,24 @@ private data class HealthBody(val ok: Boolean = false, val version: String = "")
 
 class RelayClient(
     private val config: () -> RelayConfig?,
-    private val http: OkHttpClient = defaultHttp,
+    http: OkHttpClient = defaultHttp,
+    timeoutMillis: Long = REQUEST_TIMEOUT_MILLIS,
+    askReadTimeoutMillis: Long = ASK_READ_TIMEOUT_MILLIS,
 ) {
+    // Contract 0.3 §8: every request is bounded by 15 s end to end. Ask is
+    // bounded by 15 s to connect, then only by the gap between reads — the
+    // relay pings every 15 s until the first delta, so 30 s never trips on a
+    // healthy stream however long the answer takes.
+    private val http: OkHttpClient = http.newBuilder()
+        .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .callTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+        .build()
+    private val askHttp: OkHttpClient = this.http.newBuilder()
+        .readTimeout(askReadTimeoutMillis, TimeUnit.MILLISECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
     companion object {
         /** Key-store kinds (SettingsRepository.setKey); both live only in encrypted prefs. */
         const val URL_KEY_KIND = "HELIX_RELAY_URL"
@@ -84,12 +100,9 @@ class RelayClient(
         const val UNEXPECTED_RESPONSE = "Unexpected relay response"
 
         private val JSON = "application/json".toMediaType()
-        private val defaultHttp: OkHttpClient by lazy {
-            OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
-                .build()
-        }
+        const val REQUEST_TIMEOUT_MILLIS = 15_000L
+        const val ASK_READ_TIMEOUT_MILLIS = 30_000L
+        private val defaultHttp: OkHttpClient by lazy { OkHttpClient() }
     }
 
     suspend fun health(): String =
@@ -132,7 +145,7 @@ class RelayClient(
             put("deep", deep)
         }.toString().toRequestBody(JSON)
         val req = request("ask").post(payload).header("Accept", "text/event-stream").build()
-        return withCall(req) { response ->
+        return withCall(req, askHttp) { response ->
             val source = response.body?.source() ?: throw RelayException(RelayException.Kind.FAILED, "Empty response")
             val answer = StringBuilder()
             while (true) {
@@ -176,8 +189,12 @@ class RelayClient(
      * the caller cancels the call at once (closing the socket), so a blocked
      * SSE read ends immediately instead of when the stream finishes.
      */
-    private suspend fun <T> withCall(req: Request, read: (Response) -> T): T = suspendCancellableCoroutine { cont ->
-        val call: Call = http.newCall(req)
+    private suspend fun <T> withCall(
+        req: Request,
+        client: OkHttpClient = http,
+        read: (Response) -> T,
+    ): T = suspendCancellableCoroutine { cont ->
+        val call: Call = client.newCall(req)
         cont.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {

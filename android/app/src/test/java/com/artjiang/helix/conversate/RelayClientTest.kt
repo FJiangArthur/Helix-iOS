@@ -11,6 +11,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.SocketPolicy
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -192,6 +193,33 @@ class RelayClientTest {
             assertEquals(RelayException.Kind.FAILED, e.kind)
             assertEquals("Unexpected relay response", e.message)
         }
+    }
+
+    @Test
+    fun `a hung relay request times out as unreachable`() = runBlocking {
+        server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
+        val c = RelayClient(config = { config }, timeoutMillis = 300)
+        val started = System.nanoTime()
+        try {
+            withTimeout(5_000) { c.getDashboard() }; fail()
+        } catch (e: RelayException) {
+            assertEquals(RelayException.Kind.UNREACHABLE, e.kind)
+        }
+        assertTrue((System.nanoTime() - started) / 1_000_000 < 3_000)
+    }
+
+    @Test
+    fun `ask tolerates ping comments and outlives the per-request timeout while data flows`() = runBlocking {
+        val body = ": ping\n\n: ping\n\n" + "data: {\"delta\":\"ab\"}\n\n".repeat(8) + "data: {\"done\":true}\n\n"
+        server.enqueue(
+            MockResponse().setHeader("Content-Type", "text/event-stream").setBody(body)
+                .throttleBody(24, 150, TimeUnit.MILLISECONDS),
+        )
+        // Whole stream takes ~1 s: longer than the 300 ms request timeout, but
+        // no gap exceeds the ask read timeout.
+        val c = RelayClient(config = { config }, timeoutMillis = 300, askReadTimeoutMillis = 1_000)
+        val answer = withTimeout(10_000) { c.ask("q", null, false) {} }
+        assertEquals("ab".repeat(8), answer)
     }
 
     @Test
