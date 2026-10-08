@@ -1,6 +1,6 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { RateLimitedError } from '../src/sources/omi.js';
 import { emptySnapshot, Store } from '../src/store.js';
@@ -227,6 +227,101 @@ describe('POST /ask', () => {
     });
     const res = await app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
     expect(res.body).toBe('data: {"delta":"par"}\n\ndata: {"error":"codex-proxy: HTTP 502"}\n\n');
+  });
+
+  describe('keepalive pings', () => {
+    const TIMERS: Array<'setTimeout' | 'clearTimeout' | 'setInterval' | 'clearInterval'> = ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'];
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+    const gate = () => {
+      let open!: () => void;
+      const p = new Promise<void>((r) => (open = r));
+      return { p, open };
+    };
+
+    it('sends `: ping` every 15 s until the first delta, then stops; no timers left after done', async () => {
+      vi.useFakeTimers({ toFake: TIMERS });
+      const started = gate();
+      const first = gate();
+      const second = gate();
+      app = buildTestApp({
+        streamChat: async function* () {
+          started.open();
+          await first.p;
+          yield 'hi';
+          await second.p;
+          yield ' there';
+        },
+      });
+      const resP = app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(14_999);
+      await vi.advanceTimersByTimeAsync(31_000); // t = 45.999 s → 3 pings
+      first.open();
+      await vi.advanceTimersByTimeAsync(60_000); // after the first delta: no more pings
+      second.open();
+      const res = await resP;
+      expect(res.body).toBe(
+        ': ping\n\n: ping\n\n: ping\n\ndata: {"delta":"hi"}\n\ndata: {"delta":" there"}\n\ndata: {"done":true}\n\n',
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('stops pinging when the upstream errors before any delta', async () => {
+      vi.useFakeTimers({ toFake: TIMERS });
+      const started = gate();
+      const fail = gate();
+      app = buildTestApp({
+        streamChat: async function* () {
+          started.open();
+          await fail.p;
+          throw new Error('boom');
+        },
+      });
+      const resP = app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(15_000);
+      fail.open();
+      const res = await resP;
+      expect(res.body.startsWith(': ping\n\ndata: {"error":')).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('stops pinging when the client disconnects before any delta', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const started = gate();
+      let aborted!: () => void;
+      const abortedP = new Promise<void>((r) => (aborted = r));
+      app = buildTestApp({
+        streamChat: async function* (_req, signal) {
+          started.open();
+          await new Promise<void>((resolve) => signal.addEventListener('abort', () => resolve()));
+          aborted();
+        },
+      });
+      await app.listen({ port: 0, host: '127.0.0.1' });
+      const { port } = app.server.address() as AddressInfo;
+      let req!: http.ClientRequest;
+      const firstChunk = new Promise<string>((resolve, reject) => {
+        req = http.request(
+          { host: '127.0.0.1', port, path: '/ask', method: 'POST', headers: { ...auth, 'content-type': 'application/json' } },
+          (res) => res.once('data', (chunk: Buffer) => resolve(chunk.toString())),
+        );
+        req.on('error', () => {});
+        req.once('error', reject);
+        req.end(JSON.stringify({ question: 'q' }));
+      });
+      await started.p;
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await firstChunk).toBe(': ping\n\n');
+      req.destroy();
+      await abortedP;
+      await new Promise((r) => setImmediate(r));
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 
   it.each([[{}], [{ question: '' }], [{ question: 'q', deep: 'yes' }], [{ question: 'q', context: 5 }]])(

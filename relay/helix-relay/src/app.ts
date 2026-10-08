@@ -22,6 +22,8 @@ const ALLOW_HEADERS = 'authorization, content-type';
 const ALLOW_METHODS = 'GET, POST, PATCH, OPTIONS';
 const MAX_QUESTION = 4000;
 const MAX_CONTEXT = 20000;
+/** SSE keepalive comment interval until the first delta (CONTRACT-0.3 §7). */
+export const ASK_PING_MS = 15_000;
 
 const ASK_SYSTEM =
   'You answer questions for a user wearing smart glasses; the answer is read on a tiny display. ' +
@@ -127,7 +129,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const res = reply.raw;
     const upstream = new AbortController();
     let finished = false;
+    let ping: NodeJS.Timeout | undefined;
+    const stopPing = () => {
+      if (ping !== undefined) clearInterval(ping);
+      ping = undefined;
+    };
     res.on('close', () => {
+      stopPing();
       if (!finished) upstream.abort(); // client went away mid-stream
     });
     res.writeHead(200, {
@@ -141,9 +149,14 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     const send = (obj: unknown) => {
       if (!res.destroyed) res.write(`data: ${JSON.stringify(obj)}\n\n`);
     };
+    // Keep the connection (and the client's first-byte timeout) alive while the model thinks.
+    ping = setInterval(() => {
+      if (!res.destroyed) res.write(': ping\n\n');
+    }, ASK_PING_MS);
     try {
       for await (const delta of deps.streamChat({ model, messages }, upstream.signal)) {
         if (upstream.signal.aborted) break;
+        stopPing();
         send({ delta });
       }
       if (!upstream.signal.aborted) send({ done: true });
@@ -153,6 +166,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         send({ error: e instanceof Error ? e.message : 'upstream error' });
       }
     } finally {
+      stopPing();
       finished = true;
       res.end();
     }
