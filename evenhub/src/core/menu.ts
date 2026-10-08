@@ -9,10 +9,23 @@ export interface MenuItemSpec {
   toggle?: string;
 }
 
+export interface PickerItemSpec {
+  id: string;
+  label: string;
+  values?: Array<number | string>;
+}
+
+export interface PickerSpec {
+  title: string;
+  items: PickerItemSpec[];
+}
+
 export interface MenuSpec {
   version: number;
   idle: MenuItemSpec[];
   live: MenuItemSpec[];
+  pickers: { mode: PickerSpec; display: PickerSpec };
+  panels: Record<string, { title: string }>;
 }
 
 export function renderLabel(item: MenuItemSpec, flags: Record<string, boolean>): string {

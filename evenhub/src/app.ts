@@ -160,7 +160,7 @@ export class App {
   async init(): Promise<void> {
     const { store } = this.deps;
     this.apiKey = (await store.get(KEYS.apiKey))?.trim() || null;
-    const prefs = { ...DEFAULT_PREFS, ...parseJson<Partial<ConversatePrefs>>(await store.get(KEYS.prefs), {}) };
+    const prefs = sanitizePrefs(parseJson<Partial<ConversatePrefs>>(await store.get(KEYS.prefs), {}));
     const notes = sanitizePrepNotes(parseJson<unknown>(await store.get(KEYS.prepNotes), []));
     const source = (await store.get(KEYS.audioSource)) === 'phone' ? 'phone' : 'glasses';
     this.session.updatePrefs(prefs);
@@ -221,13 +221,8 @@ export class App {
     await this.deps.bridge?.shutDownPageContainer(1);
   }
 
-  async updatePrefs(prefs: ConversatePrefs): Promise<void> {
-    const clean: ConversatePrefs = {
-      captionsOn: prefs.captionsOn,
-      cuesOn: prefs.cuesOn,
-      autoPopup: prefs.autoPopup,
-      cueDurationMillis: Math.max(3_000, Math.min(15_000, Math.round(prefs.cueDurationMillis))),
-    };
+  async updatePrefs(patch: Partial<ConversatePrefs>): Promise<void> {
+    const clean = sanitizePrefs({ ...this.session.currentPrefs, ...patch });
     this.session.updatePrefs(clean);
     await this.persistPrefs();
     this.requestRender(true);
@@ -532,6 +527,24 @@ export class App {
     this.state = { ...this.state, ...p };
     for (const l of this.listeners) l(this.state);
   }
+}
+
+const clampInt = (v: unknown, lo: number, hi: number, dflt: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt;
+};
+
+/** Bounds every pref (stored JSON may be stale or hand-edited). */
+export function sanitizePrefs(p: Partial<ConversatePrefs>): ConversatePrefs {
+  const d = DEFAULT_PREFS;
+  return {
+    captionsOn: typeof p.captionsOn === 'boolean' ? p.captionsOn : d.captionsOn,
+    cuesOn: typeof p.cuesOn === 'boolean' ? p.cuesOn : d.cuesOn,
+    autoPopup: typeof p.autoPopup === 'boolean' ? p.autoPopup : d.autoPopup,
+    cueDurationMillis: clampInt(p.cueDurationMillis, 3_000, 15_000, d.cueDurationMillis),
+    captionLines: clampInt(p.captionLines, 2, 5, d.captionLines),
+    brightness: clampInt(p.brightness, 1, 4, d.brightness),
+  };
 }
 
 function flagsOf(p: ConversatePrefs) {

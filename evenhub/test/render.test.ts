@@ -117,8 +117,10 @@ describe('renderPage', () => {
 });
 
 describe('context menu', () => {
-  it('maps menu.json live items to stable non-zero ids, hiding system-owned ones', () => {
-    expect(liveMenu.menuItems!.map((i) => i.itemName)).toEqual(['Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'End session']);
+  it('maps the first 10 menu.json live items to stable non-zero ids (contract 0.3 §1)', () => {
+    expect(liveMenu.menuItems!.map((i) => i.itemName)).toEqual([
+      'Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode',
+    ]);
     const ids = liveMenu.menuItems!.map((i) => i.itemID);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => Number.isInteger(id) && id! > 0)).toBe(true);
@@ -129,7 +131,7 @@ describe('context menu', () => {
 
   it('idle context menu offers Start session', () => {
     const idle = buildContextMenu(menu, false, liveFlags);
-    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start session']);
+    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start session', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode', 'Display']);
     expect(menuIdForItem(idle.menuItems![0]!.itemID!)).toBe('start');
   });
 

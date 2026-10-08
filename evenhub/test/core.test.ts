@@ -63,7 +63,9 @@ describe('ConversateSession', () => {
   it('idle menu starts a session without prep notes', () => {
     const s = session();
     s.onIntent('MENU');
-    expect(s.screen()).toEqual({ kind: 'Menu', title: 'HELIX', items: ['Start session'], cursor: 0 });
+    expect(s.screen()).toEqual({
+      kind: 'Menu', title: 'HELIX', items: ['Start session', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode', 'Display'], cursor: 0,
+    });
     expect(s.selectContext).toBe(true);
     expect(s.onIntent('SELECT')).toEqual([{ type: 'Start', prepNoteId: null }]);
     expect(s.isLive).toBe(true);
@@ -146,8 +148,8 @@ describe('ConversateSession', () => {
     expect((s.screen() as Menu).items[0]).toBe('Resume');
     s.onIntent('NEXT');
     expect(s.onIntent('SELECT')).toEqual([{ type: 'SetCaptions', on: false }]);
-    for (let i = 0; i < 10; i++) s.onIntent('NEXT');
-    expect((s.screen() as Menu).cursor).toBe(5);
+    for (let i = 0; i < 20; i++) s.onIntent('NEXT');
+    expect((s.screen() as Menu).cursor).toBe(12);
     expect(s.onIntent('SELECT')).toEqual([{ type: 'End' }]);
   });
 
@@ -166,7 +168,7 @@ describe('ConversateSession', () => {
   it('display off blanks until any intent', () => {
     const s = session(); s.startLive(null);
     s.onIntent('MENU');
-    for (let i = 0; i < 4; i++) s.onIntent('NEXT');
+    for (let i = 0; i < 11; i++) s.onIntent('NEXT');
     s.onIntent('SELECT');
     expect(s.screen()).toEqual({ kind: 'Blank' });
     s.onIntent('PREV');
@@ -189,9 +191,124 @@ describe('ConversateSession', () => {
     expect(s.screen()).toEqual({ kind: 'ConfirmEnd' });
     now += 500;
     s.onIntent('PREV');
-    s.onIntent('MENU'); for (let i = 0; i < 4; i++) s.onIntent('NEXT'); s.onIntent('SELECT');
+    s.onIntent('MENU'); for (let i = 0; i < 11; i++) s.onIntent('NEXT'); s.onIntent('SELECT');
     s.onIntent('HEAD_UP');
     expect(s.screen()).toEqual({ kind: 'Blank' });
+  });
+});
+
+describe('ConversateSession 0.3 (overlays, pickers, panels, ask)', () => {
+  let now = 0;
+  beforeEach(() => { now = 0; });
+  const session = (prefs: Partial<ConversatePrefs> = {}) =>
+    new ConversateSession(loadMenu(), () => now, { ...DEFAULT_PREFS, ...prefs }, () => 1, (t) => (t.length > 20 ? 2 : 1));
+  const openIdle = (s: ConversateSession, id: string) => {
+    s.onIntent('MENU');
+    const i = loadMenu().idle.findIndex((m) => m.id === id);
+    for (let k = 0; k < i; k++) s.onIntent('NEXT');
+    return s.onIntent('SELECT');
+  };
+
+  it('defaults prefs for caption lines and brightness', () => {
+    expect(DEFAULT_PREFS.captionLines).toBe(5);
+    expect(DEFAULT_PREFS.brightness).toBe(3);
+  });
+
+  it('mode picker cursor follows setMode from the phone', () => {
+    const s = session();
+    s.setMode('DISPLAY_ONLY');
+    expect(s.currentMode).toBe('DISPLAY_ONLY');
+    openIdle(s, 'mode');
+    expect(s.screen()).toMatchObject({ kind: 'Menu', title: 'MODE', cursor: 2 });
+  });
+
+  it('mode picker uses the injected spec (G2 variant) for labels and ids', () => {
+    const base = loadMenu();
+    const variant = { ...base, pickers: { ...base.pickers!, mode: { title: 'MODE', items: [{ id: 'GLASSES_MIC', label: 'Glasses mic' }, ...base.pickers!.mode.items] } } };
+    const s = new ConversateSession(variant, () => now);
+    s.setMode('GLASSES_MIC');
+    openIdle(s, 'mode');
+    expect(s.screen()).toMatchObject({ items: ['Glasses mic', 'Phone mic', 'Omi pendant', 'Display only'], cursor: 0 });
+    s.onIntent('NEXT');
+    expect(s.onIntent('SELECT')).toEqual([{ type: 'SetMode', mode: 'PHONE_MIC' }]);
+  });
+
+  it('cue time cycles to the next listed value even from an unlisted one', () => {
+    const s = session({ cueDurationMillis: 7_000 });
+    openIdle(s, 'display');
+    s.onIntent('NEXT');
+    expect(s.onIntent('SELECT')).toEqual([{ type: 'SetPref', id: 'cueSeconds', value: 10 }]);
+    expect(s.currentPrefs.cueDurationMillis).toBe(10_000);
+  });
+
+  it('display picker changes prefs, captions pref toggles captionsOn', () => {
+    const s = session();
+    openIdle(s, 'display');
+    for (let i = 0; i < 3; i++) s.onIntent('NEXT');
+    s.onIntent('SELECT');
+    expect(s.currentPrefs.captionsOn).toBe(false);
+    s.onIntent('PREV'); s.onIntent('SELECT');
+    expect(s.currentPrefs.brightness).toBe(4);
+  });
+
+  it('panel rows arriving while closed are shown on open; cursor clamps on replace', () => {
+    const s = session();
+    s.setPanelRows('news', [{ id: 'a', title: 'A', detail: 'aa' }, { id: 'b', title: 'B', detail: 'bb' }]);
+    expect(openIdle(s, 'news')).toEqual([{ type: 'RequestPanel', kind: 'news' }]);
+    expect(s.screen()).toEqual({ kind: 'Panel', title: 'NEWS', items: ['A', 'B'], cursor: 0 });
+    s.onIntent('NEXT'); s.onIntent('NEXT');
+    expect(s.screen()).toMatchObject({ cursor: 1 });
+    s.setPanelRows('news', [{ id: 'a', title: 'A', detail: 'aa' }]);
+    expect(s.screen()).toMatchObject({ items: ['A'], cursor: 0 });
+  });
+
+  it('panel detail pages and returns to the panel', () => {
+    const s = session();
+    s.setPanelRows('x', [{ id: 'a', title: 'Post', detail: 'a long enough detail text' }]);
+    openIdle(s, 'x');
+    s.onIntent('SELECT');
+    expect(s.screen()).toEqual({ kind: 'PanelDetail', title: 'Post', text: 'a long enough detail text', page: 0 });
+    s.onIntent('NEXT'); s.onIntent('NEXT');
+    expect(s.screen()).toMatchObject({ page: 1 });
+    s.onIntent('BACK');
+    expect(s.screen()).toMatchObject({ kind: 'Panel', title: 'X POSTS' });
+  });
+
+  it('empty panel SELECT is a no-op', () => {
+    const s = session();
+    openIdle(s, 'omi');
+    expect(s.onIntent('SELECT')).toEqual([]);
+    expect(s.screen()).toEqual({ kind: 'Panel', title: 'OMI', items: ['Nothing here'], cursor: 0 });
+  });
+
+  it('ask text outside the Ask overlay is ignored', () => {
+    const s = session();
+    expect(s.onAskText('hello')).toEqual([]);
+    expect(s.isAsking).toBe(false);
+    openIdle(s, 'ask');
+    expect(s.isAsking).toBe(true);
+    expect(s.onAskText('  ')).toEqual([]);
+    expect(s.onAskText('Why?')).toEqual([{ type: 'AskQuestion', text: 'Why?' }]);
+    expect(s.isAsking).toBe(false);
+  });
+
+  it('showAnswer opens the answer as a cue detail when not live; BACK returns home', () => {
+    const s = session();
+    const answer: Cue = { id: 9, type: 'ANSWER', title: 'Answer', body: 'Canberra.', createdAtMillis: 0 };
+    s.showAnswer(answer);
+    expect(s.screen()).toEqual({ kind: 'CueDetail', cue: answer, page: 0 });
+    s.onIntent('BACK');
+    expect(s.screen()).toEqual({ kind: 'Blank' });
+  });
+
+  it('live ask from the live menu returns to the live screen', () => {
+    const s = session(); s.startLive(null);
+    s.onIntent('MENU');
+    for (let i = 0; i < 4; i++) s.onIntent('NEXT');
+    expect(s.onIntent('SELECT')).toEqual([{ type: 'AskListen' }]);
+    expect(s.screen()).toEqual({ kind: 'Ask' });
+    s.onAskText('Q?');
+    expect(s.screen().kind).toBe('Live');
   });
 });
 

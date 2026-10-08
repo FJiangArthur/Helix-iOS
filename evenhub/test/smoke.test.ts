@@ -11,6 +11,6 @@ describe('scaffold', () => {
 
   it('the shared contract resolves through the alias', async () => {
     const menu = (await import('@core-contract/menu.json')).default;
-    expect(menu.version).toBe(1);
+    expect(menu.version).toBe(2);
   });
 });

@@ -1,11 +1,20 @@
-// Conversate state machine (spec §4.2). Line-for-line port of Android
-// ConversateSession.kt. Pure and single-threaded: the app calls it from one
-// event loop and asks for screen() after every input. Timers are driven by
-// tick() against the injected clock.
+// Conversate state machine (spec §4.2 + contract 0.3). Line-for-line port of
+// Android ConversateSession.kt. Pure and single-threaded: the app calls it
+// from one event loop and asks for screen() after every input. Timers are
+// driven by tick() against the injected clock.
 import { type Cue, CueQueue } from './cue';
 import type { ConversateIntent } from './intents';
 import { type MenuSpec, renderLabel } from './menu';
-import { type ConversatePrefs, DEFAULT_PREFS, type PrepNoteRef, type ScreenModel, type SessionEffect } from './screen';
+import {
+  type ConversatePrefs,
+  DEFAULT_PREFS,
+  type PanelKind,
+  PANEL_KINDS,
+  type PanelRow,
+  type PrepNoteRef,
+  type ScreenModel,
+  type SessionEffect,
+} from './screen';
 
 export const CONFIRM_END_MILLIS = 3_000;
 export const CONFIRM_GUARD_MILLIS = 400;
@@ -13,15 +22,29 @@ export const LIVE_TITLE = 'HELIX';
 export const PICKER_TITLE = 'PREP NOTE';
 export const SKIP_AND_START = 'Skip & start';
 export const NO_PREP_NOTE = 'No prep note for this session.';
+export const EMPTY_PANEL = 'Nothing here';
+export const DEFAULT_MODE = 'PHONE_MIC';
 
-type MenuKind = 'IDLE' | 'LIVE' | 'PICKER';
+type MenuKind = 'IDLE' | 'LIVE' | 'PICKER' | 'MODE' | 'DISPLAY';
+
+/** The idle/live menu a child screen was opened from (contract 0.3 §2). */
+interface Parent {
+  kind: 'IDLE' | 'LIVE';
+  cursor: number;
+}
 
 type Overlay =
-  | { t: 'Menu'; kind: MenuKind; cursor: number }
+  | { t: 'Menu'; kind: MenuKind; cursor: number; parent?: Parent }
   | { t: 'Detail'; cue: Cue; page: number }
   | { t: 'Prep'; page: number }
   | { t: 'Confirm'; until: number }
-  | { t: 'Off' };
+  | { t: 'Off' }
+  | { t: 'Panel'; kind: PanelKind; cursor: number; parent: Parent }
+  | { t: 'PanelDetail'; kind: PanelKind; cursor: number; page: number; parent: Parent }
+  | { t: 'Ask'; parent: Parent };
+
+const toMenu = (p: Parent): Overlay => ({ t: 'Menu', kind: p.kind, cursor: p.cursor });
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export class ConversateSession {
   private prefs: ConversatePrefs;
@@ -34,6 +57,8 @@ export class ConversateSession {
   private activePrep: PrepNoteRef | null = null;
   private paused = false;
   private live = false;
+  private mode = DEFAULT_MODE;
+  private readonly panels = new Map<PanelKind, PanelRow[]>();
 
   constructor(
     private readonly menu: MenuSpec,
@@ -42,7 +67,7 @@ export class ConversateSession {
     private readonly detailPageCount: (cue: Cue) => number = () => 1,
     private readonly textPageCount: (text: string) => number = () => 1,
   ) {
-    this.prefs = { ...prefs };
+    this.prefs = { ...DEFAULT_PREFS, ...prefs };
   }
 
   get isLive(): boolean {
@@ -51,12 +76,17 @@ export class ConversateSession {
 
   /** True while a list is open (G1 long-press means SELECT, not MENU). */
   get selectContext(): boolean {
-    return this.overlay?.t === 'Menu';
+    return this.overlay?.t === 'Menu' || this.overlay?.t === 'Panel';
   }
 
   /** Nothing open and no cue on screen: BACK here would leave the page. */
   get isAtRoot(): boolean {
     return this.overlay === null && this.currentShown(this.clock()) === null;
+  }
+
+  /** The Ask overlay is waiting for the next utterance (§6). */
+  get isAsking(): boolean {
+    return this.overlay?.t === 'Ask';
   }
 
   get currentPrefs(): ConversatePrefs {
@@ -67,12 +97,42 @@ export class ConversateSession {
     return this.paused;
   }
 
+  get currentMode(): string {
+    return this.mode;
+  }
+
+  /** Mode chosen on the phone (contract 0.3 §3). */
+  setMode(id: string): void {
+    this.mode = id;
+  }
+
   setPrepNotes(notes: PrepNoteRef[]): void {
     this.prepNotes = [...notes];
   }
 
+  /** Rows for a dashboard panel; an open panel keeps its cursor clamped (§5). */
+  setPanelRows(kind: PanelKind, rows: PanelRow[]): void {
+    this.panels.set(kind, rows.map((r) => ({ ...r })));
+    const o = this.overlay;
+    if (o?.t === 'Panel' && o.kind === kind) {
+      this.overlay = { ...o, cursor: clamp(o.cursor, 0, Math.max(0, rows.length - 1)) };
+    } else if (o?.t === 'PanelDetail' && o.kind === kind && o.cursor >= rows.length) {
+      this.overlay = { t: 'Panel', kind, cursor: Math.max(0, rows.length - 1), parent: o.parent };
+    }
+  }
+
+  panelRows(kind: PanelKind): PanelRow[] {
+    return (this.panels.get(kind) ?? []).map((r) => ({ ...r }));
+  }
+
+  /** Which panel is open (for refreshes), or null. */
+  get openPanel(): PanelKind | null {
+    const o = this.overlay;
+    return o?.t === 'Panel' || o?.t === 'PanelDetail' ? o.kind : null;
+  }
+
   updatePrefs(prefs: ConversatePrefs): void {
-    this.prefs = { ...prefs };
+    this.prefs = { ...DEFAULT_PREFS, ...prefs };
     if (!prefs.cuesOn) {
       this.queue.clear();
       this.shown = null;
@@ -121,6 +181,20 @@ export class ConversateSession {
     this.promote(now);
   }
 
+  /** Feeds the utterance heard while Ask is listening (§6). */
+  onAskText(text: string): SessionEffect[] {
+    const q = text.trim();
+    if (this.overlay?.t !== 'Ask' || q === '') return [];
+    this.overlay = null;
+    this.promote(this.clock());
+    return [{ type: 'AskQuestion', text: q }];
+  }
+
+  /** Shows an answer as a cue detail overlay (not live / display-only, §6). */
+  showAnswer(cue: Cue): void {
+    this.overlay = { t: 'Detail', cue, page: 0 };
+  }
+
   tick(): void {
     const now = this.clock();
     const o = this.overlay;
@@ -139,7 +213,7 @@ export class ConversateSession {
   /**
    * G2 native contextual menu: the OS picks an item directly (no cursor).
    * Activates the idle/live menu item [id] as if the in-app cursor were on
-   * it, replacing any open in-app menu. Ids not in the current context are
+   * it, replacing any open in-app overlay. Ids not in the current context are
    * ignored.
    */
   activateMenuItem(id: string): SessionEffect[] {
@@ -147,8 +221,9 @@ export class ConversateSession {
     const items = kind === 'IDLE' ? this.menu.idle : this.menu.live;
     const cursor = items.findIndex((i) => i.id === id);
     if (cursor < 0) return [];
-    if (this.overlay?.t === 'Menu' || this.overlay?.t === 'Off') this.overlay = null;
-    const effects = this.activate({ t: 'Menu', kind, cursor });
+    const effects: SessionEffect[] = this.overlay?.t === 'Ask' ? [{ type: 'AskCancel' }] : [];
+    if (this.overlay !== null && this.overlay.t !== 'Confirm') this.overlay = null;
+    effects.push(...this.activate({ t: 'Menu', kind, cursor }));
     this.promote(this.clock());
     return effects;
   }
@@ -170,7 +245,7 @@ export class ConversateSession {
             case 'NEXT': this.overlay = { ...o, page: Math.min(o.page + 1, this.detailPageCount(o.cue) - 1) }; break;
             case 'PREV': this.overlay = { ...o, page: Math.max(o.page - 1, 0) }; break;
             case 'BACK': this.overlay = null; this.shown = null; this.promote(now); break;
-            case 'MENU': this.overlay = { t: 'Menu', kind: 'LIVE', cursor: 0 }; break;
+            case 'MENU': this.overlay = { t: 'Menu', kind: this.live ? 'LIVE' : 'IDLE', cursor: 0 }; break;
             default: break;
           }
           return [];
@@ -185,6 +260,28 @@ export class ConversateSession {
           }
           return [];
         }
+        case 'Panel':
+          return this.onPanelIntent(o, intent);
+        case 'PanelDetail': {
+          const row = this.panelRows(o.kind)[o.cursor];
+          const count = row ? this.textPageCount(`${row.title}\n${row.detail}`) : 1;
+          switch (intent) {
+            case 'NEXT': this.overlay = { ...o, page: Math.min(o.page + 1, count - 1) }; break;
+            case 'PREV': this.overlay = { ...o, page: Math.max(o.page - 1, 0) }; break;
+            case 'BACK':
+            case 'MENU':
+              this.overlay = { t: 'Panel', kind: o.kind, cursor: o.cursor, parent: o.parent };
+              break;
+            default: break;
+          }
+          return [];
+        }
+        case 'Ask':
+          if (intent === 'BACK' || intent === 'MENU') {
+            this.overlay = toMenu(o.parent);
+            return [{ type: 'AskCancel' }];
+          }
+          return [];
         case 'Confirm':
           // Ignore a BACK that is really the same double-tap echoed.
           if (intent === 'BACK' && now < o.until - CONFIRM_END_MILLIS + CONFIRM_GUARD_MILLIS) return [];
@@ -232,6 +329,12 @@ export class ConversateSession {
       case 'Prep':
         return { kind: 'PrepNoteView', title: this.activePrep?.title ?? PICKER_TITLE, text: this.activePrep?.text ?? NO_PREP_NOTE, page: o.page };
       case 'Confirm': return { kind: 'ConfirmEnd' };
+      case 'Panel': return { kind: 'Panel', title: this.panelTitle(o.kind), items: this.panelLabels(o.kind), cursor: o.cursor };
+      case 'PanelDetail': {
+        const row = this.panels.get(o.kind)?.[o.cursor];
+        return { kind: 'PanelDetail', title: row?.title ?? this.panelTitle(o.kind), text: row?.detail ?? '', page: o.page };
+      }
+      case 'Ask': return { kind: 'Ask' };
     }
   }
 
@@ -250,7 +353,8 @@ export class ConversateSession {
       case 'PREV': this.overlay = { ...o, cursor: Math.max(o.cursor - 1, 0) }; break;
       case 'BACK':
       case 'MENU':
-        this.overlay = o.kind === 'PICKER' ? { t: 'Menu', kind: 'IDLE', cursor: 0 } : null;
+        if (o.parent) this.overlay = toMenu(o.parent);
+        else this.overlay = o.kind === 'PICKER' ? { t: 'Menu', kind: 'IDLE', cursor: 0 } : null;
         break;
       case 'SELECT': return this.activate(o);
       default: break;
@@ -258,16 +362,71 @@ export class ConversateSession {
     return [];
   }
 
-  private activate(o: Extract<Overlay, { t: 'Menu' }>): SessionEffect[] {
-    if (o.kind === 'PICKER') {
-      const note = o.cursor === 0 ? null : this.prepNotes[o.cursor - 1] ?? null;
-      return this.startLive(note?.id ?? null);
+  private onPanelIntent(o: Extract<Overlay, { t: 'Panel' }>, intent: ConversateIntent): SessionEffect[] {
+    const rows = this.panels.get(o.kind) ?? [];
+    switch (intent) {
+      case 'NEXT': this.overlay = { ...o, cursor: Math.min(o.cursor + 1, Math.max(0, rows.length - 1)) }; break;
+      case 'PREV': this.overlay = { ...o, cursor: Math.max(o.cursor - 1, 0) }; break;
+      case 'BACK':
+      case 'MENU':
+        this.overlay = toMenu(o.parent);
+        break;
+      case 'SELECT': {
+        const row = rows[o.cursor];
+        if (!row) return [];
+        if (o.kind === 'todos') {
+          row.done = !(row.done ?? false);
+          return [{ type: 'ToggleTodo', id: row.id, done: row.done }];
+        }
+        this.overlay = { t: 'PanelDetail', kind: o.kind, cursor: o.cursor, page: 0, parent: o.parent };
+        break;
+      }
+      default: break;
     }
+    return [];
+  }
+
+  private activate(o: Extract<Overlay, { t: 'Menu' }>): SessionEffect[] {
+    switch (o.kind) {
+      case 'PICKER': {
+        const note = o.cursor === 0 ? null : this.prepNotes[o.cursor - 1] ?? null;
+        return this.startLive(note?.id ?? null);
+      }
+      case 'MODE': {
+        const item = this.menu.pickers.mode.items[o.cursor];
+        if (!item) return [];
+        this.mode = item.id;
+        this.overlay = o.parent ? toMenu(o.parent) : null;
+        return [{ type: 'SetMode', mode: item.id }];
+      }
+      case 'DISPLAY':
+        return this.cycleDisplay(o.cursor);
+      default:
+        break;
+    }
+    const parent: Parent = { kind: o.kind, cursor: o.cursor };
     const items = o.kind === 'IDLE' ? this.menu.idle : this.menu.live;
-    switch (items[o.cursor]?.id) {
+    const id = items[o.cursor]?.id;
+    if (id !== undefined && (PANEL_KINDS as readonly string[]).includes(id)) {
+      const kind = id as PanelKind;
+      this.overlay = { t: 'Panel', kind, cursor: 0, parent };
+      return [{ type: 'RequestPanel', kind }];
+    }
+    switch (id) {
       case 'start':
         if (this.prepNotes.length === 0) return this.startLive(null);
         this.overlay = { t: 'Menu', kind: 'PICKER', cursor: 0 };
+        return [];
+      case 'ask':
+        this.overlay = { t: 'Ask', parent };
+        return [{ type: 'AskListen' }];
+      case 'mode': {
+        const cursor = Math.max(0, this.menu.pickers.mode.items.findIndex((i) => i.id === this.mode));
+        this.overlay = { t: 'Menu', kind: 'MODE', cursor, parent };
+        return [];
+      }
+      case 'display':
+        this.overlay = { t: 'Menu', kind: 'DISPLAY', cursor: 0, parent };
         return [];
       case 'pause':
         this.paused = !this.paused;
@@ -291,8 +450,54 @@ export class ConversateSession {
     }
   }
 
+  /** SELECT in the display picker: next value in `values`, wrapping (§4). */
+  private cycleDisplay(cursor: number): SessionEffect[] {
+    const item = this.menu.pickers.display.items[cursor];
+    const values = item?.values ?? [];
+    if (!item || values.length === 0) return [];
+    const current = this.displayValue(item.id);
+    const at = values.indexOf(current);
+    let next: number | string;
+    if (at >= 0) next = values[(at + 1) % values.length]!;
+    else if (typeof current === 'number') next = values.find((v) => typeof v === 'number' && v > current) ?? values[0]!;
+    else next = values[0]!;
+    switch (item.id) {
+      case 'captionLines': this.prefs = { ...this.prefs, captionLines: Number(next) }; break;
+      case 'cueSeconds': this.prefs = { ...this.prefs, cueDurationMillis: Number(next) * 1000 }; break;
+      case 'brightness': this.prefs = { ...this.prefs, brightness: Number(next) }; break;
+      case 'captions': this.prefs = { ...this.prefs, captionsOn: next === 'on' }; break;
+      default: return [];
+    }
+    return [{ type: 'SetPref', id: item.id, value: next }];
+  }
+
+  private displayValue(id: string): number | string {
+    switch (id) {
+      case 'captionLines': return this.prefs.captionLines;
+      case 'cueSeconds': return Math.round(this.prefs.cueDurationMillis / 1000);
+      case 'brightness': return this.prefs.brightness;
+      case 'captions': return this.prefs.captionsOn ? 'on' : 'off';
+      default: return '';
+    }
+  }
+
+  private panelTitle(kind: PanelKind): string {
+    return this.menu.panels[kind]?.title ?? kind.toUpperCase();
+  }
+
+  private panelLabels(kind: PanelKind): string[] {
+    const rows = this.panels.get(kind) ?? [];
+    if (rows.length === 0) return [EMPTY_PANEL];
+    return rows.map((r) => (kind === 'todos' ? `[${r.done ? 'x' : ' '}] ${r.title}` : r.title));
+  }
+
   private menuTitle(kind: MenuKind): string {
-    return kind === 'PICKER' ? PICKER_TITLE : LIVE_TITLE;
+    switch (kind) {
+      case 'PICKER': return PICKER_TITLE;
+      case 'MODE': return this.menu.pickers.mode.title;
+      case 'DISPLAY': return this.menu.pickers.display.title;
+      default: return LIVE_TITLE;
+    }
   }
 
   private menuLabels(kind: MenuKind): string[] {
@@ -301,6 +506,9 @@ export class ConversateSession {
       case 'IDLE': return this.menu.idle.map((i) => renderLabel(i, flags));
       case 'LIVE': return this.menu.live.map((i) => renderLabel(i, flags));
       case 'PICKER': return [SKIP_AND_START, ...this.prepNotes.map((n) => n.title)];
+      case 'MODE': return this.menu.pickers.mode.items.map((i) => i.label);
+      case 'DISPLAY':
+        return this.menu.pickers.display.items.map((i) => i.label.replace('{v}', String(this.displayValue(i.id))));
     }
   }
 
