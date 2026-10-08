@@ -94,6 +94,7 @@ import com.artjiang.helix.conversate.PanelRow
 import com.artjiang.helix.conversate.RelayClient
 import com.artjiang.helix.conversate.RelayConfig
 import com.artjiang.helix.conversate.RelayException
+import com.artjiang.helix.conversate.RelayKeyEdit
 import com.artjiang.helix.conversate.ReminderScheduler
 import com.artjiang.helix.conversate.PrepNote
 import com.artjiang.helix.conversate.PrepNoteRepository
@@ -651,10 +652,10 @@ class HelixBridge(
 
     fun hasRelayKey(): Boolean = settingsRepository.hasKey(RelayClient.BEARER_KEY_KIND)
 
-    /** Saves the relay URL and (when non-null) key; a blank key value removes it. */
-    fun setRelay(url: String, key: String?) {
+    /** Saves the relay URL and applies [key] (keep / replace / remove) to the stored key. */
+    fun setRelay(url: String, key: RelayKeyEdit) {
         settingsRepository.setKey(RelayClient.URL_KEY_KIND, url.trim().ifEmpty { null })
-        if (key != null) settingsRepository.setKey(RelayClient.BEARER_KEY_KIND, key)
+        if (key != RelayKeyEdit.Keep) settingsRepository.setKey(RelayClient.BEARER_KEY_KIND, key.storedValue)
         relayStatusState.value = ""
         scope.launch { dashboard.invalidate() }
     }

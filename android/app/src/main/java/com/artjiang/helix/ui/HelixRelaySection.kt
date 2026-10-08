@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.artjiang.helix.HelixBridge
+import com.artjiang.helix.conversate.RelayKeyEdit
 
 /**
  * Settings > Helix relay (contract 0.3 §7): the Mac-side relay that serves
@@ -54,11 +55,17 @@ fun HelixRelaySection(bridge: HelixBridge) {
         Row(horizontalArrangement = Arrangement.spacedBy(HelixSpacing.s8)) {
             Button(
                 onClick = {
-                    bridge.setRelay(trimmed, key.takeIf { it.isNotBlank() })
+                    bridge.setRelay(trimmed, RelayKeyEdit.resolve(trimmed, key, removeRequested = false))
                     key = ""
                 },
                 enabled = looksValid,
             ) { Text("Save") }
+            if (hasKey) {
+                OutlinedButton(onClick = {
+                    bridge.setRelay(storedUrl, RelayKeyEdit.Remove)
+                    key = ""
+                }) { Text("Remove key") }
+            }
             OutlinedButton(onClick = bridge::testRelay, enabled = storedUrl.isNotBlank()) { Text("Test connection") }
         }
         if (status.isNotEmpty()) Text(status, style = MaterialTheme.typography.bodySmall)
