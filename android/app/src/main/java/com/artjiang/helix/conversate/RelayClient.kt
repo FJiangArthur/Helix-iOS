@@ -4,7 +4,9 @@
 package com.artjiang.helix.conversate
 
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -79,6 +81,7 @@ class RelayClient(
         /** Key-store kinds (SettingsRepository.setKey); both live only in encrypted prefs. */
         const val URL_KEY_KIND = "HELIX_RELAY_URL"
         const val BEARER_KEY_KIND = "HELIX_RELAY_KEY"
+        const val UNEXPECTED_RESPONSE = "Unexpected relay response"
 
         private val JSON = "application/json".toMediaType()
         private val defaultHttp: OkHttpClient by lazy {
@@ -89,13 +92,11 @@ class RelayClient(
         }
     }
 
-    suspend fun health(): String {
-        val body = execute(request("health", auth = false).get().build())
-        return conversateJson.decodeFromString(HealthBody.serializer(), body).version
-    }
+    suspend fun health(): String =
+        decode(HealthBody.serializer(), execute(request("health", auth = false).get().build())).version
 
     suspend fun getDashboard(): RelayDashboard =
-        conversateJson.decodeFromString(RelayDashboard.serializer(), execute(request("dashboard").get().build()))
+        decode(RelayDashboard.serializer(), execute(request("dashboard").get().build()))
 
     suspend fun patchTodo(id: String, completed: Boolean) {
         val body = buildJsonObject { put("completed", completed) }.toString().toRequestBody(JSON)
@@ -104,7 +105,19 @@ class RelayClient(
 
     suspend fun getReminders(sinceMillis: Long): List<RelayReminder> {
         val req = request("reminders") { addQueryParameter("since", sinceMillis.toString()) }.get().build()
-        return conversateJson.decodeFromString(RemindersBody.serializer(), execute(req)).reminders
+        return decode(RemindersBody.serializer(), execute(req)).reminders
+    }
+
+    /**
+     * Contract 0.3 §8: a 200 that is not the expected JSON (e.g. a captive
+     * portal or proxy page) is a relay error, never a crash.
+     */
+    private fun <T> decode(serializer: DeserializationStrategy<T>, body: String): T = try {
+        conversateJson.decodeFromString(serializer, body)
+    } catch (e: SerializationException) {
+        throw RelayException(RelayException.Kind.FAILED, UNEXPECTED_RESPONSE, e)
+    } catch (e: IllegalArgumentException) {
+        throw RelayException(RelayException.Kind.FAILED, UNEXPECTED_RESPONSE, e)
     }
 
     /**

@@ -184,4 +184,24 @@ class RelayClientTest {
         Thread.sleep(1_000)
         assertEquals("no deltas after cancel", seen, deltas.size)
     }
+
+    private suspend fun assertUnexpected(block: suspend () -> Unit) {
+        try {
+            block(); fail()
+        } catch (e: RelayException) {
+            assertEquals(RelayException.Kind.FAILED, e.kind)
+            assertEquals("Unexpected relay response", e.message)
+        }
+    }
+
+    @Test
+    fun `non-JSON 200 from dashboard or health is a relay error`() = runTest {
+        val html = "<html><body>Tailscale login</body></html>"
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().getDashboard() }
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().health() }
+        server.enqueue(MockResponse().setHeader("Content-Type", "text/html").setBody(html))
+        assertUnexpected { client().getReminders(0) }
+    }
 }
