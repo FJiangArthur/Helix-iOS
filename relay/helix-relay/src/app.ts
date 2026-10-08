@@ -162,8 +162,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       if (!upstream.signal.aborted) send({ done: true });
     } catch (e) {
       if (!upstream.signal.aborted) {
+        // Details (status, upstream body) stay in the server log; the client gets a fixed string (§7).
         req.log.warn({ err: e }, 'ask stream failed');
-        send({ error: e instanceof Error ? e.message : 'upstream error' });
+        send({ error: 'upstream error' });
       }
     } finally {
       stopPing();

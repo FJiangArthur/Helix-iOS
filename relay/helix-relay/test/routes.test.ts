@@ -226,7 +226,18 @@ describe('POST /ask', () => {
       },
     });
     const res = await app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
-    expect(res.body).toBe('data: {"delta":"par"}\n\ndata: {"error":"codex-proxy: HTTP 502"}\n\n');
+    expect(res.body).toBe('data: {"delta":"par"}\n\ndata: {"error":"upstream error"}\n\n');
+  });
+
+  it('never leaks upstream status, body or message to the client', async () => {
+    app = buildTestApp({
+      streamChat: async function* () {
+        throw new UpstreamError('codex-proxy', 401, 'invalid token sk-secret-123 for account a@b.c');
+      },
+    });
+    const res = await app.inject({ method: 'POST', url: '/ask', headers: auth, payload: { question: 'q' } });
+    expect(res.body).toBe('data: {"error":"upstream error"}\n\n');
+    for (const leak of ['codex-proxy', '401', 'sk-secret', 'a@b.c']) expect(res.body).not.toContain(leak);
   });
 
   describe('keepalive pings', () => {
