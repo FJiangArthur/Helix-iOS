@@ -23,6 +23,34 @@ const TEMPLATE = `
   <p class="hint">Stored only on this phone. Audio and transcript text go to api.openai.com.</p>
 </section>
 
+<section aria-labelledby="h-relay">
+  <h2 id="h-relay">Helix relay</h2>
+  <p id="relay-state"></p>
+  <form id="relay-form">
+    <label for="relay-url">Relay URL</label>
+    <input id="relay-url" type="url" autocomplete="off" spellcheck="false" inputmode="url" placeholder="https://your-mac.your-tailnet.ts.net" />
+    <label for="relay-key">Relay key</label>
+    <input id="relay-key" type="password" autocomplete="off" spellcheck="false" placeholder="Leave empty to keep the saved key" />
+    <div class="row buttons">
+      <button type="submit">Save relay</button>
+      <button type="button" id="relay-test" class="quiet">Test connection</button>
+    </div>
+  </form>
+  <p id="relay-status" role="status" aria-live="polite"></p>
+  <p class="hint">News, to-dos, reminders and Ask come from your own helix-relay over Tailscale.</p>
+</section>
+
+<section aria-labelledby="h-ask">
+  <h2 id="h-ask">Ask ChatGPT</h2>
+  <form id="ask-form">
+    <label for="ask-q" class="sr-only">Question</label>
+    <input id="ask-q" type="text" maxlength="500" placeholder="Ask anything" />
+    <label class="check"><input id="ask-deep" type="checkbox" /> Think deeper</label>
+    <div class="row buttons"><button type="submit" id="ask-send">Ask</button></div>
+  </form>
+  <p id="ask-answer" aria-live="polite"></p>
+</section>
+
 <section aria-labelledby="h-session">
   <h2 id="h-session">Session</h2>
   <div class="row">
@@ -48,10 +76,24 @@ const TEMPLATE = `
     <input id="pref-duration" type="number" min="3" max="15" step="1" inputmode="numeric" />
   </div>
   <div class="row">
-    <label for="pref-source">Microphone</label>
-    <select id="pref-source">
-      <option value="glasses">Glasses</option>
-      <option value="phone">Phone</option>
+    <label for="mode">Mode</label>
+    <select id="mode">
+      <option value="GLASSES_MIC">Glasses mic</option>
+      <option value="PHONE_MIC">Phone mic</option>
+      <option value="DISPLAY_ONLY">Display only</option>
+    </select>
+  </div>
+  <h3>Display</h3>
+  <div class="row">
+    <label for="pref-lines">Caption lines</label>
+    <select id="pref-lines">
+      <option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+    </select>
+  </div>
+  <div class="row">
+    <label for="pref-brightness">Text brightness</label>
+    <select id="pref-brightness">
+      <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
     </select>
   </div>
 </section>
@@ -99,7 +141,17 @@ export function mountPhoneUi(root: HTMLElement, app: App): () => void {
   const cues = $<HTMLInputElement>('#pref-cues');
   const popup = $<HTMLInputElement>('#pref-popup');
   const duration = $<HTMLInputElement>('#pref-duration');
-  const source = $<HTMLSelectElement>('#pref-source');
+  const mode = $<HTMLSelectElement>('#mode');
+  const lines = $<HTMLSelectElement>('#pref-lines');
+  const brightness = $<HTMLSelectElement>('#pref-brightness');
+  const relayState = $('#relay-state');
+  const relayStatus = $('#relay-status');
+  const relayUrl = $<HTMLInputElement>('#relay-url');
+  const relayKey = $<HTMLInputElement>('#relay-key');
+  const askQ = $<HTMLInputElement>('#ask-q');
+  const askDeep = $<HTMLInputElement>('#ask-deep');
+  const askSend = $<HTMLButtonElement>('#ask-send');
+  const askAnswer = $('#ask-answer');
   const notes = $<HTMLUListElement>('#notes');
   const noteId = $<HTMLInputElement>('#note-id');
   const noteTitle = $<HTMLInputElement>('#note-title');
@@ -128,7 +180,23 @@ export function mountPhoneUi(root: HTMLElement, app: App): () => void {
       cueDurationMillis: (Number(duration.value) || 6) * 1000,
     });
   for (const el of [captions, cues, popup, duration]) el.addEventListener('change', savePrefs);
-  source.addEventListener('change', () => void app.setAudioSource(source.value === 'phone' ? 'phone' : 'glasses'));
+  mode.addEventListener('change', () => void app.setMode(mode.value));
+  lines.addEventListener('change', () => void app.updatePrefs({ captionLines: Number(lines.value) }));
+  brightness.addEventListener('change', () => void app.updatePrefs({ brightness: Number(brightness.value) }));
+
+  $<HTMLFormElement>('#relay-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = relayKey.value;
+    relayKey.value = '';
+    void app.setRelay(relayUrl.value, key);
+  });
+  $('#relay-test').addEventListener('click', () => void app.testRelay());
+  $<HTMLFormElement>('#ask-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const question = askQ.value.trim();
+    if (question === '') return;
+    void app.ask(question, askDeep.checked);
+  });
 
   const resetNoteForm = () => {
     noteId.value = '';
@@ -183,7 +251,18 @@ export function mountPhoneUi(root: HTMLElement, app: App): () => void {
     cues.checked = s.prefs.cuesOn;
     popup.checked = s.prefs.autoPopup;
     if (document.activeElement !== duration) duration.value = String(Math.round(s.prefs.cueDurationMillis / 1000));
-    source.value = s.audioSource;
+    mode.value = s.mode;
+    lines.value = String(s.prefs.captionLines);
+    brightness.value = String(s.prefs.brightness);
+    relayState.textContent = s.relayConfigured
+      ? 'Relay saved on this phone.'
+      : 'No relay yet: add your helix-relay URL and key for dashboards, reminders and Ask.';
+    relayState.className = s.relayConfigured ? 'ok' : 'warn';
+    if (document.activeElement !== relayUrl && relayUrl.value === '') relayUrl.value = s.relayUrl;
+    relayStatus.textContent = s.relayStatus ?? '';
+    askSend.disabled = s.askBusy;
+    askSend.textContent = s.askBusy ? 'Asking...' : 'Ask';
+    askAnswer.textContent = s.askAnswer;
 
     const notesKey = JSON.stringify(s.prepNotes);
     if (notesKey !== lastNotesKey) {

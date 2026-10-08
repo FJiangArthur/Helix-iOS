@@ -51,6 +51,9 @@ export const KEYS = {
   prefs: 'helix.prefs',
   prepNotes: 'helix.prepNotes',
   audioSource: 'helix.audioSource',
+  mode: 'helix.mode',
+  relayUrl: 'helix.relayUrl',
+  relayKey: 'helix.relayKey',
 } as const;
 
 export const PREP_NOTE_MAX_CHARS = 5_000;

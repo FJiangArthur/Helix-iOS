@@ -45,6 +45,24 @@ npm run build     # tsc --noEmit && vite build -> dist/
 
 Without a key a session still starts and the lens shows a one-line prompt.
 
+### 0.3: dashboards, reminders, Ask, modes (contract `conversate-core/CONTRACT-0.3.md`)
+
+1. Run `relay/helix-relay` on your Mac and expose it with Tailscale Serve
+   (`https://<mac>.<tailnet>.ts.net`). Keep Tailscale on on the phone.
+2. Phone page → **Helix relay**: paste the URL and relay key, **Save relay**, then
+   **Test connection** (`/health` + an authenticated `/dashboard`). The key is
+   stored only on the phone and never shown again.
+3. The idle lens becomes a dashboard summary (reminders, briefing, next to-do, top
+   headline). Menu → **News / X posts / To-dos / Omi** opens a panel; tap a to-do to
+   check it off (PATCH to Omi through the relay). While Helix Live is open the app
+   polls `/reminders` every 5 min: a NOTE cue when live, a home line when idle.
+4. **Ask ChatGPT**: the phone Ask box, or menu → Ask on the glasses (speak; the next
+   final transcript is the question). Answers stream from the relay (`/ask`); with no
+   relay configured the OpenAI key answers instead.
+5. **Mode** (phone or glasses): Glasses mic / Phone mic / Display only (no mic except
+   while Ask listens). **Display**: caption lines 2–5, cue time, text brightness 1–4,
+   captions on/off.
+
 ## Develop on a device (sideload)
 
 ```bash
@@ -84,4 +102,10 @@ site, then open it from the Even app on the phone paired with your G2.
 ## Permissions
 
 `g2-microphone`, `phone-microphone`, and `network` restricted to
-`https://api.openai.com` and `wss://api.openai.com` (`app.json`).
+`https://api.openai.com`, `wss://api.openai.com` and `https://*.ts.net` (`app.json`).
+
+The relay origin is user-specific, so the whitelist uses the Tailscale wildcard
+`https://*.ts.net` (`evenhub pack` 0.1.14 accepts it: its schema is any string).
+Whether the Even app enforces the whitelist with wildcard matching is not verified
+on hardware; if relay calls are blocked, replace the entry with your exact origin
+(e.g. `https://my-mac.tail1234.ts.net`) before `npm run pack`.

@@ -2,7 +2,7 @@
   "package_id": "com.artjiang.helixconversate",
   "edition": "202601",
   "name": "Helix Live",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "min_sdk_version": "0.0.14",
   "entrypoint": "index.html",
   "permissions": [
@@ -16,8 +16,8 @@
     },
     {
       "name": "network",
-      "desc": "Sends audio and transcript text to OpenAI, using your own API key, for transcription and cues.",
-      "whitelist": ["https://api.openai.com", "wss://api.openai.com"]
+      "desc": "Sends audio and transcript text to OpenAI, using your own API key, for transcription and cues; reads news, to-dos and reminders and sends Ask questions to your own Helix relay on your Tailscale network.",
+      "whitelist": ["https://api.openai.com", "wss://api.openai.com", "https://*.ts.net"]
     }
   ],
   "supported_languages": ["en"]

@@ -31,6 +31,10 @@ const models: Record<string, ScreenModel> = {
   bigMenu: { kind: 'Menu', title: 'PREP NOTE', items: Array.from({ length: 25 }, (_, i) => `Note ${i} ${'y'.repeat(80)}`), cursor: 21 },
   prep: { kind: 'PrepNoteView', title: 'Acme', text: longText, page: 1 },
   confirm: { kind: 'ConfirmEnd' },
+  panel: { kind: 'Panel', title: 'TO-DO', items: ['[ ] Send Q3 churn deck to Sam', '[x] Book dentist'], cursor: 1 },
+  bigPanel: { kind: 'Panel', title: 'NEWS', items: Array.from({ length: 30 }, (_, i) => `Headline ${i} ${'é'.repeat(70)}`), cursor: 17 },
+  panelDetail: { kind: 'PanelDetail', title: 'Fed holds rates steady', text: longText, page: 1 },
+  ask: { kind: 'Ask' },
 };
 
 describe('renderPage', () => {
@@ -116,9 +120,61 @@ describe('renderPage', () => {
   });
 });
 
+describe('renderPage 0.3 (panels, ask, display prefs)', () => {
+  it('panel shows title + counter header and a > cursor on the selected row', () => {
+    const r = renderPage(models.panel!, { menu: liveMenu });
+    const lines = r.page.textObject![0]!.content!.split('\n');
+    expect(lines[0]).toMatch(/^TO-DO\s+2\/2$/);
+    expect(lines[1]).toBe('  [ ] Send Q3 churn deck to Sam');
+    expect(lines[2]).toBe('> [x] Book dentist');
+  });
+
+  it('panel cursor moves are upgrades', () => {
+    const p = models.panel as Extract<ScreenModel, { kind: 'Panel' }>;
+    const first = renderPage(p, { menu: liveMenu });
+    expect(renderPage({ ...p, cursor: 0 }, { menu: liveMenu, previous: first }).kind).toBe('upgrade');
+  });
+
+  it('big panel scrolls to the window holding the cursor', () => {
+    const text = renderPage(models.bigPanel!, { menu: liveMenu }).page.textObject![0]!.content!;
+    expect(text).toContain('18/30');
+    expect(text).toContain('> Headline 17');
+  });
+
+  it('panel detail is paged with the title on the first page and a footer', () => {
+    const first = renderPage({ kind: 'PanelDetail', title: 'Fed', text: longText, page: 0 }, { menu: liveMenu });
+    const content = first.page.textObject![0]!.content!;
+    expect(content.startsWith('Fed\n')).toBe(true);
+    expect(content).toMatch(/\[1\/\d+\]$/);
+  });
+
+  it('ask screen says it is listening', () => {
+    expect(renderPage({ kind: 'Ask' }, { menu: liveMenu }).page.textObject![0]!.content).toContain('Ask: listening...');
+  });
+
+  it('captionLines caps caption rows in captions-only and pending layouts', () => {
+    const many = live({ captionLines: ['a', 'b', 'c', 'd', 'e', 'f'] });
+    expect(renderPage(many, { menu: liveMenu, captionLines: 2 }).page.textObject![0]!.content).toBe('e\nf');
+    const pending = live({ captionLines: ['a', 'b', 'c'], pendingCount: 1 });
+    expect(renderPage(pending, { menu: liveMenu, captionLines: 2 }).page.textObject![0]!.content).toBe('* 1 new cue\nb\nc');
+  });
+
+  it('brightness sets textColor on every text container and a change rebuilds', () => {
+    for (const model of Object.values(models)) {
+      const r = renderPage(model, { menu: liveMenu, brightness: 2 });
+      expect(validatePage(r.page)).toEqual({ valid: true });
+      for (const t of r.page.textObject ?? []) expect(t.textColor).toBe(2);
+    }
+    const first = renderPage(live(), { menu: liveMenu, brightness: 2 });
+    expect(renderPage(live(), { menu: liveMenu, brightness: 4, previous: first }).kind).toBe('rebuild');
+  });
+});
+
 describe('context menu', () => {
-  it('maps menu.json live items to stable non-zero ids, hiding system-owned ones', () => {
-    expect(liveMenu.menuItems!.map((i) => i.itemName)).toEqual(['Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'End session']);
+  it('maps the first 10 menu.json live items to stable non-zero ids (contract 0.3 §1)', () => {
+    expect(liveMenu.menuItems!.map((i) => i.itemName)).toEqual([
+      'Pause', 'Captions: on', 'Cues: on', 'Prep Note', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode',
+    ]);
     const ids = liveMenu.menuItems!.map((i) => i.itemID);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => Number.isInteger(id) && id! > 0)).toBe(true);
@@ -129,7 +185,7 @@ describe('context menu', () => {
 
   it('idle context menu offers Start session', () => {
     const idle = buildContextMenu(menu, false, liveFlags);
-    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start session']);
+    expect(idle.menuItems!.map((i) => i.itemName)).toEqual(['Start session', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode', 'Display']);
     expect(menuIdForItem(idle.menuItems![0]!.itemID!)).toBe('start');
   });
 

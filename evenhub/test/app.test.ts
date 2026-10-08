@@ -76,7 +76,7 @@ describe('App', () => {
     expect(create).toBeDefined();
     const page = create!.arg as CreateStartUpPageContainer;
     expect(validatePage(page)).toEqual({ valid: true });
-    expect(page.menuObject!.menuItems!.map((i) => i.itemName)).toEqual(['Start session']);
+    expect(page.menuObject!.menuItems!.map((i) => i.itemName)).toEqual(['Start session', 'Ask ChatGPT', 'News', 'X posts', 'To-dos', 'Omi', 'Mode', 'Display']);
     expect(bridge.listener).not.toBeNull();
     expect(bridge.of('rebuild')).toEqual([]);
   });
@@ -95,7 +95,7 @@ describe('App', () => {
     expect(bridge.of('audio').at(-1)).toEqual({ fn: 'audio', arg: true, arg2: AudioInputSource.Glasses });
     const livePage = bridge.of('rebuild').at(-1)!.arg as RebuildPageContainer;
     expect(validatePage(livePage)).toEqual({ valid: true });
-    expect(livePage.menuObject!.menuItems!.map((i) => i.itemName)).toContain('End session');
+    expect(livePage.menuObject!.menuItems!.map((i) => i.itemName)).toContain('Mode');
   });
 
   it('streams audio frames to the transcriber and captions via throttled upgrades', async () => {
@@ -195,7 +195,7 @@ describe('App', () => {
     bridge.gesture(OsEventTypeList.SCROLL_BOTTOM_EVENT, EventSourceType.TOUCH_EVENT_FROM_RING);
     bridge.gesture(OsEventTypeList.SCROLL_BOTTOM_EVENT, EventSourceType.TOUCH_EVENT_FROM_GLASSES_R);
     await flush();
-    expect(app.state.preview).toContain('2/6');
+    expect(app.state.preview).toContain('2/13');
   });
 
   it('missing key: session starts, lens shows a prompt, no mic, no crash', async () => {
@@ -266,6 +266,15 @@ describe('App', () => {
     tx.onSegment!({ itemId: 'a', text: 'hi', isFinal: false, role: 'other' });
     await flush();
     expect(bridge.of('rebuild').length).toBe(1);
+  });
+
+  it('brightness and caption lines from prefs reach the lens', async () => {
+    await boot();
+    await app.updatePrefs({ brightness: 1, captionLines: 9 });
+    await flush();
+    expect(app.state.prefs.captionLines).toBe(5);
+    const page = bridge.of('rebuild').at(-1)!.arg as RebuildPageContainer;
+    expect(page.textObject!.every((t) => t.textColor === 1)).toBe(true);
   });
 
   it('persists prefs and prep notes, capping note length', async () => {
