@@ -81,7 +81,7 @@ export class OmiMcpClient {
       {},
     );
     unwrap(init.msg);
-    const session = init.sessionId ? { 'mcp-session-id': init.sessionId } : {};
+    const session: Record<string, string> = init.sessionId ? { 'mcp-session-id': init.sessionId } : {};
     await this.post({ method: 'notifications/initialized' }, { ...base, ...session }, true);
     const call = await this.post({ method: 'tools/call', params: { name, arguments: args } }, { ...base, ...session });
     return unwrap(call.msg);
