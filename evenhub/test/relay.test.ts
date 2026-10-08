@@ -10,6 +10,10 @@ describe('RelayClient', () => {
     expect(normalizeRelayUrl(' https://mac.ts.net/ ')).toBe('https://mac.ts.net');
     expect(normalizeRelayUrl('mac.ts.net')).toBe('https://mac.ts.net');
     expect(normalizeRelayUrl('ftp://x')).toBeNull();
+    // Security: the bearer key never travels in cleartext except to loopback.
+    expect(normalizeRelayUrl('http://mac.example.com:8790')).toBeNull();
+    expect(normalizeRelayUrl('http://127.0.0.1:8790')).toBe('http://127.0.0.1:8790');
+    expect(normalizeRelayUrl('http://localhost:8790')).toBe('http://localhost:8790');
     expect(normalizeRelayUrl('')).toBeNull();
   });
 

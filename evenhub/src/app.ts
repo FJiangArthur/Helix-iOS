@@ -380,13 +380,19 @@ export class App {
     const trimmed = rawUrl.trim();
     const url = trimmed === '' ? null : normalizeRelayUrl(trimmed);
     if (trimmed !== '' && url === null) {
-      this.patch({ relayStatus: 'Relay URL is not valid (use https://<mac>.<tailnet>.ts.net)' });
+      this.patch({ relayStatus: 'Relay URL is not valid (use https://<mac>.<tailnet>.ts.net; plain http is not allowed)' });
       return;
     }
     const k = key.trim();
-    if (k !== '' || url === null) this.relayKey = k === '' ? null : k;
+    // Security: the stored key belongs to the relay origin it was entered for;
+    // a different host without a newly typed key drops it, so a mistyped or
+    // hostile URL never receives the relay key.
+    const previous = this.state.relayUrl ? normalizeRelayUrl(this.state.relayUrl) : null;
+    const originChanged = url !== null && previous !== null && new URL(url).origin !== new URL(previous).origin;
+    const replaceKey = k !== '' || url === null || originChanged;
+    if (replaceKey) this.relayKey = k === '' ? null : k;
     await this.deps.store.set(KEYS.relayUrl, url ?? '');
-    if (k !== '' || url === null) await this.deps.store.set(KEYS.relayKey, this.relayKey ?? '');
+    if (replaceKey) await this.deps.store.set(KEYS.relayKey, this.relayKey ?? '');
     this.relayClient = this.makeRelayClient(url);
     this.dashboard.reset();
     this.homeReminders = [];

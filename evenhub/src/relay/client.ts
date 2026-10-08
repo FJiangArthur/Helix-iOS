@@ -53,6 +53,8 @@ export class RelayError extends Error {
 }
 
 /** `https://host/` -> `https://host`; bare host gets https; anything else null. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+
 export function normalizeRelayUrl(raw: string): string | null {
   let u = raw.trim();
   if (u === '') return null;
@@ -60,6 +62,9 @@ export function normalizeRelayUrl(raw: string): string | null {
   try {
     const parsed = new URL(u);
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    // Security: the bearer key never travels in cleartext, except to this
+    // device's own loopback (local development).
+    if (parsed.protocol === 'http:' && !LOOPBACK_HOSTS.has(parsed.hostname)) return null;
     return `${parsed.origin}${parsed.pathname.replace(/\/+$/, '')}`;
   } catch {
     return null;

@@ -434,6 +434,25 @@ describe('App with helix-relay (contract 0.3)', () => {
       expect(app.state.relayStatus).toMatch(/not valid/i);
     });
 
+    it('pointing at a different host without a new key drops the stored key', async () => {
+      const store = memoryStore({ [KEYS.apiKey]: 'k' });
+      await boot(store);
+      await app.setRelay(RELAY_URL, RELAY_KEY);
+      await app.setRelay('https://other.example.com', '');
+      await flush();
+      expect(store.data[KEYS.relayKey] ?? '').toBe('');
+      expect(app.state.relayConfigured).toBe(false);
+    });
+
+    it('re-saving the same relay with a blank key keeps the stored key', async () => {
+      const store = memoryStore({ [KEYS.apiKey]: 'k' });
+      await boot(store);
+      await app.setRelay(RELAY_URL, RELAY_KEY);
+      await app.setRelay(RELAY_URL + '/', '');
+      await flush();
+      expect(store.data[KEYS.relayKey]).toBe(RELAY_KEY);
+    });
+
     it('test connection hits /health', async () => {
       await boot();
       await app.testRelay();
