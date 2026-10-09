@@ -174,7 +174,7 @@ private fun RingSection(bridge: HelixBridge) {
         if (ringOn) {
             val status = when (state) {
                 RingLinkState.OFF -> "Off"
-                RingLinkState.CONNECTING -> "Connecting${name?.let { " to $it" } ?: ""}..."
+                RingLinkState.CONNECTING -> "Waiting for ${name ?: "ring"}: tap it to wake. If you own a G2, turn the G2 off - the ring links to it first."
                 RingLinkState.CONNECTED -> "Connected${name?.let { ": $it" } ?: ""}"
                 RingLinkState.NOT_FOUND -> "No paired R1 ring found. Pair it in the Even app first, then force-stop the Even app."
                 RingLinkState.NO_PERMISSION -> "Bluetooth permission needed."

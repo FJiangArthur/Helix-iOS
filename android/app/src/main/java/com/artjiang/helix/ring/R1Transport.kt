@@ -123,7 +123,11 @@ class R1Transport(
         nameFlow.value = runCatching { target.name }.getOrNull()
         stateFlow.value = RingLinkState.CONNECTING
         gatt?.let { runCatching { it.close() } }
-        gatt = target.connectGatt(appContext, false, callback, BluetoothDevice.TRANSPORT_LE)
+        // autoConnect = true: a background connect that waits for the ring to
+        // become reachable (woken, or released by the G2/Even app) instead of
+        // a direct attempt that times out after ~10 s (GATT status 147) — the
+        // ring sleeps between gestures, so direct attempts kept missing it.
+        gatt = target.connectGatt(appContext, true, callback, BluetoothDevice.TRANSPORT_LE)
     }
 
     private fun scheduleReconnect() {
