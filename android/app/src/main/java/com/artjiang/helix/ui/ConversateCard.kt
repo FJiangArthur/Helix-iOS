@@ -3,6 +3,12 @@ package com.artjiang.helix.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
@@ -29,9 +35,78 @@ import com.artjiang.helix.conversate.ConversatePrefs
 import com.artjiang.helix.conversate.HelixMode
 import com.artjiang.helix.ring.RingLinkState
 
-/** Assistant-tab control surface for Conversate (spec §5.5). */
+/**
+ * Assistant-tab Conversate bar: one compact row (status, Start/End, Controls).
+ * The full controls live in a scrollable bottom sheet so the conversation feed
+ * below keeps its space even on a narrow cover screen (the 0.3 card grew taller
+ * than the screen and pushed the feed to zero height).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversateCard(bridge: HelixBridge) {
+    val enabled by bridge.conversateEnabled.collectAsStateWithLifecycle()
+    val live by bridge.conversate.isLive.collectAsStateWithLifecycle()
+    val mode by bridge.helixMode.collectAsStateWithLifecycle()
+    val ringOn by bridge.ringEnabled.collectAsStateWithLifecycle()
+    val ringState by bridge.ringState.collectAsStateWithLifecycle()
+    var sheetOpen by remember { mutableStateOf(false) }
+
+    LinenCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Conversate", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    conversateSummary(enabled, live, mode, ringOn, ringState),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                )
+            }
+            if (enabled && !live && mode != HelixMode.DISPLAY_ONLY) {
+                TextButton(onClick = { bridge.startConversate(null) }) { Text("Start") }
+            } else if (enabled && live) {
+                TextButton(onClick = { bridge.endConversate() }) { Text("End") }
+            }
+            TextButton(onClick = { sheetOpen = true }) { Text("Controls") }
+        }
+    }
+    if (sheetOpen) {
+        ModalBottomSheet(onDismissRequest = { sheetOpen = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = HelixSpacing.screen)
+                    .padding(bottom = HelixSpacing.s24),
+                verticalArrangement = Arrangement.spacedBy(HelixSpacing.cardGap),
+            ) {
+                ConversateControls(bridge)
+            }
+        }
+    }
+}
+
+internal fun conversateSummary(
+    enabled: Boolean,
+    live: Boolean,
+    mode: HelixMode,
+    ringOn: Boolean,
+    ringState: RingLinkState,
+): String {
+    if (!enabled) return "Off - open Controls to turn on"
+    val session = if (live) "Live" else "Ready"
+    val ring = if (!ringOn) "" else when (ringState) {
+        RingLinkState.CONNECTED -> " · Ring connected"
+        RingLinkState.CONNECTING -> " · Ring waiting"
+        RingLinkState.NOT_FOUND -> " · Ring not paired"
+        RingLinkState.NO_PERMISSION -> " · Ring needs permission"
+        RingLinkState.OFF -> ""
+    }
+    return "$session · ${helixModeTitle(mode)}$ring"
+}
+
+/** Full Conversate controls (spec §5.5), shown in the Controls sheet. */
+@Composable
+private fun ConversateControls(bridge: HelixBridge) {
     val enabled by bridge.conversateEnabled.collectAsStateWithLifecycle()
     val live by bridge.conversate.isLive.collectAsStateWithLifecycle()
     val preview by bridge.conversate.hudPreview.collectAsStateWithLifecycle()
