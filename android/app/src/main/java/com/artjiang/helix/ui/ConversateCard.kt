@@ -161,6 +161,7 @@ private fun RingSection(bridge: HelixBridge) {
     val state by bridge.ringState.collectAsStateWithLifecycle()
     val name by bridge.ringName.collectAsStateWithLifecycle()
     val last by bridge.ringLastGesture.collectAsStateWithLifecycle()
+    val otherApp by bridge.ringOtherAppActive.collectAsStateWithLifecycle()
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { bridge.reconnectRing() }
@@ -181,6 +182,13 @@ private fun RingSection(bridge: HelixBridge) {
             }
             Text(status, style = MaterialTheme.typography.bodySmall)
             if (last.isNotEmpty()) Text("Last gesture: $last", style = MaterialTheme.typography.bodySmall)
+            if (otherApp) {
+                Text(
+                    "The Even app is also using the ring, so gestures may go to it. Force-stop or disable the Even app and turn the G2 off while using Helix.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             if (state == RingLinkState.NO_PERMISSION) {
                 OutlinedButton(onClick = { permissionLauncher.launch(bridge.bluetooth.requiredPermissions()) }) {
                     Text("Grant Bluetooth permission")

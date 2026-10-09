@@ -28,6 +28,15 @@ object R1Frame {
     fun pickRing(candidates: List<RingCandidate>): RingCandidate? =
         candidates.firstOrNull { it.bonded && isRingName(it.name) }
 
+    /**
+     * Command-session traffic (another app such as the Even app querying the
+     * ring): `00 <4-byte id> 64 01 64 <seq> 00 <dir> 00 <cmd> <len> 00 …`.
+     * Observed on device 2026-10-08 (firmware 2.3.0.0005). Never a gesture.
+     */
+    fun isCommandResponse(raw: ByteArray?): Boolean =
+        raw != null && raw.size >= 15 && u8(raw[0]) == 0x00 &&
+            u8(raw[5]) == 0x64 && u8(raw[6]) == 0x01 && u8(raw[7]) == 0x64
+
     /** `EVEN R1_<last 3 MAC bytes>` — the ring's advertised name. */
     fun isRingName(name: String?): Boolean = name?.startsWith("EVEN R1_") == true
 

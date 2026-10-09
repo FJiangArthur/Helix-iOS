@@ -814,6 +814,7 @@ class HelixBridge(
     val ringState: StateFlow<RingLinkState> = ring.state
     val ringName: StateFlow<String?> = ring.deviceName
     val ringLastGesture: StateFlow<String> = ring.lastGesture
+    val ringOtherAppActive: StateFlow<Boolean> = ring.otherAppActive
     val ringEnabled: StateFlow<Boolean> = settingsRepository.ringEnabled
         .stateIn(scope, SharingStarted.Eagerly, false)
 

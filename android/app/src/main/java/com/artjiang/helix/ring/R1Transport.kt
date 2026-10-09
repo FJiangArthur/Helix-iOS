@@ -58,6 +58,11 @@ class R1Transport(
     /** Last decoded gesture (or raw unknown frame) — for the phone UI / hardware checks. */
     val lastGesture: StateFlow<String> = lastGestureFlow.asStateFlow()
 
+    private val commandTrafficFlow = MutableStateFlow(false)
+
+    /** True once another app's command traffic was seen on the ring (the Even app is holding it). */
+    val otherAppActive: StateFlow<Boolean> = commandTrafficFlow.asStateFlow()
+
     /** Called on a binder thread; the caller hops to its own scope. */
     var onGesture: ((R1Gesture) -> Unit)? = null
 
@@ -82,6 +87,7 @@ class R1Transport(
     fun start() {
         if (running) return
         running = true
+        commandTrafficFlow.value = false
         backoffMillis = 1_000L
         connectOrSearch()
     }
@@ -171,11 +177,11 @@ class R1Transport(
 
         @Suppress("DEPRECATION")
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) characteristic.value?.let(::handleFrame)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) characteristic.value?.let { handleFrame(characteristic.uuid, it) }
         }
 
         override fun onCharacteristicChanged(g: BluetoothGatt, characteristic: BluetoothGattCharacteristic, value: ByteArray) {
-            handleFrame(value)
+            handleFrame(characteristic.uuid, value)
         }
     }
 
@@ -205,8 +211,18 @@ class R1Transport(
         }.getOrDefault(false)
     }
 
-    private fun handleFrame(raw: ByteArray) {
+    private fun handleFrame(source: UUID, raw: ByteArray) {
+        // Another app's command session (e.g. the Even app polling the ring):
+        // not a gesture and not worth surfacing as "unknown".
+        if (R1Frame.isCommandResponse(raw)) {
+            commandTrafficFlow.value = true
+            return
+        }
         val gesture = R1Frame.decode(raw)
+        // Ring frames carry no personal data; logging every one (channel +
+        // hex + decode) is how unknown firmware formats get mapped on device.
+        Log.i(TAG, "frame ch=${source.toString().substring(4, 8)} len=${raw.size} " +
+            "hex=${raw.joinToString(" ") { "%02X".format(it) }} -> ${gesture ?: "unknown"}")
         if (gesture == null) {
             lastGestureFlow.value = "unknown " + raw.joinToString(" ") { "%02X".format(it) }
             return

@@ -69,4 +69,14 @@ class R1FrameTest {
         assertNull(R1Frame.pickRing(listOf(spoofed, glasses)))
         assertEquals(mine, R1Frame.pickRing(listOf(spoofed, glasses, mine)))
     }
+
+    @Test
+    fun `Even app command-session responses are recognised and never decoded as gestures`() {
+        // Captured on device 2026-10-08 while com.even.sg held the ring.
+        val response = bytes(0x00, 0xE4, 0xF3, 0x54, 0x3B, 0x64, 0x01, 0x64, 0x0E, 0x00, 0x03, 0x00, 0x0A, 0x0C, 0x00, 0xB7, 0xEB)
+        assertTrue(R1Frame.isCommandResponse(response))
+        assertNull(R1Frame.decode(response))
+        assertFalse(R1Frame.isCommandResponse(bytes(0x00, 0x09, 0x61, 0x00, 0x01, 0, 0, 0x10, 0x20, 0x30, 0x40)))
+        assertFalse(R1Frame.isCommandResponse(bytes(0xFF, 0x04, 0x01)))
+    }
 }
