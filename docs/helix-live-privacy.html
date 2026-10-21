@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Helix Live (Even Hub app)</title>
+<style>
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px; color: #222; background: #fff; }
+  h1 { font-size: 1.6em; } h2 { font-size: 1.2em; margin-top: 1.6em; }
+  table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+  @media (prefers-color-scheme: dark) { body { color: #e6e6e6; background: #111; } td, th { border-color: #444; } }
+</style>
+</head>
+<body>
+<h1>Privacy Policy — Helix Live</h1>
+<p><em>Effective 6 October 2026. Applies to the Helix Live app for Even G2 glasses distributed through Even Hub (package <code>com.artjiang.helixconversate</code>).</em></p>
+
+<h2>Summary</h2>
+<p>Helix Live shows live captions and short AI cues on your glasses during a conversation. It has <strong>no servers of its own</strong>. Audio and transcript text go directly from your phone to OpenAI, using <strong>your own OpenAI API key</strong>, only while a session is running. Nothing is sold, shared with advertisers or used for analytics.</p>
+
+<h2>Permissions and why they are used</h2>
+<table>
+<tr><th>Permission</th><th>Use</th></tr>
+<tr><td><code>g2-microphone</code></td><td>Captures conversation audio from the glasses microphones while a session is running, to produce live captions and cues.</td></tr>
+<tr><td><code>phone-microphone</code></td><td>Optional alternative audio source (you choose Glasses or Phone on the settings page). Same use as above.</td></tr>
+<tr><td><code>network</code> (<code>api.openai.com</code> only)</td><td>Sends audio for transcription and transcript text for cue and answer generation to OpenAI. No other domain is contacted.</td></tr>
+</table>
+
+<h2>What data is processed</h2>
+<ul>
+  <li><strong>Audio</strong> — streamed to OpenAI's transcription API during a session. Helix Live does not record or store audio.</li>
+  <li><strong>Transcript text</strong> — the last minute of conversation (and your optional Prep Note) is sent to OpenAI to generate cues and answers. Transcripts are kept only in memory for the running session.</li>
+  <li><strong>Your OpenAI API key, Prep Notes and settings</strong> — stored only on your phone, in the Even Realities app's local storage for this app. They are never sent anywhere except the key, which is sent to <code>api.openai.com</code> to authorise your requests.</li>
+</ul>
+
+<h2>Third parties</h2>
+<p>OpenAI processes the audio and text you send under its own terms and privacy policy (<a href="https://openai.com/policies/privacy-policy">openai.com/policies/privacy-policy</a>), associated with your OpenAI account. The Even Realities app hosts Helix Live and relays glasses input and audio; see Even Realities' privacy policy for how it handles data.</p>
+
+<h2>Data retention and deletion</h2>
+<p>Helix Live keeps no data off your phone. Ending a session discards its transcript. To delete your key, Prep Notes and settings, clear them on the app's settings page or uninstall the app.</p>
+
+<h2>Children</h2>
+<p>Helix Live is not directed at children under 13.</p>
+
+<h2>Contact</h2>
+<p>Questions or requests: open an issue at <a href="https://github.com/FJiangArthur/Helix-iOS/issues">github.com/FJiangArthur/Helix-iOS/issues</a>.</p>
+</body>
+</html>
